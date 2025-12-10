@@ -745,7 +745,7 @@ func (p *Profile) ListAllVersionStates() {
 		p.InstancesLock.Lock()
 		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
-			fmt.Printf("  - %+v\n", instance.ContainerID)
+			fmt.Printf("  - %+v\n", instance.ContainerContext.ContainerID)
 		}
 
 	}

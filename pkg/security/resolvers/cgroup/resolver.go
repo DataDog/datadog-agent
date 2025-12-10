@@ -147,10 +147,10 @@ func (cr *Resolver) Start(_ context.Context) {
 }
 
 func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
-	cr.cgroups.Remove(cgroup.CGroupFile.Inode)
-	cr.hostWorkloads.Remove(cgroup.CGroupID)
-	if cgroup.ContainerID != "" {
-		cr.containerWorkloads.Remove(cgroup.ContainerID)
+	cr.cgroups.Remove(cgroup.CGroupContext.CGroupFile.Inode)
+	cr.hostWorkloads.Remove(cgroup.CGroupContext.CGroupID)
+	if cgroup.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Remove(cgroup.ContainerContext.ContainerID)
 	}
 	cr.deletedCgroups.Inc()
 }
@@ -186,7 +186,7 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 // currentCgroup already locked
 func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
 	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
-		if cgroup.CGroupFile.Inode == currentCgroup.CGroupFile.Inode {
+		if cgroup.CGroupContext.CGroupFile.Inode == currentCgroup.CGroupContext.CGroupFile.Inode {
 			return false
 		}
 		cgroup.Lock()
@@ -207,7 +207,7 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
 	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext.ContainerID, &process.CGroup, process.Pid)
-	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
+	newCGroup.ContainerContext.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
 	if process.ContainerContext.ContainerID != "" {
@@ -297,7 +297,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	found := false
 	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
 		cgroup.Lock()
-		if cgroup.CGroupFile.Inode == process.CGroup.CGroupFile.Inode {
+		if cgroup.CGroupContext.CGroupFile.Inode == process.CGroup.CGroupFile.Inode {
 			cgroup.PIDs[process.Pid] = true
 			found = true
 		} else if _, exist := cgroup.PIDs[process.Pid]; exist {
@@ -316,16 +316,14 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 }
 
 // GetCGroupContext returns the cgroup context with the specified path key
-func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupContext, bool) {
+func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (model.CGroupContext, bool) {
 	cr.Lock()
 	defer cr.Unlock()
 
 	if cgroupContext, found := cr.cgroups.Get(cgroupPath.Inode); found {
-		// Return a copy to avoid race conditions when dereferencing the shared pointer
-		cgroupContextCopy := *cgroupContext
-		return &cgroupContextCopy, true
+		return *cgroupContext, true
 	}
-	return nil, false
+	return model.CGroupContext{}, false
 }
 
 // Iterate iterates on all cached cgroups, callback may return 'true' to break iteration
