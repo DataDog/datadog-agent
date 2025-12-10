@@ -1002,7 +1002,17 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext mo
 		return n, err
 	}
 
-	entry.Process.CGroup = cgroupContext
+	// Important : ev.ProcessContext is populated from the unmarshaling of the event.
+
+	if !cgroupContext.CGroupFile.IsNull() {
+		cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupContext.CGroupFile)
+		if err != nil {
+			return n, err
+		}
+		p.Resolvers.ProcessResolver.SetProcessCGroupContext(entry, cgroupContext)
+	} else {
+		seclog.Debugf("no cgroup file available for process %d", entry.Pid)
+	}
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1071,14 +1081,14 @@ func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
 	p.eventPool.Put(event)
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
+		return cgroupContext, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
 	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
 	if !updated {
-		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+		return cgroupContext, fmt.Errorf("failed to update cgroup for pid %d", pid)
 	}
 
 	return cgroupContext, nil
@@ -1674,7 +1684,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
+<<<<<<< HEAD
 			event.CgroupTracing.CGroupContext = *cgroupContext
+=======
+			event.CgroupTracing.CGroupContext = cgroupContext
+			event.ProcessContext.Process.CGroup = cgroupContext
+>>>>>>> 014cbc4e29f (Revert "Revert "[CWS] remove cgroup pointers" (#44065)")
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
