@@ -188,7 +188,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 	}
 
-	if withDatadogAutoscaling {
+	if withDatadogAutoscaling && e.AgentDeploy() {
 		ddm, err := apiextensions.NewCustomResource(e.Ctx(), namespace+"/nginx", &apiextensions.CustomResourceArgs{
 			ApiVersion: pulumi.String("datadoghq.com/v1alpha1"),
 			Kind:       pulumi.String("DatadogMetric"),
