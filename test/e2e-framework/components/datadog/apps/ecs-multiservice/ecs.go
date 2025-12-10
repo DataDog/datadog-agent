@@ -33,6 +33,7 @@ import (
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
+	classicECS "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
 	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
 	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -229,8 +230,8 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			},
 			NetworkMode: pulumi.StringPtr("bridge"),
 			Family:      e.CommonNamer().DisplayName(255, pulumi.ToStringArray([]string{"ecs-multiservice", "ec2"})...),
-			Volumes: ecs.TaskDefinitionVolumeArray{
-				ecs.TaskDefinitionVolumeArgs{
+			Volumes: classicECS.TaskDefinitionVolumeArray{
+				classicECS.TaskDefinitionVolumeArgs{
 					Name:     pulumi.String("apmsocketpath"),
 					HostPath: pulumi.StringPtr("/var/run/datadog"),
 				},
