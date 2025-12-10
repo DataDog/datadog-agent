@@ -7,9 +7,10 @@
 package drain
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"os"
+	"slices"
 
 	"go.uber.org/fx"
 
@@ -22,7 +23,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -33,14 +33,14 @@ type CliParams struct {
 	// InputFilePath represents the path to the input log file.
 	InputFilePath string
 
-	// OutputFilePath represents the path to the output file (optional, defaults to stdout).
-	OutputFilePath string
-
 	// Threshold represents the cluster size threshold for filtering logs.
 	Threshold int
 
-	// TrainFirst indicates whether to train the drain processor on all logs before filtering.
-	TrainFirst bool
+	// ScoreThreshold represents the score threshold for filtering logs (if set, overrides Threshold).
+	ScoreThreshold *float64
+
+	// ProgressiveTraining indicates whether to train the drain processor on all logs before filtering.
+	ProgressiveTraining bool
 
 	// LogClusterDepth represents the depth of the log cluster tree.
 	LogClusterDepth int
@@ -58,13 +58,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 
+	var scoreThreshold float64
 	cmd := &cobra.Command{
 		Use:   "drain [filepath]",
 		Short: "Filter logs using drain processor",
-		Long:  `Read logs from a file, apply drain filtering, and write filtered results to output`,
+		Long:  `Read logs from a file, apply drain filtering, and write filtered results to stdout`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.InputFilePath = args[0]
+			// Set ScoreThreshold pointer if flag was provided
+			if scoreThreshold > 0 {
+				cliParams.ScoreThreshold = &scoreThreshold
+			}
 			bundleParams := command.GetDefaultCoreBundleParams(cliParams.GlobalParams)
 			// Enable logging at info level
 			bundleParams.LogParams = log.ForOneShot(command.LoggerName, "info", true)
@@ -76,9 +81,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVarP(&cliParams.OutputFilePath, "output", "o", "", "Output file path (default: stdout)")
 	cmd.Flags().IntVarP(&cliParams.Threshold, "threshold", "t", 10, "Cluster size threshold for filtering logs (default: 10)")
-	cmd.Flags().BoolVarP(&cliParams.TrainFirst, "train-first", "", false, "Train the drain processor on all logs before filtering")
+	cmd.Flags().Float64Var(&scoreThreshold, "score-threshold", 0, "Score threshold for filtering logs (if set, overrides threshold)")
+	cmd.Flags().BoolVarP(&cliParams.ProgressiveTraining, "progressive-training", "", true, "Train the drain processor progressively on logs before filtering")
 	cmd.Flags().IntVar(&cliParams.LogClusterDepth, "log-cluster-depth", 4, "Depth of the log cluster tree (default: 4)")
 	cmd.Flags().Float64Var(&cliParams.SimTh, "sim-th", 0.4, "Similarity threshold for clustering (default: 0.4)")
 	cmd.Flags().IntVar(&cliParams.MaxChildren, "max-children", 100, "Maximum number of children in the cluster tree (default: 100)")
@@ -86,43 +91,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-// runDrain reads the input file, applies drain filtering, and writes filtered logs to output.
-func runDrain(lc log.Component, config config.Component, cliParams *CliParams) error {
-	threshold := cliParams.Threshold
-	trainFirst := cliParams.TrainFirst
-
-	// Open input file
-	inputFile, err := os.Open(cliParams.InputFilePath)
-	if err != nil {
-		return fmt.Errorf("error opening input file %s: %w", cliParams.InputFilePath, err)
-	}
-	defer inputFile.Close()
-
-	// Determine output destination
-	var outputFile *os.File
-	var outputWriter *bufio.Writer
-	if cliParams.OutputFilePath != "" {
-		if err = filesystem.EnsureParentDirsExist(cliParams.OutputFilePath); err != nil {
-			return fmt.Errorf("error creating directory for file %s: %w", cliParams.OutputFilePath, err)
-		}
-
-		lc.Infof("Opening file %s for writing filtered logs", cliParams.OutputFilePath)
-		outputFile, outputWriter, err = filesystem.OpenFileForWriting(cliParams.OutputFilePath)
-		if err != nil {
-			return fmt.Errorf("error opening file %s for writing: %w", cliParams.OutputFilePath, err)
-		}
-		defer func() {
-			if outputWriter != nil {
-				if err := outputWriter.Flush(); err != nil {
-					lc.Errorf("Error flushing buffer: %v", err)
-				}
-			}
-			if outputFile != nil {
-				outputFile.Close()
-			}
-		}()
-	}
-
+// runDrain reads the input file, applies drain filtering, and writes filtered logs to stdout.
+func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error {
 	// Create drain processor
 	drainProcessor := processor.NewDrainProcessor("drain-command", &drain.Config{
 		LogClusterDepth: cliParams.LogClusterDepth,
@@ -131,73 +101,85 @@ func runDrain(lc log.Component, config config.Component, cliParams *CliParams) e
 		ParamString:     "<*>",
 	})
 
-	// Read and process file line by line
-	scanner := bufio.NewScanner(inputFile)
-	lineNumber := 0
+	// Read entire file and split by line feeds
+	fileContent, err := os.ReadFile(cliParams.InputFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading input file %s: %w", cliParams.InputFilePath, err)
+	}
+
+	// Split by line feeds
+	lines := bytes.Split(fileContent, []byte("\n"))
 	processedCount := 0
 	filteredCount := 0
 
-	lines := make([][]byte, 0)
-	for scanner.Scan() {
-		lineNumber++
-		line := scanner.Bytes()
-		lines = append(lines, line)
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading input file: %w", err)
-	}
-
-	// Train first
-	if trainFirst {
+	if !cliParams.ProgressiveTraining {
+		// Train first
 		for _, line := range lines {
 			tokens := processor.DrainTokenize(line)
 			drainProcessor.Train(tokens)
 		}
 	}
 
+	// If trained first, we can compute accurate stats about cluster distribution
+	clusters := drainProcessor.Clusters()
+	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
+		return a.Size() - b.Size()
+	})
+	totalSize := 0.0
+	for _, cluster := range clusters {
+		totalSize += float64(cluster.Size())
+	}
+
 	// Inference
 	for _, line := range lines {
 		tokens := processor.DrainTokenize(line)
 		cluster := drainProcessor.Match(tokens)
-		if !trainFirst {
+		if cliParams.ProgressiveTraining {
 			drainProcessor.Train(tokens)
 		}
 		s := 0
 		if cluster != nil {
 			s = cluster.Size()
 		}
-		toIgnore := s >= threshold
 
-		// Write non-filtered lines to output
-		if !toIgnore {
-			processedCount++
-			if outputWriter != nil {
-				// Write to file
-				if _, err := outputWriter.Write(line); err != nil {
-					return fmt.Errorf("error writing to output file: %w", err)
-				}
-				if _, err := outputWriter.WriteString("\n"); err != nil {
-					return fmt.Errorf("error writing newline to output file: %w", err)
-				}
-			} else {
-				// Write to stdout
-				fmt.Println(string(line))
+		// The score is ~how many logs are less similar than this log
+		score := 0.0
+		for _, cluster := range clusters {
+			if s >= cluster.Size() {
+				score += float64(cluster.Size())
 			}
+		}
+		if totalSize > 0 {
+			score /= totalSize
+		}
+
+		// Filter by score threshold if set, otherwise use size threshold
+		var toIgnore bool
+		if cliParams.ScoreThreshold != nil && *cliParams.ScoreThreshold > 0 {
+			toIgnore = score >= *cliParams.ScoreThreshold
 		} else {
+			toIgnore = s >= cliParams.Threshold
+		}
+
+		// Write non-filtered lines to stdout
+		if toIgnore {
 			filteredCount++
+		} else {
+			processedCount++
+			fmt.Println(string(line))
 		}
 	}
 
-	// Flush output buffer if writing to file
-	if outputWriter != nil {
-		if err := outputWriter.Flush(); err != nil {
-			return fmt.Errorf("error flushing output buffer: %w", err)
-		}
+	fmt.Println("--------------------------------")
+	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
+		return b.Size() - a.Size()
+	})
+	fmt.Println("Top 10 clusters:")
+	for i, cluster := range clusters[:10] {
+		fmt.Printf("Cluster %d: %s\n", i+1, cluster.String())
 	}
 
-	drainProcessor.ShowClusters()
-
-	lc.Infof("Processed %d lines: %d written, %d filtered (%f%%)", lineNumber, processedCount, filteredCount, float64(filteredCount)/float64(lineNumber)*100)
+	fmt.Printf("Processed %d lines: filtered %f%%\n", len(lines), float64(filteredCount)/float64(len(lines))*100)
 
 	return nil
 }

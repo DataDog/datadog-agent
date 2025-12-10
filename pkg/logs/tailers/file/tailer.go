@@ -256,7 +256,7 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprinter:    fingerprinter,
 		Registry:         registry,
 		FileOpener:       t.fileOpener,
-		PipelineProvider: t.pipelineProvider,
+		PipelineProvider: pipelineProvider,
 	}
 
 	return NewTailer(options)

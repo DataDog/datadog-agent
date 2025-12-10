@@ -145,7 +145,8 @@ const (
 	drainTokenSpaces = " \t\n\r"
 	// Delimiters are non spaces we want to use to split tokens but we want to keep them at the end of each token
 	// TODO: Keep points? Commas?
-	drainTokenDelimiters = ":-._;/\\.,'\"`~*+=()[]{}&!@#$%^"
+	// drainTokenDelimiters = ":-._;/\\.,'\"`~*+=()[]{}&!@#$%^"
+	drainTokenDelimiters = "[](){},;."
 )
 
 // TODO: Array of array of bytes?
@@ -180,4 +181,8 @@ func DrainTokenize(msg []byte) []string {
 		tokens = append(tokens, string(token))
 	}
 	return tokens
+}
+
+func (d *DrainProcessor) Clusters() []*drain.LogCluster {
+	return d.drainProcessor.Clusters()
 }
