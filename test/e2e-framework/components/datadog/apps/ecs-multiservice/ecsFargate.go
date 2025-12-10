@@ -26,7 +26,7 @@ import (
 // All services emit traces via the Datadog agent sidecar and produce correlated logs.
 // This is the Fargate deployment variant using awsvpc networking and TCP for trace submission.
 //
-// Owned by: containers/orchestrator team
+// Owned by: ecs-experiences team
 // Purpose: ECS E2E test infrastructure
 func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake, opts ...pulumi.ResourceOption) (*ecsComp.Workload, error) {
 	namer := e.Namer.WithPrefix("ecs-multiservice").WithPrefix("fg")

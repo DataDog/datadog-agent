@@ -5,7 +5,7 @@
 
 // Package ecsmultiservice provides a multi-service test application for ECS E2E testing.
 //
-// This package is owned by the containers/orchestrator team and provides test infrastructure
+// This package is owned by the ecs-experiences team and provides test infrastructure
 // for validating distributed tracing functionality in ECS environments.
 //
 // Purpose:
@@ -51,7 +51,7 @@ type EcsComponent struct {
 // All services emit traces with Datadog tracing and produce correlated logs.
 // This is the EC2 deployment variant using bridge networking and UDS for trace submission.
 //
-// Owned by: containers/orchestrator team
+// Owned by: ecs-experiences team
 // Purpose: ECS E2E test infrastructure
 func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...pulumi.ResourceOption) (*ecsComp.Workload, error) {
 	namer := e.Namer.WithPrefix("ecs-multiservice").WithPrefix("ec2")

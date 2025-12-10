@@ -5,7 +5,7 @@
 
 // Package ecschaos provides a chaos testing application for ECS E2E testing.
 //
-// This package is owned by the containers/orchestrator team and provides test infrastructure
+// This package is owned by the ecs-experiences team and provides test infrastructure
 // for validating agent resilience and error handling in ECS environments.
 //
 // Purpose:
@@ -46,7 +46,7 @@ import (
 //
 // This is the EC2 deployment variant using bridge networking.
 //
-// Owned by: containers/orchestrator team
+// Owned by: ecs-experiences team
 // Purpose: ECS E2E test infrastructure
 func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...pulumi.ResourceOption) (*ecsComp.Workload, error) {
 	namer := e.Namer.WithPrefix("ecs-chaos").WithPrefix("ec2")

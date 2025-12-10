@@ -6,7 +6,7 @@ This directory contains comprehensive end-to-end tests for the Datadog Agent on 
 
 ### Ownership
 
-**Team**: Containers/Orchestrator
+**Team**: ecs-experiences
 **Purpose**: Validate Datadog Agent behavior in ECS environments
 **Coverage**: All telemetry types (metrics, logs, traces) and all ECS deployment types
 

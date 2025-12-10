@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ECS Chaos test application is a **test infrastructure component** owned by the **containers/orchestrator team** for validating agent resilience and error handling in ECS environments.
+The ECS Chaos test application is a **test infrastructure component** owned by the **ecs-experiences team** for validating agent resilience and error handling in ECS environments.
 
 ## Purpose
 
@@ -280,7 +280,7 @@ This application is used by:
 
 ## Maintenance
 
-**Owned by**: Containers/Orchestrator Team
+**Owned by**: ecs-experiences Team
 **Purpose**: Test Infrastructure
 **Used for**: ECS E2E Testing - Resilience Validation
 
@@ -306,7 +306,7 @@ This application is used by:
 
 ## FAQ
 
-**Q: Why is this owned by containers/orchestrator team?**
+**Q: Why is this owned by ecs-experiences team?**
 A: This tests **agent resilience** in ECS, not application resilience. It's infrastructure for validating how the agent handles failures.
 
 **Q: Should I use this for actual chaos engineering?**

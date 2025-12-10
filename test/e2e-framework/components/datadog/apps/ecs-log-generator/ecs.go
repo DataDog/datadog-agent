@@ -5,7 +5,7 @@
 
 // Package ecsloggenerator provides a log generator test application for ECS E2E testing.
 //
-// This package is owned by the containers/orchestrator team and provides test infrastructure
+// This package is owned by the ecs-experiences team and provides test infrastructure
 // for validating log collection functionality in ECS environments.
 //
 // Purpose:
@@ -46,7 +46,7 @@ import (
 //
 // This is the EC2 deployment variant using bridge networking.
 //
-// Owned by: containers/orchestrator team
+// Owned by: ecs-experiences team
 // Purpose: ECS E2E test infrastructure
 func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...pulumi.ResourceOption) (*ecsComp.Workload, error) {
 	namer := e.Namer.WithPrefix("ecs-log-generator").WithPrefix("ec2")

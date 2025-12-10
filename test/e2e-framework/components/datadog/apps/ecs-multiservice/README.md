@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ECS Multi-Service test application is a **test infrastructure component** owned by the **containers/orchestrator team** for validating distributed tracing functionality in ECS environments.
+The ECS Multi-Service test application is a **test infrastructure component** owned by the **ecs-experiences team** for validating distributed tracing functionality in ECS environments.
 
 ## Purpose
 
@@ -173,7 +173,7 @@ This application is used by:
 
 ## Maintenance
 
-**Owned by**: Containers/Orchestrator Team
+**Owned by**: ecs-experiences Team
 **Purpose**: Test Infrastructure
 **Used for**: ECS E2E Testing
 
@@ -199,7 +199,7 @@ This application is used by:
 
 ## FAQ
 
-**Q: Why is this owned by containers/orchestrator team and not APM team?**
+**Q: Why is this owned by ecs-experiences team and not APM team?**
 A: This is infrastructure for testing how the **agent** collects traces in **ECS environments**. It's about validating agent functionality, not APM product features.
 
 **Q: Can I use this for testing APM features?**
