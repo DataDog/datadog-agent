@@ -4181,6 +4181,7 @@ api_key:
 #     # @param use_deduplication - boolean - optional - default: false
 #     # Deduplicate IP addresses corresponding to the same device.
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
+#     use_deduplication: false
 
 #     # @param configs - list - required
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
