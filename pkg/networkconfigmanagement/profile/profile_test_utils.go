@@ -10,7 +10,7 @@ package profile
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -214,20 +214,24 @@ func getRunningScrubber() *scrubber.Scrubber {
 	return sc
 }
 
-var ncmDefaultProfilesPath = filepath.Join("..", "..", "..", "cmd", "agent", "dist", "conf.d", "network_config_management.d", "default_profiles")
+// DefaultProfile will parse the official default profile given the name of the profile file
+func DefaultProfile(profileName string) *NCMProfile {
+	file := profileName + ".json"
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, file))
+	prof, _ := parseNCMProfileFromBytes(b, profileName)
+	return prof
+}
 
 // IOSProfile parses the test profile for IOS devices to test with
 func IOSProfile() *NCMProfile {
-	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "cisco-ios.json"))
-	configFile := resolveNCMProfileDefinitionPath(file)
-	prof, _ := ParseNCMProfileFromFile(configFile)
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "cisco-ios")
 	return prof
 }
 
 // JunOSProfile parses the test profile for junOS devices to test with
 func JunOSProfile() *NCMProfile {
-	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "junos.json"))
-	configFile := resolveNCMProfileDefinitionPath(file)
-	prof, _ := ParseNCMProfileFromFile(configFile)
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "junos.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "junos")
 	return prof
 }

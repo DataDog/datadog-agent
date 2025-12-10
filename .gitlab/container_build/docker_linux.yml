@@ -6,7 +6,7 @@
     - BUILD_ARG=${BUILD_ARG:-}
     - EXTRA_BUILD_CONTEXT=${ARTIFACTS_BUILD_CONTEXT:+"--build-context artifacts=$ARTIFACTS_BUILD_CONTEXT"}
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" ) ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" || "$IMAGE" =~ "ci/datadog-agent/ddot-ebpf" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}

@@ -79,14 +79,12 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
 	}
 
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
-		pkgconfigsetup.Datadog().GetString("expvar_port"))
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":         common.GetEnvVars,
 		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.getHTTPCallContent(pprofURL) },
+		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
 		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 	} {
 		providers = append(providers, flaretypes.NewFiller(
@@ -355,6 +353,11 @@ func getECSMeta() ([]byte, error) {
 	}
 
 	return json.MarshalIndent(ecsMeta, "", "\t")
+}
+
+func (r *RemoteFlareProvider) GetGoRoutineDump() ([]byte, error) {
+	pprofURL := "http://127.0.0.1:" + pkgconfigsetup.Datadog().GetString("expvar_port") + "/debug/pprof/goroutine?debug=2"
+	return r.getHTTPCallContent(pprofURL)
 }
 
 // getHTTPCallContent does a GET HTTP call to the given url and

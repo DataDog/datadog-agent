@@ -117,7 +117,7 @@ func getECSInstanceMetadata(ctx context.Context) (string, string, string, string
 
 	region, awsAccountID := ParseRegionAndAWSAccountID(ecsInstance.ContainerInstanceARN)
 
-	return awsAccountID, region, ecsInstance.Cluster, ecsInstance.Version, err
+	return awsAccountID, region, ParseClusterName(ecsInstance.Cluster), ecsInstance.Version, err
 }
 
 func getECSTaskMetadata(ctx context.Context) (string, string, string, string, error) {

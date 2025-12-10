@@ -66,11 +66,19 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	// TODO: Remove this when we find a better way to automatically log in
 	logIn(ctx)
 
+	defaultLabels := env.ResourcesTags()
+	defaultLabels = defaultLabels.ToStringMapOutput().ApplyT(func(labels map[string]string) map[string]string {
+		for k, v := range labels {
+			labels[k] = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+		}
+		return labels
+	}).(pulumi.StringMapOutput)
+
 	gcpProvider, err := gcp.NewProvider(ctx, string(config.ProviderGCP), &gcp.ProviderArgs{
 		Project:       pulumi.StringPtr(env.envDefault.gcp.project),
 		Region:        pulumi.StringPtr(env.envDefault.gcp.region),
 		Zone:          pulumi.StringPtr(env.envDefault.gcp.zone),
-		DefaultLabels: env.ResourcesTags(),
+		DefaultLabels: defaultLabels,
 	})
 	if err != nil {
 		return Environment{}, err
