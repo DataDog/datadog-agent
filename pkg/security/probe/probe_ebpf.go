@@ -1010,16 +1010,16 @@ func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
+	if process.IsKThread(entry.PPid, entry.Pid) {
+		return false
+	}
+
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
 	}
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
-
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-		return false
-	}
 
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
@@ -1133,6 +1133,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 	offset += read
+
+	if process.IsKThread(0, event.ProcessContext.Pid) {
+		return
+	}
 
 	// save netns handle if applicable
 	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NetNSPath {
