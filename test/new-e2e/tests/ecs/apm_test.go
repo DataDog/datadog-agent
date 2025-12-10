@@ -7,17 +7,18 @@ package ecs
 
 import (
 	"context"
-	"time"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -25,8 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
 const (
@@ -64,6 +65,50 @@ func (suite *ecsAPMSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
+// getCommonECSTagPatterns returns common ECS tag patterns for metrics and traces.
+// Parameters:
+//   - clusterName: ECS cluster name
+//   - taskName: Task name pattern (e.g., "dogstatsd-uds", "tracegen-tcp")
+//   - appName: Application name (e.g., "dogstatsd", "tracegen")
+//   - includeFullSet: If true, includes all tags (for metrics). If false, returns minimal set (for traces).
+func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName string, includeFullSet bool) []string {
+	// Common tags present in both metrics and traces
+	commonTags := []string{
+		`^cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
+		`^container_id:`,
+		`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
+		`^docker_image:ghcr\.io/datadog/apps-` + appName + `:` + regexp.QuoteMeta(apps.Version) + `$`,
+		`^ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
+		`^ecs_container_name:` + appName + `$`,
+		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+		`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+		`^image_id:sha256:`,
+		`^image_name:ghcr\.io/datadog/apps-` + appName + `$`,
+		`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+		`^short_image:apps-` + appName + `$`,
+		`^task_arn:`,
+		`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+		`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+		`^task_version:[[:digit:]]+$`,
+	}
+
+	// Additional tags only present in metrics (not in traces)
+	if includeFullSet {
+		fullTags := append(commonTags,
+			`^aws_account:[[:digit:]]{12}$`,
+			`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/`+regexp.QuoteMeta(clusterName)+`$`,
+			`^ecs_service:`+regexp.QuoteMeta(strings.TrimSuffix(clusterName, "-ecs"))+`-`+appName+`-ud[ps]$`,
+			`^region:us-east-1$`,
+			`^series:`,
+			`^service_arn:`,
+			`^task_definition_arn:`,
+		)
+		return fullTags
+	}
+
+	return commonTags
+}
+
 // Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
 // for the containers to be started, for the agent collectors to collect workload information
 // and to feed workload meta and the tagger.
@@ -79,7 +124,7 @@ func (suite *ecsAPMSuite) SetupSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
 // is run first.
 func (suite *ecsAPMSuite) Test00UpAndRunning() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	suite.Require().NoErrorf(err, "Failed to load AWS config")
@@ -532,6 +577,8 @@ func (suite *ecsAPMSuite) TestDogtstatsdUDP() {
 }
 
 func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
+	expectedTags := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "dogstatsd", true)
+
 	suite.TestMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "custom.metric",
@@ -540,31 +587,7 @@ func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
 			},
 		},
 		Expect: TestMetricExpectArgs{
-			Tags: &[]string{
-				`^aws_account:[[:digit:]]{12}$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^container_id:`,
-				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
-				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^ecs_container_name:dogstatsd$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
-				`^image_id:sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
-				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
-				`^region:us-east-1$`,
-				`^series:`,
-				`^service_arn:`,
-				`^short_image:apps-dogstatsd$`,
-				`^task_arn:`,
-				`^task_definition_arn:`,
-				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
-				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
-				`^task_version:[[:digit:]]+$`,
-			},
+			Tags: &expectedTags,
 		},
 	})
 }
@@ -577,8 +600,17 @@ func (suite *ecsAPMSuite) TestTraceTCP() {
 	suite.testTrace(taskNameTracegenTCP)
 }
 
-// testTrace verifies that traces are tagged with container and pod tags.
+// testTrace verifies that traces are tagged with container and ECS task tags.
 func (suite *ecsAPMSuite) testTrace(taskName string) {
+	// Get expected tag patterns (minimal set for traces)
+	expectedTagPatterns := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "tracegen", false)
+
+	// Convert string patterns to compiled regexps
+	compiledPatterns := make([]*regexp.Regexp, len(expectedTagPatterns))
+	for i, pattern := range expectedTagPatterns {
+		compiledPatterns[i] = regexp.MustCompile(pattern)
+	}
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -593,24 +625,7 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 				return k + ":" + v
 			})
 			// Assert origin detection is working properly
-			err = assertTags(tags, []*regexp.Regexp{
-				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
-				regexp.MustCompile(`^container_id:`),
-				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
-				regexp.MustCompile(`^docker_image:ghcr\.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version) + `$`),
-				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
-				regexp.MustCompile(`^ecs_container_name:tracegen`),
-				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),                                    // org.opencontainers.image.revision docker image label
-				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
-				regexp.MustCompile(`^image_id:sha256:`),
-				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-tracegen`),
-				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
-				regexp.MustCompile(`^short_image:apps-tracegen`),
-				regexp.MustCompile(`^task_arn:`),
-				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
-				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
-				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
-			}, []*regexp.Regexp{}, false)
+			err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, false)
 			if err == nil {
 				break
 			}
