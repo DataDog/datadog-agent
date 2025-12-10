@@ -388,28 +388,28 @@ enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct sysca
     return flag_approver(filter, syscall->type, family);
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) prctl_approvers(struct syscall_cache_t *syscall) {
+static enum SYSCALL_STATE __attribute__((always_inline)) prctl_approvers(struct syscall_cache_t *syscall) {
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&prctl_option_approvers, &key);
     u64 option = syscall->prctl.option;
     return flag_approver(filter, syscall->type, option);
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_by_optname(struct syscall_cache_t *syscall) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_optname(struct syscall_cache_t *syscall) {
     u32 key = 1;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&setsockopt_level_or_optname_approvers, &key);
     u64 optname = syscall->setsockopt.optname;
     return flag_approver(filter, syscall->type, optname);
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_by_sock_level(struct syscall_cache_t *syscall) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_sock_level(struct syscall_cache_t *syscall) {
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&setsockopt_level_or_optname_approvers, &key);
     u64 level = syscall->setsockopt.level;
     return flag_approver(filter, syscall->type, level);
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) setsockopt_approvers(struct syscall_cache_t *syscall) {
+static enum SYSCALL_STATE __attribute__((always_inline)) setsockopt_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_sock_level(syscall);
     if (state == DISCARDED) {
         state = approve_by_optname(syscall);

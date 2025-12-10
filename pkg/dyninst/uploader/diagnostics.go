@@ -25,9 +25,24 @@ type DiagnosticMessage struct {
 	DDSource  debuggerSource `json:"ddsource"`
 	Timestamp int64          `json:"timestamp"`
 
-	Debugger struct {
+	Debugger debugger `json:"debugger"`
+}
+
+// debugger wraps the diagnostics message and provides JSON marshaling in the
+// format expected by the backend.
+type debugger struct {
+	Diagnostic `json:"diagnostics"`
+}
+
+func (d debugger) MarshalJSON() ([]byte, error) {
+	type alias struct {
 		Diagnostic `json:"diagnostics"`
-	} `json:"debugger"`
+		Type       string `json:"type"`
+	}
+	return json.Marshal(alias{
+		Diagnostic: d.Diagnostic,
+		Type:       "diagnostic",
+	})
 }
 
 type debuggerSource struct{}
@@ -50,9 +65,7 @@ func (d debuggerSource) UnmarshalJSON(b []byte) error {
 func NewDiagnosticMessage(service string, d Diagnostic) *DiagnosticMessage {
 	return &DiagnosticMessage{
 		Service: service,
-		Debugger: struct {
-			Diagnostic `json:"diagnostics"`
-		}{
+		Debugger: debugger{
 			Diagnostic: d,
 		},
 	}

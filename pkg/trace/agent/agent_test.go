@@ -2955,12 +2955,12 @@ func BenchmarkThroughput(b *testing.B) {
 	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
-	filepath.Walk(folder, func(path string, info os.FileInfo, _ error) error {
+	filepath.WalkDir(folder, func(path string, d os.DirEntry, _ error) error {
 		ext := filepath.Ext(path)
 		if ext != ".msgp" {
 			return nil
 		}
-		b.Run(info.Name(), benchThroughput(path))
+		b.Run(d.Name(), benchThroughput(path))
 		return nil
 	})
 }
