@@ -20,6 +20,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void* call_malloc(size_t sz) {
+    return _malloc(sz);
+}
 */
 import "C"
 
@@ -52,7 +56,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 		return nil
 	}
 
-	cTags := C._malloc(C.size_t(length+1) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	cTags := C.call_malloc(C.size_t(uintptr(length+1) * unsafe.Sizeof(uintptr(0))))
 	if cTags == nil {
 		log.Errorf("could not allocate memory for tags")
 		return nil

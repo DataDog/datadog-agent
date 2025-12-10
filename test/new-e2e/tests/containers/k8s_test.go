@@ -214,6 +214,22 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	})
 }
 
+// selectPodForExec selects a suitable pod for exec from a list of pods for a given container.
+// It filters out pods being deleted and containers not ready.
+func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name == containerName && cs.Ready {
+				return &pod
+			}
+		}
+	}
+	return nil
+}
+
 func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
@@ -247,10 +263,12 @@ func (suite *k8sSuite) TestVersion() {
 		suite.Run(tt.podType+" pods are running the good version", func() {
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
-				Limit:         1,
 			})
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
+				suite.T().Logf("Found %d running pods matching selector", len(linuxPods.Items))
+				execPod := selectPodForExec(linuxPods.Items, tt.container)
+				suite.Require().NotNil(execPod, "No running pods found with container %s ready", tt.container)
+				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", execPod.Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)

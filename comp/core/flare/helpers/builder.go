@@ -387,11 +387,11 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 
 	fb.RegisterFilePerm(srcDir)
 
-	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
-		if f == nil {
+	err = filepath.WalkDir(srcDir, func(src string, d os.DirEntry, _ error) error {
+		if d == nil {
 			return nil
 		}
-		if f.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
@@ -458,8 +458,8 @@ func (fb *builder) RegisterDirPerm(path string) {
 		return
 	}
 
-	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
-		if f != nil {
+	_ = filepath.WalkDir(path, func(src string, d os.DirEntry, _ error) error {
+		if d != nil {
 			fb.permsInfos.add(src)
 		}
 		return nil
