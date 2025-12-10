@@ -22,6 +22,9 @@ MAX_SAMPLES_STORED = 100  # max samples to store for analysis
 # JSON parsing truncation for error messages
 JSON_ERROR_PREVIEW_LENGTH = 100
 
+# Map name prefix matching length for CLI filtering
+MAP_NAME_PREFIX_LENGTH = 15  # chars to use for prefix matching truncated map names
+
 # ConnTuple-keyed maps to validate (48-byte ConnTuple keys)
 CONN_TUPLE_MAPS = [
     "connection_states",

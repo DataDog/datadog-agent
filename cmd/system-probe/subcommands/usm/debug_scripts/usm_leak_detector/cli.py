@@ -9,6 +9,7 @@ import sys
 from .backends import get_backend
 from .logging_config import configure_logging, logger
 from .map_discovery import find_conn_tuple_maps
+from .map_utils import filter_maps_by_names
 from .network import discover_namespaces, build_connection_index
 from .analyzer import analyze_map
 from .pid_validator import find_pid_keyed_maps, analyze_pid_map
@@ -105,8 +106,7 @@ def main():
         # Filter to specific maps if requested
         if args.maps:
             requested = set(args.maps.split(","))
-            conn_tuple_maps = {k: v for k, v in conn_tuple_maps.items()
-                              if k in requested or any(k.startswith(r[:15]) for r in requested)}
+            conn_tuple_maps = filter_maps_by_names(conn_tuple_maps, requested)
 
         if conn_tuple_maps:
             # Discover network namespaces
@@ -139,8 +139,7 @@ def main():
         # Filter to specific maps if requested
         if args.maps:
             requested = set(args.maps.split(","))
-            pid_maps = {k: v for k, v in pid_maps.items()
-                        if k in requested or any(k.startswith(r[:15]) for r in requested)}
+            pid_maps = filter_maps_by_names(pid_maps, requested)
 
         # Analyze each PID-keyed map
         for map_name in sorted(pid_maps.keys()):
