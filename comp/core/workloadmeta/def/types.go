@@ -112,9 +112,6 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
-
-	// SourceCRDCollector represents metadata collected form the CRD collector
-	SourceCRDCollector Source = "crd_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
