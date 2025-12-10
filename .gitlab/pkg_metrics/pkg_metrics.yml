@@ -79,7 +79,7 @@ send_pkg_size:
 
     - dda inv -- package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    - dda inv -- package.send-size --flavor "agent" --package-os "windows" --package-path $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/datadog-agent-7*.msi --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv -- package.send-size --flavor "agent" --package-os "windows" --package-path $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/datadog-agent-7*x86_64.zip --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
 check_pkg_size:
   stage: pkg_metrics
