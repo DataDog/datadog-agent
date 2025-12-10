@@ -259,9 +259,14 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
 	if err != nil {
 		return map[string]*DesiredLRP{}, err
 	}
+	// Get the CC cache for enriching LRP data
+	ccCache, err := GetGlobalCCCache()
+	if err != nil {
+		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
+	}
 	desiredLRPs := make(map[string]*DesiredLRP, len(desiredLRPsBBS))
 	for _, lrp := range desiredLRPsBBS {
-		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.envIncludeList, bc.envExcludeList)
+		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.envIncludeList, bc.envExcludeList, ccCache)
 		desiredLRPs[desiredLRP.ProcessGUID] = &desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))

@@ -210,7 +210,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 }
 
 // DesiredLRPFromBBSModel creates a new DesiredLRP from BBS's DesiredLRP model
-func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp) DesiredLRP {
+func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp, ccCache *CCCache) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
 	envVA := map[string]string{}
@@ -295,8 +295,9 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 	spaceGUID := extractVA[SpaceIDKey]
 	spaceName := extractVA[SpaceNameKey]
 	// try to get updated app name from CC API in case of app renames, as well as tags extracted from app metadata
-	ccCache, err := GetGlobalCCCache()
-	if err == nil {
+	if ccCache == nil {
+		log.Debugf("CCCache is nil, skipping app metadata enrichment for LRP %s", bbsLRP.ProcessGuid)
+	} else {
 		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
 			log.Debugf("Could not find app %s in cc cache", appGUID)
 		} else {
@@ -336,8 +337,6 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 				}
 			}
 		}
-	} else {
-		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
 	}
 
 	d := DesiredLRP{
