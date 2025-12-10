@@ -31,7 +31,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.7 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.141.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 )
 
 require (
@@ -68,7 +68,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.141.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.141.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 )
 
 require (

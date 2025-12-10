@@ -29,7 +29,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.141.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.141.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tinylib/msgp v1.6.1
+	github.com/tinylib/msgp v1.5.0
 	go.opentelemetry.io/collector/component v1.47.0
 	go.opentelemetry.io/collector/component/componenttest v0.141.0
 	go.opentelemetry.io/collector/config/confighttp v0.141.0
@@ -46,7 +46,7 @@ require (
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/net v0.48.0
+	golang.org/x/net v0.47.0
 )
 
 require (
