@@ -37,6 +37,9 @@ dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
 dependency 'pcre2'
+# We can not remove this yet. If we do, then the rpm build fails because it is
+# still omnibus and needs popt installed when it builds.
+dependency 'popt'
 dependency 'rpm'
 dependency 'util-linux'
 dependency 'xmlsec'
