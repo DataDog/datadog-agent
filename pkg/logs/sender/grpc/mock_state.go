@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"google.golang.org/protobuf/proto"
 )
 
 const nanoToMillis = 1000000
@@ -23,15 +24,20 @@ const nanoToMillis = 1000000
 type MessageTranslator struct {
 	clusterManager *clustering.ClusterManager
 	tagManager     *tags.TagManager
+
+	pipelineName string
 }
 
 // NewMessageTranslator creates a new MessageTranslator instance
 // If clusterManager is nil, a new one will be created
-func NewMessageTranslator() *MessageTranslator {
-	return &MessageTranslator{
+func NewMessageTranslator(pipelineName string) *MessageTranslator {
+	mt := &MessageTranslator{
 		clusterManager: clustering.NewClusterManager(),
 		tagManager:     tags.NewTagManager(),
+		pipelineName:   pipelineName,
 	}
+	tlmPipelineStateSize.Set(0, pipelineName)
+	return mt
 
 	// Would be shared cluster manager instead across pipelines when implemented.
 	// if clusterManager == nil {
@@ -61,13 +67,13 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 	return outputChan
 }
 
-// StartMessageTranslator is a convenience function that creates a MessageTranslator with a cluster manager
-// Returns the output channel for StatefulMessages
-func StartMessageTranslator(inputChan chan *message.Message, bufferSize int) chan *message.StatefulMessage {
-	// Use a shared cluster manager for all pipelines (patterns shared across pipelines)
-	translator := NewMessageTranslator()
-	return translator.Start(inputChan, bufferSize)
-}
+// // StartMessageTranslator is a convenience function that creates a MessageTranslator with a cluster manager
+// // Returns the output channel for StatefulMessages
+// func StartMessageTranslator(inputChan chan *message.Message, bufferSize int) chan *message.StatefulMessage {
+// 	// Use a shared cluster manager for all pipelines (patterns shared across pipelines)
+// 	translator := NewMessageTranslator()
+// 	return translator.Start(inputChan, bufferSize)
+// }
 
 // processMessage handles a single message: tokenizes, creates patterns, and sends appropriate datums
 func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan chan *message.StatefulMessage) {
@@ -181,6 +187,12 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 	if pd := patternDatum.GetPatternDefine(); pd != nil {
 		*patternDefineParamCount = pd.ParamCount
 	}
+
+	bytesAdded := float64(proto.Size(patternDatum))
+	tlmPipelinePatternAdded.Inc(mt.pipelineName)
+	tlmPipelinePatternBytesAdded.Add(bytesAdded, mt.pipelineName)
+	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
+
 	outputChan <- &message.StatefulMessage{
 		Datum:    patternDatum,
 		Metadata: &msg.MessageMetadata,
@@ -191,6 +203,12 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 // sendPatternDelete creates and sends a PatternDelete datum
 func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Message, outputChan chan *message.StatefulMessage) {
 	deleteDatum := buildPatternDelete(patternID)
+
+	bytesRemoved := float64(proto.Size(deleteDatum))
+	tlmPipelinePatternRemoved.Inc(mt.pipelineName)
+	tlmPipelinePatternBytesRemoved.Add(bytesRemoved, mt.pipelineName)
+	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
+
 	outputChan <- &message.StatefulMessage{
 		Datum:    deleteDatum,
 		Metadata: &msg.MessageMetadata,
@@ -200,6 +218,12 @@ func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Me
 // sendDictEntryDefine creates and sends a DictEntryDefine datum
 func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64, value string) {
 	dictDatum := buildDictEntryDefine(id, value)
+
+	bytesAdded := float64(proto.Size(dictDatum))
+	tlmPipelineTokenAdded.Inc(mt.pipelineName)
+	tlmPipelineTokenBytesAdded.Add(bytesAdded, mt.pipelineName)
+	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
+
 	outputChan <- &message.StatefulMessage{
 		Datum:    dictDatum,
 		Metadata: &msg.MessageMetadata,
@@ -210,6 +234,10 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 // todo: AGNTLOG-414: Will be used for first log without a pattern
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tags []*statefulpb.Tag) {
 	logDatum := buildRawLog(contentStr, ts, tags)
+
+	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
+	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
+
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
 		Metadata: &msg.MessageMetadata,
@@ -219,6 +247,10 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 // sendStructuredLog creates and sends a StructuredLog datum
 func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, pattern *clustering.Pattern, wildcardValues []string, ts time.Time, tags []*statefulpb.Tag) {
 	logDatum := buildStructuredLog(pattern.PatternID, wildcardValues, ts, tags)
+
+	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
+	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
+
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
 		Metadata: &msg.MessageMetadata,
