@@ -42,6 +42,8 @@ const (
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
+	// ProductRemoteFlags is to receive remote feature flags
+	ProductRemoteFlags = "REMOTE_FLAGS"
 )
 
 // ProductListToString converts a product list to string list
