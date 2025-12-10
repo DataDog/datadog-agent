@@ -307,10 +307,13 @@ impl SocketActivationService {
     ///
     /// This implementation uses Windows handle inheritance to pass the socket to the child:
     /// 1. Daemon creates listening socket and makes it inheritable
-    /// 2. When connection arrives, daemon triggers service start
+    /// 2. Uses select() to detect pending connections WITHOUT accepting (no data loss!)
     /// 3. Socket handle is passed to child via DD_APM_NET_RECEIVER_FD environment variable
-    /// 4. Child uses the inherited handle to accept connections
-    /// 5. If service crashes, daemon detects via select() and re-triggers on next connection
+    /// 4. Daemon CLOSES its copy of the socket so child exclusively owns it
+    /// 5. Child uses the inherited handle to accept connections (gets the first connection)
+    ///
+    /// Note: On Windows, both parent and child hold references to the same socket.
+    /// The daemon must close its reference after spawning, otherwise both compete for connections.
     #[cfg(windows)]
     fn accept_once_single(
         socket_name: String,
@@ -320,6 +323,9 @@ impl SocketActivationService {
         config: SocketConfig,
     ) {
         use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
+        use windows::Win32::Networking::WinSock::{
+            closesocket, select, fd_set, timeval, SOCKET, SOCKET_ERROR,
+        };
 
         debug!(
             socket = %socket_name,
@@ -352,61 +358,85 @@ impl SocketActivationService {
         let fd_env_var = config.fd_env_var.clone();
 
         std::thread::spawn(move || {
-            use std::net::TcpListener;
-            use std::os::windows::io::FromRawSocket;
-
-            // Reconstruct the TcpListener from the raw socket
-            let listener = unsafe { TcpListener::from_raw_socket(handle) };
-
-            // Set to non-blocking for polling
-            if let Err(e) = listener.set_nonblocking(true) {
-                error!(socket = %socket_name, error = %e, "Failed to set non-blocking");
-                return;
-            }
-
+            // Use select() to detect pending connections WITHOUT accepting
+            // This ensures no connection is lost - the child will call accept()
             loop {
-                match listener.accept() {
-                    Ok((_stream, client_addr)) => {
-                        info!(
-                            socket = %socket_name,
-                            service = %service_name,
-                            client = ?client_addr,
-                            handle = handle,
-                            "Connection detected, triggering service activation with handle inheritance"
-                        );
+                // Prepare fd_set for select()
+                let mut read_fds: fd_set = unsafe { std::mem::zeroed() };
+                read_fds.fd_count = 1;
+                read_fds.fd_array[0] = handle as usize;
 
-                        // Reset to blocking for child process
-                        let _ = listener.set_nonblocking(false);
+                // Timeout: 100ms
+                let timeout = timeval {
+                    tv_sec: 0,
+                    tv_usec: 100_000,
+                };
 
-                        // Send activation event with the socket handle
-                        // The child will receive this handle via inheritance
-                        if let Err(e) = event_tx.send(SocketActivationEvent {
-                            socket_name: socket_name.clone(),
-                            service_name: service_name.clone(),
-                            fd: handle,
-                            accept: false,
-                            fd_env_var: fd_env_var.clone(),
-                        }) {
-                            error!(socket = %socket_name, error = %e, "Failed to send activation event");
-                            break;
-                        }
+                let result = unsafe {
+                    select(
+                        0, // nfds is ignored on Windows
+                        Some(&mut read_fds),
+                        None,
+                        None,
+                        Some(&timeout),
+                    )
+                };
 
-                        // Wait a bit for child to start, then continue monitoring
-                        // If the child crashes, we'll detect new connections via accept()
-                        std::thread::sleep(std::time::Duration::from_millis(100));
+                if result == SOCKET_ERROR {
+                    let err = std::io::Error::last_os_error();
+                    error!(socket = %socket_name, error = %err, "select() failed");
+                    break;
+                }
 
-                        // Set back to non-blocking to continue polling
-                        let _ = listener.set_nonblocking(true);
-                    }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // No connection yet, sleep and retry
-                        std::thread::sleep(std::time::Duration::from_millis(50));
-                    }
-                    Err(e) => {
-                        error!(socket = %socket_name, error = %e, "accept() failed");
+                if result > 0 && read_fds.fd_count > 0 {
+                    // Connection is pending on the listening socket!
+                    // DO NOT accept() - let the child process do it
+                    info!(
+                        socket = %socket_name,
+                        service = %service_name,
+                        handle = handle,
+                        "Connection pending, triggering service activation (no accept - child will receive connection)"
+                    );
+
+                    // Send activation event with the socket handle
+                    // The child will call accept() and get the first connection
+                    if let Err(e) = event_tx.send(SocketActivationEvent {
+                        socket_name: socket_name.clone(),
+                        service_name: service_name.clone(),
+                        fd: handle,
+                        accept: false,
+                        fd_env_var: fd_env_var.clone(),
+                    }) {
+                        error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         break;
                     }
+
+                    // Wait briefly for child to start
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+
+                    // CRITICAL: Close daemon's copy of the socket handle
+                    // On Windows, both parent and child hold the same socket.
+                    // We must close our reference so child exclusively owns it.
+                    info!(
+                        socket = %socket_name,
+                        handle = handle,
+                        "Closing daemon's socket handle - child now owns it exclusively"
+                    );
+                    unsafe {
+                        closesocket(SOCKET(handle as usize));
+                    }
+
+                    // Exit the monitoring loop - we no longer own this socket
+                    // If the service crashes, supervisor will restart it normally
+                    // (without socket activation for subsequent restarts)
+                    info!(
+                        socket = %socket_name,
+                        service = %service_name,
+                        "Socket activation complete - daemon released socket to child"
+                    );
+                    break;
                 }
+                // If result == 0, timeout occurred, just loop and try again
             }
         });
     }
