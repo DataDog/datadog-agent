@@ -7,9 +7,6 @@ package installer
 
 import (
 	"strings"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
 // JavaHelper provides reusable Java testing functionality that can be composed with any test suite.
@@ -26,31 +23,30 @@ func NewJavaHelper(s WindowsSuite) *JavaHelper {
 // SetupJava installs Java JDK on the remote host.
 // This should be called in the suite's SetupSuite method.
 func (h *JavaHelper) SetupJava() {
-	h.installChocolatey()
-	h.installJava()
-}
-
-func (h *JavaHelper) installChocolatey() {
 	host := h.suite.Env().RemoteHost
+
 	script := `
+# Install Chocolatey if not already installed
 if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
 	Set-ExecutionPolicy Bypass -Scope Process -Force
 	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
 	Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+	# Refresh PATH for current session
+	$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 }
+
+# Install Java
+choco install openjdk11 -y
+
+# Refresh PATH again to pick up Java
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Verify Java installation
+java -version
 	`
 	output, err := host.Execute(script)
-	h.suite.Require().NoErrorf(err, "failed to install Chocolatey: %s", output)
-}
-
-func (h *JavaHelper) installJava() {
-	host := h.suite.Env().RemoteHost
-	output, err := host.Execute("choco install openjdk11 -y")
 	h.suite.Require().NoErrorf(err, "failed to install Java: %s", output)
-
-	// Verify Java installation
-	output, err = host.Execute("java -version")
-	h.suite.Require().NoErrorf(err, "failed to verify Java installation: %s", output)
 }
 
 // StartJavaApp deploys, compiles, and runs a simple Java application.
