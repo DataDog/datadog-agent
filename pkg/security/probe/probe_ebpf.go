@@ -906,11 +906,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	if event.IsAnomalyDetectionEvent() {
 		var workloadID containerutils.WorkloadID
 		var imageTag string
-		if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
-			workloadID = containerID
+
+		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+			workloadID = event.ProcessContext.Process.ContainerContext.ContainerID
 			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
-			workloadID = containerutils.CGroupID(cgroupID)
+		} else if event.ProcessContext.Process.CGroup.IsResolved() {
+			workloadID = event.ProcessContext.Process.CGroup.CGroupID
 			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 			if err != nil {
 				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
@@ -991,7 +992,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	}
 }
 
-func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext model.CGroupContext, data []byte) (int, error) {
+func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	var sc model.SyscallContext
 
 	n, err := sc.UnmarshalBinary(data)
@@ -1011,8 +1012,6 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext mo
 	if err != nil {
 		return n, err
 	}
-
-	entry.Process.CGroup = cgroupContext
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1079,19 +1078,6 @@ var relatedEventZeroer = model.NewEventZeroer()
 
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
 	p.eventPool.Put(event)
-}
-
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
-	}
-	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
-	if !updated {
-		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
-	}
-
-	return cgroupContext, nil
 }
 
 // BinaryUnmarshaler is the interface used to unmarshal binary data
@@ -1186,9 +1172,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
-
-	// resolve the container context
-	_, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
 	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
@@ -1608,8 +1591,22 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		pid := event.CgroupWrite.Pid
+
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		if pce == nil {
+			seclog.Errorf("failed to resolve process: %d", pid)
+			return false
+		}
+
+		cgroupContext := model.CGroupContext{
+			CGroupPathKey: event.CgroupWrite.File.PathKey,
+		}
+
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, pce.ExecTime, cgroupContext); cacheEntry == nil {
+			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
+		} else {
+			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
 		}
 	case model.ExecEventType:
 		p.HandleSSHUserSession(event)
@@ -1627,23 +1624,23 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 	eventType := event.GetEventType()
 	switch eventType {
 	case model.ForkEventType:
-		if _, err = p.unmarshalProcessCacheEntry(event, cgroupContext, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
 
-		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, cgroupContext, newEntryCb); err != nil {
 			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return false
 		}
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = p.unmarshalProcessCacheEntry(event, cgroupContext, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return false
 		}
 
-		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
+		err = p.Resolvers.ProcessResolver.AddExecEntry(event, cgroupContext)
 		if err != nil {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return false
@@ -1689,17 +1686,18 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if !p.regularUnmarshalEvent(&event.CgroupTracing, eventType, offset, dataLen, data) {
 			return false
 		}
-		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
-		} else {
-			event.CgroupTracing.CGroupContext = *cgroupContext
-			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
-			if containerID != "" {
-				event.CgroupTracing.ContainerContext.ContainerID = containerID
-			}
 
-			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByPathKey(event.CgroupTracing.CGroupContext.CGroupPathKey)
+		if cacheEntry == nil {
+			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
+			return false
 		}
+
+		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
+		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
+
+		p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+
 		return false
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -3445,7 +3443,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 
 				if action.Def.NetworkFilter.Scope == "cgroup" {
-					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupFile
+					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupPathKey
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}

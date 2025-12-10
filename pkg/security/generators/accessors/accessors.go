@@ -119,6 +119,8 @@ func isBasicType(kind string) bool {
 	switch kind {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
 		return true
+	case "containerutils.ContainerID", "containerutils.CGroupID":
+		return true
 	}
 	return false
 }
@@ -612,7 +614,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, fieldEvent, restrictedTo, fieldIterator, dejavu)
 					} else {
-						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
+						log.Printf("1. failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
 				}
 
