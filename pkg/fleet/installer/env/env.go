@@ -60,6 +60,7 @@ const (
 	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
 	envInfrastructureMode        = "DD_INFRASTRUCTURE_MODE"
+	envTracerLogsCaptureEnabled  = "DD_LOGS_CAPTURE_ENABLED"
 )
 
 // Windows MSI options
@@ -140,15 +141,16 @@ type InstallScriptEnv struct {
 	APMInstrumentationEnabled string
 
 	// APM features toggles
-	RuntimeMetricsEnabled *bool
-	LogsInjection         *bool
-	APMTracingEnabled     *bool
-	ProfilingEnabled      string
-	DataStreamsEnabled    *bool
-	AppsecEnabled         *bool
-	IastEnabled           *bool
-	DataJobsEnabled       *bool
-	AppsecScaEnabled      *bool
+	RuntimeMetricsEnabled    *bool
+	LogsInjection            *bool
+	APMTracingEnabled        *bool
+	ProfilingEnabled         string
+	DataStreamsEnabled       *bool
+	AppsecEnabled            *bool
+	IastEnabled              *bool
+	DataJobsEnabled          *bool
+	AppsecScaEnabled         *bool
+	TracerLogsCaptureEnabled *bool
 }
 
 // Env contains the configuration for the installer.
@@ -269,6 +271,7 @@ func FromEnv() *Env {
 			IastEnabled:               getBoolEnv(envIastEnabled),
 			DataJobsEnabled:           getBoolEnv(envDataJobsEnabled),
 			AppsecScaEnabled:          getBoolEnv(envAppsecScaEnabled),
+			TracerLogsCaptureEnabled:  getBoolEnv(envTracerLogsCaptureEnabled),
 		},
 
 		Tags: append(
