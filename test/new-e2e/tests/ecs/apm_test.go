@@ -6,8 +6,6 @@
 package ecs
 
 import (
-	"context"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
