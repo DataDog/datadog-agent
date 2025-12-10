@@ -10,6 +10,7 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +113,7 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := validateAndOpenWithPrefix(tt.path, tt.allowedPrefix)
+			file, err := validateAndOpenWithPrefix(tt.path, tt.allowedPrefix, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -351,7 +352,7 @@ func TestValidateAndOpenWithPrefixWithRealFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setupFunc(t, testDir)
 
-			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix)
+			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -403,7 +404,7 @@ func TestValidateAndOpenWithPrefixPathTraversal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setupFunc(t, testDir)
 
-			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix)
+			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -418,4 +419,91 @@ func TestValidateAndOpenWithPrefixPathTraversal(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateAndOpenWithPrefixTOCTOUPrefixSymlink(t *testing.T) {
+	testDir := t.TempDir()
+
+	varDir := filepath.Join(testDir, "var")
+	err := os.Mkdir(varDir, 0755)
+	require.NoError(t, err)
+
+	logDir := filepath.Join(varDir, "log")
+	err = os.Mkdir(logDir, 0755)
+	require.NoError(t, err)
+
+	// We use a subdirectory since OpenInRoot() does _not_ protect against
+	// symlink attacks on the root path itself (e.g.  /var/log -> /etc), the
+	// root path is expected to be a trusted path.  That should be true for
+	// /var/log since it's a system directory, but we could protect against that
+	// too in the future.
+	subDir := filepath.Join(logDir, "foo")
+	err = os.Mkdir(subDir, 0755)
+	require.NoError(t, err)
+
+	// Create a file
+	logFile := filepath.Join(subDir, "shadow")
+	err = os.WriteFile(logFile, []byte("syslog content"), 0644)
+	require.NoError(t, err)
+
+	// Create /etc simulation
+	etcDir := filepath.Join(testDir, "etc")
+	err = os.Mkdir(etcDir, 0755)
+	require.NoError(t, err)
+
+	sensitiveFile := filepath.Join(etcDir, "shadow")
+	err = os.WriteFile(sensitiveFile, []byte("sensitive"), 0644)
+	require.NoError(t, err)
+
+	toctouCalled := false
+	toctou := func() {
+		toctouCalled = true
+
+		// Replace /var/log/foo with symlink to /etc
+		require.NoError(t, os.Remove(logFile))
+		require.NoError(t, os.Remove(subDir))
+		require.NoError(t, os.Symlink(etcDir, subDir))
+	}
+
+	file, err := validateAndOpenWithPrefix(logFile, logDir, toctou)
+
+	// OpenInRoot should prevent this attack
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "path escapes from parent")
+	assert.Nil(t, file)
+	assert.True(t, toctouCalled)
+}
+
+func TestValidateAndOpenWithPrefixTOCTOUFileSymlink(t *testing.T) {
+	testDir := t.TempDir()
+
+	appDir := filepath.Join(testDir, "app")
+	err := os.Mkdir(appDir, 0755)
+	require.NoError(t, err)
+
+	// Create a legitimate file in logs directory
+	logFile := filepath.Join(appDir, "foo.log")
+	err = os.WriteFile(logFile, []byte("log content"), 0644)
+	require.NoError(t, err)
+
+	sensitiveFile := filepath.Join(appDir, "foo.nonlog")
+	err = os.WriteFile(sensitiveFile, []byte("non-log content"), 0644)
+	require.NoError(t, err)
+
+	toctouCalled := false
+	toctou := func() {
+		toctouCalled = true
+
+		// Replace foo.log with a symlink to foo.nonlog
+		require.NoError(t, os.Remove(logFile))
+		require.NoError(t, os.Symlink(sensitiveFile, logFile))
+	}
+
+	file, err := validateAndOpenWithPrefix(logFile, "/var/log/", toctou)
+
+	assert.Error(t, err)
+	// This is the error when a symlink is attempted to be opened with O_NOFOLLOW
+	assert.ErrorIs(t, err, syscall.ELOOP)
+	assert.Nil(t, file)
+	assert.True(t, toctouCalled)
 }
