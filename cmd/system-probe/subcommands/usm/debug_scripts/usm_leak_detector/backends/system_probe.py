@@ -4,10 +4,10 @@ system-probe backend for eBPF map operations.
 
 import os
 import subprocess
-import sys
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from ..logging_config import logger
 from .streaming import iter_json_objects
 from ..models import ConnTuple
 from ..subprocess_utils import safe_subprocess_run
@@ -59,7 +59,7 @@ class SystemProbeBackend(EbpfBackend):
     def _run(self, args: List[str]) -> Optional[str]:
         """Run system-probe command and return stdout, or None on error."""
         if not self.binary_path:
-            print("Error: system-probe binary not found", file=sys.stderr)
+            logger.error("system-probe binary not found")
             return None
 
         cmd = [self.binary_path] + args
@@ -71,14 +71,14 @@ class SystemProbeBackend(EbpfBackend):
                 timeout=30
             )
             if result.returncode != 0:
-                print(f"Error running system-probe: {result.stderr}", file=sys.stderr)
+                logger.error(f"Error running system-probe: {result.stderr}")
                 return None
             return result.stdout
         except FileNotFoundError:
-            print(f"Error: system-probe not found at {self.binary_path}", file=sys.stderr)
+            logger.error(f"system-probe not found at {self.binary_path}")
             return None
         except subprocess.TimeoutExpired:
-            print("Error: system-probe timed out", file=sys.stderr)
+            logger.error("system-probe timed out")
             return None
 
     def list_maps(self) -> List[Dict]:
@@ -142,7 +142,7 @@ class SystemProbeBackend(EbpfBackend):
             Dict entries with 'key' (ConnTuple) and '_btf' fields
         """
         if not self.binary_path:
-            print("Error: system-probe binary not found", file=sys.stderr)
+            logger.error("system-probe binary not found")
             return
 
         cmd = [self.binary_path, "ebpf", "map", "dump", "name", name]
@@ -155,7 +155,7 @@ class SystemProbeBackend(EbpfBackend):
                 bufsize=1
             )
         except FileNotFoundError:
-            print(f"Error: system-probe not found at {self.binary_path}", file=sys.stderr)
+            logger.error(f"system-probe not found at {self.binary_path}")
             return
 
         try:

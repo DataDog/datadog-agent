@@ -5,7 +5,6 @@ Download static bpftool binary from GitHub releases.
 import os
 import platform
 import subprocess
-import sys
 import tarfile
 import tempfile
 import urllib.request

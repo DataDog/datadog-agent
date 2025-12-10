@@ -28,7 +28,7 @@ def get_backend(system_probe_path: Optional[str] = None) -> Optional[EbpfBackend
         if backend.binary_path:
             logger.debug(f"Using system-probe backend: {backend.binary_path}")
             return backend
-        print(f"Warning: Specified system-probe not found at {system_probe_path}")
+        logger.warning(f"Specified system-probe not found at {system_probe_path}")
 
     # Try bpftool first (with auto-download if not available)
     backend = BpftoolBackend.get_backend(try_download=True)

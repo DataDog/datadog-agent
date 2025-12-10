@@ -26,7 +26,8 @@ Maps checked:
 - `go_tls_conn_by_tuple`, `connection_protocol`, `tls_enhanced_tags`
 
 ### PID-Keyed Maps
-For maps keyed by pid_tgid (8-byte uint64):
+For maps keyed by pid_tgid (8-byte uint64)
+:
 1. Extracts PID from the upper 32 bits of each key
 2. Checks if the process still exists in /proc
 3. Reports entries where the process no longer exists
@@ -132,6 +133,7 @@ usm_leak_detector/
 ├── __main__.py           # Entry point for python -m
 ├── cli.py                # Command-line interface
 ├── constants.py          # Target maps and constants
+├── logging_config.py     # Logging configuration
 ├── models.py             # Data classes (ConnTuple, MapLeakInfo, PIDLeakInfo, etc.)
 ├── map_discovery.py      # ConnTuple map discovery logic
 ├── network.py            # Network namespace and TCP parsing
@@ -147,5 +149,6 @@ usm_leak_detector/
     ├── bpftool.py        # bpftool backend implementation
     ├── bpftool_downloader.py  # Auto-download static bpftool binary
     ├── system_probe.py   # system-probe backend implementation
-    └── backend_selector.py  # Backend selection logic
+    ├── backend_selector.py  # Backend selection logic
+    └── streaming.py      # Streaming JSON parser for bpftool output
 ```

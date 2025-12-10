@@ -29,7 +29,3 @@ def find_conn_tuple_maps(maps: List[Dict]) -> Dict[str, int]:
                 result[name] = map_id
                 break
     return result
-
-
-# Backward compatibility alias
-find_usm_maps = find_conn_tuple_maps

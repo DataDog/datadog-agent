@@ -8,6 +8,8 @@ enabling O(1) memory usage instead of loading all entries at once.
 import json
 from typing import Generator, Dict, TextIO
 
+from ..logging_config import logger
+
 
 def iter_json_objects(stream: TextIO) -> Generator[Dict, None, None]:
     """Yield JSON objects one at a time from bpftool --json output.
@@ -77,7 +79,7 @@ def iter_json_objects(stream: TextIO) -> Generator[Dict, None, None]:
                         try:
                             yield json.loads(obj_str)
                         except json.JSONDecodeError:
-                            pass
+                            logger.warning("Failed to parse JSON object: %s...", obj_str[:100])
                         obj_chars = []
                         in_object = False
             elif in_object:

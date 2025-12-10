@@ -4,10 +4,10 @@ bpftool backend for eBPF map operations.
 
 import json
 import subprocess
-import sys
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from ..logging_config import logger
 from .bpftool_downloader import download_bpftool
 from .streaming import iter_json_objects
 from ..subprocess_utils import safe_subprocess_run
@@ -81,14 +81,14 @@ class BpftoolBackend(EbpfBackend):
                 timeout=30
             )
             if result.returncode != 0:
-                print(f"Error running bpftool: {result.stderr}", file=sys.stderr)
+                logger.error(f"Error running bpftool: {result.stderr}")
                 return None
             return result.stdout
         except FileNotFoundError:
-            print("Error: bpftool not found in PATH", file=sys.stderr)
+            logger.error("bpftool not found in PATH")
             return None
         except subprocess.TimeoutExpired:
-            print("Error: bpftool timed out", file=sys.stderr)
+            logger.error("bpftool timed out")
             return None
 
     def list_maps(self) -> List[Dict]:
@@ -99,7 +99,7 @@ class BpftoolBackend(EbpfBackend):
         try:
             return json.loads(output)
         except json.JSONDecodeError as e:
-            print(f"Error parsing bpftool output: {e}", file=sys.stderr)
+            logger.error(f"Error parsing bpftool output: {e}")
             return []
 
     def iter_map_by_id(self, map_id: int) -> Generator[Dict, None, None]:
@@ -124,7 +124,7 @@ class BpftoolBackend(EbpfBackend):
                 bufsize=1  # Line buffered
             )
         except FileNotFoundError:
-            print("Error: bpftool not found in PATH", file=sys.stderr)
+            logger.error("bpftool not found in PATH")
             return
 
         try:
