@@ -1,7 +1,7 @@
 """Collect licenses for a product package in a way we can ship them."""
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_files")
 load("//compliance:license_csv.bzl", "license_csv")
 
 visibility("public")

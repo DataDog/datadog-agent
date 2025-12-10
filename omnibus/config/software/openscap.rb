@@ -24,7 +24,7 @@ build do
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
     " #{install_dir}/embedded/lib/libpopt.so"
--end
+end
 
 dependency 'attr'
 dependency 'bzip2'
@@ -37,7 +37,6 @@ dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
 dependency 'pcre2'
-dependency 'popt'
 dependency 'rpm'
 dependency 'util-linux'
 dependency 'xmlsec'
