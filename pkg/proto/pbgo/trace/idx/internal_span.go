@@ -516,15 +516,6 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
-// setStringRefAttribute sets a string attribute for the trace chunk from a known string reference value.
-func (c *InternalTraceChunk) setStringRefAttribute(key string, value uint32) {
-	setAttribute(key, &AnyValue{
-		Value: &AnyValue_StringValueRef{
-			StringValueRef: value,
-		},
-	}, c.Strings, c.Attributes)
-}
-
 func (c *InternalTraceChunk) markUsedStrings(usedStrings []bool) {
 	usedStrings[c.originRef] = true
 	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
