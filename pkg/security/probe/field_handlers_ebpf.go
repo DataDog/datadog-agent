@@ -242,7 +242,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 	}
 
 	if ev.ProcessContext.ContainerContext.ContainerID != "" {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetContainerWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
 			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
 			ev.ProcessContext.ContainerContext.Resolved = true
 		}
@@ -578,7 +578,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroup
 			}
 
 			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
-				ev.ProcessContext.CGroup = *cgroupContext
+				ev.ProcessContext.CGroup = cgroupContext
 			}
 		}
 	}

@@ -250,6 +250,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
   DD_PKG_VERSION: "0.6.0-beta.4"
+  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.staging.dog/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
@@ -370,7 +371,7 @@ variables:
 
 .on_build_changes: &on_build_changes
   changes:
-    paths: 
+    paths:
       - omnibus/**/*
     compare_to: $COMPARE_TO_BRANCH
 
@@ -650,7 +651,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
+        - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -712,6 +713,7 @@ workflow:
         - pkg/aggregator/*/**
         - comp/languagedetection/**/*
         - pkg/clusteragent/admission/mutate/**/*
+        - pkg/clusteragent/languagedetection/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*

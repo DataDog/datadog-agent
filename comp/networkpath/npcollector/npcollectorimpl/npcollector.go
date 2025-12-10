@@ -16,12 +16,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,14 +73,10 @@ type npCollectorImpl struct {
 	flushInterval         time.Duration
 	inputChanFullLogLimit *utillog.Limit
 
-	// Telemetry component
-	telemetrycomp telemetryComp.Component
+	traceroute traceroute.Component
 
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
-	// TODO: instead of mocking traceroute via function replacement like this
-	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
 	filter                  *connfilter.ConnFilter
@@ -92,7 +88,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, traceroute traceroute.Component, logger log.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
 	logger.Infof("New NpCollector %+v", collectorConfigs)
 	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite, collectorConfigs.monitorIPWithoutDomain)
 
@@ -123,14 +119,12 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
 
-		telemetrycomp: telemetrycomp,
+		traceroute: traceroute,
 
 		stopChan:              make(chan struct{}),
 		pathtestsListenerDone: make(chan struct{}),
 		flushLoopDone:         make(chan struct{}),
 		workersDone:           make(chan struct{}),
-
-		runTraceroute: runTraceroute,
 
 		filter: filter,
 	}
@@ -393,9 +387,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)
 
-	path, err := s.runTraceroute(cfg, s.telemetrycomp)
+	path, err := s.traceroute.Run(context.TODO(), cfg)
 	if err != nil {
-		s.logger.Errorf("%s", err)
+		s.logger.Errorf("run traceroute error: %s", err)
 		return
 	}
 
@@ -426,18 +420,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 			s.logger.Errorf("failed to send event to epForwarder: %s", err)
 		}
 	}
-}
-
-func runTraceroute(cfg config.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg, telemetry)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
-	}
-	path, err := tr.Run(context.TODO())
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
-	}
-	return path, nil
 }
 
 func (s *npCollectorImpl) flushLoop() {

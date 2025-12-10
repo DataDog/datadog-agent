@@ -798,6 +798,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
+		event.Source = model.EventSourceReplay
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -811,7 +812,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		if ok {
 			for _, s := range snapshotBoundSockets {
 				entry.Retain()
-				bindEvent := p.newBindEventFromSnapshot(entry, s)
+				bindEvent := p.newBindEventFromReplay(entry, s)
+				bindEvent.Source = model.EventSourceReplay
+
 				events = append(events, bindEvent)
 			}
 		}
@@ -988,9 +991,17 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.ContainerContext.ContainerID = ev.ProcessContext.Process.ContainerContext.ContainerID
+	// Important : ev.ProcessContext is populated from the unmarshaling of the event.
 
-	entry.Process.CGroup.Merge(&ev.ProcessContext.Process.CGroup)
+	if !ev.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+		cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(ev.ProcessContext.Process.CGroup.CGroupFile)
+		if err != nil {
+			return n, err
+		}
+		p.Resolvers.ProcessResolver.SetProcessCGroupContext(entry, cgroupContext)
+	} else {
+		seclog.Debugf("no cgroup file available for process %d", entry.Pid)
+	}
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1041,18 +1052,18 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
-	p.event.ProcessContext = &model.ProcessContext{}
+	p.event.Source = model.EventSourceRuntime
 	return p.event
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
+		return cgroupContext, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
 	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
 	if !updated {
-		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+		return cgroupContext, fmt.Errorf("failed to update cgroup for pid %d", pid)
 	}
 
 	return cgroupContext, nil
@@ -1077,7 +1088,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
-		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
 
@@ -1650,8 +1661,8 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
-			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.ProcessContext.Process.CGroup = *cgroupContext
+			event.CgroupTracing.CGroupContext = cgroupContext
+			event.ProcessContext.Process.CGroup = cgroupContext
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
@@ -3197,8 +3208,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3467,21 +3481,17 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	return event
 }
 
-// newBindEventFromSnapshot returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
+// newBindEventFromReplay returns a new bind event with a process context
+func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
 	event := p.eventPool.Get()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family

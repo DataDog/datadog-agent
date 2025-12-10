@@ -34,7 +34,7 @@ func TestGetPorts(t *testing.T) {
 }
 
 func TestProcessResults(t *testing.T) {
-	runner := &Runner{}
+	runner := &Runner{networkID: func() string { return "" }}
 	tts := []struct {
 		description      string
 		inputResults     *result.Results
