@@ -76,7 +76,7 @@ namespace Datadog.CustomActions
             var otelEnabled = _session.Property("DD_OTELCOLLECTOR_ENABLED");
             if (!string.IsNullOrEmpty(otelEnabled))
             {
-                env["DD_OTELCOLLECTOR_ENABLED"] = "true";
+                env["DD_OTELCOLLECTOR_ENABLED"] = otelEnabled;
             }
 
             // Add APM instrumentation configuration

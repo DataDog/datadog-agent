@@ -500,7 +500,6 @@ namespace WixSetup.Datadog_Agent
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
-                           "ORIGINALDATABASE=[OriginalDatabase]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
