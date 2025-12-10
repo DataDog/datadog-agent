@@ -25,8 +25,8 @@ build do
     command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
     
     # Calling helpers to set the correct paths in openssl.cnf and fipsinstall.sh.
-    if windows?
-      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips_win --embedded_ssl_dir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'"
+    if !windows?
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir} --embedded_ssl_dir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'"
     else
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
