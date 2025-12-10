@@ -152,6 +152,7 @@ func ParseV4TaskContainers(
 			},
 			State: workloadmeta.ContainerState{
 				Running:  container.KnownStatus == "RUNNING",
+				Status:   ContainerStatusFromKnownStatus(container.KnownStatus),
 				ExitCode: container.ExitCode,
 			},
 			Owner: &workloadmeta.EntityID{
@@ -250,6 +251,20 @@ func ParseV4TaskContainers(
 	}
 
 	return taskContainers, events
+}
+
+// ContainerStatusFromKnownStatus converts the ECS known status string into a workloadmeta.ContainerStatus.
+func ContainerStatusFromKnownStatus(status string) workloadmeta.ContainerStatus {
+	switch status {
+	case "RUNNING":
+		return workloadmeta.ContainerStatusRunning
+	case "STOPPED":
+		return workloadmeta.ContainerStatusStopped
+	case "PULLED", "CREATED", "RESOURCES_PROVISIONED":
+		return workloadmeta.ContainerStatusCreated
+	default:
+		return workloadmeta.ContainerStatusUnknown
+	}
 }
 
 func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
