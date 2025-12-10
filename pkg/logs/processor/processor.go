@@ -178,7 +178,6 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
-	log.Infof("Processing message: instance %s, drain_len %d (%d): %s", p.instanceID, len(msg.DrainTokenizedContent), len(msg.DrainTokenizedContent)%4, msg.GetContent())
 	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
