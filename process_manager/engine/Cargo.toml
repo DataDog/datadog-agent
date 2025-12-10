@@ -51,6 +51,7 @@ windows = { version = "0.58", features = [
     "Win32_System_IO",
     "Win32_System_Console",
     "Win32_System_ProcessStatus",
+    "Win32_Networking_WinSock",
 ] }
 windows-service = "0.7"
 tracing-appender = "0.2"
