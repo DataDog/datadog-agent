@@ -98,7 +98,7 @@ func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 				matched = true
 			}
 		}
-		if filter.matchIPCidr.IsValid() {
+		if filter.matchIPCidr.IsValid() && ip.IsValid() {
 			if filter.matchIPCidr.Contains(ip) {
 				matched = true
 			}

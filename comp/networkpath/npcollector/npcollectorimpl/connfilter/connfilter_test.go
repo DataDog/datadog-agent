@@ -404,7 +404,11 @@ filters:
 			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite, false)))
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
-				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, netip.MustParseAddr(expMatch.ip)), expMatch.shouldMatch, expMatch)
+				if expMatch.ip == "" {
+					assert.Equal(t, connFilter.IsIncluded(expMatch.domain, netip.Addr{}), expMatch.shouldMatch, expMatch)
+				} else {
+					assert.Equal(t, connFilter.IsIncluded(expMatch.domain, netip.MustParseAddr(expMatch.ip)), expMatch.shouldMatch, expMatch)
+				}
 			}
 		})
 	}
