@@ -227,7 +227,7 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 
 func URLhasFQDN(u string) bool {
 	url, err := url.Parse(u)
-	return err != nil && strings.HasSuffix(url.Hostname(), ".")
+	return err == nil && strings.HasSuffix(url.Hostname(), ".")
 }
 
 func URLwithPQDN(u string) string {
