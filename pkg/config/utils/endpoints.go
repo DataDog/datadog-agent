@@ -122,21 +122,6 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 	return dedupedAPIKeys
 }
 
-// EndpointsOptions allows to provide options that override the settings provided in the configuration.
-// This is an unfortunate workaround for the configuration still being a global, and thus impossible to
-// mutate locally without affecting the global one, when a configuration setting has to be modified temporarily.
-type EndpointOptions struct {
-	DisableFQDN bool
-}
-
-// DefaultEndpointOptions creates an EndpointOptions struct with no option affecting the global configuration.
-func DefaultEndpointOptions() EndpointOptions {
-	defaults := EndpointOptions{
-		DisableFQDN: false,
-	}
-	return defaults
-}
-
 // EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
 type EndpointDescriptor struct {
 	BaseURL   string
@@ -163,13 +148,10 @@ func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) 
 
 	return eds
 }
-func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
-	return GetMultipleEndpointsWithOptions(c, DefaultEndpointOptions())
-}
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpointsWithOptions(c pkgconfigmodel.Reader, options EndpointOptions) (EndpointDescriptorSet, error) {
-	ddURL := getInfraEndpointWithOptions(c, options)
+func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
+	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
@@ -199,7 +181,7 @@ func GetMultipleEndpointsWithOptions(c pkgconfigmodel.Reader, options EndpointOp
 
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {
-		haURL, err := getMRFInfraEndpointWithOptions(c, options)
+		haURL, err := GetMRFInfraEndpoint(c)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
@@ -219,32 +201,23 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // If the site is a datadog well-known one, it is suffixed with a dot to make it a FQDN.
 // Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
-func buildURLWithPrefix(prefix, site string, forceFQDN bool) string {
+func BuildURLWithPrefix(prefix, site string) string {
 	site = strings.TrimSpace(site)
-	if forceFQDN && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site
 }
 
-func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
-	return getMainEndpointWithOptions(c, prefix, ddURLKey, DefaultEndpointOptions())
-}
-
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func getMainEndpointWithOptions(c pkgconfigmodel.Reader, prefix string, ddURLKey string, options EndpointOptions) string {
-	forceFQDN := c.GetBool("convert_dd_site_fqdn.enabled")
-	if options.DisableFQDN {
-		forceFQDN = false
-	}
-
+func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
-		return buildURLWithPrefix(prefix, c.GetString("site"), forceFQDN)
+		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
-	return buildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite, forceFQDN)
+	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
 }
 
 // GetMRFEndpoint returns the generic MRF endpoint to use.
@@ -253,19 +226,10 @@ func getMainEndpointWithOptions(c pkgconfigmodel.Reader, prefix string, ddURLKey
 // lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
 // precedence over `multi_region_failover.site`.
 func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
-	return getMRFEndpointWithOptions(c, prefix, ddMRFURLKey, DefaultEndpointOptions())
-}
-
-func getMRFEndpointWithOptions(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string, options EndpointOptions) (string, error) {
-	forceFQDN := c.GetBool("convert_dd_site_fqdn.enabled")
-	if options.DisableFQDN {
-		forceFQDN = false
-	}
-
 	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
 		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
 	} else if c.GetString("multi_region_failover.site") != "" {
-		return buildURLWithPrefix(prefix, c.GetString("multi_region_failover.site"), forceFQDN), nil
+		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
 	}
 	return "", fmt.Errorf("`multi_region_failover.site` or `%s` must be set when Multi-Region Failover is enabled", ddMRFURLKey)
 }
@@ -276,10 +240,6 @@ func getMRFEndpointWithOptions(c pkgconfigmodel.Reader, prefix, ddMRFURLKey stri
 // lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
 // precedence over `multi_region_failover.site`.
 func GetMRFLogsEndpoint(c pkgconfigmodel.Reader, prefix string) (string, error) {
-	return getMRFLogsEndpointWithOptions(c, prefix, DefaultEndpointOptions())
-}
-
-func getMRFLogsEndpointWithOptions(c pkgconfigmodel.Reader, prefix string, options EndpointOptions) (string, error) {
 	// For pure logs, we already use a prefix that looks like `agent-http-intake.logs.`, but for other EvP intake
 	// tracks, they just have a generic prefix that looks like the product name (e.g., `dbm-metrics-intake.`), so we
 	// only want to append the `.logs.` suffix if it's not already present.
@@ -288,7 +248,7 @@ func getMRFLogsEndpointWithOptions(c pkgconfigmodel.Reader, prefix string, optio
 		logsSpecificPrefix = prefix + MRFLogsPrefix
 	}
 
-	return getMRFEndpointWithOptions(c, logsSpecificPrefix, "multi_region_failover.dd_url", options)
+	return GetMRFEndpoint(c, logsSpecificPrefix, "multi_region_failover.dd_url")
 }
 
 func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
@@ -301,11 +261,7 @@ func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
 func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
-	return getInfraEndpointWithOptions(c, DefaultEndpointOptions())
-}
-
-func getInfraEndpointWithOptions(c pkgconfigmodel.Reader, options EndpointOptions) string {
-	return getMainEndpointWithOptions(c, InfraURLPrefix, "dd_url", options)
+	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
 }
 
 // GetMRFInfraEndpoint returns the infrastructure-specific MRF endpoint to use.
@@ -314,12 +270,8 @@ func getInfraEndpointWithOptions(c pkgconfigmodel.Reader, options EndpointOption
 // lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
 // precedence over `multi_region_failover.site`.
 func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
-	return getMRFInfraEndpointWithOptions(c, DefaultEndpointOptions())
-}
-
-func getMRFInfraEndpointWithOptions(c pkgconfigmodel.Reader, options EndpointOptions) (string, error) {
 	fullInfraURLPrefix := InfraURLPrefix + MRFInfraPrefix
-	return getMRFEndpointWithOptions(c, fullInfraURLPrefix, "multi_region_failover.dd_url", options)
+	return GetMRFEndpoint(c, fullInfraURLPrefix, "multi_region_failover.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent

@@ -79,16 +79,3 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
 	}
 }
-
-func (ei endpointInfo) IsFQDN() bool {
-	return ei.Endpoint.IsFQDN()
-}
-
-func (ei endpointInfo) ToPQDN() endpointInfo {
-	return endpointInfo{
-		Endpoint:    ei.Endpoint.ToPQDN(),
-		Method:      ei.Method,
-		Payload:     ei.Payload,
-		ContentType: ei.ContentType,
-	}
-}

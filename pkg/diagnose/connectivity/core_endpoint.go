@@ -21,7 +21,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -70,11 +69,10 @@ func getLogsUseTCP() bool {
 }
 
 type connDiagnostician struct {
-	diagCfg            diagnose.Config
-	log                log.Component
-	domainResolvers    map[string]resolver.DomainResolver
-	altDomainResolvers map[string]resolver.DomainResolver
-	client             *http.Client
+	diagCfg         diagnose.Config
+	log             log.Component
+	domainResolvers map[string]resolver.DomainResolver
+	client          *http.Client
 }
 
 func newConnectivityDiagnostician(diagCfg diagnose.Config, log log.Component) *connDiagnostician {
@@ -85,38 +83,13 @@ func newConnectivityDiagnostician(diagCfg diagnose.Config, log log.Component) *c
 }
 
 func (cd *connDiagnostician) init() diagnose.Diagnosis {
-	var diag diagnose.Diagnosis
-
 	config := pkgconfigsetup.Datadog()
 	cd.client = getClient(config, 1, cd.log)
 
 	// Create standard domain resolvers
-	cd.domainResolvers, diag = cd.makeDomainResolvers(config, false)
-	if diag.Status != diagnose.DiagnosisSuccess {
-		return diag
-	}
-
-	if config.Get("convert_dd_site_fqdn.enabled") == true {
-		cd.altDomainResolvers, diag = cd.makeDomainResolvers(config, true)
-		if diag.Status != diagnose.DiagnosisSuccess {
-			return diag
-		}
-	}
-
-	return diagnose.Diagnosis{
-		Status: diagnose.DiagnosisSuccess,
-	}
-}
-
-func (cd *connDiagnostician) makeDomainResolvers(config pkgconfigmodel.Config, disableFQDN bool) (map[string]resolver.DomainResolver, diagnose.Diagnosis) {
-	var err error
-
-	endpointOptions := utils.DefaultEndpointOptions()
-	endpointOptions.DisableFQDN = disableFQDN
-
-	endpointDescriptors, err := utils.GetMultipleEndpointsWithOptions(config, endpointOptions)
+	endpointDescriptors, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
-		return nil, diagnose.Diagnosis{
+		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisSuccess,
 			Name:        "Endpoints configuration",
 			Diagnosis:   "Misconfiguration of agent endpoints",
@@ -124,9 +97,9 @@ func (cd *connDiagnostician) makeDomainResolvers(config pkgconfigmodel.Config, d
 			RawError:    err.Error(),
 		}
 	}
-	domainResolvers, err := resolver.NewSingleDomainResolvers2(endpointDescriptors)
+	cd.domainResolvers, err = resolver.NewSingleDomainResolvers2(endpointDescriptors)
 	if err != nil {
-		return nil, diagnose.Diagnosis{
+		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisSuccess,
 			Name:        "Resolver error",
 			Diagnosis:   "Unable to create domain resolver",
@@ -134,7 +107,10 @@ func (cd *connDiagnostician) makeDomainResolvers(config pkgconfigmodel.Config, d
 			RawError:    err.Error(),
 		}
 	}
-	return domainResolvers, diagnose.Diagnosis{Status: diagnose.DiagnosisSuccess}
+
+	return diagnose.Diagnosis{
+		Status: diagnose.DiagnosisSuccess,
+	}
 }
 
 func (cd *connDiagnostician) diagnose() []diagnose.Diagnosis {
@@ -188,46 +164,26 @@ func (cd *connDiagnostician) checkLogsEndpoint() diagnose.Diagnosis {
 	return createDiagnosis(name, url, "", err)
 }
 
-func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolver, endpointInfo endpointInfo, apiKey string) diagnose.Diagnosis {
-	// Initialize variables
-	var logURL string
+func (cd *connDiagnostician) checkEndpointURL(url string, endpointInfo endpointInfo, apiKey string) diagnose.Diagnosis {
 	var responseBody []byte
 	var err error
 	var statusCode int
 	var httpTraces []string
 
 	if endpointInfo.Method == "HEAD" {
-		logURL = endpointInfo.Endpoint.Route
-		statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), 1, cd.log, withOneRedirect()))
+		statusCode, err = sendHTTPHEADRequestToEndpoint(url, getClient(pkgconfigsetup.Datadog(), 1, cd.log, withOneRedirect()))
 	} else {
-		domain := domainResolver.Resolve(endpointInfo.Endpoint)
 		httpTraces = []string{}
 		ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 
-		statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, cd.client, domain, endpointInfo, apiKey)
+		statusCode, responseBody, _, err = sendHTTPRequestToEndpoint(ctx, cd.client, url, endpointInfo, apiKey)
 	}
 
 	// Check if there is a response and if it's valid
 	report, reportErr := verifyEndpointResponse(cd.diagCfg, statusCode, responseBody, err)
 
-	diagnosisName := "Connectivity to " + logURL
-	diag := createDiagnosis(diagnosisName, logURL, report, reportErr)
-
-	// Detect if the connection failed because a FQDN was used, by checking if one with a PQDN succeeds
-	if diag.Status != diagnose.DiagnosisSuccess && cd.altDomainResolvers != nil {
-		if (endpointInfo.Method == "HEAD" && endpointInfo.IsFQDN()) || domainResolver.IsFQDN() {
-			pqdn := endpointToPQDN(domainResolver.GetConfigName())
-			altResolver, ok := cd.altDomainResolvers[pqdn]
-			if ok {
-				cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", logURL, pqdn)
-
-				d := cd.checkEndpoint(altResolver, endpointInfo.ToPQDN(), apiKey)
-				if d.Status == diagnose.DiagnosisSuccess {
-					diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", logURL)
-				}
-			}
-		}
-	}
+	diagnosisName := "Connectivity to " + url
+	diag := createDiagnosis(diagnosisName, url, report, reportErr)
 
 	// Prepend http trace on error or if in verbose mode
 	if len(httpTraces) > 0 && (cd.diagCfg.Verbose || reportErr != nil) {
@@ -236,11 +192,50 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	return diag
 }
 
-func endpointToPQDN(endpoint string) string {
-	url, err := url.Parse(endpoint)
-	if err != nil {
-		panic("endpoint is not a valid URL")
+func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolver, endpointInfo endpointInfo, apiKey string) diagnose.Diagnosis {
+	var url string
+
+	if endpointInfo.Endpoint.Name == "flare" {
+		url = endpointInfo.Endpoint.Route
+	} else {
+		domain := domainResolver.Resolve(endpointInfo.Endpoint)
+		url = createEndpointURL(domain, endpointInfo)
 	}
+	diag := cd.checkEndpointURL(url, endpointInfo, apiKey)
+
+	// Detect if the connection may have failed because a FQDN was used, by checking if one with a PQDN succeeds
+	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().Get("convert_dd_site_fqdn.enabled") == true {
+		var pqdnURL string
+
+		if endpointInfo.Endpoint.Name == "flare" && URLhasFQDN(url) {
+			pqdnURL = URLwithPQDN(url)
+		} else if domainResolver.IsFQDN() {
+			pqdnURL = URLwithPQDN(url)
+		}
+
+		if pqdnURL != "" {
+			cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", url, pqdnURL)
+
+			d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
+			if d.Status == diagnose.DiagnosisSuccess {
+				diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", url)
+			}
+		}
+	}
+	return diag
+}
+
+func URLhasFQDN(u string) bool {
+	url, err := url.Parse(u)
+	return err != nil && strings.HasSuffix(url.Hostname(), ".")
+}
+
+func URLwithPQDN(u string) string {
+	url, err := url.Parse(u)
+	if err != nil {
+		panic("Route is not a valid URL")
+	}
+
 	host := strings.TrimSuffix(url.Host, ".")
 	if port := url.Port(); port != "" {
 		url.Host = fmt.Sprintf("%s:%s", host, port)
@@ -296,9 +291,7 @@ func createDiagnosisString(diagnosis string, report string) string {
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
-	url := createEndpointURL(domain, endpointInfo)
-
+func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, url string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
 	headers := map[string]string{
 		"Content-Type":     endpointInfo.ContentType,
 		"DD-API-KEY":       apiKey,
