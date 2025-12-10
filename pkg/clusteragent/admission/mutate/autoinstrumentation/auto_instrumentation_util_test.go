@@ -30,7 +30,7 @@ import (
 var (
 	defaultLibraries = map[string]string{
 		"java":   "v1",
-		"python": "v3",
+		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",

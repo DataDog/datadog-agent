@@ -9,6 +9,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 )
 
@@ -42,3 +43,8 @@ type Workload struct {
 	pulumi.ResourceState
 	components.Component
 }
+
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*Workload, error)
+
+// AgentDependentWorkloadAppFunc is a function that deploys a workload app to a kube provider with the agent passed in
+type AgentDependentWorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*Workload, error)

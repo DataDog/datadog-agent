@@ -9,9 +9,9 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -454,7 +454,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		var files []string
 		for i := 0; i < testActivityDumpRateLimiter*10; i++ {
-			files = append(files, filepath.Join(testDir, "ad-test-create-"+fmt.Sprintf("%d", i)))
+			files = append(files, filepath.Join(testDir, "ad-test-create-"+strconv.Itoa(i)))
 		}
 		args := []string{"sleep", "2", ";", "open"}
 		args = append(args, files...)

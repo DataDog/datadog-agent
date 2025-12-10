@@ -91,6 +91,7 @@ const (
 	setenvProbe                  probeFuncName = "uprobe__setenv"
 	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
 	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
+	cuLaunchKernelProbe          probeFuncName = "uprobe__cuLaunchKernel"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -296,10 +297,10 @@ func (p *Probe) initCOREGPU(cfg *config.Config) error {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
@@ -446,6 +447,7 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 				Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelProbe}},
 				},
 			},
 		},

@@ -1234,7 +1234,7 @@ func TestOrgStatus(t *testing.T) {
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
-	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
+	api.On("FetchOrgStatus", mock.Anything).Return(nil, errors.New("Error"))
 	service.orgStatusPoller.poll(service.api, service.rcType)
 	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)

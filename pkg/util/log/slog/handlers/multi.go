@@ -32,8 +32,10 @@ func NewMulti(handlers ...slog.Handler) slog.Handler {
 func (h *multi) Handle(ctx context.Context, r slog.Record) error {
 	var errs []error
 	for _, handler := range h.handlers {
-		if err := handler.Handle(ctx, r); err != nil {
-			errs = append(errs, err)
+		if handler.Enabled(ctx, r.Level) {
+			if err := handler.Handle(ctx, r); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	return errors.Join(errs...)

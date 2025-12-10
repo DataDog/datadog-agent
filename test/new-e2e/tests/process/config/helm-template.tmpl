@@ -6,6 +6,9 @@ datadog:
     runInCoreAgent: false
   networkMonitoring:
     enabled: {{.NetworkPerformanceMonitoring}}
+  envDict:
+    DD_CEL_WORKLOAD_EXCLUDE: |-
+      [{"products":["metrics"],"rules":{"containers":["container.name.matches('nginx')"]}}]
 
 agents:
   containers:

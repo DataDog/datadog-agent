@@ -798,6 +798,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
+		event.Source = model.EventSourceReplay
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -811,7 +812,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		if ok {
 			for _, s := range snapshotBoundSockets {
 				entry.Retain()
-				bindEvent := p.newBindEventFromSnapshot(entry, s)
+				bindEvent := p.newBindEventFromReplay(entry, s)
+				bindEvent.Source = model.EventSourceReplay
+
 				events = append(events, bindEvent)
 			}
 		}
@@ -1041,7 +1044,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
-	p.event.ProcessContext = &model.ProcessContext{}
+	p.event.Source = model.EventSourceRuntime
 	return p.event
 }
 
@@ -1077,7 +1080,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
-		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
 
@@ -1896,8 +1899,8 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 
 	for tags, count := range approverAddedMetricCounter {
 		tags := []string{
-			fmt.Sprintf("approver_type:%s", tags.approverType),
-			fmt.Sprintf("event_type:%s", tags.eventType),
+			"approver_type:" + tags.approverType,
+			"event_type:" + tags.eventType,
 		}
 
 		if err := p.statsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {
@@ -3197,8 +3200,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3467,21 +3473,17 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	return event
 }
 
-// newBindEventFromSnapshot returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
+// newBindEventFromReplay returns a new bind event with a process context
+func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
 	event := p.eventPool.Get()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family

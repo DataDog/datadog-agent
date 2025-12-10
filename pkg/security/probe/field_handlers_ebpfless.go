@@ -10,6 +10,7 @@ package probe
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -569,7 +570,7 @@ func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *
 		h := sha256.New()
 		h.Write(e.RawFilter)
 		bs := h.Sum(nil)
-		e.FilterHash = fmt.Sprintf("%x", bs)
+		e.FilterHash = hex.EncodeToString(bs)
 		return e.FilterHash
 	}
 	return e.FilterHash
