@@ -45,6 +45,10 @@ const (
 	BATTERY_DISCHARGING   = 0x00000002
 	BATTERY_CHARGING      = 0x00000004
 	BATTERY_CRITICAL      = 0x00000008
+
+	BATTERY_UNKNOWN_CAPACITY = 0xFFFFFFFF
+	BATTERY_UNKNOWN_VOLTAGE  = 0xFFFFFFFF
+	BATTERY_UNKNOWN_RATE     = -2147483648 // 0x80000000 as signed int32
 )
 
 // The level of the battery information being queried. The data returned by the IOCTL depends on this value.
@@ -113,9 +117,9 @@ type BatteryInfo struct {
 	FullChargedCapacity float64
 	MaximumCapacityPct  float64
 	CycleCount          float64
-	CurrentChargePct    float64
-	Voltage             float64
-	ChargeRate          float64
+	CurrentChargePct    *float64
+	Voltage             *float64
+	ChargeRate          *float64
 	PowerState          []string
 	HasData             bool
 }
@@ -125,6 +129,9 @@ var QueryBatteryInfo = queryBatteryInfo
 
 // HasBatteryAvailable checks if a battery is available (mockable for tests)
 var HasBatteryAvailable = hasBatteryAvailable
+
+// ErrNotSystemBattery is returned when a battery is not a system battery
+var ErrNotSystemBattery = errors.New("battery is not a system battery")
 
 // Configure handles initial configuration/initialization of the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
@@ -162,9 +169,15 @@ func (c *Check) Run() error {
 	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
 	sender.Gauge("system.battery.maximum_capacity_pct", info.MaximumCapacityPct, "", nil)
 	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
-	sender.Gauge("system.battery.current_charge_pct", info.CurrentChargePct, "", nil)
-	sender.Gauge("system.battery.voltage", info.Voltage, "", nil)
-	sender.Gauge("system.battery.charge_rate", info.ChargeRate, "", nil)
+	if info.CurrentChargePct != nil {
+		sender.Gauge("system.battery.current_charge_pct", *info.CurrentChargePct, "", nil)
+	}
+	if info.Voltage != nil {
+		sender.Gauge("system.battery.voltage", *info.Voltage, "", nil)
+	}
+	if info.ChargeRate != nil {
+		sender.Gauge("system.battery.charge_rate", *info.ChargeRate, "", nil)
+	}
 
 	if len(info.PowerState) > 0 {
 		sender.Gauge("system.battery.power_state", 1, "", info.PowerState)
@@ -198,7 +211,7 @@ func setupBatteryDeviceEnumeration() (windows.DevInfo, *winutil.SP_DEVICE_INTERF
 
 // isSystemBatteryError checks if the error indicates a non-system battery
 func isSystemBatteryError(err error) bool {
-	return errors.Is(err, errors.New("battery is not a system battery"))
+	return errors.Is(err, ErrNotSystemBattery)
 }
 
 // hasBatteryAvailable checks if at least one battery device is present
@@ -292,9 +305,29 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 		info.FullChargedCapacity = float64(bi.FullChargedCapacity)
 		info.MaximumCapacityPct = math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100)
 		info.CycleCount = float64(bi.CycleCount)
-		info.CurrentChargePct = math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
-		info.Voltage = float64(bs.Voltage)
-		info.ChargeRate = float64(bs.Rate)
+
+		if bs.Capacity == BATTERY_UNKNOWN_CAPACITY {
+			log.Debugf("Current charge percentage is unknown, metric not submitted")
+			info.CurrentChargePct = nil
+		} else {
+			currentChargePct := math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
+			info.CurrentChargePct = &currentChargePct
+		}
+		if bs.Voltage == BATTERY_UNKNOWN_VOLTAGE {
+			log.Debugf("Voltage is unknown, metric not submitted")
+			info.Voltage = nil
+		} else {
+			voltage := float64(bs.Voltage)
+			info.Voltage = &voltage
+		}
+		if bs.Rate == BATTERY_UNKNOWN_RATE {
+			log.Debugf("Charge rate is unknown, metric not submitted")
+			info.ChargeRate = nil
+		} else {
+			chargeRate := float64(bs.Rate)
+			info.ChargeRate = &chargeRate
+		}
+
 		info.PowerState = getPowerState(bs.PowerState)
 		info.HasData = true
 
@@ -377,7 +410,7 @@ func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_S
 	// Check if this is a System Battery
 	log.Debugf("Checking battery capabilities: %x", bi.Capabilities)
 	if bi.Capabilities&BATTERY_SYSTEM_BATTERY == 0 {
-		return nil, nil, errors.New("battery is not a system battery")
+		return nil, nil, ErrNotSystemBattery
 	}
 
 	bws := BATTERY_WAIT_STATUS{

@@ -37,15 +37,18 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 
 	// Mock the battery query function
 	originalFunc := QueryBatteryInfo
+	currentChargePct := float64(84.21)
+	voltage := float64(12450)
+	chargeRate := float64(-2500)
 	QueryBatteryInfo = func() (*BatteryInfo, error) {
 		return &BatteryInfo{
 			DesignedCapacity:    100000,
 			FullChargedCapacity: 95000,
 			MaximumCapacityPct:  95.0,
 			CycleCount:          150,
-			CurrentChargePct:    84.21,
-			Voltage:             12450, // 12.45V in mV
-			ChargeRate:          -2500, // -2.5A discharge rate in mA
+			CurrentChargePct:    &currentChargePct,
+			Voltage:             &voltage,
+			ChargeRate:          &chargeRate,
 			PowerState:          []string{"power_state:battery_discharging"},
 			HasData:             true,
 		}, nil
@@ -140,14 +143,17 @@ func TestBatteryMultipleRuns(t *testing.T) {
 	originalFunc := QueryBatteryInfo
 	QueryBatteryInfo = func() (*BatteryInfo, error) {
 		callCount++
+		currentChargePct := 85.0 - float64(callCount*5.0) // Simulate discharge (percentage)
+		voltage := 12300 - float64(callCount*50)          // Voltage drops as battery discharges
+		chargeRate := -2000 - float64(callCount*100)      // Discharge rate increases
 		return &BatteryInfo{
 			DesignedCapacity:    100000,
 			FullChargedCapacity: 95000,
 			MaximumCapacityPct:  95.0,
 			CycleCount:          150,
-			CurrentChargePct:    85.0 - float64(callCount*5.0),  // Simulate discharge (percentage)
-			Voltage:             12300 - float64(callCount*50),  // Voltage drops as battery discharges
-			ChargeRate:          -2000 - float64(callCount*100), // Discharge rate increases
+			CurrentChargePct:    &currentChargePct,
+			Voltage:             &voltage,
+			ChargeRate:          &chargeRate,
 			PowerState:          []string{"power_state:battery_discharging"},
 			HasData:             true,
 		}, nil
@@ -209,14 +215,17 @@ func TestBatteryHealthLevels(t *testing.T) {
 			originalFunc := QueryBatteryInfo
 			QueryBatteryInfo = func() (*BatteryInfo, error) {
 				healthPercent := (tt.fullChargedCapacity / tt.designedCapacity) * 100
+				currentChargePct := 50.0
+				voltage := 12500.0 // 12.5V
+				chargeRate := 0.0  // Not charging/discharging
 				return &BatteryInfo{
 					DesignedCapacity:    tt.designedCapacity,
 					FullChargedCapacity: tt.fullChargedCapacity,
 					MaximumCapacityPct:  healthPercent,
 					CycleCount:          100,
-					CurrentChargePct:    50.0,
-					Voltage:             12500, // 12.5V
-					ChargeRate:          0,     // Not charging/discharging
+					CurrentChargePct:    &currentChargePct,
+					Voltage:             &voltage,
+					ChargeRate:          &chargeRate,
 					PowerState:          []string{"power_state:battery_power_on_line"},
 					HasData:             true,
 				}, nil
@@ -259,14 +268,17 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 		if currentIndex < len(charges)-1 {
 			currentIndex++
 		}
+		currentChargePct := charge         // Already percentage
+		voltage := 12500 - (charge * 5)    // Voltage decreases as charge decreases
+		chargeRate := -1500 - (charge * 2) // Discharge rate varies with charge
 		return &BatteryInfo{
 			DesignedCapacity:    50000,
 			FullChargedCapacity: 48000,
 			MaximumCapacityPct:  96.0, // Percentage (48000/50000 * 100)
 			CycleCount:          150,
-			CurrentChargePct:    charge,               // Already percentage
-			Voltage:             12500 - (charge * 5), // Voltage decreases as charge decreases
-			ChargeRate:          -1500 - (charge * 2), // Discharge rate varies with charge
+			CurrentChargePct:    &currentChargePct,
+			Voltage:             &voltage,
+			ChargeRate:          &chargeRate,
 			PowerState:          []string{"power_state:battery_discharging"},
 			HasData:             true,
 		}, nil
@@ -346,14 +358,17 @@ func TestBatteryPowerStates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			originalFunc := QueryBatteryInfo
 			QueryBatteryInfo = func() (*BatteryInfo, error) {
+				currentChargePct := 75.0
+				voltage := 12400.0    // 12.4V
+				chargeRate := -1800.0 // Discharging at 1.8A
 				return &BatteryInfo{
 					DesignedCapacity:    50000,
 					FullChargedCapacity: 48000,
 					MaximumCapacityPct:  96.0,
 					CycleCount:          100,
-					CurrentChargePct:    75.0,
-					Voltage:             12400, // 12.4V
-					ChargeRate:          -1800, // Discharging at 1.8A
+					CurrentChargePct:    &currentChargePct,
+					Voltage:             &voltage,
+					ChargeRate:          &chargeRate,
 					PowerState:          tt.powerState,
 					HasData:             true,
 				}, nil
