@@ -216,13 +216,37 @@ func initAgentDemultiplexer(log log.Component,
 		// Set up anomaly detection
 		registry := metrichistory.NewDetectorRegistry()
 		if histCfg.AnomalyDetectionEnabled {
-			// Create and configure the mean change detector
-			detector := detectors.NewMeanChangeDetector()
-			detector.Threshold = histCfg.MeanChangeThreshold
-			detector.MinSegmentSize = histCfg.MeanChangeMinSegment
-			registry.Register(detector)
+			switch histCfg.DetectorType {
+			case "mean_change":
+				// Legacy mean change detector
+				detector := detectors.NewMeanChangeDetector()
+				detector.Threshold = 2.0
+				registry.Register(detector)
+			case "bayesian_changepoint":
+				// Bayesian Online Changepoint Detection
+				detector := detectors.NewBayesianChangepointDetector()
+				detector.Hazard = histCfg.BayesianHazard
+				detector.Threshold = histCfg.BayesianThreshold
+				detector.MinDataPoints = histCfg.MinDataPoints
+				detector.ReportWindow = histCfg.DetectionIntervalFlushes // match detection frequency
+				registry.Register(detector)
+			case "robust_zscore":
+				fallthrough
+			default:
+				// Robust Z-Score detector (default)
+				detector := detectors.NewRobustZScoreDetector()
+				detector.Threshold = histCfg.RobustZScoreThreshold
+				detector.MinDataPoints = histCfg.MinDataPoints
+				registry.Register(detector)
+			}
 		}
 		metricHistCache.SetupDetectors(histCfg, registry)
+
+		// Start debug server for snapshot capture if enabled
+		if histCfg.DebugServerEnabled {
+			log.Infof("Metric history debug server starting on %s", histCfg.DebugServerAddr)
+			metrichistory.StartSnapshotServer(metricHistCache, histCfg.DebugServerAddr)
+		}
 	}
 
 	// --
@@ -525,8 +549,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	if d.metricHistoryCache != nil {
 		anomalies := d.metricHistoryCache.OnFlush(start)
 		for _, a := range anomalies {
-			d.log.Warnf("[ANOMALY DETECTED] %s | %s: %s (severity: %.2f)",
-				a.DetectorName, a.SeriesKey.Name, a.Message, a.Severity)
+			d.log.Warnf("[ANOMALY DETECTED] %s | %s %v: %s (severity: %.2f)",
+				a.DetectorName, a.SeriesKey.Name, a.SeriesKey.Tags, a.Message, a.Severity)
 		}
 	}
 

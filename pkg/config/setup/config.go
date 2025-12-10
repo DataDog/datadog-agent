@@ -1614,6 +1614,13 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_history.anomaly_detection.detection_interval_flushes", 4)
 	config.BindEnvAndSetDefault("metric_history.anomaly_detection.mean_change_threshold", 2.0)
 	config.BindEnvAndSetDefault("metric_history.anomaly_detection.mean_change_min_segment", 5)
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.detector_type", "robust_zscore")
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.robust_zscore_threshold", 3.5)
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.min_data_points", 10)
+
+	// Metric history debug server (for local testing/snapshot capture)
+	config.BindEnvAndSetDefault("metric_history.debug_server.enabled", false)
+	config.BindEnvAndSetDefault("metric_history.debug_server.addr", "localhost:6063")
 }
 
 func serverless(config pkgconfigmodel.Setup) {

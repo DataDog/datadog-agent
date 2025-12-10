@@ -15,6 +15,7 @@ import (
 type Config struct {
 	Enabled         bool
 	IncludePrefixes []string
+	ExcludePrefixes []string // metric prefixes to exclude from tracking
 	RecentDuration  time.Duration
 	MediumDuration  time.Duration
 	LongDuration    time.Duration
@@ -22,9 +23,18 @@ type Config struct {
 
 	// Anomaly detection configuration
 	AnomalyDetectionEnabled  bool
-	DetectionIntervalFlushes int     // run detection every N flushes (default: 4, ~1 minute)
-	MeanChangeThreshold      float64 // default: 2.0
-	MeanChangeMinSegment     int     // default: 5
+	DetectionIntervalFlushes int      // run detection every N flushes (default: 1, ~15 seconds)
+	DetectorType             string   // "robust_zscore" (default), "bayesian_changepoint", or "mean_change"
+	RobustZScoreThreshold    float64  // M-score threshold for robust_zscore (default: 3.5)
+	BayesianHazard           float64  // changepoint hazard rate for bayesian (default: 0.01)
+	BayesianThreshold        float64  // probability threshold for bayesian (default: 0.5)
+	MinDataPoints            int      // minimum points before detection (default: 10)
+	MinSeverity              float64  // minimum severity (0-1) to report anomaly (default: 0)
+	ExcludeAnomalyPrefixes   []string // metric prefixes to exclude from anomaly detection
+
+	// Debug server configuration (for local testing)
+	DebugServerEnabled bool   // start HTTP server for snapshot capture
+	DebugServerAddr    string // address for debug server (default: localhost:6063)
 }
 
 // DefaultConfig returns the default configuration.
@@ -32,6 +42,7 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:         false,
 		IncludePrefixes: []string{"system."},
+		ExcludePrefixes: []string{},
 		RecentDuration:  5 * time.Minute,
 		MediumDuration:  1 * time.Hour,
 		LongDuration:    24 * time.Hour,
@@ -39,9 +50,18 @@ func DefaultConfig() Config {
 
 		// Anomaly detection defaults
 		AnomalyDetectionEnabled:  true,
-		DetectionIntervalFlushes: 4,   // ~1 minute at 15s flush interval
-		MeanChangeThreshold:      2.0, // 2 standard deviations
-		MeanChangeMinSegment:     5,   // minimum 5 points per segment
+		DetectionIntervalFlushes: 1,               // ~15 seconds at 15s flush interval
+		DetectorType:             "robust_zscore", // robust_zscore, bayesian_changepoint, or mean_change
+		RobustZScoreThreshold:    3.5,             // M-score threshold (3.0-3.5 typical)
+		BayesianHazard:           0.01,            // expect changepoint every ~100 observations
+		BayesianThreshold:        0.5,             // 50% probability to trigger
+		MinDataPoints:            10,              // minimum points before detection
+		MinSeverity:              0.0,             // report all anomalies by default
+		ExcludeAnomalyPrefixes:   []string{},      // exclude no metrics by default
+
+		// Debug server defaults
+		DebugServerEnabled: false,
+		DebugServerAddr:    "localhost:6063",
 	}
 }
 
@@ -55,6 +75,10 @@ func LoadConfig(cfg model.Reader) Config {
 
 	if cfg.IsSet("metric_history.include_metrics") {
 		result.IncludePrefixes = cfg.GetStringSlice("metric_history.include_metrics")
+	}
+
+	if cfg.IsSet("metric_history.exclude_metrics") {
+		result.ExcludePrefixes = cfg.GetStringSlice("metric_history.exclude_metrics")
 	}
 
 	if cfg.IsSet("metric_history.retention.recent_duration") {
@@ -90,12 +114,41 @@ func LoadConfig(cfg model.Reader) Config {
 		result.DetectionIntervalFlushes = cfg.GetInt("metric_history.anomaly_detection.detection_interval_flushes")
 	}
 
-	if cfg.IsSet("metric_history.anomaly_detection.mean_change_threshold") {
-		result.MeanChangeThreshold = cfg.GetFloat64("metric_history.anomaly_detection.mean_change_threshold")
+	if cfg.IsSet("metric_history.anomaly_detection.detector_type") {
+		result.DetectorType = cfg.GetString("metric_history.anomaly_detection.detector_type")
 	}
 
-	if cfg.IsSet("metric_history.anomaly_detection.mean_change_min_segment") {
-		result.MeanChangeMinSegment = cfg.GetInt("metric_history.anomaly_detection.mean_change_min_segment")
+	if cfg.IsSet("metric_history.anomaly_detection.robust_zscore_threshold") {
+		result.RobustZScoreThreshold = cfg.GetFloat64("metric_history.anomaly_detection.robust_zscore_threshold")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.bayesian_hazard") {
+		result.BayesianHazard = cfg.GetFloat64("metric_history.anomaly_detection.bayesian_hazard")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.bayesian_threshold") {
+		result.BayesianThreshold = cfg.GetFloat64("metric_history.anomaly_detection.bayesian_threshold")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.min_data_points") {
+		result.MinDataPoints = cfg.GetInt("metric_history.anomaly_detection.min_data_points")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.min_severity") {
+		result.MinSeverity = cfg.GetFloat64("metric_history.anomaly_detection.min_severity")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.exclude_metrics") {
+		result.ExcludeAnomalyPrefixes = cfg.GetStringSlice("metric_history.anomaly_detection.exclude_metrics")
+	}
+
+	// Load debug server configuration
+	if cfg.IsSet("metric_history.debug_server.enabled") {
+		result.DebugServerEnabled = cfg.GetBool("metric_history.debug_server.enabled")
+	}
+
+	if cfg.IsSet("metric_history.debug_server.addr") {
+		result.DebugServerAddr = cfg.GetString("metric_history.debug_server.addr")
 	}
 
 	return result

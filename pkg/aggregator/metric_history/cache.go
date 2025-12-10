@@ -28,15 +28,18 @@ type MetricHistoryCache struct {
 
 	// Metric name filtering (prefix match)
 	includePrefixes []string // if empty, include all metrics
+	excludePrefixes []string // metrics matching these prefixes are excluded
 
 	// Expiry duration for series that haven't been seen
 	expiryDuration time.Duration // default: 25 minutes (100 cycles * 15s)
 
 	// Anomaly detection
-	flushCount        int
-	detectionEnabled  bool
-	detectionInterval int
-	registry          *DetectorRegistry
+	flushCount             int
+	detectionEnabled       bool
+	detectionInterval      int
+	registry               *DetectorRegistry
+	minSeverity            float64  // minimum severity to report (0-1)
+	excludeAnomalyPrefixes []string // metric prefixes excluded from anomaly detection
 }
 
 // NewMetricHistoryCache creates a new cache with default configuration.
@@ -56,10 +59,28 @@ func NewMetricHistoryCache() *MetricHistoryCache {
 // matchesPrefix checks if a metric name matches any of the configured prefixes.
 // Returns true if no prefixes are configured (include all metrics).
 func (c *MetricHistoryCache) matchesPrefix(name string) bool {
+	// First check excludes
+	for _, prefix := range c.excludePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+
+	// Then check includes
 	if len(c.includePrefixes) == 0 {
 		return true // include all if no prefixes configured
 	}
 	for _, prefix := range c.includePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesAnomalyExclude checks if a metric should be excluded from anomaly detection.
+func (c *MetricHistoryCache) matchesAnomalyExclude(name string) bool {
+	for _, prefix := range c.excludeAnomalyPrefixes {
 		if strings.HasPrefix(name, prefix) {
 			return true
 		}
@@ -143,6 +164,7 @@ func (c *MetricHistoryCache) Configure(cfg Config) {
 	c.recentRetention = cfg.RecentDuration
 	c.mediumRetention = cfg.MediumDuration
 	c.expiryDuration = cfg.ExpiryDuration
+	c.excludePrefixes = cfg.ExcludePrefixes
 }
 
 // Expire removes series that haven't been seen for expiryDuration.
@@ -190,7 +212,27 @@ func (c *MetricHistoryCache) runDetection() []Anomaly {
 	if c.registry == nil {
 		return nil
 	}
-	return c.registry.RunAll(c)
+
+	anomalies := c.registry.RunAll(c)
+
+	// Apply post-detection filters
+	if c.minSeverity > 0 || len(c.excludeAnomalyPrefixes) > 0 {
+		filtered := make([]Anomaly, 0, len(anomalies))
+		for _, a := range anomalies {
+			// Skip low-severity anomalies
+			if a.Severity < c.minSeverity {
+				continue
+			}
+			// Skip excluded metrics
+			if c.matchesAnomalyExclude(a.SeriesKey.Name) {
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		return filtered
+	}
+
+	return anomalies
 }
 
 // SetupDetectors configures anomaly detection based on the provided configuration.
@@ -199,4 +241,6 @@ func (c *MetricHistoryCache) SetupDetectors(cfg Config, registry *DetectorRegist
 	c.registry = registry
 	c.detectionEnabled = cfg.AnomalyDetectionEnabled
 	c.detectionInterval = cfg.DetectionIntervalFlushes
+	c.minSeverity = cfg.MinSeverity
+	c.excludeAnomalyPrefixes = cfg.ExcludeAnomalyPrefixes
 }

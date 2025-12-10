@@ -5,12 +5,34 @@ api_key: "0000001"  # Fake key for local testing
 metric_history:
   enabled: true
   include_metrics:
-    - "system."
-    - "datadog.agent."
+    - "system.cpu."     # CPU metrics (focus of demo)
+    - "system.load."    # Load averages
+    - "system.mem."     # Memory metrics
+  # Exclude noisy per-core metrics (we want .total aggregates only)
+  exclude_metrics:
+    - "system.cpu.user"     # per-core (use system.cpu.user.total)
+    - "system.cpu.idle"     # per-core (use system.cpu.idle.total)
+    - "system.cpu.system"   # per-core (use system.cpu.system.total)
+    - "system.cpu.iowait"   # per-core
+    - "system.cpu.stolen"   # per-core
+    - "system.cpu.guest"    # per-core
   anomaly_detection:
     enabled: true
-    detection_interval_flushes: 4  # every ~1 minute
-    mean_change_threshold: 2.0
+    detection_interval_flushes: 1    # every flush (~15 seconds)
+    # Detector options: robust_zscore, bayesian_changepoint, mean_change
+    detector_type: bayesian_changepoint
+    # Bayesian changepoint detection settings
+    bayesian_hazard: 0.01            # expected changepoint frequency (0.01 = every ~100 points)
+    bayesian_threshold: 0.5          # probability threshold to report (0.5 = 50%)
+    # Robust Z-score settings (if using robust_zscore)
+    robust_zscore_threshold: 3.5     # M-score threshold (3.0-3.5 typical)
+    min_data_points: 10              # minimum points before detection
+    min_severity: 0.5                # only report anomalies with severity >= 0.5
+    # Additional filtering for anomaly reporting
+    exclude_metrics: []              # exclude specific metrics from alerting
+  debug_server:
+    enabled: true                    # enable snapshot HTTP endpoint
+    addr: "localhost:6063"           # curl http://localhost:6063/snapshot
 
 # Log to stdout for visibility
 log_level: info
