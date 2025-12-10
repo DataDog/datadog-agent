@@ -55,8 +55,8 @@ $env:DD_INJECT_LOG_LEVEL = "debug"
 	output, err := host.Execute(script)
 	s.Require().NoError(err)
 	if enabled {
-		s.Require().Contains(output, "Instrumenting Java")
+		s.Require().Contains(output, "datadog injector version")
 	} else {
-		s.Require().NotContains(output, "Instrumenting Java")
+		s.Require().NotContains(output, "datadog injector version")
 	}
 }
