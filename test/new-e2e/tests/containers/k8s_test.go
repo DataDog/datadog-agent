@@ -230,7 +230,7 @@ func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
 	return nil
 }
 
-func (suite *k8sSuite) TestVersion() {
+func (suite *k8sSuite) TestAgentVersions() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
