@@ -97,7 +97,7 @@ single_machine_performance-regression_detector-merge_base_check:
   script:
     - |
       if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 10 != 0 )); then
-        exit 1
+        exit 0
       fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
