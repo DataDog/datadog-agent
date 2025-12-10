@@ -408,14 +408,14 @@ All assertions use `EventuallyWithTf` to handle eventual consistency:
 
 ```go
 suite.EventuallyWithTf(func(c *assert.CollectT) {
-    metrics, err := suite.Fakeintake.GetMetrics()
+    metrics, err := getAllMetrics(suite.Fakeintake)
     if !assert.NoErrorf(c, err, "Failed to query metrics") {
         return
     }
     assert.NotEmptyf(c, metrics, "No metrics found")
 
     // ... additional assertions
-}, 2*suite.Minute, 10*suite.Second, "Test description")
+}, 2*time.Minute, 10*time.Second, "Test description")
 ```
 
 **Pattern Notes**:
@@ -426,25 +426,23 @@ suite.EventuallyWithTf(func(c *assert.CollectT) {
 ### FakeIntake Validation
 
 ```go
-// Get all metrics
-metrics, err := suite.Fakeintake.GetMetrics()
+// Get all metrics (using helper function)
+metrics, err := getAllMetrics(suite.Fakeintake)
 
-// Filter metrics by name and tags
-metrics, err := suite.Fakeintake.FilterMetrics(
-    "container.cpu.usage",
-    fakeintake.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{
-        regexp.MustCompile(`^ecs_cluster_name:test-cluster$`),
-    }),
-)
+// Filter metrics by name
+cpuMetrics, err := suite.Fakeintake.FilterMetrics("container.cpu.usage")
 
-// Get logs
-logs, err := suite.Fakeintake.GetLogs()
+// Get all logs (using helper function)
+logs, err := getAllLogs(suite.Fakeintake)
+
+// Filter logs by service
+appLogs, err := suite.Fakeintake.FilterLogs("my-service")
 
 // Get traces
 traces, err := suite.Fakeintake.GetTraces()
 
 // Flush data (useful for testing data collection after events)
-suite.Fakeintake.FlushData()
+suite.Fakeintake.FlushServerAndResetAggregators()
 ```
 
 ---
@@ -666,9 +664,9 @@ aws ecs execute-command --cluster <cluster> --task <task-arn> \
 
 ```go
 // In test, add debug logging
-metrics, _ := suite.Fakeintake.GetMetrics()
+metrics, _ := getAllMetrics(suite.Fakeintake)
 for _, m := range metrics {
-    suite.T().Logf("Metric: %s, Tags: %v", m.GetMetricName(), m.GetTags())
+    suite.T().Logf("Metric: %s, Tags: %v", m.Metric, m.GetTags())
 }
 
 // Check FakeIntake health
@@ -681,7 +679,7 @@ resp, _ := http.Get("http://fakeintake:8080/health")
 If tests are flaky due to timing:
 1. Increase `EventuallyWithTf` timeout
 2. Add explicit `time.Sleep()` after operations
-3. Flush FakeIntake and wait: `suite.Fakeintake.FlushData(); time.Sleep(30*time.Second)`
+3. Flush FakeIntake and wait: `suite.Fakeintake.FlushServerAndResetAggregators(); time.Sleep(30*time.Second)`
 4. Check agent flush intervals in configuration
 
 ---
