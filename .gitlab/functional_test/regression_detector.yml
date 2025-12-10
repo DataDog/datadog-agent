@@ -337,7 +337,7 @@ single-machine-performance-metal-runners-regression_detector:
   variables:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: dev-pr3629-bea43153
+    SMP_VERSION: dev-pr3796-e7f7a988
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
     SAMPLE: "true"
