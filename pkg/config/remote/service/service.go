@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	defaultRefreshInterval  = 1 * time.Minute
+	defaultRefreshInterval  = 5 * time.Second
 	minimalRefreshInterval  = 5 * time.Second
 	defaultClientsTTL       = 30 * time.Second
 	maxClientsTTL           = 60 * time.Second
@@ -403,7 +403,7 @@ var defaultOptions = options{
 	directorRootOverride:                "",
 	clientCacheBypassLimit:              defaultCacheBypassLimit,
 	refresh:                             defaultRefreshInterval,
-	refreshIntervalOverrideAllowed:      true,
+	refreshIntervalOverrideAllowed:      false,
 	maxBackoff:                          minimalMaxBackoffTime,
 	clientTTL:                           defaultClientsTTL,
 	disableConfigPollLoop:               false,
