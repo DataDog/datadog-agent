@@ -45,6 +45,14 @@ func NewDrainProcessor(instanceID string) *DrainProcessor {
 	}
 }
 
+func (d *DrainProcessor) Match(tokens []string) *drain.LogCluster {
+	return d.drainProcessor.MatchFromTokens(tokens)
+}
+
+func (d *DrainProcessor) Train(tokens []string) {
+	d.drainProcessor.TrainFromTokens(tokens)
+}
+
 func (d *DrainProcessor) MatchAndTrain(tokens []string) (*drain.LogCluster, bool) {
 	start := time.Now()
 
@@ -61,7 +69,7 @@ func (d *DrainProcessor) MatchAndTrain(tokens []string) (*drain.LogCluster, bool
 
 	// Report if necessary
 	if time.Since(d.drainLastTimeReported) >= reportDrainInfoInterval {
-		d.reportInfo()
+		d.ReportInfo()
 	}
 
 	toIgnore := cluster != nil && cluster.Size() >= drainClusterSizeThreshold
@@ -86,13 +94,8 @@ func (d *DrainProcessor) update() {
 	}
 }
 
-// Reports metrics and display logs for drain clusters
-func (d *DrainProcessor) reportInfo() {
-	d.drainLastTimeReported = time.Now()
-
+func (d *DrainProcessor) ShowClusters() {
 	clusters := d.drainProcessor.Clusters()
-	drainClustersRatio := float64(len(clusters)) / float64(d.drainNLogs)
-	log.Infof("drain(%s): %d clusters from %d logs (%f%%)", d.id, len(clusters), d.drainNLogs, drainClustersRatio*100)
 	log.Infof("drain(%s): Displaying the top 10 clusters", d.id)
 	// Sort by size
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
@@ -102,6 +105,16 @@ func (d *DrainProcessor) reportInfo() {
 	for i, cluster := range clusters[:min(10, nClusters)] {
 		log.Infof("drain(%s): Cluster #%d: %s", d.id, i+1, cluster.String())
 	}
+}
+
+// Reports metrics and display logs for drain clusters
+func (d *DrainProcessor) ReportInfo() {
+	d.drainLastTimeReported = time.Now()
+
+	clusters := d.drainProcessor.Clusters()
+	drainClustersRatio := float64(len(clusters)) / float64(d.drainNLogs)
+	log.Infof("drain(%s): %d clusters from %d logs (%f%%)", d.id, len(clusters), d.drainNLogs, drainClustersRatio*100)
+	d.ShowClusters()
 
 	maxSize := 0
 	for _, cluster := range clusters {
