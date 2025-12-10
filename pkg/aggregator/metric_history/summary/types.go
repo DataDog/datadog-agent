@@ -55,3 +55,19 @@ type AnomalyCluster struct {
 	FirstSeen time.Time
 	LastSeen  time.Time
 }
+
+// SymmetryType indicates the relationship between metrics
+type SymmetryType int
+
+const (
+	NoSymmetry   SymmetryType = iota
+	Inverse                   // free↑ = used↓ (opposite directions, similar magnitude)
+	Proportional              // read↑ ~ write↑ (same direction, correlated magnitude)
+)
+
+// SymmetryPattern describes a detected relationship between metrics
+type SymmetryPattern struct {
+	Type       SymmetryType
+	Metrics    [2]string // the two metrics involved
+	Confidence float64   // 0-1, how confident we are in the pattern
+}
