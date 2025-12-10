@@ -40,6 +40,7 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -78,7 +79,6 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
@@ -154,6 +154,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
@@ -552,7 +553,6 @@ func start(log log.Component,
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
-		imageResolver := autoinstrumentation.NewImageResolver(rcClient, datadogConfig)
 
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
@@ -563,7 +563,7 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
-			ImageResolver:                imageResolver,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

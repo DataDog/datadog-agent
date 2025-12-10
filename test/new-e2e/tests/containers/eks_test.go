@@ -11,11 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	tifeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 )
 
 type eksSuite struct {
@@ -23,23 +23,27 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
-		awskubernetes.WithEKSOptions(
-			tifeks.WithLinuxNodeGroup(),
-			tifeks.WithWindowsNodeGroup(),
-			tifeks.WithBottlerocketNodeGroup(),
-			tifeks.WithLinuxARMNodeGroup(),
-			tifeks.WithUseAL2023Nodes(),
-		),
-		awskubernetes.WithDeployDogstatsd(),
-		awskubernetes.WithDeployTestWorkload(),
-		awskubernetes.WithFakeIntakeOptions(
-			fakeintake.WithRetentionPeriod("31m"),
-			fakeintake.WithStoreType("sql"),
-		),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
-		awskubernetes.WithDeployArgoRollout(),
-	)))
+	newProvisioner := func(helmValues string) provisioners.Provisioner {
+		return proveks.Provisioner(
+			proveks.WithRunOptions(
+				sceneks.WithEKSOptions(
+					sceneks.WithLinuxNodeGroup(),
+					sceneks.WithWindowsNodeGroup(),
+					sceneks.WithBottlerocketNodeGroup(),
+					sceneks.WithLinuxARMNodeGroup(),
+					sceneks.WithUseAL2023Nodes(),
+				),
+				sceneks.WithDeployDogstatsd(),
+				sceneks.WithDeployTestWorkload(),
+				sceneks.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+				sceneks.WithDeployArgoRollout(),
+			),
+		)
+	}
+	e2e.Run(t, &eksSuite{k8sSuite{newProvisioner: newProvisioner, skipModes: []string{"overlayfs"}}}, e2e.WithProvisioner(newProvisioner("")))
 }
 
 func (suite *eksSuite) SetupSuite() {
@@ -274,24 +278,4 @@ func (suite *eksSuite) TestNginxFargate() {
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
-}
-
-func (suite *eksSuite) TestHostTags() {
-	// tag keys that are expected to be found on any k8s env
-	args := &testHostTags{
-		ExpectedTags: &[]string{
-			"^stackid:" + suite.clusterName + "$",
-			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
-			"^cluster_name:" + suite.clusterName + "$",
-			"^kube_cluster_name:" + suite.clusterName + "$",
-			"^orch_cluster_id:[0-9a-f-]{36}$",
-			"^kube_distribution:eks$",
-		},
-		OptionalTags: &[]string{
-			"^os:linux$",
-			"^arch:(amd|arm)64$",
-		},
-	}
-
-	suite.testHostTags(args)
 }

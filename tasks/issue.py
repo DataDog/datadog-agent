@@ -36,9 +36,9 @@ def ask_reviews(_, pr_id):
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 DEFAULT_SLACK_CHANNEL,
             )
-            channels.add(channel)
+            channels.add((channel, reviewer))
 
-        for channel in channels:
+        for channel, reviewer in channels:
             stop_updating = ""
             if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
                 "chore(deps): update integrations-core"
