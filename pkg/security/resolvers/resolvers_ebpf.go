@@ -256,20 +256,19 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 }
 
 // ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (model.CGroupContext, bool, error) {
-	cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey)
-	if found {
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (*model.CGroupContext, bool, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
 		return cgroupContext, true, nil
 	}
 
-	cgroupPath, err := r.DentryResolver.Resolve(pathKey, false)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
 	if err != nil {
-		return cgroupContext, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}
 
-	cgroupContext = model.CGroupContext{
+	cgroupContext := &model.CGroupContext{
 		Releasable: &model.Releasable{},
-		CGroupID:   containerutils.CGroupID(cgroupPath),
+		CGroupID:   containerutils.CGroupID(cgroup),
 		CGroupFile: pathKey,
 	}
 

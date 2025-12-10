@@ -284,6 +284,7 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
+    """Build DatadogInterop DLL using the standard build command."""
     datadog_interop_sln = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", "DatadogInterop.sln")
     cmd = _get_vs_build_command(
         f'msbuild "{datadog_interop_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
@@ -293,6 +294,41 @@ def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
     succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
     if not succeeded:
         raise Exit("Failed to build DatadogInterop.", code=1)
+
+
+@task
+def build_datadog_interop(ctx, configuration="Release", arch="x64", vstudio_root=None, copy_to_root=True):
+    """
+    Build the libdatadog-interop.dll required for software inventory.
+
+    This DLL provides interop functionality for MS Store apps collection on Windows.
+
+    Args:
+        configuration: Build configuration (Release or Debug)
+        arch: Target architecture (x64)
+        vstudio_root: Path to Visual Studio installation root
+        copy_to_root: Whether to copy the DLL to the repository root for test access
+    """
+    if sys.platform != 'win32':
+        print("Skipping DatadogInterop build on non-Windows platform")
+        return
+
+    env = get_effective_dependencies_env()
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+
+    if copy_to_root:
+        # Copy the DLL to the repository root so it can be found during test execution
+        dll_source = os.path.join(
+            os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
+        )
+        dll_dest = os.path.join(os.getcwd(), "libdatadog-interop.dll")
+
+        if os.path.exists(dll_source):
+            print(f"Copying DLL from {dll_source} to {dll_dest}")
+            shutil.copy2(dll_source, dll_dest)
+            print("Successfully built and copied libdatadog-interop.dll")
+        else:
+            print(f"Warning: Could not find built DLL at {dll_source}")
 
 
 def _msi_output_name(env):
