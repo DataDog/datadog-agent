@@ -104,7 +104,7 @@ pkg_files(
 )
 
 pkg_files(
-    name = "openssl_cnf",
+    name = "openssl_cnf_tmp",
     srcs = ["openssl.cnf.tmp"],
     prefix = "embedded/ssl",
 )
@@ -113,7 +113,7 @@ pkg_install(
     name = "install",
     srcs = [
         ":openssl_fips_provider",
-        ":openssl_cnf",
+        ":openssl_cnf_tmp",
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [":fipsinstall_sh"],
