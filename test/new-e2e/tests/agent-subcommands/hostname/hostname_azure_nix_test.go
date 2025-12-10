@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	azurehost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/linux"
 )
+
+// azureMetadataAPIVersion is the default Azure IMDS API version used by the agent.
+const azureMetadataAPIVersion = "api-version=2021-02-01"
 
 type linuxAzureHostnameSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -44,7 +46,7 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?" + azure.GetMetadataAPIVersion())
+	metadataStr := v.Env().RemoteHost.MustExecute("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?" + azureMetadataAPIVersion)
 
 	var metadata struct {
 		VMID              string
