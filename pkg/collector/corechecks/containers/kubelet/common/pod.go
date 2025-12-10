@@ -94,7 +94,7 @@ func (p *PodUtils) computePodTagsByPVC(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 
-	var filteredTags []string
+	filteredTags := make([]string, 0, len(tags))
 	for t := range tags {
 		omitTag := false
 		for i := range volumeTagKeysToExclude {

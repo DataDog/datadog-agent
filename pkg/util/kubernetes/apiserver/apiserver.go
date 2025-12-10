@@ -604,9 +604,9 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
-	var metaList []string
-	for _, s := range serviceList {
-		metaList = append(metaList, "kube_service:"+s)
+	metaList := make([]string, len(serviceList))
+	for i, s := range serviceList {
+		metaList[i] = "kube_service:" + s
 	}
 	return metaList, nil
 }
