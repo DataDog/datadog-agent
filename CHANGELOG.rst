@@ -46,7 +46,7 @@ New Features
   deployments, and validation logic to prevent misconfigured deployments.
 
 - Configure filtering for collection of autodiscovered metrics and logs
-  through CEL-based rules using `cel_workload_exclude`.
+  through CEL-based rules using ``cel_workload_exclude``.
 
 - Collect container metrics for ECS Managed Instances when running in sidecar mode.
 
@@ -85,20 +85,20 @@ Enhancement Notes
 
 - Added CCRID (Canonical Cloud Resource ID) support for Oracle Cloud Infrastructure hosts.
 
-- Add helpers for translating OTLP duration histograms to DDSketch in the `pkg/opentelemetry-mapping-go/otlp/metrics` package.
+- Add helpers for translating OTLP duration histograms to DDSketch in the ``pkg/opentelemetry-mapping-go/otlp/metrics`` package.
 
 - APM: The Trace Agent now omits infrequently used statistics when their values are zero, reducing overhead.
-   This can be overridden by setting the new configuration option `apm_config.send_all_internal_stats` to true.
+   This can be overridden by setting the new configuration option ``apm_config.send_all_internal_stats`` to true.
 
 - Agents are now built with Go ``1.24.8``.
 
 - Agents are now built with Go ``1.24.9``.
 
-- The Cluster Agent now enables both `DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED`
-  and `DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION` by default.
-  These options are now set to `true` in both the configuration template and the code,
+- The Cluster Agent now enables both ``DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED``
+  and ``DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION`` by default.
+  These options are now set to ``true`` in both the configuration template and the code,
   improving cluster check dispatching and balancing based on node utilization out-of-the-box.
-  To disable these features, a user must now explicitly set them to `false` with the following config options:
+  To disable these features, a user must now explicitly set them to ``false`` with the following config options:
     - name: DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED
       value: "false"
     - name: DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION
@@ -128,7 +128,7 @@ Enhancement Notes
 
 - The infraattributes processor can now be run when the Datadog Exporter is not configured.
 
-- Add `--enable` and `--disable` commands to the IIS .NET APM instrumentation management script on Windows
+- Add ``--enable`` and ``--disable`` commands to the IIS .NET APM instrumentation management script on Windows
 
 - Windows: Adds a PURGE argument to the MSI to remove all OCI packages during uninstallation.
 
@@ -136,7 +136,7 @@ Enhancement Notes
   improved to reduce its impact on processes that use very large amounts of
   memory.
 
-- Cache result of `TagsToString()` in serverless-init to improve CPU performance.
+- Cache result of ``TagsToString()`` in serverless-init to improve CPU performance.
 
 - The DDOT service runs as ddagentuser.
 
@@ -160,7 +160,7 @@ Bug Fixes
   transactions to an endpoint that has recently failed, in order to avoid flooding it whilst in
   an error state.
 
-- Fix an issue preventing the Agent from starting on kernels older than 4.13 because of `AmbientCapabilities`.
+- Fix an issue preventing the Agent from starting on kernels older than 4.13 because of ``AmbientCapabilities``.
 
 - Fix duplicated logs in Azure App Services after application restart.
 
@@ -169,8 +169,8 @@ Bug Fixes
 
 - Make context expire with configurable timeout when selecting log source type.
   Infinite context was masking an error of missing runtime sockets.
-  With this change, expiring context eventually reflects as log source error in `agent status` log section.
-  Timeout value could be changed by setting `logs_config.container_runtime_waiting_timeout` in the Agent configuration file.
+  With this change, expiring context eventually reflects as log source error in ``agent status`` log section.
+  Timeout value could be changed by setting ``logs_config.container_runtime_waiting_timeout`` in the Agent configuration file.
   Timeout value provided in seconds.
 
 - Fix Podman log collection without Docker socket being mapped in the container.
@@ -189,12 +189,12 @@ Bug Fixes
 
 - gpu: the workloadmeta collector will no longer send multiple warn logs if the driver is not loaded
 
-- All internally rebuilt `x86_64` dependencies now uniformly target the documented macOS 11.0 minimal ABI.
+- All internally rebuilt ``x86_64`` dependencies now uniformly target the documented macOS 11.0 minimal ABI.
   Previously, some still targeted macOS 10.12 or 10.13, even though support for 10.x was dropped in Agent 7.62.0 and
-  numerous `x86_64` dependencies were already targeting newer ABI versions.
+  numerous ``x86_64`` dependencies were already targeting newer ABI versions.
 
-- Windows: `windows_certificate` now populates the `certificate_thumbprint` tag
-  when `certificate_subjects` filters are used. Previously, the tag was empty,
+- Windows: ``windows_certificate`` now populates the ``certificate_thumbprint`` tag
+  when ``certificate_subjects`` filters are used. Previously, the tag was empty,
   making it impossible to uniquely scope monitors in environments with duplicate subjects.
 
 - Fix issue introduced in 7.70.0 that caused the Windows Event Log check and tailer to fail to load with

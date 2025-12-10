@@ -25,7 +25,7 @@ Upgrade Notes
   in Helm or the Datadog Operator. If you previously set the DD_APM_INSTRUMENTATION_VERSION environment variable on
   the Cluster Agent, it is now ignored.
   
-  If you use a private registry, add the `apm-inject` container to your registry before upgrading. No action is
+  If you use a private registry, add the ``apm-inject`` container to your registry before upgrading. No action is
   required for other users. For details on using private registries, see [Use a private container registry](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/kubernetes/?tab=agentv764recommended#use-a-private-container-registry).
 
 
@@ -37,7 +37,7 @@ New Features
 - Customers using Single Step Instrumentation with target-based workload selection can now use language detection.
   Language detection greatly reduces startup time when all default libraries are configured for a target.
   
-  A target is eligible for language detection if a target has no defined `ddTraceVersions` or if `ddTraceVersions`
+  A target is eligible for language detection if a target has no defined ``ddTraceVersions`` or if ``ddTraceVersions``
   matches the default set of SDKs. Once a language has been determined for a deployment, subsequent deploys
   only use the SDKs necessary for the detected language.
 
@@ -64,7 +64,7 @@ Bug Fixes
 
 - There were several bugs for customers using Single Step Instrumentation with target-based workload selection, and
   also using local SDK injection. This change resolves an issue where if targets were defined, the Cluster Agent
-  didn't respect the `admission.datadoghq.com/enabled` annotation or the `admission_controller.mutate_unlabelled`
+  didn't respect the ``admission.datadoghq.com/enabled`` annotation or the ``admission_controller.mutate_unlabelled``
   configuration option, and only respected the language annotations.
 
 
