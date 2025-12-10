@@ -28,3 +28,30 @@ type MetricPattern struct {
 	Family   string   // common prefix, e.g., "system.disk"
 	Variants []string // differing suffixes, e.g., ["free", "used"]
 }
+
+// ClusterConfig controls clustering behavior
+type ClusterConfig struct {
+	TimeWindow time.Duration // max time between events in same cluster (e.g., 30s)
+}
+
+// DefaultClusterConfig returns sensible defaults
+func DefaultClusterConfig() ClusterConfig {
+	return ClusterConfig{
+		TimeWindow: 30 * time.Second,
+	}
+}
+
+// ClusterPattern combines metric and tag patterns for a cluster
+type ClusterPattern struct {
+	MetricPattern
+	TagPartition
+}
+
+// AnomalyCluster represents a group of related anomaly events
+type AnomalyCluster struct {
+	ID        int
+	Events    []AnomalyEvent
+	Pattern   ClusterPattern
+	FirstSeen time.Time
+	LastSeen  time.Time
+}
