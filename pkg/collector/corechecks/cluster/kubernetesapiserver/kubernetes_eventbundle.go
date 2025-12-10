@@ -21,6 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
+const (
+	// This is the maximum allowed length for the estimated event text.
+	// It's an estimate because the actual length of the event text is not known until the event is formatted by kubernetesEventBundle.formatEventText()
+	// Since dogweb enforced a limit of 4000 characters, we conservatively limit the estimated event text length to 3750 characters.
+	// See: https://github.com/DataDog/dogweb/blob/ddaf4c0ac06839f45edc19e056b2eccdc012edbc/dogweb/model/event/event.py#L41
+	maxEstimatedEventTextLength = 3750
+)
+
 type kubernetesEventBundle struct {
 	involvedObject      v1.ObjectReference // Parent object for this event bundle
 	component           string             // Used to identify the Kubernetes component which generated the event
@@ -48,6 +56,11 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.involvedObject.UID)
 	}
 
+	eventText, fits := b.fitsEvent(event)
+	if !fits {
+		return fmt.Errorf("event text length exceeds the maximum allowed length: %d > %d", len(eventText), maxEstimatedEventTextLength)
+	}
+
 	// We do not process the events in chronological order necessarily.
 	// We only care about the first time they occurred, the last time and the count.
 	if event.FirstTimestamp.IsZero() {
@@ -62,7 +75,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 	}
 
-	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
+	b.countByAction[eventText] += int(event.Count)
 
 	return nil
 }
@@ -113,6 +126,14 @@ func (b *kubernetesEventBundle) formatEventText() string {
 	eventText = strings.ReplaceAll(eventText, "~", "\\~")
 
 	return eventText
+}
+
+func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
+	eventText := fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)
+	if len(eventText) > maxEstimatedEventTextLength {
+		return "", false
+	}
+	return eventText, true
 }
 
 func formatStringIntMap(input map[string]int) string {

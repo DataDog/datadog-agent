@@ -40,11 +40,12 @@ const (
 	// CheckName is the name of the check
 	CheckName = "kubernetes_apiserver"
 
-	KubeControlPaneCheck          = "kube_apiserver_controlplane.up"
-	eventTokenKey                 = "event"
-	maxEventCardinality           = 300
-	defaultResyncPeriodInSecond   = 300
-	defaultTimeoutEventCollection = 2000
+	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
+	eventTokenKey                      = "event"
+	maxEventCardinality                = 300
+	defaultResyncPeriodInSecond        = 300
+	defaultTimeoutEventCollection      = 2000
+	defaultMaxEstimatedEventTextLength = 3750
 )
 
 var (
