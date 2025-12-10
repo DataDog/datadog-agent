@@ -58,6 +58,11 @@ func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 	return p.inputChan
 }
 
+// TODO A: Verify
+func (p *processorOnlyProvider) NextPipelineChanByTokenLength(length int) chan *message.Message {
+	return p.inputChan
+}
+
 func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.inputChan, p.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, "0")
 }
