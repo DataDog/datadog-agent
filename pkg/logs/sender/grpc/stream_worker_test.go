@@ -688,7 +688,7 @@ func TestStreamWorkerBackpressure(t *testing.T) {
 	defer fixture.cleanup()
 
 	// Use small inflight capacity for fast test
-	smallInflight := newInflightTracker(5)
+	smallInflight := newInflightTracker("test", 5)
 	worker := fixture.createWorkerWithInflight(smallInflight)
 	worker.start()
 

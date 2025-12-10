@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -182,7 +183,7 @@ func newStreamWorkerWithClock(
 
 	// Use provided inflightTracker (testing) or create default one
 	if inflightTracker == nil {
-		inflightTracker = newInflightTracker(maxInflight)
+		inflightTracker = newInflightTracker(workerID, maxInflight)
 	}
 
 	worker := &streamWorker{
@@ -333,6 +334,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	if !s.inflight.hasUnacked() {
 		log.Errorf("Worker %s: Received ack for batch %d but no sent payloads "+
 			"in inflight tracker, terminating stream", s.workerID, receivedBatchID)
+		tlmWorkerStreamErrors.Inc(s.workerID, "received_ack_but_no_sent_payloads")
 		s.tryBeginStreamRotation(true)
 		return
 	}
@@ -343,6 +345,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 		log.Errorf("Worker %s: BatchID mismatch! Expected %d, received %d. "+
 			"out-of-order or duplicate ack, terminating stream",
 			s.workerID, expectedBatchID, receivedBatchID)
+		tlmWorkerStreamErrors.Inc(s.workerID, "batch_id_mismatch")
 		s.tryBeginStreamRotation(true)
 		return
 	}
@@ -362,6 +365,13 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 		default:
 			log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d",
 				s.workerID, receivedBatchID)
+
+			// TODO: is this the only possible drop?
+			tlmWorkerBytesDropped.Add(float64(len(payload.Encoded)), s.workerID)
+			// TODO: update this metric with # logs (requires parsing payload)
+			// metrics.DestinationLogsDropped.Set(s.endpoint.Host, &expvar.Int{})
+			// metrics.LogsDropped.Inc(s.workerID, 1)
+			// TODO: other general metrics to update?
 		}
 	}
 
@@ -393,6 +403,8 @@ func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 
 	if result.err != nil {
 		log.Warnf("Worker %s: Stream creation failed: %v", s.workerID, result.err)
+		tlmWorkerStreamErrors.Inc(s.workerID, "stream_creation_failed")
+
 		s.tryBeginStreamRotation(true)
 	} else {
 		s.finishStreamRotation(result.info)
@@ -521,6 +533,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 func (s *streamWorker) asyncCreateNewStream() {
 	go func() {
 		log.Infof("Worker %s: Starting async stream creation", s.workerID)
+		tlmWorkerStreamsOpened.Inc(s.workerID)
 
 		var result streamCreationResult
 
@@ -620,9 +633,10 @@ func (s *streamWorker) senderLoop(streamInfo *streamInfo, batchToSendCh chan *st
 
 			// Real send failure, signal to supervisor
 			log.Warnf("Worker %s: Send failed: %v, terminating stream", s.workerID, err)
-			s.signalStreamFailure(streamInfo)
+			s.signalStreamFailure(streamInfo, "send_err_"+status.Code(err).String())
 			return
 		}
+		tlmWorkerBytesSent.Add(float64(proto.Size(batch)), s.workerID)
 	}
 	log.Infof("Worker %s: Sender channel closed, sender exiting", s.workerID)
 }
@@ -642,7 +656,7 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 		// Clean inbound close (server OK in trailers): signal stream failure
 		if errors.Is(err, io.EOF) {
 			log.Warnf("Worker %s: Stream closed by server", s.workerID)
-			s.signalStreamFailure(streamInfo)
+			s.signalStreamFailure(streamInfo, "server_eof")
 			return
 		}
 
@@ -666,20 +680,22 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 			default:
 				// All other non-OK statuses: signal stream failure
 				log.Warnf("Worker %s: gRPC error (code %v): %v", s.workerID, st.Code(), err)
-				s.signalStreamFailure(streamInfo)
+				s.signalStreamFailure(streamInfo, "recv_error_"+st.Code().String())
 				return
 			}
 		}
 
 		// Transport error without status (RST/GOAWAY/TLS, socket close): signal stream failure
 		log.Warnf("Worker %s: Transport error: %v", s.workerID, err)
-		s.signalStreamFailure(streamInfo)
+		s.signalStreamFailure(streamInfo, "transport_error")
 		return
 	}
 }
 
 // signalStreamFailure signals the supervisor to rotate the stream
-func (s *streamWorker) signalStreamFailure(streamInfo *streamInfo) {
+func (s *streamWorker) signalStreamFailure(streamInfo *streamInfo, reason string) {
+	tlmWorkerStreamErrors.Inc(s.workerID, reason)
+
 	// This signaling is blocking by design, it's okay to block the sender/receiver,
 	// since the only way we get here is through a stream error.
 	select {
@@ -704,7 +720,7 @@ func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *strea
 	// and retry of the same payload, which loops on. this IS NOT the desired behavior.
 	// TODO: Implement proper handling of irrecoverable errors, by blocking the ingestion
 	log.Infof("Worker %s: irrecoverable error detected: %s", s.workerID, reason)
-	s.signalStreamFailure(streamInfo)
+	s.signalStreamFailure(streamInfo, "irrecoverable_error")
 }
 
 // getNextBatch crafts a StatefulBatch with the next batch to send from the

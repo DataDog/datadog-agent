@@ -118,7 +118,7 @@ func getStrategy(
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 		if endpoints.UseGRPC {
-			translator := grpcsender.NewMessageTranslator()
+			translator := grpcsender.NewMessageTranslator(instanceID)
 			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
 			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager())
 			statefulInputChan := translator.Start(inputChan, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
