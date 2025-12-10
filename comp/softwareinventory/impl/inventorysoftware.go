@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -82,6 +83,8 @@ type softwareInventory struct {
 	sysProbeClient sysProbeClient
 	// cachedInventory stores the most recently collected software inventory data
 	cachedInventory []software.Entry
+	// cachedInventoryMu protects concurrent access to cachedInventory
+	cachedInventoryMu sync.RWMutex
 	// hostname identifies the system where the inventory was collected
 	hostname string
 	// eventPlatform provides access to the event platform forwarder
@@ -90,6 +93,8 @@ type softwareInventory struct {
 	jitter time.Duration
 	// interval is the time to wait between payloads, in minutes
 	interval time.Duration
+	// sleepFunc is the function used for sleeping, can be overridden in tests
+	sleepFunc func(time.Duration)
 }
 
 // Requires defines the dependencies required by the inventory software component.
@@ -132,11 +137,11 @@ func New(reqs Requires) (Provides, error) {
 		clientFn: func() *sysprobeclient.CheckClient {
 			return sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")))
 		},
-	})
+	}, time.Sleep)
 }
 
-// newWithClient creates a new inventory software component with a custom sysprobeclient
-func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
+// newWithClient creates a new inventory software component with a custom sysprobeclient and sleep function
+func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Duration)) (Provides, error) {
 	hname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
 		return Provides{}, err
@@ -148,6 +153,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 		sysProbeClient: client,
 		hostname:       hname,
 		eventPlatform:  reqs.EventPlatform,
+		sleepFunc:      sleepFunc,
 	}
 
 	if !is.enabled {
@@ -163,15 +169,6 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 	is.interval = time.Duration(max(reqs.Config.GetInt("software_inventory.interval"), 10)) * time.Minute
 
 	is.log.Infof("Starting the inventory software component")
-
-	// Perform initial collection
-	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
-	if err != nil {
-		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
-	} else {
-		is.log.Debug("Initial software inventory collection completed")
-		is.cachedInventory = installedSoftware
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	reqs.Lc.Append(compdef.Hook{
@@ -191,8 +188,40 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 }
 
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
-	is.log.Debugf("Initial software inventory collection with %v jitter", is.jitter)
-	time.Sleep(is.jitter)
+	// Wait for System Probe to be ready with simple retry loop
+	for {
+		initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+		if err == nil {
+			is.log.Debug("Initial software inventory collection completed")
+			is.cachedInventoryMu.Lock()
+			is.cachedInventory = initialInventory
+			is.cachedInventoryMu.Unlock()
+			break
+		}
+
+		// Only retry if System Probe hasn't started yet.
+		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
+		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			_ = is.log.Warnf("Initial software inventory collection failed, will retry on next interval: %v", err)
+			break
+		}
+
+		is.log.Debugf("System Probe not ready yet, retrying in 10s: %v", err)
+
+		// Use a timer that can be cancelled by context
+		timer := time.NewTimer(10 * time.Second)
+		select {
+		case <-timer.C:
+			continue
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		}
+	}
+
+	// Send the initial collection with a random jitter
+	is.log.Debugf("Sending initial software inventory collection with %v jitter", is.jitter)
+	is.sleepFunc(is.jitter)
 
 	// Always send the initial payload on start-up.
 	// We'll send the follow-up payloads only on change.
@@ -215,7 +244,9 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 
 			// TODO: Compare old and new inventory
 
+			is.cachedInventoryMu.Lock()
 			is.cachedInventory = newInventory
+			is.cachedInventoryMu.Unlock()
 
 			err = is.sendPayload()
 			if err != nil {
@@ -259,6 +290,9 @@ func (is *softwareInventory) sendPayload() error {
 // This method triggers a refresh of the cached data and returns a properly
 // formatted payload for transmission to the backend.
 func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
+	is.cachedInventoryMu.RLock()
+	defer is.cachedInventoryMu.RUnlock()
+
 	if is.cachedInventory == nil {
 		return nil
 	}
@@ -275,7 +309,13 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 // This method is used by the HTTP endpoint to serve software inventory data
 // in JSON format for external consumption.
 func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	json, err := is.getPayload().MarshalJSON()
+	payload := is.getPayload()
+	if payload == nil {
+		httputils.SetJSONError(w, errors.New("software inventory data not yet available"), 503)
+		return
+	}
+
+	json, err := payload.MarshalJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
