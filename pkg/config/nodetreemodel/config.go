@@ -82,10 +82,9 @@ type ntmConfig struct {
 	// defaults contains the settings with a default value
 	defaults *nodeImpl
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
-	unknown InnerNode
-	// infraMode contains the settings set by infrastructure mode configurations
-	infraMode InnerNode
 	unknown *nodeImpl
+	// infraMode contains the settings set by infrastructure mode configurations
+	infraMode *nodeImpl
 	// file contains the settings pulled from YAML files
 	file *nodeImpl
 	// envs contains config settings created by environment variables
