@@ -798,6 +798,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
+		event.Source = model.EventSourceReplay
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -812,6 +813,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 			for _, s := range snapshotBoundSockets {
 				entry.Retain()
 				bindEvent := p.newBindEventFromReplay(entry, s)
+				bindEvent.Source = model.EventSourceReplay
+
 				events = append(events, bindEvent)
 			}
 		}
@@ -1041,6 +1044,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
+	p.event.Source = model.EventSourceRuntime
 	return p.event
 }
 
@@ -1076,7 +1080,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
-		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
 
@@ -3196,8 +3200,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")

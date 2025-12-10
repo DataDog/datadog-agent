@@ -35,9 +35,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 //go:embed agent_helm_values.yaml
@@ -234,6 +235,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
 				return err
+			}
+			for _, appFunc := range params.depWorkloadAppFuncs {
+				_, err := appFunc(&awsEnv, kubeProvider, dependsOnDDAgent)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
