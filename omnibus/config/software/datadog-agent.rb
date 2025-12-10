@@ -306,13 +306,13 @@ build do
         "#{install_dir}/embedded/bin/installer",
       ]
 
-      symbol = "_Cfunc_mkcgo_OPENSSL"
+      symbol = "_Cfunc__mkcgo_OPENSSL"
       check_block = Proc.new { |binary, symbols|
+        raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not #{symbols}")
         count = symbols.scan(symbol).count
         if count > 0
           log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
         else
-          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not #{symbols}")
         end
       }.curry
 
