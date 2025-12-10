@@ -25,7 +25,7 @@ func MockModule() fxutil.Module {
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
 	panic("implement me")
 }
 
