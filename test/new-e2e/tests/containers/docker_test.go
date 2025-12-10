@@ -74,51 +74,51 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			`^short_image:redis$`,
 		}, extraTags...)
 
-		suite.TestMetric(&TestMetricArgs{
-			Filter: TestMetricFilterArgs{
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
 				Name: metric,
 				Tags: []string{
 					`^container_name:redis$`,
 				},
 			},
-			Expect: TestMetricExpectArgs{
+			Expect: testMetricExpectArgs{
 				Tags: &expectedTags,
 			},
 		})
 	}
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.images.available",
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 4,
 				Max: 5,
 			},
 		},
 	})
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.images.intermediate",
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 0,
 				Max: 0,
 			},
 		},
 	})
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.containers.running",
 			Tags: []string{`^short_image:redis$`},
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
@@ -128,20 +128,20 @@ func (suite *DockerSuite) TestDockerMetrics() {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^short_image:redis$`,
 			},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 1,
 				Max: 1,
 			},
 		},
 	})
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.containers.running.total",
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 5,
 				Max: 5,
 			},
@@ -159,32 +159,32 @@ func (suite *DockerSuite) TestDockerMetrics() {
 
 	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.containers.stopped",
 			Tags: []string{`^short_image:busybox$`},
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^docker_image:public.ecr.aws/docker/library/busybox:latest$`,
 				`^image_name:public.ecr.aws/docker/library/busybox$`,
 				`^image_tag:latest$`,
 				`^short_image:busybox$`,
 			},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 1,
 				Max: 10,
 			},
 		},
 	})
 
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "docker.containers.stopped.total",
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{},
-			Value: &TestMetricExpectValueArgs{
+			Value: &testMetricExpectValueArgs{
 				Min: 1,
 				Max: 10,
 			},
@@ -204,14 +204,14 @@ func (suite *DockerSuite) TestDockerEvents() {
 
 	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
 
-	suite.TestEvent(&TestEventArgs{
-		Filter: TestEventFilterArgs{
+	suite.testEvent(&testEventArgs{
+		Filter: testEventFilterArgs{
 			Source: "docker",
 			Tags: []string{
 				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
 			},
 		},
-		Expect: TestEventExpectArgs{
+		Expect: testEventExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
@@ -229,14 +229,14 @@ func (suite *DockerSuite) TestDockerEvents() {
 }
 
 func (suite *DockerSuite) TestDSDWithUDS() {
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				`^container_name:metric-sender-uds$`,
 			},
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:metric-sender-uds$`,
@@ -254,14 +254,14 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 }
 
 func (suite *DockerSuite) TestDSDWithUDP() {
-	suite.TestMetric(&TestMetricArgs{
-		Filter: TestMetricFilterArgs{
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				`^container_name:metric-sender-udp$`,
 			},
 		},
-		Expect: TestMetricExpectArgs{
+		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:metric-sender-udp$`,

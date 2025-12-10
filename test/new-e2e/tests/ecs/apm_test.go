@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -23,7 +22,7 @@ import (
 )
 
 type ecsAPMSuite struct {
-	containers.BaseSuite[environments.ECS]
+	BaseSuite[environments.ECS]
 	ecsClusterName string
 }
 
@@ -52,7 +51,7 @@ func (suite *ecsAPMSuite) SetupSuite() {
 func (suite *ecsAPMSuite) Test00AgentAPMReady() {
 	// Test that the APM agent is ready and receiving traces
 	suite.Run("APM agent readiness check", func() {
-		suite.TestAgentHealth(&containers.TestAgentHealthArgs{
+		suite.TestAgentHealth(&TestAgentHealthArgs{
 			CheckComponents: []string{"trace"},
 		})
 
@@ -71,11 +70,11 @@ func (suite *ecsAPMSuite) TestBasicTraceCollection() {
 	// Test basic trace collection and validation
 	suite.Run("Basic trace collection", func() {
 		// Use the existing tracegen app for basic trace validation
-		suite.TestAPMTrace(&containers.TestAPMTraceArgs{
-			Filter: containers.TestAPMTraceFilterArgs{
+		suite.TestAPMTrace(&TestAPMTraceArgs{
+			Filter: TestAPMTraceFilterArgs{
 				ServiceName: "tracegen-test-service",
 			},
-			Expect: containers.TestAPMTraceExpectArgs{
+			Expect: TestAPMTraceExpectArgs{
 				TraceIDPresent: true,
 				Tags: &[]string{
 					`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,

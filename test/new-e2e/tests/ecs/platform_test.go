@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/stretchr/testify/assert"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -24,7 +23,7 @@ import (
 )
 
 type ecsPlatformSuite struct {
-	containers.BaseSuite[environments.ECS]
+	BaseSuite[environments.ECS]
 	ecsClusterName string
 }
 
@@ -50,15 +49,15 @@ func (suite *ecsPlatformSuite) SetupSuite() {
 }
 
 func (suite *ecsPlatformSuite) TestWindowsFargate() {
-	suite.TestCheckRun(&containers.TestCheckRunArgs{
-		Filter: containers.TestCheckRunFilterArgs{
+	suite.TestCheckRun(&TestCheckRunArgs{
+		Filter: TestCheckRunFilterArgs{
 			Name: "http.can_connect",
 			Tags: []string{
 				"^ecs_launch_type:fargate$",
 				"^container_name:aspnetsample$",
 			},
 		},
-		Expect: containers.TestCheckRunExpectArgs{
+		Expect: TestCheckRunExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -89,14 +88,14 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 	})
 
 	// Test container check
-	suite.TestMetric(&containers.TestMetricArgs{
-		Filter: containers.TestMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
 				"^ecs_container_name:aspnetsample$",
 			},
 		},
-		Expect: containers.TestMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -128,14 +127,14 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 
 func (suite *ecsPlatformSuite) TestCPU() {
 	// Test CPU metrics
-	suite.TestMetric(&containers.TestMetricArgs{
-		Filter: containers.TestMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
 				"^ecs_container_name:stress-ng$",
 			},
 		},
-		Expect: containers.TestMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -161,7 +160,7 @@ func (suite *ecsPlatformSuite) TestCPU() {
 				`^task_name:.*-stress-ng-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
-			Value: &containers.TestMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 155000000,
 				Min: 145000000,
 			},

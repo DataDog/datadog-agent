@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/stretchr/testify/assert"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -20,7 +19,7 @@ import (
 )
 
 type ecsManagedSuite struct {
-	containers.BaseSuite[environments.ECS]
+	BaseSuite[environments.ECS]
 	ecsClusterName string
 }
 
@@ -140,7 +139,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
 	// Test agent health on managed instances
 	suite.Run("Managed instance agent health", func() {
-		suite.TestAgentHealth(&containers.TestAgentHealthArgs{
+		suite.TestAgentHealth(&TestAgentHealthArgs{
 			CheckComponents: []string{"core", "metadata"},
 		})
 	})
