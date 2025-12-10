@@ -259,3 +259,7 @@ func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 		volumes:        []volume{sourceVolume},
 	}, true
 }
+
+func initContainerName(lang language) string {
+	return fmt.Sprintf("datadog-lib-%s-init", lang)
+}
