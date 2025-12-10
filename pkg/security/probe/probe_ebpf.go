@@ -990,9 +990,17 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.ContainerContext.ContainerID = ev.ProcessContext.Process.ContainerContext.ContainerID
+	// Important : ev.ProcessContext is populated from the unmarshaling of the event.
 
-	entry.Process.CGroup.Merge(&ev.ProcessContext.Process.CGroup)
+	if !ev.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+		cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(ev.ProcessContext.Process.CGroup.CGroupFile)
+		if err != nil {
+			return n, err
+		}
+		p.Resolvers.ProcessResolver.SetProcessCGroupContext(entry, cgroupContext)
+	} else {
+		seclog.Debugf("no cgroup file available for process %d", entry.Pid)
+	}
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1057,14 +1065,14 @@ func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
 	p.eventPool.Put(event)
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
+		return cgroupContext, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
 	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
 	if !updated {
-		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+		return cgroupContext, fmt.Errorf("failed to update cgroup for pid %d", pid)
 	}
 
 	return cgroupContext, nil
@@ -1665,8 +1673,8 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
-			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.ProcessContext.Process.CGroup = *cgroupContext
+			event.CgroupTracing.CGroupContext = cgroupContext
+			event.ProcessContext.Process.CGroup = cgroupContext
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
