@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -52,7 +53,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 		// First, verify agent is collecting data
 		var baselineMetricCount int
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -73,7 +74,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 			suite.Fakeintake.FlushData()
 			time.Sleep(30 * time.Second)
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics after restart") {
 				return
 			}
@@ -106,7 +107,7 @@ func (suite *ecsResilienceSuite) TestTaskFailureRecovery() {
 	suite.Run("Task failure recovery", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Verify agent is tracking tasks
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -152,7 +153,7 @@ func (suite *ecsResilienceSuite) TestNetworkInterruption() {
 	suite.Run("Network interruption handling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Verify baseline data flow
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -169,7 +170,7 @@ func (suite *ecsResilienceSuite) TestNetworkInterruption() {
 			// For now, verify agent is resilient to timing variations
 			time.Sleep(5 * time.Second)
 
-			metrics2, err := suite.Fakeintake.GetMetrics()
+			metrics2, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -188,7 +189,7 @@ func (suite *ecsResilienceSuite) TestHighCardinality() {
 	// Test agent handling of high cardinality metrics
 	suite.Run("High cardinality handling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -237,7 +238,7 @@ func (suite *ecsResilienceSuite) TestResourceExhaustion() {
 	suite.Run("Resource exhaustion handling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Check that agent continues operating under resource constraints
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -284,7 +285,7 @@ func (suite *ecsResilienceSuite) TestRapidContainerChurn() {
 	suite.Run("Rapid container churn", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Verify agent tracks containers properly
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -371,7 +372,7 @@ func (suite *ecsResilienceSuite) TestLargePayloads() {
 			}
 
 			// Check logs for large entries
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if err == nil && len(logs) > 0 {
 				maxLogSize := 0
 				for _, log := range logs {
@@ -401,7 +402,7 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 	suite.Run("Backpressure handling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Verify agent is collecting data
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -418,7 +419,7 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 			// For now, verify continuous data flow
 			time.Sleep(10 * time.Second)
 
-			metrics2, err := suite.Fakeintake.GetMetrics()
+			metrics2, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics again") {
 				return
 			}

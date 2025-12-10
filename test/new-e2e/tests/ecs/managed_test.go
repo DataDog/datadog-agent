@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/stretchr/testify/assert"
 
@@ -47,7 +49,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
 	// Test basic metric collection from managed instances
 	suite.Run("Managed instance basic metrics", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -90,7 +92,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 	// Test that managed instances provide proper ECS metadata
 	suite.Run("Managed instance metadata", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -150,7 +152,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceContainerDiscovery() {
 	// Test container discovery on managed instances
 	suite.Run("Managed instance container discovery", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -180,7 +182,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceTaskTracking() {
 	// Test task tracking on managed instances
 	suite.Run("Managed instance task tracking", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -232,7 +234,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 			// On managed instances, agent runs in daemon mode (one per instance)
 			// Verify we're collecting from daemon-mode agent
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -273,7 +275,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 	// Test log collection from managed instances
 	suite.Run("Managed instance log collection", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -358,7 +360,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 	// Test network mode on managed instances (typically bridge mode)
 	suite.Run("Managed instance network mode", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -403,7 +405,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 	suite.Run("Managed instance autoscaling integration", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Verify agent continues collecting during scaling events
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -441,7 +443,7 @@ func (suite *ecsManagedSuite) TestManagedInstancePlacementStrategy() {
 	// Test task placement on managed instances
 	suite.Run("Managed instance placement strategy", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -484,7 +486,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 	// Test resource utilization metrics from managed instances
 	suite.Run("Managed instance resource utilization", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -518,11 +520,3 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 	})
 }
 
-// Helper function
-func getMapKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}

@@ -59,7 +59,7 @@ func (suite *ecsLogsSuite) Test00AgentLogsReady() {
 
 		// Verify we're collecting logs
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			assert.NoErrorf(c, err, "Failed to query logs from fake intake")
 			assert.NotEmptyf(c, logs, "No logs received - log agent may not be ready")
 
@@ -72,7 +72,7 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 	// Test basic container log collection with metadata enrichment
 	suite.Run("Container log collection", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -129,7 +129,7 @@ func (suite *ecsLogsSuite) TestLogMultiline() {
 	// Test multiline log handling (stack traces)
 	suite.Run("Multiline log handling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -168,7 +168,7 @@ func (suite *ecsLogsSuite) TestLogParsing() {
 	// Test JSON log parsing
 	suite.Run("JSON log parsing", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -209,7 +209,7 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 	// Test log sampling for high-volume logs
 	suite.Run("Log sampling", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -253,7 +253,7 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 	// Test log filtering (include/exclude patterns)
 	suite.Run("Log filtering", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -297,7 +297,7 @@ func (suite *ecsLogsSuite) TestLogSourceDetection() {
 	// Test automatic source detection from containers
 	suite.Run("Log source detection", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -336,7 +336,7 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 	// Test log status remapping (error/warning detection)
 	suite.Run("Log status remapping", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query logs") {
 				return
 			}
@@ -413,7 +413,7 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 		// Now check if logs have trace correlation
 		if traceID != 0 {
 			suite.EventuallyWithTf(func(c *assert.CollectT) {
-				logs, err := suite.Fakeintake.GetLogs()
+				logs, err := getAllLogs(suite.Fakeintake)
 				if !assert.NoErrorf(c, err, "Failed to query logs") {
 					return
 				}
@@ -442,34 +442,3 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 	})
 }
 
-// Helper functions
-
-func filterLogsByTag(logs []*aggregator.Log, tagKey, tagValue string) []*aggregator.Log {
-	var filtered []*aggregator.Log
-	for _, log := range logs {
-		for _, tag := range log.GetTags() {
-			if strings.HasPrefix(tag, tagKey+":") && strings.Contains(tag, tagValue) {
-				filtered = append(filtered, log)
-				break
-			}
-		}
-	}
-	return filtered
-}
-
-func getTagValue(tags []string, key string) string {
-	prefix := key + ":"
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, prefix) {
-			return strings.TrimPrefix(tag, prefix)
-		}
-	}
-	return ""
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}

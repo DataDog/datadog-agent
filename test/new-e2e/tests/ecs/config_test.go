@@ -18,6 +18,8 @@ import (
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 type ecsConfigSuite struct {
@@ -51,7 +53,7 @@ func (suite *ecsConfigSuite) TestEnvVarConfiguration() {
 	suite.Run("Environment variable configuration", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Check metrics for DD_* env var configuration
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -107,7 +109,7 @@ func (suite *ecsConfigSuite) TestDockerLabelDiscovery() {
 
 			// Check that autodiscovered checks are running
 			// We can validate this by looking for check-specific metrics
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -117,7 +119,7 @@ func (suite *ecsConfigSuite) TestDockerLabelDiscovery() {
 			checkMetrics := make(map[string]bool)
 
 			for _, metric := range metrics {
-				metricName := metric.GetMetricName()
+				metricName := metric.Metric
 
 				// Identify check-specific metrics
 				if strings.HasPrefix(metricName, "redis.") {
@@ -136,12 +138,12 @@ func (suite *ecsConfigSuite) TestDockerLabelDiscovery() {
 			}
 
 			// Validate logs have Docker label configuration
-			logs, err := suite.Fakeintake.GetLogs()
+			logs, err := getAllLogs(suite.Fakeintake)
 			if err == nil && len(logs) > 0 {
 				// Check that logs have source configured via Docker labels
 				logsWithSource := 0
 				for _, log := range logs {
-					if log.GetSource() != "" {
+					if log.Source != "" {
 						logsWithSource++
 					}
 				}
@@ -164,7 +166,7 @@ func (suite *ecsConfigSuite) TestTaskDefinitionDiscovery() {
 			// Validate that agent discovers containers from task definition
 			// and enriches data with task/container metadata
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -231,7 +233,7 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 			// Validate that agent dynamically discovers containers
 			// This is tested by checking that metrics are collected from multiple containers
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -274,8 +276,8 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 			// by checking for recent timestamps
 			recentMetrics := 0
 			for _, metric := range metrics {
-				// Metrics with recent timestamps indicate active discovery
-				if metric.GetTimestamp() > 0 {
+				// Metrics with data points indicate active discovery
+				if len(metric.Resources) > 0 && len(metric.Resources[0].Points) > 0 {
 					recentMetrics++
 				}
 			}
@@ -294,7 +296,7 @@ func (suite *ecsConfigSuite) TestMetadataEndpoints() {
 			// The agent uses ECS metadata endpoints (V1, V2, V3/V4) to collect task/container info
 			// We can validate this by checking that ECS-specific metadata is present
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -363,7 +365,7 @@ func (suite *ecsConfigSuite) TestServiceDiscovery() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Validate that services are automatically discovered and tagged
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -444,7 +446,7 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 			// 2. Environment variables (DD_*)
 			// 3. Agent configuration
 
-			metrics, err := suite.Fakeintake.GetMetrics()
+			metrics, err := getAllMetrics(suite.Fakeintake)
 			if !assert.NoErrorf(c, err, "Failed to query metrics") {
 				return
 			}
@@ -534,11 +536,3 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 	})
 }
 
-// Helper function to get map keys
-func getKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}

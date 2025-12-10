@@ -128,7 +128,7 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 					for _, chunk := range payload.Chunks {
 						if len(chunk.Spans) > 1 {
 							// Check if spans have parent-child relationships
-							spansByID := make(map[uint64]pb.Span)
+							spansByID := make(map[uint64]*pb.Span)
 							for _, span := range chunk.Spans {
 								spansByID[span.SpanID] = span
 							}
@@ -285,7 +285,7 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 		// If we found a trace ID, check if logs have the same trace ID
 		if traceID != 0 {
 			suite.EventuallyWithTf(func(c *assert.CollectT) {
-				logs, err := suite.Fakeintake.GetLogs()
+				logs, err := getAllLogs(suite.Fakeintake)
 				if !assert.NoErrorf(c, err, "Failed to query logs") {
 					return
 				}
@@ -331,7 +331,7 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 			}
 
 			// Filter for Fargate traces
-			fargateTraces := lo.Filter(traces, func(trace *aggregator.Trace, _ int) bool {
+			fargateTraces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
 				if launchType, exists := trace.Tags["ecs_launch_type"]; exists {
 					return launchType == "fargate"
 				}
@@ -370,7 +370,7 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 			}
 
 			// Filter for EC2 traces
-			ec2Traces := lo.Filter(traces, func(trace *aggregator.Trace, _ int) bool {
+			ec2Traces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
 				if launchType, exists := trace.Tags["ecs_launch_type"]; exists {
 					return launchType == "ec2"
 				}
