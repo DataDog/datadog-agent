@@ -204,22 +204,13 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	diag := cd.checkEndpointURL(url, endpointInfo, apiKey)
 
 	// Detect if the connection may have failed because a FQDN was used, by checking if one with a PQDN succeeds
-	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().Get("convert_dd_site_fqdn.enabled") == true {
-		var pqdnURL string
+	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().Get("convert_dd_site_fqdn.enabled") == true && URLhasFQDN(url) {
+		pqdnURL := URLwithPQDN(url)
+		cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", url, pqdnURL)
 
-		if endpointInfo.Endpoint.Name == "flare" && URLhasFQDN(url) {
-			pqdnURL = URLwithPQDN(url)
-		} else if domainResolver.IsFQDN() {
-			pqdnURL = URLwithPQDN(url)
-		}
-
-		if pqdnURL != "" {
-			cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", url, pqdnURL)
-
-			d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
-			if d.Status == diagnose.DiagnosisSuccess {
-				diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", url)
-			}
+		d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
+		if d.Status == diagnose.DiagnosisSuccess {
+			diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", url)
 		}
 	}
 	return diag
