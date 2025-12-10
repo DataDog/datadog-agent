@@ -32,8 +32,9 @@ type sharedLibrarySuite struct {
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
-	config := `shared_library_check.enabled: true
-shared_library_check.library_folder_path: ` + v.checksdPath
+	config := `shared_library_check:
+  enabled: "true"
+  library_folder_path: ` + v.checksdPath
 
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
@@ -58,13 +59,28 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
+
+	// metric
 	metrics := data[0].Aggregator.Metrics
-
-	// only one metric should have been emitted
-	assert.Equal(v.T(), len(metrics), 1)
-
-	// check metric info
+	assert.Equal(v.T(), 1, len(metrics))
 	metric := metrics[0]
 	assert.Equal(v.T(), "hello.gauge", metric.Metric)
-	assert.Equal(v.T(), metric.Points[0][1], 1.0)
+	assert.Equal(v.T(), 1.0, metric.Points[0][1])
+
+	// service check
+	serviceChecks := data[0].Aggregator.ServiceChecks
+	assert.Equal(v.T(), 1, len(serviceChecks))
+	serviceCheck := serviceChecks[0]
+	assert.Equal(v.T(), "hello.service_check", serviceCheck.Name)
+	assert.Equal(v.T(), 0, serviceCheck.Status)
+
+	// event
+	events := data[0].Aggregator.Events
+	assert.Equal(v.T(), 1, len(events))
+	event := events[0]
+	assert.Equal(v.T(), "hello.event", event.Title)
+	assert.Equal(v.T(), "hello.text", event.Text)
+	assert.Equal(v.T(), "normal", event.Priority)
+	assert.Equal(v.T(), "info", event.AlertType)
+
 }
