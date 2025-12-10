@@ -15,11 +15,17 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
+build do
+  command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
+    " #{install_dir}/embedded/lib/libacl.so"
+end
+
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
 dependency 'dbus'
-dependency 'libacl'
 dependency 'libgcrypt'
 dependency 'libselinux'
 dependency 'libsepol'
