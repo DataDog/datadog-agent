@@ -22,6 +22,8 @@ var (
 	webConfigFile []byte
 	//go:embed resources/index.aspx
 	aspxFile []byte
+	//go:embed resources/DummyApp.java
+	javaAppFile []byte
 )
 
 type testAgentMSIInstallsAPMInject struct {
@@ -113,6 +115,30 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
 	libraryPath := iisHelper.GetLibraryPathFromInstrumentedIIS()
 	s.Require().NotEmpty(libraryPath, "DD_DOTNET_TRACER_HOME should be set when instrumentation is enabled")
 	s.Require().Contains(libraryPath, "datadog")
+}
+
+// TestInstallFromMSIWithJava tests the Agent MSI can install the APM inject package with Java instrumentation
+func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithJava() {
+	// Setup Java
+	javaHelper := installerwindows.NewJavaHelper(s)
+	javaHelper.SetupJava()
+
+	// Install with Java instrumentation
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+
+	// Verify the package is installed
+	s.assertSuccessfulPromoteExperiment()
+
+	// Start the Java app and check that the Datadog tracer is loaded
+	output := javaHelper.StartJavaApp(javaAppFile)
+	s.Require().Contains(output, "Datadog Tracer is available", "Datadog tracer should be loaded when instrumentation is enabled")
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
