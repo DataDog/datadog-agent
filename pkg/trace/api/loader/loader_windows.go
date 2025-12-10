@@ -13,7 +13,6 @@ import (
 	"net"
 	"strconv"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -101,6 +100,9 @@ type winSocketConn struct {
 }
 
 func (c *winSocketConn) Read(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
 	var bytesRead uint32
 	var flags uint32
 	buf := windows.WSABuf{
@@ -115,6 +117,9 @@ func (c *winSocketConn) Read(b []byte) (int, error) {
 }
 
 func (c *winSocketConn) Write(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
 	var bytesSent uint32
 	buf := windows.WSABuf{
 		Len: uint32(len(b)),
