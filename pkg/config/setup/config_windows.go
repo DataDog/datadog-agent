@@ -6,13 +6,11 @@
 package setup
 
 import (
-	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows/registry"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -48,6 +46,7 @@ var (
 )
 
 func osinit() {
+	// The config dir is configurable on Windows, so fetch the path from the registry
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
@@ -61,13 +60,13 @@ func osinit() {
 		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 	}
 
-	// Agent binary
-	if _here, err := executable.Folder(); err == nil {
-		InstallPath = filepath.Join(_here, "..", "..")
-		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
-		if _, err := os.Stat(agentFilePath); err == nil {
-			DefaultDDAgentBin = agentFilePath
-		}
+	// The install path is configurable on Windows, so fetch the path from the registry
+	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
+	// so this can lead to an incorrect result.
+	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	if err == nil {
+		InstallPath = pd
+		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")
 	}
 
 	// Fleet Automation
