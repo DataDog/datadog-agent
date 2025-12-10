@@ -5,13 +5,10 @@
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
 #include <uapi/linux/filter.h>
-#include <helpers/approvers.h>
-
 long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
     }
-
     struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
     struct syscall_cache_t syscall = {
         .type = EVENT_SETSOCKOPT,
@@ -30,9 +27,6 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_
 int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
-        return 0;
-    }
-    if (approve_syscall(syscall, setsockopt_approvers) == DISCARDED) {
         return 0;
     }
     int key = 0;

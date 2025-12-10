@@ -92,7 +92,6 @@ var bpfMapNames = []string{
 	"selinux_enforce",
 	"selinux_write_b",
 	"setsockopt_even",
-	"setsockopt_leve",
 	"sk_storage_meta",
 	"sock_cookie_pid",
 	"sock_meta",

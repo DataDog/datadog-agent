@@ -77,5 +77,4 @@ func init() {
 	allCapabilities["sysctl"] = sysctlCapabilities
 	allCapabilities["connect"] = connectCapabilities
 	allCapabilities["prctl"] = prctlCapabilities
-	allCapabilities["setsockopt"] = setsockoptCapabilities
 }
