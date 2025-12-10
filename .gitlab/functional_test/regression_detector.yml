@@ -96,9 +96,6 @@ single_machine_performance-regression_detector-merge_base_check:
   retry: !reference [.retry_only_infra_failure, retry]
   script:
     - |
-      if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 10 != 0 )); then
-        exit 0
-      fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `timeout`. At each smp command we will catch any failure exit codes and update this tag properly.
@@ -340,7 +337,6 @@ single-machine-performance-metal-runners-regression_detector:
     SMP_VERSION: dev-pr3796-e7f7a988
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
-    SAMPLE: "true"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
