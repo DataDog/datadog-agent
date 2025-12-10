@@ -724,7 +724,6 @@ new-e2e-installer:
     FLEET_INSTALL_METHOD: "install_script"
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
