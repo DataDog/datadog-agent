@@ -287,7 +287,7 @@ func initializeCCCache(ctx context.Context) (cloudfoundry.CCCacheI, error) {
 	}
 
 	ccCache, err := cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
-		CCClient:           ccClient,
+		ccAPIClient:        ccClient,
 		PollInterval:       pollInterval,
 		AppsBatchSize:      pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
 		RefreshCacheOnMiss: pkgconfigsetup.Datadog().GetBool("cluster_agent.refresh_on_cache_miss"),

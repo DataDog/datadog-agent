@@ -116,7 +116,7 @@ var globalCCCache = &CCCache{}
 
 // CCCacheConfig holds configuration for CCCache
 type CCCacheConfig struct {
-	CCClient           CCClientI     // Cloud Controller API client
+	ccAPIClient        CCClientI     // Cloud Controller API client
 	PollInterval       time.Duration // Interval between cache refresh polls
 	AppsBatchSize      int           // Number of apps to fetch per API request
 	RefreshCacheOnMiss bool          // Whether to refresh cache on cache miss
@@ -292,7 +292,7 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
-	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.config.CCClient.GetV3AppByGUID)
+	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.config.ccAPIClient.GetV3AppByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 
 // GetSpace looks for a space with the given GUID in the cache
 func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
-	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.config.CCClient.GetV3SpaceByGUID)
+	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.config.ccAPIClient.GetV3SpaceByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 
 // GetOrg looks for an org with the given GUID in the cache
 func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
-	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.config.CCClient.GetV3OrganizationByGUID)
+	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.config.ccAPIClient.GetV3OrganizationByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +354,7 @@ func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process
 	query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
 
 	// fetch processes from the CAPI
-	processes, err := ccc.config.CCClient.ListProcessByAppGUID(query, appGUID)
+	processes, err := ccc.config.ccAPIClient.ListProcessByAppGUID(query, appGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		apps, err = ccc.config.CCClient.ListV3AppsByQuery(query)
+		apps, err = ccc.config.ccAPIClient.ListV3AppsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing apps from cloud controller: %v", err)
 			return
@@ -443,7 +443,7 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 			if ccc.config.SidecarsTags {
 				// list app sidecars
 				var allSidecars []*CFSidecar
-				sidecars, err := ccc.config.CCClient.ListSidecarsByApp(query, app.GUID)
+				sidecars, err := ccc.config.ccAPIClient.ListSidecarsByApp(query, app.GUID)
 				if err != nil {
 					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
 					continue
@@ -468,7 +468,7 @@ func (ccc *CCCache) listSpaces(wg *sync.WaitGroup, spacesMap *map[string]*cfclie
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		spaces, err := ccc.config.CCClient.ListV3SpacesByQuery(query)
+		spaces, err := ccc.config.ccAPIClient.ListV3SpacesByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing spaces from cloud controller: %v", err)
 			return
@@ -487,7 +487,7 @@ func (ccc *CCCache) listOrgs(wg *sync.WaitGroup, orgsMap *map[string]*cfclient.V
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		orgs, err := ccc.config.CCClient.ListV3OrganizationsByQuery(query)
+		orgs, err := ccc.config.ccAPIClient.ListV3OrganizationsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing orgs from cloud controller: %v", err)
 			return
@@ -506,7 +506,7 @@ func (ccc *CCCache) listOrgQuotas(wg *sync.WaitGroup, orgQuotasMap *map[string]*
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		orgQuotas, err := ccc.config.CCClient.ListOrgQuotasByQuery(query)
+		orgQuotas, err := ccc.config.ccAPIClient.ListOrgQuotasByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing org quotas from cloud controller: %v", err)
 			return
@@ -528,7 +528,7 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		processes, err := ccc.config.CCClient.ListAllProcessesByQuery(query)
+		processes, err := ccc.config.ccAPIClient.ListAllProcessesByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing processes from cloud controller: %v", err)
 			return
@@ -556,7 +556,7 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		segments, err := ccc.config.CCClient.ListIsolationSegmentsByQuery(query)
+		segments, err := ccc.config.ccAPIClient.ListIsolationSegmentsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing isolation segments from cloud controller: %v", err)
 			return
@@ -565,7 +565,7 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 		*segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
 		for _, segment := range segments {
 			s := segment
-			spaceGUID, err := ccc.config.CCClient.GetIsolationSegmentSpaceGUID(segment.GUID)
+			spaceGUID, err := ccc.config.ccAPIClient.GetIsolationSegmentSpaceGUID(segment.GUID)
 			if err == nil {
 				if spaceGUID != "" {
 					(*segmentBySpaceGUID)[spaceGUID] = &s
@@ -574,7 +574,7 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 				log.Errorf("Failed listing isolation segment space for segment %s: %v", segment.Name, err)
 			}
 
-			orgGUID, err := ccc.config.CCClient.GetIsolationSegmentOrganizationGUID(segment.GUID)
+			orgGUID, err := ccc.config.ccAPIClient.GetIsolationSegmentOrganizationGUID(segment.GUID)
 			if err == nil {
 				if orgGUID != "" {
 					(*segmentByOrgGUID)[orgGUID] = &s

@@ -115,7 +115,7 @@ func (t testCCClient) ListProcessByAppGUID(query url.Values, guid string) ([]cfc
 // newTestCCCacheConfig creates a default CCCacheConfig for testing
 func newTestCCCacheConfig() CCCacheConfig {
 	return CCCacheConfig{
-		CCClient:        testCCClient{},
+		ccAPIClient:     testCCClient{},
 		PollInterval:    time.Hour, // Long interval to prevent automatic polling during tests
 		AppsBatchSize:   1,
 		ServeNozzleData: true,
