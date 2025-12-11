@@ -569,7 +569,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	assert.ErrorContains(t, err, "runtime__datadog_agent_otlp_ingest_metrics not found")
 }
 
-func usageMetric_GW(t *testing.T, gwUsage otel.GatewayUsage, expected float64) {
+func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expected float64) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
 	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
@@ -629,14 +629,14 @@ func TestUsageMetric_GW(t *testing.T) {
 	attr := gwUsage.GetHostFromAttributesHandler()
 	attr.OnHost("foo")
 	attr.OnHost("bar")
-	usageMetric_GW(t, gwUsage, float64(1.0))
+	usageMetricGW(t, gwUsage, float64(1.0))
 
 	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "False")
 	gwUsage = otel.NewGatewayUsage()
-	usageMetric_GW(t, gwUsage, float64(0.0))
+	usageMetricGW(t, gwUsage, float64(0.0))
 
 	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "True")
 	gwUsage = otel.NewGatewayUsage()
-	usageMetric_GW(t, gwUsage, float64(1.0))
+	usageMetricGW(t, gwUsage, float64(1.0))
 
 }
