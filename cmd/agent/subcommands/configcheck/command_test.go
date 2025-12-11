@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func isJSON(data []byte) bool {
+func isValidJSON(data []byte) bool {
 	var js json.RawMessage
 	return json.Unmarshal(data, &js) == nil
 }
@@ -90,19 +90,19 @@ func TestPrintJSON(t *testing.T) {
 value: 456`,
 			},
 		},
-		InitConfig:   "abc: def",
-		MetricConfig: "abc: def",
-		Logs:         "abc: def",
+		InitConfig:   "foo: bar",
+		MetricConfig: "foo: bar",
+		Logs:         "foo: bar",
 	}
 
-	expected := `{"check_name":"check name","provider":"file","source":"file:/path/to/config.yaml","instances":[{"id":"0","config":""},{"id":"123","config":"name: instance123\nvalue: 456"}],"init_config":"abc: def","metric_config":"abc: def","logs":"abc: def"}`
+	expected := `{"check_name":"check name","provider":"file","source":"file:/path/to/config.yaml","instances":[{"id":"0","config":""},{"id":"123","config":"name: instance123\nvalue: 456"}],"init_config":"foo: bar","metric_config":"foo: bar","logs":"foo: bar"}`
 
 	var b bytes.Buffer
 
 	err := printJSON(&b, c, false)
 	require.NoError(t, err)
 
-	require.True(t, isJSON(b.Bytes()))
+	require.True(t, isValidJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }
 
@@ -122,9 +122,9 @@ func TestPrettyPrintJSON(t *testing.T) {
 value: 456`,
 			},
 		},
-		InitConfig:   "abc: def",
-		MetricConfig: "abc: def",
-		Logs:         "abc: def",
+		InitConfig:   "foo: bar",
+		MetricConfig: "foo: bar",
+		Logs:         "foo: bar",
 	}
 
 	expected := `{
@@ -141,9 +141,9 @@ value: 456`,
       "config": "name: instance123\nvalue: 456"
     }
   ],
-  "init_config": "abc: def",
-  "metric_config": "abc: def",
-  "logs": "abc: def"
+  "init_config": "foo: bar",
+  "metric_config": "foo: bar",
+  "logs": "foo: bar"
 }`
 
 	var b bytes.Buffer
@@ -151,6 +151,6 @@ value: 456`,
 	err := printJSON(&b, c, true)
 	require.NoError(t, err)
 
-	require.True(t, isJSON(b.Bytes()))
+	require.True(t, isValidJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }

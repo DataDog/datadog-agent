@@ -8,7 +8,6 @@
 package check
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -92,7 +91,6 @@ instances:
 	}
 
 	checkConfigs, err := getAllCheckConfigs(ac, cliParams)
-	fmt.Printf("%v\n", checkConfigs)
 	require.NoError(t, err)
 	require.Len(t, checkConfigs, 1)
 
