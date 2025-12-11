@@ -7,7 +7,7 @@ package(default_package_metadata = [":license"])
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
-    license_text = ["@@//deps:lua/license"],
+    license_text = "@@//deps:lua/license",
     visibility = ["//visibility:public"],
 )
 
