@@ -29,7 +29,7 @@ func prctlKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, err
 	for field, values := range approvers {
 		switch field {
 		case "prctl.option":
-			kfilter, err := getEnumsKFilters("prctl_option_approvers", uintValues[uint64](values)...)
+			kfilter, err := getEnumsKFiltersWithIndex("prctl_option_approvers", 0, uintValues[uint64](values)...)
 			if err != nil {
 				return nil, nil, err
 			}
