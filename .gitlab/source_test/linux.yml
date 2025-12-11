@@ -218,12 +218,12 @@ tests_gpu:
   needs: ["go_deps", "go_tools_deps"]
   tags: ["gpu:a10-amd64"]
   rules:
+    - if: $CI_COMMIT_BRANCH == "guillermo.julian/gpu-ci-tests"
     - !reference [.on_gpu_integration_tests]
     - !reference [.except_disable_unit_tests]
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
