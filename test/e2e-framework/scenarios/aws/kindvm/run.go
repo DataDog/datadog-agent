@@ -188,7 +188,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 	}
 
 	if params.deployDogstatsd {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", fakeIntake, false, ctx.Stack()); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", fakeIntake, false, ctx.Stack()); err != nil {
 			return err
 		}
 	}
@@ -225,7 +225,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
