@@ -2,9 +2,6 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
-# Defies a "liblua" target for the lib
-bazel_dep(name = "lua", version = "5.4.6")
-
 # Defines a "sqlite3" target for the lib
 bazel_dep(name = "sqlite3", version = "3.46.1")
 
@@ -306,3 +303,14 @@ http_archive(
     url = "https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz",
     strip_prefix = "dbus-1.16.2",
 )
+
+http_archive(
+    name = "lua",
+    sha256 = "7d5ea1b9cb6aa0b59ca3dde1c6adcb57ef83a1ba8e5432c0ecd06bf439b3ad88",
+    url = "https://www.lua.org/ftp/lua-5.4.6.tar.gz",
+    strip_prefix = "lua-5.4.6",
+    files = {
+        "BUILD.bazel": "//deps:lua/lua.BUILD.bazel",
+    },
+)
+
