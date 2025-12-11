@@ -1092,6 +1092,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
+			relatedEvent.Source = model.EventSourceRelated
 
 			if err != nil {
 				var errResolution *path.ErrPathResolution
