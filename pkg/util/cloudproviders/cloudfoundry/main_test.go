@@ -8,46 +8,12 @@
 package cloudfoundry
 
 import (
-	"context"
 	"os"
-	"regexp"
 	"testing"
-	"time"
-)
-
-type testBBSClient struct {
-}
-
-var (
-	bc *BBSCache
-	cc *CCCache
 )
 
 func TestMain(m *testing.M) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// the BBSCache depends on the CCCache, so initialize the CCache first.  In
-	// production code, any discrepancies would work out after a few polls;
-	// this is just needed for tests.
-	cc, _ = ConfigureGlobalCCCache(ctx, CCCacheConfig{
-		CCClient:        &testCCClient{},
-		PollInterval:    time.Second,
-		AppsBatchSize:   1,
-		ServeNozzleData: true,
-		SidecarsTags:    true,
-		SegmentsTags:    true,
-	})
-	<-cc.UpdatedOnce()
-	bc, _ = ConfigureGlobalBBSCache(ctx, BBSCacheConfig{
-		BBSClient:    &testBBSClient{},
-		PollInterval: time.Second,
-		IncludeList:  []*regexp.Regexp{},
-		ExcludeList:  []*regexp.Regexp{},
-		CCCache:      cc, // Inject CCCache dependency
-	})
-	<-bc.UpdatedOnce()
-
+	// Tests now create their own cache instances, no global setup needed
 	code := m.Run()
 	os.Exit(code)
 }
