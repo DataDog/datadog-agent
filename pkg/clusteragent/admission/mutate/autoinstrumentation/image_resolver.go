@@ -11,10 +11,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/opencontainers/go-digest"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,6 +24,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Following rollout ordering from SRE
+var rolloutBucketMapping = map[string]int{
+	"datad0g.com":       1,
+	"ap1.datadoghq.com": 1,
+	"ap2.datadoghq.com": 2,
+	"us3.datadoghq.com": 2,
+	"us5.datadoghq.com": 3,
+	"datadoghq.eu":      4,
+	"datadoghq.com":     5,
+	"ddog-gov.com":      6,
+}
+
+var numRolloutBuckets = 6
+var ttlDuration = 24 * time.Hour
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
@@ -271,9 +288,9 @@ type RepositoryConfig struct {
 	Images         []ImageInfo `json:"images"`
 }
 
-// ResolvedImage represents a fully resolved image with digest and metadata.
+// ResolvedImage represents a fully resolved image.
 type ResolvedImage struct {
-	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@v3-rollout1"
 }
 
 func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
@@ -282,13 +299,113 @@ func newResolvedImage(registry string, repositoryName string, imageInfo ImageInf
 	}
 }
 
+func newTagBasedImage(registry string, repository string, rolloutTag string) *ResolvedImage {
+	return &ResolvedImage{
+		FullImageRef: registry + "/" + repository + ":" + rolloutTag,
+	}
+}
+
+// digestCacheEntry represents a cached digest with its last update time
+type digestCacheEntry struct {
+	digest      string
+	lastUpdated time.Time
+}
+
+type tagBasedImageResolver struct {
+	datadoghqRegistries map[string]any
+	datacenter          string
+	rolloutBucket       string
+	digestCache         map[string]digestCacheEntry
+	mu                  sync.RWMutex
+}
+
+func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("Not a Datadoghq registry, not resolving")
+		return nil, false
+	}
+
+	normalizedTag := strings.TrimPrefix(tag, "v")
+	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
+	// Check cache first
+	cacheKey := registry + "/" + repository + ":" + rolloutBucketTag
+	if cachedDigest, found := r.getCachedDigest(cacheKey); found {
+		if entryAge, _ := r.getCacheEntryAge(cacheKey); entryAge > ttlDuration {
+			log.Debugf("Cached digest for %s is too old, fetching from registry", cacheKey)
+		} else {
+			log.Debugf("Using cached digest for %s", cacheKey)
+			return newResolvedImage(registry, repository, ImageInfo{Digest: cachedDigest}), true
+		}
+	}
+
+	// Fetch from registry
+	digest, err := crane.Digest(registry + "/" + repository + ":" + rolloutBucketTag)
+	if err != nil {
+		log.Errorf("Failed to get digest of image %s/%s:%s: %v", registry, repository, rolloutBucketTag, err)
+		return nil, false
+	}
+	r.setCachedDigest(cacheKey, digest)
+
+	return newResolvedImage(registry, repository, ImageInfo{Digest: digest}), true
+}
+
+// getCachedDigest retrieves a digest from the cache if it exists
+func (r *tagBasedImageResolver) getCachedDigest(cacheKey string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if entry, exists := r.digestCache[cacheKey]; exists {
+		return entry.digest, true
+	}
+	return "", false
+}
+
+// setCachedDigest stores a digest in the cache with the current timestamp
+func (r *tagBasedImageResolver) setCachedDigest(cacheKey string, digest string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.digestCache[cacheKey] = digestCacheEntry{
+		digest:      digest,
+		lastUpdated: time.Now(),
+	}
+}
+
+// getCacheEntryAge returns how long ago a cache entry was last updated
+func (r *tagBasedImageResolver) getCacheEntryAge(cacheKey string) (time.Duration, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if entry, exists := r.digestCache[cacheKey]; exists {
+		return time.Since(entry.lastUpdated), true
+	}
+	return 0, false
+}
+
+func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter string) ImageResolver {
+	rolloutBucket, exists := rolloutBucketMapping[datacenter]
+	if !exists {
+		// Fallback to the last bucket if the datacenter is not found
+		rolloutBucket = numRolloutBuckets
+	}
+	return &tagBasedImageResolver{
+		datadoghqRegistries: datadoghqRegistries,
+		datacenter:          datacenter,
+		rolloutBucket:       strconv.Itoa(rolloutBucket),
+		digestCache:         make(map[string]digestCacheEntry),
+	}
+}
+
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
+// TODO(erika): ImageResolveConfig should be passed in here
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
+	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
 	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
 		log.Debugf("No remote config client available")
-		return newNoOpImageResolver()
+		datacenter := cfg.GetString("site")
+		return newTagBasedImageResolver(datadogRegistriesSet, datacenter)
 	}
 
 	datadogRegistriesList := cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")
