@@ -5,8 +5,14 @@ http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl
 # Defies a "liblua" target for the lib
 bazel_dep(name = "lua", version = "5.4.6")
 
-# Defines a "sqlite3" target for the lib
-bazel_dep(name = "sqlite3", version = "3.46.1")
+sqlite_amalgamation = "sqlite-amalgamation-3500400"  # version 3.50.4
+http_archive(
+    name = "sqlite3",
+    build_file = "//deps:sqlite3.BUILD.bazel",
+    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
+    strip_prefix = sqlite_amalgamation,
+    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
+)
 
 http_archive(
     name = "xz",
