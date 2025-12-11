@@ -216,6 +216,7 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 			r.Values = npi.RecommendedInstanceTypes()
 
 			instanceTypeLabelFound = true
+			break
 		}
 	}
 	if !instanceTypeLabelFound {
