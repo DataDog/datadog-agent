@@ -18,15 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// SharedLibraryCheckLoaderName is the name of the Shared Library loader
-const SharedLibraryCheckLoaderName string = "sharedlibrary"
+// CheckLoaderName is the name of the Shared Library loader
+const CheckLoaderName string = "sharedlibrary"
 
 // CheckLoader is a specific loader for checks living in this package
 type CheckLoader struct {
 	loader ffi.LibraryLoader
 }
 
-func newSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
+func newCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
 	return &CheckLoader{
 		loader: loader,
 	}, nil
@@ -34,7 +34,7 @@ func newSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integra
 
 // Name returns Shared Library loader name
 func (*CheckLoader) Name() string {
-	return SharedLibraryCheckLoaderName
+	return CheckLoaderName
 }
 
 func (sl *CheckLoader) String() string {
@@ -50,7 +50,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, sl.loader, lib)
+	c, err := newCheck(senderManager, config.Name, sl.loader, lib)
 	if err != nil {
 		return c, err
 	}

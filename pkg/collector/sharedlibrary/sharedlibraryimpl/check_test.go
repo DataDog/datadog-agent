@@ -20,7 +20,7 @@ import (
 )
 
 func TestRunCheck(t *testing.T) {
-	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	check, err := newFakeCheck(aggregator.NewNoOpSenderManager())
 	require.NoError(t, err)
 
 	err = check.runCheckImpl(false)
@@ -28,7 +28,7 @@ func TestRunCheck(t *testing.T) {
 }
 
 func TestRunCheckWithNullSymbol(t *testing.T) {
-	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	check, err := newFakeCheck(aggregator.NewNoOpSenderManager())
 	require.NoError(t, err)
 
 	// set the symbol handle to NULL
@@ -39,7 +39,7 @@ func TestRunCheckWithNullSymbol(t *testing.T) {
 }
 
 func TestCancelCheck(t *testing.T) {
-	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	check, err := newFakeCheck(aggregator.NewNoOpSenderManager())
 	require.NoError(t, err)
 
 	check.Cancel()
@@ -49,8 +49,8 @@ func TestCancelCheck(t *testing.T) {
 	assert.Error(t, err, "check %s is already cancelled", check.name)
 }
 
-func newSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	c, err := NewSharedLibraryCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
+func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
+	c, err := newCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

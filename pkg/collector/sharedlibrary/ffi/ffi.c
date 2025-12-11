@@ -10,6 +10,7 @@
 #endif
 
 #ifdef _WIN32
+// windows specific implementations
 
 void *open_lib(const char *lib_path, char **lib_error) {
     void *lib_handle = LoadLibraryA(lib_path);
@@ -46,6 +47,7 @@ void close_lib(void *lib_handle, char **lib_error) {
     }
 }
 #else
+// non-windows specific implementations
 
 void *open_lib(const char *lib_path, char **lib_error) {
     void *lib_handle;
@@ -95,6 +97,7 @@ void close_lib(void *lib_handle, char **lib_error) {
     }
 }
 #endif
+// shared library interface functions
 
 library_t load_shared_library(const char *lib_path, const char **error) {
     library_t lib;

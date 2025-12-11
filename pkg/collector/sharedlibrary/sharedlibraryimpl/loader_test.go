@@ -36,7 +36,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
 	require.NoError(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -63,7 +63,7 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 
 	// the library loader will search for shared libraries in a folder that doesn't exist, leading to a loading error
 	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
-	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)

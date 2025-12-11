@@ -33,13 +33,12 @@ type Check struct {
 	libraryLoader  ffi.LibraryLoader // FFI handler
 	lib            ffi.Library       // handle of the associated shared library and pointers to its symbols
 	source         string
-	initConfig     string // json string of check common config
+	initConfig     string // json string of check init config
 	instanceConfig string // json string of specific instance config
 	cancelled      bool
 }
 
-// NewSharedLibraryCheck conveniently creates a Check instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib ffi.Library) (*Check, error) {
+func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib ffi.Library) (*Check, error) {
 	check := &Check{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
@@ -120,7 +119,7 @@ func (c *Check) ConfigSource() string {
 
 // Loader returns the check loader
 func (c *Check) Loader() string {
-	return SharedLibraryCheckLoaderName
+	return CheckLoaderName
 }
 
 // InitConfig returns the init_config configuration for the check
