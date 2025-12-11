@@ -217,7 +217,7 @@ func SetupInstallerDataDir() error {
 }
 
 // EnsureInstallerDataDir is a minimal version of SetupInstallerDataDir, ensuring only the root directory is securely created.
-// subdirectories will inherit the secure permisisons, but they may be overly restrictive until setup is run.
+// subdirectories will inherit the secure permissions, but they may be overly restrictive until setup is run.
 //
 // It is meant to be safe to call frequently and outside of initial setup.
 func EnsureInstallerDataDir() error {
