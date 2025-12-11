@@ -132,6 +132,7 @@ type MatchingProgram interface {
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
 type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	CronSchedule          string   `yaml:"cron_schedule"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
 	Service               string   `yaml:"service"`
