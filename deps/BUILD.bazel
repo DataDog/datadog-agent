@@ -42,3 +42,5 @@ filegroup(
     }),
     visibility = ["//compliance:__pkg__"],
 )
+
+exports_files(["sqlite3/LICENSE.md"])
