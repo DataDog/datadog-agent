@@ -3,6 +3,7 @@
 # verbose regular expressions by Black. Use [ ] to denote a significant space
 # character.
 
+
 [tool.ruff]
 target-version = "py312"
 exclude = [
