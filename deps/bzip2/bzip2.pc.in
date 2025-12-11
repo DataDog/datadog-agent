@@ -1,4 +1,4 @@
-prefix=<%= prefix %>
+prefix=@PREFIX@
 exec_prefix=${prefix}
 bindir=${prefix}/bin
 libdir=${prefix}/lib
@@ -6,6 +6,6 @@ includedir=${prefix}/include
 
 Name: bzip2
 Description: Lossless, block-sorting data compression
-Version: <%= version %>
+Version: @VERSION@
 Libs: -L${libdir} -lbz2
 Cflags: -I${includedir}
