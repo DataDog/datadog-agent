@@ -98,6 +98,9 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 
 		// Emit sum as a Gauge (raw value, no delta conversion)
 		sumDims := pointDims.WithSuffix("sum")
+		if isSkippable(m.logger, sumDims.name, p.Sum()) {
+			continue
+		}
 		consumer.ConsumeTimeSeries(ctx, sumDims, Gauge, ts, 0, p.Sum())
 
 		// Emit quantiles if configured
