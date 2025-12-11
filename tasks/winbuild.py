@@ -26,7 +26,6 @@ def agent_package(
         ctx,
         flavor=flavor,
         skip_deps=skip_deps,
-        log_level="debug",
     )
 
     # Move the installer binary to a separate folder
