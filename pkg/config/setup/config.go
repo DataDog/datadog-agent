@@ -472,6 +472,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.discovery_allowed_failures") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.collect_device_metadata")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.collect_topology")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetKnown("network_devices.autodiscovery.collect_vpn")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.workers")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.configs")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.loader")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
