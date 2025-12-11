@@ -28,6 +28,6 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 		},
 	}
 	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-
+	cmd.Flags().BoolVarP(&params.autofix, "autofix", "f", false, "autofix the config")
 	return cmd
 }

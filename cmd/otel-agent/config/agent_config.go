@@ -67,6 +67,8 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
+type ResolverError error
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
@@ -91,7 +93,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 	cfg, err := resolver.Resolve(ctx)
 	if err != nil {
-		return nil, err
+		return nil, ResolverError(err)
 	}
 	sc, err := getServiceConfig(cfg)
 	if err != nil {

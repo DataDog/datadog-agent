@@ -1,0 +1,15 @@
+Here is a Otel configuration
+
+```yaml
+{{CONFIG}}
+```
+
+Fix the following validation errors returned by the OTEL collector configuration validation:
+
+{{ERROR}}
+
+
+
+Output the full fixed configuration between ```yaml and ```
+
+

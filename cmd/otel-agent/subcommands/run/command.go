@@ -48,6 +48,7 @@ import (
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/collector/impl/configfixer"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -78,6 +79,8 @@ type cliParams struct {
 
 	// pidfilePath contains the value of the --pidfile flag.
 	pidfilePath string
+
+	autofix bool
 }
 
 type orchestratorinterfaceimpl struct {
@@ -107,7 +110,18 @@ func isCmdPortNegative(cfg coreconfig.Component) bool {
 func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
-		return err
+		if params.autofix {
+			if _, ok := err.(agentConfig.ResolverError); !ok {
+				return err
+			}
+			err = configfixer.FixConfig(params.ConfPaths[0], func() error {
+				acfg, err = agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+				return err
+			})
+		}
+		if err != nil {
+			return err
+		}
 	}
 	if !acfg.GetBool("otelcollector.enabled") {
 		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")

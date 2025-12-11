@@ -1,0 +1,10 @@
+Fix the following validation errors returned by the OTEL collector configuration validation that still remaining after the previous fix:
+
+
+{{ERROR}}
+
+
+Output the full fixed configuration between ```yaml and ```
+
+
+

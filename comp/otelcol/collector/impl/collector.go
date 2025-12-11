@@ -36,6 +36,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/collector/impl/configfixer"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -54,9 +55,10 @@ import (
 )
 
 type collectorImpl struct {
-	log corelog.Component
-	set otelcol.CollectorSettings
-	col *otelcol.Collector
+	log        corelog.Component
+	set        otelcol.CollectorSettings
+	col        *otelcol.Collector
+	configPath string
 }
 
 // Requires declares the input types to the constructor
@@ -218,9 +220,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	c := &collectorImpl{
-		log: reqs.Log,
-		set: set,
-		col: col,
+		log:        reqs.Log,
+		set:        set,
+		col:        col,
+		configPath: reqs.URIs[0],
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -259,8 +262,9 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		return Provides{}, err
 	}
 	c := &collectorImpl{
-		set: set,
-		col: col,
+		set:        set,
+		col:        col,
+		configPath: reqs.URIs[0],
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -274,7 +278,10 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 
 func (c *collectorImpl) start(ctx context.Context) error {
 	// Dry run the collector pipeline to ensure it is configured correctly
-	err := c.col.DryRun(ctx)
+	err := configfixer.FixConfig(c.configPath, func() error {
+		return c.col.DryRun(ctx)
+	})
+
 	if err != nil {
 		return err
 	}
