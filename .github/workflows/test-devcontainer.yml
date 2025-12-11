@@ -28,7 +28,7 @@ jobs:
         | jq -s 'add' > pr-files.json
 
     - name: Fetch changed files (push)
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       if: github.event_name == 'push'
       with:
         persist-credentials: false
@@ -76,7 +76,7 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
 
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         persist-credentials: false
         fetch-depth: 1000
