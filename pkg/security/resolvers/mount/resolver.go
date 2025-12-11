@@ -33,7 +33,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 5 * time.Second
+	redemptionTime                       = 10 * time.Second
 	// should be enough to handle most of in-queue mounts waiting to be deleted
 	openQueuePreAllocSize = 32
 	// mounts LRU limit: 100000 mounts
@@ -553,16 +553,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync ...bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	useRedemptionAndSync := true
-	if len(dontUseRedemptionAndSync) > 0 && dontUseRedemptionAndSync[0] {
-		useRedemptionAndSync = false
-	}
-
-	return mr.resolveMount(mountID, pid, useRedemptionAndSync)
+	return mr.resolveMount(mountID, pid, dontUseRedemptionAndSync)
 }
 
 func (mr *Resolver) resolveMount(mountID uint32, pid uint32, useRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
