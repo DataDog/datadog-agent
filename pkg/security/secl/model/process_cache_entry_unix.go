@@ -85,18 +85,23 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 }
 
 func copyProcessContext(parent, child *ProcessCacheEntry) {
-	// inherit the container container context from the parent if necessary. If a container is already running when system-probe
+	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
 	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
 	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerContext.ContainerID) > 0 && len(child.ContainerContext.ContainerID) == 0 {
-		child.ContainerContext = parent.ContainerContext
+		// TODO should not copy only the container ID, but the entire container context
+		// and also the created at of the parent. In order to do that, we need to fix the container context
+		// creation to make sure that we always have all the attributes available.
+		child.ContainerContext.ContainerID = parent.ContainerContext.ContainerID
 	}
 
-	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !parent.CGroup.CGroupFile.IsNull() && child.CGroup.CGroupFile.IsNull() {
+	// TODO should use the IsNull method to check if the cgroup context is empty. In order
+	// to do that, we need to fix the cgroup context creation to make sure that we always
+	// have all the attributes available.
+	if len(parent.CGroup.CGroupID) > 0 && len(child.CGroup.CGroupID) == 0 {
 		child.CGroup = parent.CGroup
 	}
 
@@ -189,17 +194,11 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
-
-	// the kernel cache may not have a container context, so we need to copy it from the parent
-	if len(pc.ContainerContext.ContainerID) > 0 && len(childEntry.ContainerContext.ContainerID) == 0 {
-		childEntry.ContainerContext = pc.ContainerContext
-	}
-
-	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !pc.CGroup.CGroupFile.IsNull() && childEntry.CGroup.CGroupFile.IsNull() {
-		childEntry.CGroup = pc.CGroup
-	}
-
+	// TODO should not copy only the container ID, but the entire container context
+	// and also the created at of the parent. In order to do that, we need to fix the container context
+	// creation to make sure that we always have all the attributes available.
+	childEntry.ContainerContext.ContainerID = pc.ContainerContext.ContainerID
+	childEntry.CGroup = pc.CGroup
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.LinuxBinprm = pc.LinuxBinprm
