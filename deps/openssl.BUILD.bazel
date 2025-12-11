@@ -134,7 +134,7 @@ configure_make(
                             $$INSTALLDIR/lib/{lib};
                 done
                 """.format(lib = lib)
-            for lib in ["libcrypto.3.dylib", "libcrypto.dylib", "libssl.3.dylib", "libssl.dylib"]
+            for lib in ["libcrypto.dylib", "libssl.dylib"]
         ]),
         "//conditions:default": ""
     }),
