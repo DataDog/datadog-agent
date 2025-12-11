@@ -29,7 +29,7 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.47.0
 	go.opentelemetry.io/collector/consumer v1.47.0
 	go.opentelemetry.io/collector/exporter v1.47.0
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.0
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.1-0.20251203101216-a0cbea73c189
 	go.opentelemetry.io/collector/exporter/exportertest v0.141.0
 	go.opentelemetry.io/collector/featuregate v1.47.0
 	go.opentelemetry.io/collector/pdata v1.47.0
@@ -163,7 +163,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect

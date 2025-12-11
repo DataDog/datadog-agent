@@ -284,7 +284,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
 	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
@@ -373,8 +373,8 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.47.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.47.0
 	go.opentelemetry.io/collector/exporter v1.47.0
-	go.opentelemetry.io/collector/exporter/debugexporter v0.141.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.141.0
+	go.opentelemetry.io/collector/exporter/debugexporter v0.141.1-0.20251203101216-a0cbea73c189
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.141.1-0.20251203101216-a0cbea73c189
 	go.opentelemetry.io/collector/extension v1.47.0
 	go.opentelemetry.io/collector/featuregate v1.47.0
 	go.opentelemetry.io/collector/otelcol v0.141.0
@@ -382,7 +382,7 @@ require (
 	go.opentelemetry.io/collector/processor v1.47.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.141.0
 	go.opentelemetry.io/collector/receiver v1.47.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.141.0
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.141.1-0.20251203101216-a0cbea73c189
 	go.opentelemetry.io/collector/service v0.141.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 	go.opentelemetry.io/ebpf-profiler v0.0.202547
@@ -880,11 +880,10 @@ require (
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.141.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.141.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.141.0
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.141.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.1-0.20251203101216-a0cbea73c189 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.141.1-0.20251203101216-a0cbea73c189 // indirect
 	go.opentelemetry.io/collector/exporter/exportertest v0.141.0 // indirect
 	go.opentelemetry.io/collector/exporter/nopexporter v0.141.0 // indirect
-	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.141.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.141.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.47.0 // indirect
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.141.0
@@ -978,6 +977,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
+	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.141.0
 )
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
