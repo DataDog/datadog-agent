@@ -9,6 +9,8 @@
 package collectorimpl
 
 import (
+	"context"
+
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -19,6 +21,7 @@ import (
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -44,11 +47,12 @@ type ExtraFactories interface {
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
 type extraFactoriesWithAgentCore struct {
-	tagger     tagger.Component
-	hostname   hostname.Component
-	ipcComp    ipc.Component
-	traceAgent traceagent.Component
-	log        log.Component
+	tagger      tagger.Component
+	hostname    hostname.Component
+	ipcComp     ipc.Component
+	traceAgent  traceagent.Component
+	traceConfig traceconfig.Component
+	log         log.Component
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
@@ -56,16 +60,19 @@ var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(
 	tagger tagger.Component,
-	hostname hostname.Component, ipcComp ipc.Component,
+	hostname hostname.Component,
+	ipcComp ipc.Component,
 	traceAgent traceagent.Component,
+	traceConfig traceconfig.Component,
 	log log.Component,
 ) ExtraFactories {
 	return extraFactoriesWithAgentCore{
-		tagger:     tagger,
-		hostname:   hostname,
-		ipcComp:    ipcComp,
-		traceAgent: traceAgent,
-		log:        log,
+		tagger:      tagger,
+		hostname:    hostname,
+		ipcComp:     ipcComp,
+		traceAgent:  traceAgent,
+		traceConfig: traceConfig,
+		log:         log,
 	}
 }
 
@@ -77,8 +84,13 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 }
 
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
+	// Use hostname from trace config instead of hostname component,
+	// since trace config successfully acquires it via gRPC from core agent
+	hostnameGetter := func(ctx context.Context) (string, error) {
+		return e.traceConfig.Object().Hostname, nil
+	}
 	return []processor.Factory{
-		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+		infraattributesprocessor.NewFactoryForAgent(e.tagger, hostnameGetter),
 	}
 }
 
