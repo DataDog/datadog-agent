@@ -338,10 +338,12 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
-				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
-					msg.skip = true
-					return false
+				if a.containerFilter != nil {
+					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+						msg.skip = true
+						return false
+					}
 				}
 
 				data, err := msg.toJSON()
