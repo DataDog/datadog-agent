@@ -12,9 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -189,8 +192,29 @@ clusterAgent:
 			return err
 		}
 
-		if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", 8125, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+		if _, err := nginx.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-nginx", 8080, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 			return err
+		}
+
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if gcpEnv.DogstatsdDeploy() {
+			// Standalone dogstatsd
+			if _, err := dogstatsdstandalone.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "dogstatsd-standalone", "/run/crio/crio.sock", fakeIntake, true, ""); err != nil {
+				return err
+			}
+
+			// Dogstatsd clients that report to the standalone dogstatsd deployment
+			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
+
+			// Dogstatsd clients that report to the Agent
+			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
 		}
 	}
 

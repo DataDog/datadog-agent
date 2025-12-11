@@ -324,7 +324,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	k.customResourceDiscoverer = customresources.StartDiscovery()
+	// Start custom resource discovery if not
+	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
+		k.customResourceDiscoverer = customresources.StartDiscovery()
+	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
 	// TODO: extract init configuration attempt function into a struct method
@@ -645,18 +648,21 @@ func (k *KSMCheck) Run() error {
 	}
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
-	wasUpdated := false
-	k.customResourceDiscoverer.SafeRead(func() {
-		wasUpdated = k.customResourceDiscoverer.WasUpdated
-	})
-
-	if wasUpdated {
-		if err := k.buildStores(); err != nil {
-			log.Errorf("Failed to rebuild KSM: %v", err)
-		}
-		k.customResourceDiscoverer.SafeWrite(func() {
-			k.customResourceDiscoverer.WasUpdated = false
+	// Only check if discoverer was initialized (not in node_kubelet mode)
+	if k.customResourceDiscoverer != nil {
+		wasUpdated := false
+		k.customResourceDiscoverer.SafeRead(func() {
+			wasUpdated = k.customResourceDiscoverer.WasUpdated
 		})
+
+		if wasUpdated {
+			if err := k.buildStores(); err != nil {
+				log.Errorf("Failed to rebuild KSM: %v", err)
+			}
+			k.customResourceDiscoverer.SafeWrite(func() {
+				k.customResourceDiscoverer.WasUpdated = false
+			})
+		}
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
