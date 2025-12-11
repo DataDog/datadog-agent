@@ -1054,7 +1054,7 @@ func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
 		event.ProcessCacheEntry.Release()
 	}
 	probeEventZeroer(event)
-	p.eventPool.put(event)
+	p.eventPool.Put(event)
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
