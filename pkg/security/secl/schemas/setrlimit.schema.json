@@ -26,7 +26,7 @@
                     ],
                     "properties": {
                         "resource": {
-                            "type": "integer"
+                            "type": "string"
                         },
                         "rlim_cur": {
                             "type": "integer"
@@ -34,8 +34,8 @@
                         "rlim_max": {
                             "type": "integer"
                         },
-                        "retval": {
-                            "type": "integer"
+                        "target": {
+                            "$ref": "process.schema.json"
                         }
                     }
                 }
@@ -45,4 +45,4 @@
             ]
         }
     ]
-} 
+}
