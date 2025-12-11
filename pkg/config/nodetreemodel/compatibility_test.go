@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
@@ -840,4 +841,50 @@ additional_endpoints:
 	}
 	assert.Equal(t, expectEndpoints, viperConf.GetStringMapStringSlice("additional_endpoints"))
 	assert.Equal(t, expectEndpoints, ntmConf.GetStringMapStringSlice("additional_endpoints"))
+}
+
+func TestUnsetForSourceWithFile(t *testing.T) {
+	yamlExample := []byte(`
+some:
+  setting: file_value
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+
+	tempfile.Write(yamlExample)
+
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("some.setting", "default_value")
+		cfg.SetConfigFile(tempfile.Name())
+	})
+
+	for name, cfg := range map[string]model.BuildableConfig{"ntm": ntmConf, "viper": viperConf} {
+		t.Run(name, func(t *testing.T) {
+			err := cfg.ReadInConfig()
+			require.NoError(t, err)
+
+			cfg.Set("some.setting", "runtime_value", model.SourceAgentRuntime)
+			cfg.Set("some.setting", "process_value", model.SourceLocalConfigProcess)
+			cfg.Set("some.setting", "RC_value", model.SourceRC)
+
+			assert.Equal(t, "RC_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceRC)
+			assert.Equal(t, "process_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
+			assert.Equal(t, "runtime_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceAgentRuntime)
+			assert.Equal(t, "file_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceFile)
+			assert.Equal(t, "default_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceDefault)
+			assert.Equal(t, "", cfg.GetString("some.setting"))
+		})
+	}
 }
