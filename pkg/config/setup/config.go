@@ -1317,7 +1317,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic.
+	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
@@ -1392,6 +1392,7 @@ func agent(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
+	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -2764,6 +2765,17 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 		config.Set("enable_payloads.series", false, pkgconfigmodel.SourceAgentRuntime)
 		config.Set("enable_payloads.service_checks", false, pkgconfigmodel.SourceAgentRuntime)
 		config.Set("enable_payloads.sketches", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
+func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
+	infraMode := config.GetString("infrastructure_mode")
+
+	if infraMode == "end_user_device" {
+		// Enable features for end_user_device mode
+		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
