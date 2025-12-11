@@ -100,9 +100,19 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 		// formulas used to convert between shares and weights depend on the
 		// runtime version:
 		//   - runc < 1.3.2 / crun < 1.23: linear mapping (old Kubernetes formula)
-		//   - runc >= 1.3.2 / crun >= 1.23: quadratic mapping (PR #4785)
+		//     https://github.com/kubernetes/kubernetes/blob/release-1.28/pkg/kubelet/cm/cgroup_manager_linux.go#L565
+		//   - runc >= 1.3.2 / crun >= 1.23: quadratic mapping
+		//     https://github.com/opencontainers/runc/pull/4785
 		// - We detect which mapping is in use by comparing the actual weight
 		// with expected values computed from Docker's configured shares.
+		// - The value emitted by the check with the old linear formula is not
+		// exactly the same as in Docker because of the rounding applied in
+		// the conversions. Example:
+		//   - Run a container with 2048 shares in a system with cgroups v2.
+		//   - The 2048 shares are converted to weight:
+		//     weight = (((shares - 2) * 9999) / 262142) + 1 = 79.04 (rounds to 79)
+		//   - This check converts the weight back to shares:
+		//     shares = (((weight - 1) * 262142) / 9999) + 2 = 2046.91 (rounds to 2047)
 		// - Because docker shows shares everywhere regardless of the cgroup
 		// version and "docker.cpu.shares" is a docker-specific metric, we think
 		// that it is less confusing to always report shares to match what
