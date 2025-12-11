@@ -10,7 +10,7 @@ import tempfile
 import urllib.request
 from typing import Optional
 
-from ..constants import DOWNLOAD_TIMEOUT
+from ..constants import DEFAULT_SUBPROCESS_TIMEOUT, DOWNLOAD_TIMEOUT
 from ..logging_config import logger
 from ..subprocess_utils import safe_subprocess_run
 
@@ -105,7 +105,7 @@ def download_bpftool(install_dir: str = "/tmp") -> Optional[str]:
     # Skip download if already exists and works
     if os.path.exists(bpftool_path):
         try:
-            result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=5)
+            result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=DEFAULT_SUBPROCESS_TIMEOUT)
             if result.returncode == 0:
                 logger.debug(f"Using existing bpftool at {bpftool_path}")
                 return bpftool_path
@@ -143,7 +143,7 @@ def download_bpftool(install_dir: str = "/tmp") -> Optional[str]:
         os.chmod(bpftool_path, 0o755)
 
         # Verify it works
-        result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=5)
+        result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=DEFAULT_SUBPROCESS_TIMEOUT)
         if result.returncode != 0:
             logger.debug("Error: Downloaded bpftool doesn't work")
             return None

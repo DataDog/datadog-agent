@@ -10,7 +10,7 @@ import struct
 from typing import Dict, List, Optional, Set
 
 from .backends import EbpfBackend
-from .constants import PID_KEYED_MAPS
+from .constants import MAP_NAME_PREFIX_LENGTH, PID_KEYED_MAPS
 from .logging_config import logger
 from .models import PIDLeakInfo
 
@@ -87,8 +87,8 @@ def find_pid_keyed_maps(maps: List[Dict]) -> Dict[str, int]:
             continue
         # Check if this is a target map (handle kernel name truncation)
         for target in PID_KEYED_MAPS:
-            # Kernel truncates names to 15 chars
-            if name == target or name == target[:15]:
+            # Kernel truncates names to MAP_NAME_PREFIX_LENGTH chars
+            if name == target or name == target[:MAP_NAME_PREFIX_LENGTH]:
                 pid_maps[name] = map_id
                 break
     return pid_maps

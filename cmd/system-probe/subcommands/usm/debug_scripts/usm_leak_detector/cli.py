@@ -7,7 +7,7 @@ import os
 import sys
 
 from .backends import get_backend
-from .constants import DEFAULT_RECHECK_DELAY
+from .constants import DEFAULT_PROC_ROOT, DEFAULT_RECHECK_DELAY
 from .logging_config import configure_logging, logger
 from .map_discovery import find_conn_tuple_maps
 from .map_utils import filter_maps_by_names
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument(
         "--proc-root",
         type=str,
-        default="/proc",
-        help="Path to /proc filesystem (default: /proc)"
+        default=DEFAULT_PROC_ROOT,
+        help=f"Path to /proc filesystem (default: {DEFAULT_PROC_ROOT})"
     )
     parser.add_argument(
         "--system-probe",

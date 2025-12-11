@@ -7,7 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
-from ..constants import COMMAND_TIMEOUT
+from ..constants import COMMAND_TIMEOUT, DEFAULT_SUBPROCESS_TIMEOUT
 from ..logging_config import logger
 from .bpftool_downloader import download_bpftool
 from .streaming import iter_json_objects
@@ -33,7 +33,7 @@ class BpftoolBackend(EbpfBackend):
             result = safe_subprocess_run(
                 ["bpftool", "version"],
                 capture_output=True,
-                timeout=5
+                timeout=DEFAULT_SUBPROCESS_TIMEOUT
             )
             if result.returncode == 0:
                 return True
@@ -56,7 +56,7 @@ class BpftoolBackend(EbpfBackend):
             result = safe_subprocess_run(
                 ["bpftool", "version"],
                 capture_output=True,
-                timeout=5
+                timeout=DEFAULT_SUBPROCESS_TIMEOUT
             )
             if result.returncode == 0:
                 return BpftoolBackend("bpftool")

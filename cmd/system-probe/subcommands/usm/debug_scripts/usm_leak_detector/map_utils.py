@@ -5,6 +5,7 @@ Map filtering and utility functions.
 from typing import Dict, Set
 
 from .constants import MAP_NAME_PREFIX_LENGTH
+from .logging_config import logger
 
 
 def filter_maps_by_names(
@@ -29,7 +30,13 @@ def filter_maps_by_names(
         >>> filter_maps_by_names(maps, requested)
         {"conn_tcp_v4": {...}, "conn_tcp_v6": {...}}
     """
-    return {
+    filtered = {
         k: v for k, v in maps.items()
         if k in requested_names or any(k.startswith(r[:MAP_NAME_PREFIX_LENGTH]) for r in requested_names)
     }
+
+    # Log warning if requested maps were not found
+    if not filtered and requested_names:
+        logger.warning(f"No maps found matching requested names: {', '.join(sorted(requested_names))}")
+
+    return filtered

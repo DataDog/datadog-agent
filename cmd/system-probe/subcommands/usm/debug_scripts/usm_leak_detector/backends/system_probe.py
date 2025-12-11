@@ -7,7 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
-from ..constants import COMMAND_TIMEOUT
+from ..constants import COMMAND_TIMEOUT, DEFAULT_SUBPROCESS_TIMEOUT
 from ..logging_config import logger
 from .streaming import iter_json_objects
 from ..models import ConnTuple
@@ -43,7 +43,7 @@ class SystemProbeBackend(EbpfBackend):
                 ["which", "system-probe"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=DEFAULT_SUBPROCESS_TIMEOUT
             )
             if result.returncode == 0:
                 return result.stdout.strip()
