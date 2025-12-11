@@ -9,11 +9,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type kindSuite struct {
@@ -21,18 +23,26 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
-		awskubernetes.WithEC2VMOptions(
-			ec2.WithInstanceType("t3.xlarge"),
-		),
-		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
-		awskubernetes.WithDeployDogstatsd(),
-		awskubernetes.WithDeployTestWorkload(),
-		awskubernetes.WithAgentOptions(
-			kubernetesagentparams.WithDualShipping(),
-		),
-		awskubernetes.WithDeployArgoRollout(),
-	)))
+	newProvisioner := func(helmValues string) provisioners.Provisioner {
+		return provkind.Provisioner(
+			provkind.WithRunOptions(
+				scenkind.WithVMOptions(
+					scenec2.WithInstanceType("t3.xlarge"),
+				),
+				scenkind.WithFakeintakeOptions(
+					fakeintake.WithMemory(2048),
+				),
+				scenkind.WithDeployDogstatsd(),
+				scenkind.WithDeployTestWorkload(),
+				scenkind.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+				scenkind.WithDeployArgoRollout(),
+			),
+		)
+	}
+	e2e.Run(t, &kindSuite{k8sSuite{newProvisioner: newProvisioner}}, e2e.WithProvisioner(newProvisioner("")))
 }
 
 func (suite *kindSuite) SetupSuite() {

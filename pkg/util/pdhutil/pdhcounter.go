@@ -7,6 +7,7 @@
 package pdhutil
 
 import (
+	"errors"
 	"fmt"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -120,7 +121,7 @@ func (counter *pdhCounter) ShouldInit() bool {
 	}
 	var initFailLimit = pkgconfigsetup.Datadog().GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
-		counter.initError = fmt.Errorf("counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt")
+		counter.initError = errors.New("counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt")
 		// attempts exceeded
 		return false
 	}
@@ -148,7 +149,7 @@ func (counter *pdhCounter) SetInitError(err error) error {
 
 func (counter *pdhCounter) Remove() error {
 	if counter.handle == PDH_HCOUNTER(0) {
-		return fmt.Errorf("counter is not initialized")
+		return errors.New("counter is not initialized")
 	}
 
 	pdherror := pfnPdhRemoveCounter(counter.handle)
@@ -292,7 +293,7 @@ func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 		if counter.initError != nil {
 			return nil, counter.initError
 		}
-		return nil, fmt.Errorf("counter is not initialized")
+		return nil, errors.New("counter is not initialized")
 	}
 	// fetch data
 	items, err := pfnPdhGetFormattedCounterArray(counter.handle, PDH_FMT_DOUBLE)
@@ -326,7 +327,7 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 		if counter.initError != nil {
 			return 0, counter.initError
 		}
-		return 0, fmt.Errorf("counter is not initialized")
+		return 0, errors.New("counter is not initialized")
 	}
 	// fetch data
 	return pfnPdhGetFormattedCounterValueFloat(counter.handle)
@@ -362,7 +363,7 @@ func (query *PdhQuery) Close() {
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
 func PdhCollectQueryData(hQuery PDH_HQUERY) error {
 	if hQuery == PDH_HQUERY(0) {
-		return fmt.Errorf("invalid query handle")
+		return errors.New("invalid query handle")
 	}
 	pdherror := pfnPdhCollectQueryData(hQuery)
 	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {

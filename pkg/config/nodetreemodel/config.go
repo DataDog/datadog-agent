@@ -21,8 +21,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +30,7 @@ import (
 var sources = []model.Source{
 	model.SourceDefault,
 	model.SourceUnknown,
+	model.SourceInfraMode,
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
@@ -66,7 +65,7 @@ type ntmConfig struct {
 	// settings are part of the schema but won't appear in the configuration (through Get, AllSettings, ...). This
 	// mimic the behavior from Viper. Once we enfore a default value for all settings we will be able to merge
 	// 'schema' and 'defaults' fields.
-	schema InnerNode
+	schema *nodeImpl
 
 	// flag only used by tests, allows tests to treat the config as though its schema was dynamic
 	// - it's okay to read the config before its schema is built
@@ -81,27 +80,29 @@ type ntmConfig struct {
 	td *treeDebugger
 
 	// defaults contains the settings with a default value
-	defaults InnerNode
+	defaults *nodeImpl
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
-	unknown InnerNode
+	unknown *nodeImpl
+	// infraMode contains the settings set by infrastructure mode configurations
+	infraMode *nodeImpl
 	// file contains the settings pulled from YAML files
-	file InnerNode
+	file *nodeImpl
 	// envs contains config settings created by environment variables
-	envs InnerNode
+	envs *nodeImpl
 	// runtime contains the settings set from the agent code itself at runtime (self configured values).
-	runtime InnerNode
+	runtime *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
 	// for the coniguration and mirrored by other processes).
-	localConfigProcess InnerNode
+	localConfigProcess *nodeImpl
 	// remoteConfig contains the settings pulled from Remote Config.
-	remoteConfig InnerNode
+	remoteConfig *nodeImpl
 	// fleetPolicies contains the settings pulled from fleetPolicies.
-	fleetPolicies InnerNode
+	fleetPolicies *nodeImpl
 	// cli contains the settings set by users at runtime through the CLI.
-	cli InnerNode
+	cli *nodeImpl
 
 	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
-	root InnerNode
+	root *nodeImpl
 
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
@@ -157,11 +158,11 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 
 func (c *ntmConfig) addToSchema(key string, source model.Source) {
 	parts := splitKey(key)
-	_ = c.schema.SetAt(parts, nil, source)
+	_ = c.schema.setAt(parts, nil, source)
 	c.addToKnownKeys(key)
 }
 
-func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
+func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 	switch source {
 	case "root":
 		return c.root, nil
@@ -169,6 +170,8 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 		return c.defaults, nil
 	case model.SourceUnknown:
 		return c.unknown, nil
+	case model.SourceInfraMode:
+		return c.infraMode, nil
 	case model.SourceFile:
 		return c.file, nil
 	case model.SourceEnvVar:
@@ -220,7 +223,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		}
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
-	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
+	if schemaNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
@@ -238,7 +241,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
-		c.root, _ = c.root.Merge(newTree.(InnerNode))
+		c.root, _ = c.root.Merge(newTree)
 	}
 
 	receivers := slices.Clone(c.notificationReceivers)
@@ -258,14 +261,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 }
 
-func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (Node, error) {
+func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
 		return nil, log.Errorf("Set invalid source: %s", source)
 	}
 
 	parts := splitKey(key)
-	err = tree.SetAt(parts, value, source)
+	err = tree.setAt(parts, value, source)
 	return tree, err
 }
 
@@ -296,10 +299,10 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
 	// an existing value
-	_ = c.defaults.SetAt(parts, value, model.SourceDefault)
+	_ = c.defaults.setAt(parts, value, model.SourceDefault)
 }
 
-func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
+func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
 	iter := source
 	for iter != model.SourceDefault {
 		iter = iter.PreviousSource()
@@ -308,7 +311,7 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Nod
 			return nil, err
 		}
 		node := c.leafAtPathFromNode(key, tree)
-		if _, isMissing := node.(*missingLeafImpl); !isMissing {
+		if node != missingLeaf {
 			return node, nil
 		}
 	}
@@ -335,7 +338,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 	// Only remove if the setting is a leaf
 	if child, err := parentNode.GetChild(childName); err == nil {
-		if _, ok := child.(LeafNode); ok {
+		if child.IsLeafNode() {
 			parentNode.RemoveChild(childName)
 		} else {
 			log.Errorf("cannot remove setting %q, not a leaf", key)
@@ -382,7 +385,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 }
 
-func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
+func (c *ntmConfig) parentOfNode(node *nodeImpl, key string) (*nodeImpl, string, error) {
 	parts := splitKey(key)
 	lastPart := parts[len(parts)-1]
 	parts = parts[:len(parts)-1]
@@ -393,11 +396,10 @@ func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, erro
 			return nil, "", err
 		}
 	}
-	innerNode, ok := node.(InnerNode)
-	if !ok {
+	if node.IsLeafNode() {
 		return nil, "", ErrNotFound
 	}
-	return innerNode, lastPart, nil
+	return node, lastPart, nil
 }
 
 func (c *ntmConfig) addToKnownKeys(key string) {
@@ -482,7 +484,7 @@ func (c *ntmConfig) checkKnownKey(key string) {
 
 func (c *ntmConfig) mergeAllLayers() error {
 	// We intentionally don't merge the schema layer as it hold no values
-	treeList := []InnerNode{
+	treeList := []*nodeImpl{
 		c.defaults,
 		c.unknown,
 		c.file,
@@ -494,7 +496,7 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.cli,
 	}
 
-	var merged InnerNode = newInnerNode(nil)
+	merged := newInnerNode(nil)
 	for _, tree := range treeList {
 		next, err := merged.Merge(tree)
 		if err != nil {
@@ -523,20 +525,20 @@ func (c *ntmConfig) computeAllSettings() {
 	c.allSettings = allKeys
 }
 
-func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
+func (c *ntmConfig) collectKeysFromNode(node *nodeImpl, path string, keySet map[string]struct{}, includeAllKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
 
-		if leaf, ok := child.(LeafNode); ok {
+		if child.IsLeafNode() {
 			// Include all keys if requested
 			// For other nodes, only include if they have actual values
-			if includeAllKeys || leaf != missingLeaf {
+			if includeAllKeys || child != missingLeaf {
 				keySet[newPath] = struct{}{}
 			}
-		} else if inner, ok := child.(InnerNode); ok {
-			c.collectKeysFromNode(inner, newPath, keySet, includeAllKeys)
+		} else {
+			c.collectKeysFromNode(child, newPath, keySet, includeAllKeys)
 		}
 	}
 }
@@ -593,7 +595,7 @@ func (c *ntmConfig) buildEnvVars() {
 	c.warnings = append(c.warnings, envWarnings...)
 }
 
-func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval string) error {
+func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
 	var actualValue interface{} = envval
 	// TODO: When nodetreemodel has a schema with type information, we should
 	// use this type to convert the value, instead of requiring a transformer
@@ -601,7 +603,7 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 		actualValue = transformer(envval)
 	}
 	parts := splitKeyFunc(key)
-	return curr.SetAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(parts, actualValue, model.SourceEnvVar)
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -657,7 +659,7 @@ func (c *ntmConfig) IsSet(key string) bool {
 	}
 
 	pathParts := splitKey(key)
-	var curr Node = c.root
+	curr := c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -668,18 +670,18 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return true
 }
 
-func hasNonDefaultLeaf(node InnerNode) bool {
+func hasNonDefaultLeaf(node *nodeImpl) bool {
 	// We're on an InnerNode, we need to check if any child leaf are not defaults
 	for _, name := range node.ChildrenKeys() {
 		child, _ := node.GetChild(name)
-		if leaf, ok := child.(LeafNode); ok {
+		if child.IsLeafNode() {
 			// Leaf has to be on a non-default layer and have a non-nil value
-			if leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil {
+			if child.Source().IsGreaterThan(model.SourceDefault) && child.Get() != nil {
 				return true
 			}
 			continue
 		}
-		if hasNonDefaultLeaf(child.(InnerNode)) {
+		if hasNonDefaultLeaf(child) {
 			return true
 		}
 	}
@@ -697,7 +699,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	}
 
 	pathParts := splitKey(key)
-	var curr Node = c.root
+	curr := c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -706,23 +708,23 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 		curr = next
 	}
 	// if key is a leaf, we just check the source
-	if leaf, ok := curr.(LeafNode); ok {
-		return leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil
+	if curr.IsLeafNode() {
+		return curr.Source().IsGreaterThan(model.SourceDefault) && curr.Get() != nil
 	}
 
 	// if the key was an InnerNode we need to check all the inner leaf node to check if one was set by the user
-	return hasNonDefaultLeaf(curr.(InnerNode))
+	return hasNonDefaultLeaf(curr)
 }
 
-func isInnerOrLeafWithNilValue(node Node) bool {
+func isInnerOrLeafWithNilValue(node *nodeImpl) bool {
 	if node == missingLeaf {
 		return false
 	}
-	if _, isInner := node.(InnerNode); isInner {
+	if node.IsInnerNode() {
 		return true
 	}
-	if leaf, isLeaf := node.(LeafNode); isLeaf {
-		return leaf.Get() == nil
+	if node.IsLeafNode() {
+		return node.Get() == nil
 	}
 	return false
 }
@@ -753,15 +755,15 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 	return slices.Clone(c.allSettings)
 }
 
-func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
+func (c *ntmConfig) leafAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 	node := c.nodeAtPathFromNode(key, curr)
-	if leaf, ok := node.(LeafNode); ok {
-		return leaf
+	if node.IsLeafNode() {
+		return node
 	}
 	return missingLeaf
 }
 
-func (c *ntmConfig) nodeAtPathFromNode(key string, curr Node) Node {
+func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 	pathParts := splitKey(key)
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -773,13 +775,13 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr Node) Node {
 	return curr
 }
 
-// GetNode returns a Node for the given key
+// GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
 	pathParts := splitKey(key)
-	var curr Node = c.root
+	curr := c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -839,24 +841,13 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.envKeyReplacer = r
 }
 
-// UnmarshalKey unmarshals the data for the given key
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
-}
-
 // MergeConfig merges in another config
 func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+		return errors.New("attempt to MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)
@@ -949,6 +940,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceUnknown:            c.unknown.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceInfraMode:          c.infraMode.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFile:               c.file.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceEnvVar:             c.envs.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFleetPolicies:      c.fleetPolicies.DumpSettings(func(model.Source) bool { return true }),
@@ -1053,8 +1045,8 @@ func (c *ntmConfig) GetSubfields(key string) []string {
 	if err != nil {
 		return nil
 	}
-	if inner, ok := n.(*innerNode); ok {
-		return inner.ChildrenKeys()
+	if n.IsInnerNode() {
+		return n.ChildrenKeys()
 	}
 	return nil
 }
@@ -1089,6 +1081,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
+		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
 		runtime:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),

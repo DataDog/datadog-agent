@@ -45,8 +45,8 @@ func GetViperCombine(cfg model.Reader, key string) interface{} {
 			continue
 		}
 		if IsNilValue(inner) {
-			var empty map[string]interface{}
-			inner = empty
+			// Convert a boxed nil interface into a plain nil
+			inner = nil
 		}
 		tree[f] = inner
 	}

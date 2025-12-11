@@ -6,10 +6,10 @@
 package metrics
 
 import (
-	"fmt"
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -102,8 +102,8 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 			}
 			if dest.AddValidationHeaders {
 				txn.Headers.Set("X-Metrics-Request-ID", batchID)
-				txn.Headers.Set("X-Metrics-Request-Seq", fmt.Sprintf("%v", seq))
-				txn.Headers.Set("X-Metrics-Request-Len", fmt.Sprintf("%v", len(payloads)))
+				txn.Headers.Set("X-Metrics-Request-Seq", strconv.Itoa(seq))
+				txn.Headers.Set("X-Metrics-Request-Len", strconv.Itoa(len(payloads)))
 			}
 
 			auth.Authorize(txn)

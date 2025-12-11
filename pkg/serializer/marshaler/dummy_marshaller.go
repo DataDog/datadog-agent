@@ -8,7 +8,6 @@ package marshaler
 
 import (
 	"errors"
-	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -56,10 +55,10 @@ func (d *DummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
 
 // MarshalJSON not implemented
 func (d *DummyMarshaller) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 // Marshal not implemented
 func (d *DummyMarshaller) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }

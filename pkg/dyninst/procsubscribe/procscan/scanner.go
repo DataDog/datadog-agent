@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,7 +33,7 @@ type ProcessID uint32
 // at least startDelay. Processes that exit before startDelay are never
 // analyzed.
 //
-// Thread-safety: not thread-safe, use from a single goroutine only.
+// Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
 
 	// startDelay is how long a process must be alive before analysis.
@@ -44,8 +45,11 @@ type Scanner struct {
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
 
-	// live tracks discovered processes that have been reported as live.
-	live *btree.BTreeG[uint32]
+	mu struct {
+		sync.Mutex
+		// live tracks discovered processes that have been reported as live.
+		live *btree.BTreeG[uint32]
+	}
 
 	// listPids returns an iterator over all PIDs in the system.
 	listPids func() iter.Seq2[uint32, error]
@@ -102,15 +106,16 @@ func newScanner(
 	tracerMetadataReader func(pid int32) (tracermetadata.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
 ) *Scanner {
-	return &Scanner{
+	s := &Scanner{
 		startDelay:           startDelay,
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
-		live:                 btree.NewG(16, cmp.Less[uint32]),
 	}
+	s.mu.live = btree.NewG(16, cmp.Less[uint32])
+	return s
 }
 
 // DiscoveredProcess represents a newly discovered process that should be
@@ -169,7 +174,10 @@ func (p *Scanner) Scan() (
 
 	// Clone the live set. Processes still alive will be removed from this
 	// clone. Whatever remains has exited.
-	noLongerLive := p.live.Clone()
+	p.mu.Lock()
+	noLongerLive := p.mu.live.Clone()
+	p.mu.Unlock()
+
 	var ret []DiscoveredProcess
 
 	for pid, err := range p.listPids() {
@@ -207,7 +215,6 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		p.live.ReplaceOrInsert(pid)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -219,10 +226,30 @@ func (p *Scanner) Scan() (
 	removed = make([]ProcessID, 0, noLongerLive.Len())
 	noLongerLive.Ascend(func(pid uint32) bool {
 		removed = append(removed, ProcessID(pid))
+		p.mu.live.Delete(pid)
 		return true
 	})
 	noLongerLive.Clear(true)
 
+	p.mu.Lock()
+	for _, newProc := range ret {
+		p.mu.live.ReplaceOrInsert(newProc.PID)
+	}
+	p.mu.Unlock()
+
 	p.lastWatermark = nextWatermark
 	return ret, removed, nil
+}
+
+// LiveProcesses returns the list of processes that were alive as of the last
+// call to Scan. This can be called concurrently with Scan.
+func (p *Scanner) LiveProcesses() []ProcessID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ret := make([]ProcessID, 0, p.mu.live.Len())
+	p.mu.live.Ascend(func(pid uint32) bool {
+		ret = append(ret, ProcessID(pid))
+		return true
+	})
+	return ret
 }

@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
@@ -98,7 +98,7 @@ func dockerImageName() string {
 func mandatoryMetricTagRegexes() []*regexp.Regexp {
 	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
 	for _, tag := range mandatoryMetricTags {
-		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+		regexes = append(regexes, regexp.MustCompile(tag+":.*"))
 	}
 
 	return regexes
@@ -390,6 +390,15 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 				usageMetricTags = metrics[0].Tags
 			}
 		}
+
+		hasPidTag := false
+		for _, tag := range usageMetricTags {
+			if strings.HasPrefix(tag, "pid:") {
+				hasPidTag = true
+				break
+			}
+		}
+		assert.True(c, hasPidTag, "no tag starting with 'pid:' found in usage metric tags")
 
 		if len(usageMetricTags) > 0 {
 			// Ensure we get the limit metric with the same tags as the usage one

@@ -201,7 +201,7 @@ func (r *ContainerizedFmapperRunner) Run(t *testing.T, paths ...string) {
 		mounts[filepath.Dir(path)] = filepath.Dir(path)
 	}
 
-	r.containerName = fmt.Sprintf("fmapper-testutil-%s", utils.RandString(10))
+	r.containerName = "fmapper-testutil-" + utils.RandString(10)
 	scanner := sharedlibstestutil.BuildFmapperScanner(t)
 	dockerConfig := dockerutils.NewRunConfig(
 		dockerutils.NewBaseConfig(
@@ -346,7 +346,7 @@ func NewContainerizedAttacherRunner() AttacherRunner {
 
 // RunAttacher starts the attacher in a container
 func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName AttacherTestConfigName) {
-	r.containerName = fmt.Sprintf("uprobe-attacher-testutil-%s", utils.RandString(10))
+	r.containerName = "uprobe-attacher-testutil-" + utils.RandString(10)
 	attacherBin := testutil.BuildStandaloneAttacher(t)
 
 	// Get the ebpf config to ensure we have the same paths and config

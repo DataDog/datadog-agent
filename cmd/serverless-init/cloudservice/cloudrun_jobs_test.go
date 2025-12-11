@@ -6,7 +6,7 @@
 package cloudservice
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"testing"
 	"time"
@@ -99,7 +99,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
@@ -113,7 +113,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:1")
+			require.Contains(t, sample.Tags, "succeeded:false")
 			foundShutdown = true
 		}
 	}
@@ -125,7 +125,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	jobs.Shutdown(agent, nil, nil)
 
@@ -134,7 +134,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:0")
+			require.Contains(t, sample.Tags, "succeeded:true")
 			foundShutdown = true
 		}
 	}
@@ -224,7 +224,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 	jobs.Init(mockAgent)
 
 	// Simulate an error
-	testErr := fmt.Errorf("task failed")
+	testErr := errors.New("task failed")
 	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, testErr)
 
 	// Verify the span was submitted

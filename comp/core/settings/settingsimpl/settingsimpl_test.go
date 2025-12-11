@@ -311,7 +311,7 @@ func TestRuntimeSettings(t *testing.T) {
 				// simply compare strings.
 				expected := map[string]interface{}{}
 				actual := map[string]interface{}{}
-				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
+				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"infra-mode\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
 				err = json.Unmarshal(body, &actual)
 
 				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
@@ -338,7 +338,7 @@ func TestRuntimeSettings(t *testing.T) {
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
-				requestBody := fmt.Sprintf("value=%s", html.EscapeString("fancy"))
+				requestBody := "value=" + html.EscapeString("fancy")
 				request, err := http.NewRequest("POST", ts.URL+"/config/foo", bytes.NewBuffer([]byte(requestBody)))
 				require.NoError(t, err)
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

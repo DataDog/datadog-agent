@@ -260,11 +260,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	if s.Inherited && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
 	if len(s.ScopeField) > 0 && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
 	return nil
@@ -417,7 +417,9 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version         string             `yaml:"version,omitempty" json:"version"`
+	Version string `yaml:"version,omitempty" json:"version"`
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
 	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`
@@ -469,7 +471,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 
 // MarshalJSON marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
-	if d == nil || d.Duration == 0 {
+	if d == nil {
 		return nil, nil
 	}
 	return json.Marshal(d.GetDuration())
