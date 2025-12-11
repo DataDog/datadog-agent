@@ -47,7 +47,7 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 }
 
 // NextPipelineChanByTokenLength returns the next pipeline by token length
-func (p *mockProvider) NextPipelineChanByTokenLength(length int) chan *message.Message {
+func (p *mockProvider) NextPipelineChanByTokenLength(_ int) chan *message.Message {
 	return p.msgChan
 }
 

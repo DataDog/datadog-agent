@@ -50,6 +50,9 @@ type CliParams struct {
 
 	// MaxChildren represents the maximum number of children in the cluster tree.
 	MaxChildren int
+
+	// PrintInfo indicates whether to print detailed information (score, size, etc.) for each line.
+	PrintInfo bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -83,10 +86,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	cmd.Flags().IntVarP(&cliParams.Threshold, "threshold", "t", 10, "Cluster size threshold for filtering logs (default: 10)")
 	cmd.Flags().Float64Var(&scoreThreshold, "score-threshold", 0, "Score threshold for filtering logs (if set, overrides threshold)")
-	cmd.Flags().BoolVarP(&cliParams.ProgressiveTraining, "progressive-training", "", true, "Train the drain processor progressively on logs before filtering")
+	cmd.Flags().BoolVarP(&cliParams.ProgressiveTraining, "progressive-training", "", false, "Train the drain processor progressively on logs before filtering")
 	cmd.Flags().IntVar(&cliParams.LogClusterDepth, "log-cluster-depth", 4, "Depth of the log cluster tree (default: 4)")
 	cmd.Flags().Float64Var(&cliParams.SimTh, "sim-th", 0.4, "Similarity threshold for clustering (default: 0.4)")
 	cmd.Flags().IntVar(&cliParams.MaxChildren, "max-children", 100, "Maximum number of children in the cluster tree (default: 100)")
+	cmd.Flags().BoolVarP(&cliParams.PrintInfo, "print-info", "", false, "Print detailed information (score, size, etc.) for each line")
 
 	return []*cobra.Command{cmd}
 }
@@ -143,15 +147,14 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 		}
 
 		// The score is ~how many logs are less similar than this log
-		score := 0.0
+		upperBound := 0
 		for _, cluster := range clusters {
-			if s >= cluster.Size() {
-				score += float64(cluster.Size())
+			if s < cluster.Size() {
+				break
 			}
+			upperBound++
 		}
-		if totalSize > 0 {
-			score /= totalSize
-		}
+		score := float64(upperBound) / float64(len(clusters))
 
 		// Filter by score threshold if set, otherwise use size threshold
 		var toIgnore bool
@@ -166,7 +169,11 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 			filteredCount++
 		} else {
 			processedCount++
-			fmt.Println(string(line))
+			if cliParams.PrintInfo {
+				fmt.Printf("%s: score=%f, s=%d, totalSize=%f\n", string(line), score, s, totalSize)
+			} else {
+				fmt.Println(string(line))
+			}
 		}
 	}
 
@@ -175,11 +182,18 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 		return b.Size() - a.Size()
 	})
 	fmt.Println("Top 10 clusters:")
-	for i, cluster := range clusters[:10] {
+	for i, cluster := range clusters {
+		if i >= 10 {
+			break
+		}
 		fmt.Printf("Cluster %d: %s\n", i+1, cluster.String())
 	}
 
 	fmt.Printf("Processed %d lines: filtered %f%%\n", len(lines), float64(filteredCount)/float64(len(lines))*100)
+
+	if cliParams.ScoreThreshold != nil && cliParams.ProgressiveTraining {
+		lc.Warn("Score threshold is set and progressive training is enabled. The score is not accurate in this mode.")
+	}
 
 	return nil
 }
