@@ -53,6 +53,15 @@ type CliParams struct {
 
 	// PrintInfo indicates whether to print detailed information (score, size, etc.) for each line.
 	PrintInfo bool
+
+	// TopClusters represents the number of top clusters to display.
+	TopClusters int
+
+	// HideOutput indicates whether to hide the filtered log lines output.
+	HideOutput bool
+
+	// OrderByScore indicates whether to order clusters by score instead of size.
+	OrderByScore bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -91,12 +100,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().Float64Var(&cliParams.SimTh, "sim-th", 0.4, "Similarity threshold for clustering (default: 0.4)")
 	cmd.Flags().IntVar(&cliParams.MaxChildren, "max-children", 100, "Maximum number of children in the cluster tree (default: 100)")
 	cmd.Flags().BoolVarP(&cliParams.PrintInfo, "print-info", "", false, "Print detailed information (score, size, etc.) for each line")
+	cmd.Flags().IntVar(&cliParams.TopClusters, "top-clusters", 10, "Number of top clusters to display (default: 10)")
+	cmd.Flags().BoolVarP(&cliParams.HideOutput, "hide-output", "", false, "Hide filtered log lines output (only show summary statistics)")
+	cmd.Flags().BoolVarP(&cliParams.OrderByScore, "order-by-score", "", false, "Order clusters by score instead of size")
 
 	return []*cobra.Command{cmd}
 }
 
 // runDrain reads the input file, applies drain filtering, and writes filtered logs to stdout.
 func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error {
+	if cliParams.ScoreThreshold != nil && cliParams.ProgressiveTraining {
+		lc.Warn("Score threshold is set and progressive training is enabled. The score is not accurate in this mode.")
+	}
+	fmt.Println("--------------------------------")
+
 	// Create drain processor
 	drainProcessor := processor.NewDrainProcessor("drain-command", &drain.Config{
 		LogClusterDepth: cliParams.LogClusterDepth,
@@ -134,6 +151,12 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 		totalSize += float64(cluster.Size())
 	}
 
+	seenLines := make(map[string]bool)
+	orderByScoreData := []struct {
+		Score float64
+		Line  string
+	}{}
+
 	// Inference
 	for _, line := range lines {
 		tokens := processor.DrainTokenize(line)
@@ -155,6 +178,18 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 			upperBound++
 		}
 		score := float64(upperBound) / float64(len(clusters))
+		if cliParams.OrderByScore {
+			if !seenLines[string(line)] {
+				orderByScoreData = append(orderByScoreData, struct {
+					Score float64
+					Line  string
+				}{
+					Score: score,
+					Line:  string(line),
+				})
+			}
+		}
+		seenLines[string(line)] = true
 
 		// Filter by score threshold if set, otherwise use size threshold
 		var toIgnore bool
@@ -169,11 +204,28 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 			filteredCount++
 		} else {
 			processedCount++
-			if cliParams.PrintInfo {
-				fmt.Printf("%s: score=%f, s=%d, totalSize=%f\n", string(line), score, s, totalSize)
-			} else {
-				fmt.Println(string(line))
+			if !cliParams.HideOutput {
+				if cliParams.PrintInfo {
+					fmt.Printf("%s: score=%f, s=%d, totalSize=%f\n", string(line), score, s, totalSize)
+				} else if !cliParams.OrderByScore {
+					fmt.Println(string(line))
+				}
 			}
+		}
+	}
+
+	if cliParams.OrderByScore {
+		slices.SortFunc(orderByScoreData, func(a, b struct {
+			Score float64
+			Line  string
+		}) int {
+			if a.Score < b.Score {
+				return -1
+			}
+			return 1
+		})
+		for _, data := range orderByScoreData {
+			fmt.Printf("%3.3f | %s\n", data.Score, data.Line)
 		}
 	}
 
@@ -181,19 +233,15 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
 		return b.Size() - a.Size()
 	})
-	fmt.Println("Top 10 clusters:")
+	fmt.Printf("Top %d clusters:\n", cliParams.TopClusters)
 	for i, cluster := range clusters {
-		if i >= 10 {
+		if i >= cliParams.TopClusters {
 			break
 		}
 		fmt.Printf("Cluster %d: %s\n", i+1, cluster.String())
 	}
 
 	fmt.Printf("Processed %d lines: filtered %f%%\n", len(lines), float64(filteredCount)/float64(len(lines))*100)
-
-	if cliParams.ScoreThreshold != nil && cliParams.ProgressiveTraining {
-		lc.Warn("Score threshold is set and progressive training is enabled. The score is not accurate in this mode.")
-	}
 
 	return nil
 }
