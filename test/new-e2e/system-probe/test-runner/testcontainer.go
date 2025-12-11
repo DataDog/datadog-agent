@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 const containerName = "kmt-test-container"
@@ -28,6 +29,7 @@ func newTestContainer(image, bpfDir string) *testContainer {
 }
 
 func (ctc *testContainer) runDockerCmd(args []string) error {
+	fmt.Printf("running: docker %s", strings.Join(args, " "))
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
