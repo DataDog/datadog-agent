@@ -838,7 +838,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		event.ProcessCacheEntry.Release()
+		p.resetEvent(event)
 		p.eventPool.Put(event)
 	}
 }
@@ -1044,6 +1044,14 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+func (p *EBPFProbe) resetEvent(event *model.Event) {
+	if event.ProcessCacheEntry != nil {
+		event.ProcessCacheEntry.Release()
+	}
+	probeEventZeroer(event)
+	event.FieldHandlers = p.fieldHandlers
+}
+
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
@@ -1159,6 +1167,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
+		p.resetEvent(event)
 		p.eventPool.Put(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
