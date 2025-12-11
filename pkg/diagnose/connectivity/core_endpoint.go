@@ -206,7 +206,7 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	// Detect if the connection may have failed because a FQDN was used, by checking if one with a PQDN succeeds
 	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().Get("convert_dd_site_fqdn.enabled") == true && URLhasFQDN(url) {
 		pqdnURL := URLwithPQDN(url)
-		cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", url, pqdnURL)
+		cd.log.Infof("The connection to %q with a FQDN failed; attempting to connect to %q", url, pqdnURL)
 
 		d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
 		if d.Status == diagnose.DiagnosisSuccess {
