@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
@@ -48,13 +47,12 @@ type factory struct {
 	reporter     *inframetadata.Reporter
 	reporterErr  error
 
-	registry       *featuregate.Registry
-	s              serializer.MetricSerializer
-	logsAgent      logsagentpipeline.Component
-	h              serializerexporter.SourceProviderFunc
-	mclientwrapper *metricsclient.StatsdClientWrapper
-	gatewayUsage   otel.GatewayUsage
-	store          serializerexporter.TelemetryStore
+	registry     *featuregate.Registry
+	s            serializer.MetricSerializer
+	logsAgent    logsagentpipeline.Component
+	h            serializerexporter.SourceProviderFunc
+	gatewayUsage otel.GatewayUsage
+	store        serializerexporter.TelemetryStore
 }
 
 // configures the OTel attribute translator of the trace agent component
@@ -79,18 +77,16 @@ func newFactoryWithRegistry(
 	s serializer.MetricSerializer,
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
-	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
 	f := &factory{
-		registry:       registry,
-		s:              s,
-		logsAgent:      logsagent,
-		h:              h,
-		mclientwrapper: mclientwrapper,
-		gatewayUsage:   gatewayUsage,
-		store:          store,
+		registry:     registry,
+		s:            s,
+		logsAgent:    logsagent,
+		h:            h,
+		gatewayUsage: gatewayUsage,
+		store:        store,
 	}
 	f.traceAgent.component = traceagentcmp
 
@@ -109,11 +105,10 @@ func NewFactory(
 	s serializer.MetricSerializer,
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
-	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, gatewayUsage, store)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -153,12 +148,6 @@ func (f *factory) createTracesExporter(
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
-
-	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
-	if err != nil {
-		return nil, err
-	}
-	f.mclientwrapper.SetDelegate(otelmclient)
 
 	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
 		return nil, err
@@ -201,11 +190,6 @@ func (f *factory) createMetricsExporter(
 	if err := f.configureTraceAgentAttributeTranslator(set.TelemetrySettings); err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
-	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
-	if err != nil {
-		return nil, err
-	}
-	f.mclientwrapper.SetDelegate(otelmclient)
 
 	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
 		return nil, err

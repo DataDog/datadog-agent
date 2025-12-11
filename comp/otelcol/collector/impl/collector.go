@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -71,20 +70,19 @@ type Requires struct {
 	URIs             []string
 
 	// Below are dependencies required by Datadog exporter and other Agent functionalities
-	Log                 corelog.Component
-	Converter           confmap.Converter
-	Config              config.Component
-	Serializer          serializer.MetricSerializer
-	TraceAgent          traceagent.Component
-	LogsAgent           option.Option[logsagentpipeline.Component]
-	SourceProvider      serializerexporter.SourceProviderFunc
-	Tagger              tagger.Component
-	StatsdClientWrapper *metricsclient.StatsdClientWrapper
-	Hostname            hostnameinterface.Component
-	Ipc                 ipc.Component
-	Telemetry           telemetry.Component
-	AgentTelemetry      agenttelemetry.Component
-	Params              Params
+	Log            corelog.Component
+	Converter      confmap.Converter
+	Config         config.Component
+	Serializer     serializer.MetricSerializer
+	TraceAgent     traceagent.Component
+	LogsAgent      option.Option[logsagentpipeline.Component]
+	SourceProvider serializerexporter.SourceProviderFunc
+	Tagger         tagger.Component
+	Hostname       hostnameinterface.Component
+	Ipc            ipc.Component
+	Telemetry      telemetry.Component
+	AgentTelemetry agenttelemetry.Component
+	Params         Params
 }
 
 // RequiresNoAgent declares the input types to the constructor with no dependencies on Agent components
@@ -167,9 +165,9 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		)
 	}
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, gatewayUsage, store)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, gatewayUsage, store)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
