@@ -153,6 +153,12 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	}
 
 	if foundInStore {
+		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
+		if !checkTargetHash(npi, targetNp) {
+			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
+			return autoscaling.ProcessResult{}
+		}
+
 		if nodePool == nil {
 			// Present in store but not found in cluster; create it
 			if err := c.createNodePool(ctx, npi, targetNp); err != nil {
@@ -161,14 +167,9 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 			}
 		} else {
 			// Present in store and found in cluster; update it
-			// Only update if there is no TargetHash (i.e. it is fully Datadog-managed) or if the TargetHash has not changed
-			if npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey] {
-				if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
-					log.Errorf("Error updating NodePool: %v", err)
-					return autoscaling.Requeue
-				}
-			} else {
-				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; update will not be applied.", npi.Name(), npi.TargetHash())
+			if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
+				log.Errorf("Error updating NodePool: %v", err)
+				return autoscaling.Requeue
 			}
 		}
 	} else {
@@ -185,6 +186,10 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	}
 
 	return autoscaling.ProcessResult{}
+}
+
+func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
+	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
 }
 
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {

@@ -48,10 +48,7 @@ type NodePoolInternal struct {
 	targetName string
 
 	// targetHash is hash of the user-created NodePoolSpec
-	targetHash string // TODO utilize once this is part of payload
-
-	// targetWeight is weight of the user-created NodePoolSpec
-	targetWeight *int32
+	targetHash string
 }
 
 func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolInternal {
@@ -62,7 +59,6 @@ func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolIn
 		taints:                   convertTaints(v.Taints),
 		targetName:               v.TargetName,
 		targetHash:               v.TargetHash,
-		targetWeight:             v.TargetWeight,
 	}
 }
 
@@ -112,11 +108,6 @@ func (n *NodePoolInternal) TargetName() string {
 // TargetHash returns the targetHash of the NodePoolInternal
 func (n *NodePoolInternal) TargetHash() string {
 	return n.targetHash
-}
-
-// TargetWeight returns the targetWeight of the NodePoolInternal
-func (n *NodePoolInternal) TargetWeight() *int32 {
-	return n.targetWeight
 }
 
 func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
@@ -239,16 +230,15 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 		)
 	}
 
-	// Update NodePool with weight
-	if npi.TargetWeight() != nil {
-		targetWeight := *npi.TargetWeight()
-		if targetWeight >= 0 && targetWeight < 100 {
-			targetWeight++
-			knp.Spec.Weight = &targetWeight
-		} else {
-			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", targetWeight, npi.TargetName())
+	// Update NodePool weight with (target NodePool weight) + 1
+	weight := int32(1)
+	if knp.Spec.Weight != nil {
+		if *knp.Spec.Weight == 100 {
+			log.Warnf("Target weight is at the max possible value for target NodePool: %s", npi.TargetName())
 		}
+		weight = min(*knp.Spec.Weight+1, 100)
 	}
+	knp.Spec.Weight = &weight
 
 	// Reset the top-level labels and annotations
 	knp.ObjectMeta = metav1.ObjectMeta{
