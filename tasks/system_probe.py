@@ -775,6 +775,36 @@ def build(
         glibc=glibc,
     )
 
+    if not is_macos and not is_windows:
+        build_discovery_wrapper(ctx, arch=arch)
+
+
+@task
+def build_discovery_wrapper(
+    ctx,
+    arch: str = CURRENT_ARCH,
+):
+    """
+    Build the system-probe-discovery wrapper using gcc
+    """
+    arch_obj = Arch.from_str(arch)
+    print(f"Building system-probe-discovery for {arch} architecture")
+
+    output_dir = os.path.join(".", "bin", "system-probe-discovery")
+    os.makedirs(output_dir, exist_ok=True)
+
+    source_file = "cmd/system-probe-discovery/main.c"
+    output_path = os.path.join(output_dir, "system-probe-discovery")
+
+    # Use the Arch class to get the right compiler (same as Go cross-compilation does)
+    gcc_cmd = arch_obj.gcc_compiler()
+    strip_cmd = f"{arch_obj.gcc_prefix()}-strip"
+
+    ctx.run(f"{gcc_cmd} -O2 -Wall -o {output_path} {source_file}")
+    ctx.run(f"{strip_cmd} {output_path}")
+
+    print(f"system-probe-discovery built and copied to {output_path}")
+
 
 @task
 def clean(
