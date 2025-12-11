@@ -2,7 +2,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -71,6 +71,12 @@ configure_make(
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
+    }) + select({
+        "@//:fips_mode_enabled": [
+            "-DOSSL_WINCTX=datadog-fips-agent",
+            "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
+        ],
+        "//conditions:default": [],
     }),
     env = select({
         "@platforms//os:macos": {
@@ -111,7 +117,7 @@ configure_make(
             WIN_LIBCRYPTO,
             "openssl.exe",
         ],
-        "//conditions:default": [],
+        "//conditions:default": ["openssl"],
     }),
     deps = select({
         "//conditions:default": [
@@ -206,6 +212,29 @@ filegroup(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
+filegroup(
+    name = "openssl_bin",
+    srcs = [":openssl"],
+    output_group = "openssl",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_files(
+    name = "openssl_bin_file",
+    srcs = [":openssl_bin"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    prefix = "bin",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
 pkg_files(
     name = "dll_a",
     srcs = [
@@ -235,6 +264,7 @@ pkg_install(
         ],
         "//conditions:default": [
             ":openssl_pkgconfig",
+            ":openssl_bin_file",
         ],
     }),
 )

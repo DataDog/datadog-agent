@@ -1,0 +1,128 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+package(default_visibility = ["//visibility:public"])
+
+ENABLE_FIPS = ["--libdir=lib", "enable-fips"]
+
+filegroup(
+    name = "all",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+FIPS_WIN = "fips.dll"
+FIPS_LINUX = "fips.so"
+
+configure_make(
+    name = "openssl_fips",
+    # TODO(team:agent-build): Find a better way to utilize more than 1 core
+    args = [
+        "-j 16",
+    ],
+    configure_prefix = select({
+        "@platforms//os:windows": "perl",
+        "//conditions:default": "",
+    }),
+    configure_in_place = select({
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
+    configure_command = "Configure",
+    configure_options = select({
+        "@platforms//os:windows": [
+            "mingw64",
+        ] + ENABLE_FIPS,
+        # Setting libdir to lib as linux x86 will use lib64 by default.
+        "//conditions:default": ENABLE_FIPS,
+    }),
+    lib_source = ":all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "ossl-modules/" + FIPS_LINUX,
+        ],
+        "@platforms//os:windows": [
+            "ossl-modules/" + FIPS_WIN,
+        ],
+        "//conditions:default": [],
+    }),
+    copts = ["-O2"],
+    targets = ["", "install_fips"],
+    # We don't build FIPS for macOS, therefore, incompatible.
+    target_compatible_with = select({
+        "@platforms//os:macos": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "fips_provider",
+    srcs = [":openssl_fips"],
+    output_group = select({
+        "@platforms//os:windows": FIPS_WIN,
+        "@platforms//os:linux": FIPS_LINUX,
+        "//conditions:default": "",
+    }),
+)
+
+filegroup(
+    name = "gendir",
+    srcs = [":openssl_fips"],
+    output_group = "gen_dir",
+)
+
+genrule(
+    name = "copy_fipsmodule_cnf",
+    srcs = [":gendir"],
+    outs = ["fipsmodule.cnf"],
+    cmd = "cp $(location :gendir)/ssl/fipsmodule.cnf $@",
+)
+
+pkg_files(
+    name = "fipsmodule_cnf",
+    srcs = [":copy_fipsmodule_cnf"],
+    prefix = "embedded/ssl",
+)
+
+pkg_files(
+    name = "openssl_fips_provider",
+    srcs = [":fips_provider"],
+    prefix = "embedded/lib/ossl-modules",
+)
+
+pkg_files(
+    name = "fipsinstall_sh",
+    srcs = ["fipsinstall.sh"],
+    prefix = "embedded/bin",
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_files(
+    name = "openssl_cnf_tmp",
+    srcs = ["openssl.cnf.tmp"],
+    prefix = "embedded/ssl",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":openssl_fips_provider",
+        ":openssl_cnf_tmp",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":fipsinstall_sh"],
+    }),
+)
+
+# Cross-platform helper to set the correct paths in openssl.cnf and fipsinstall.sh.
+# Usage: bazel run @openssl_fips//:configure_fips -- --destdir <directory> [--embedded_ssl_dir <directory>]
+py_binary(
+    name = "configure_fips",
+    srcs = ["configure_fips.py"],
+)
