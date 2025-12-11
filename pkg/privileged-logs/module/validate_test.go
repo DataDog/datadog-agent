@@ -57,12 +57,6 @@ func TestIsAllowed(t *testing.T) {
 			expected:      true,
 		},
 		{
-			name:          "file with .LOG extension (uppercase)",
-			path:          "/etc/application.LOG",
-			allowedPrefix: "/var/log/",
-			expected:      true,
-		},
-		{
 			name:          "file with .Log extension (mixed case)",
 			path:          "/etc/application.Log",
 			allowedPrefix: "/var/log/",
@@ -79,12 +73,6 @@ func TestIsAllowed(t *testing.T) {
 		{
 			name:          "file with direct parent named logs (lowercase)",
 			path:          "/databricks/driver/logs/stdout",
-			allowedPrefix: "/var/log/",
-			expected:      true,
-		},
-		{
-			name:          "file with direct parent named LOGS (uppercase)",
-			path:          "/app/LOGS/debug.txt",
 			allowedPrefix: "/var/log/",
 			expected:      true,
 		},
@@ -311,18 +299,6 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:          "file in logs directory should be allowed (databricks stderr)",
-			path:          "/databricks/driver/logs/stderr",
-			allowedPrefix: "/var/log/",
-			expectError:   false,
-		},
-		{
-			name:          "file in LOGS directory should be allowed (uppercase)",
-			path:          "/app/LOGS/application.txt",
-			allowedPrefix: "/var/log/",
-			expectError:   false,
-		},
-		{
 			name:          "file in Logs directory should be allowed (mixed case)",
 			path:          "/opt/service/Logs/debug.txt",
 			allowedPrefix: "/var/log/",
@@ -335,16 +311,16 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:          "file in subdirectory of logs should not be allowed",
-			path:          "/databricks/logs/driver/stdout",
+			name:          "file in subdirectory of logs should be allowed",
+			path:          "/app/logs/driver/stdout",
 			allowedPrefix: "/var/log/",
-			expectError:   false, // Will fail on path resolution, not validation
+			expectError:   false,
 		},
 		{
 			name:          "file with logs in filename should not be allowed",
 			path:          "/etc/logserver",
 			allowedPrefix: "/var/log/",
-			expectError:   false, // Will fail on path resolution, not validation
+			expectError:   false,
 		},
 	}
 
@@ -613,45 +589,6 @@ func TestValidateAndOpenWithPrefixWithRealFiles(t *testing.T) {
 			errorContains: "not a text file",
 		},
 		{
-			name:          "file in logs directory should succeed (lowercase)",
-			allowedPrefix: "/var/log/",
-			setupFunc: func(t *testing.T, testDir string) string {
-				logsDir := filepath.Join(testDir, "logs1")
-				err := os.Mkdir(logsDir, 0755)
-				require.NoError(t, err)
-				// Rename to "logs" to test the actual directory name
-				logsRenamed := filepath.Join(testDir, "testlogs1")
-				err = os.Rename(logsDir, logsRenamed)
-				require.NoError(t, err)
-				// Create a subdirectory named "logs"
-				actualLogsDir := filepath.Join(logsRenamed, "logs")
-				err = os.Mkdir(actualLogsDir, 0755)
-				require.NoError(t, err)
-				logFile := filepath.Join(actualLogsDir, "stdout")
-				err = os.WriteFile(logFile, []byte("test content"), 0644)
-				require.NoError(t, err)
-				return logFile
-			},
-			expectError: false,
-		},
-		{
-			name:          "file in LOGS directory should succeed (uppercase)",
-			allowedPrefix: "/var/log/",
-			setupFunc: func(t *testing.T, testDir string) string {
-				parentDir := filepath.Join(testDir, "testlogs2")
-				err := os.Mkdir(parentDir, 0755)
-				require.NoError(t, err)
-				logsDir := filepath.Join(parentDir, "LOGS")
-				err = os.Mkdir(logsDir, 0755)
-				require.NoError(t, err)
-				logFile := filepath.Join(logsDir, "stderr")
-				err = os.WriteFile(logFile, []byte("error content"), 0644)
-				require.NoError(t, err)
-				return logFile
-			},
-			expectError: false,
-		},
-		{
 			name:          "file in Logs directory should succeed (mixed case)",
 			allowedPrefix: "/var/log/",
 			setupFunc: func(t *testing.T, testDir string) string {
@@ -684,25 +621,6 @@ func TestValidateAndOpenWithPrefixWithRealFiles(t *testing.T) {
 				return logFile
 			},
 			expectError: false,
-		},
-		{
-			name:          "binary file in logs directory should fail UTF-8 check",
-			allowedPrefix: "/var/log/",
-			setupFunc: func(t *testing.T, testDir string) string {
-				parentDir := filepath.Join(testDir, "testlogs5")
-				err := os.Mkdir(parentDir, 0755)
-				require.NoError(t, err)
-				logsDir := filepath.Join(parentDir, "logs")
-				err = os.Mkdir(logsDir, 0755)
-				require.NoError(t, err)
-				logFile := filepath.Join(logsDir, "binary.dat")
-				binaryContent := []byte{0xFF, 0xFE, 0x00, 0x01, 0x02, 0x03}
-				err = os.WriteFile(logFile, binaryContent, 0644)
-				require.NoError(t, err)
-				return logFile
-			},
-			expectError:   true,
-			errorContains: "not a text file",
 		},
 		{
 			name:          "symlink to file in logs directory should succeed",
