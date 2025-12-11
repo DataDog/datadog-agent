@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	sysctl "github.com/lorenzosaino/go-sysctl"
+	"github.com/lorenzosaino/go-sysctl"
 	"golang.org/x/net/netutil"
 )
 
@@ -83,11 +83,15 @@ func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 // Optional TLS support using a self-signed certificate can be enabled trough the `enableTLS` argument
 // nolint
 func HTTPServer(t *testing.T, addr string, options Options) func() {
+	reqNum := 1
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		if options.SlowResponse != 0 {
 			time.Sleep(options.SlowResponse)
 		}
 		statusCode := StatusFromPath(req.URL.Path)
+		w.Header().Set("ReqNum", strconv.Itoa(reqNum))
+		w.Header().Set("Path", req.URL.Path)
+		reqNum++
 		if statusCode == 0 {
 			t.Errorf("wrong request format %s", req.URL.Path)
 		} else {
