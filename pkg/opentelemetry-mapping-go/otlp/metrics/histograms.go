@@ -56,12 +56,16 @@ func getBounds(explicitBounds pcommon.Float64Slice, idx int) (lowerBound float64
 }
 
 // CreateDDSketchFromHistogramOfDuration creates a DDSketch from regular histogram data point
-func CreateDDSketchFromHistogramOfDuration(dp pmetric.HistogramDataPoint, unit string) (*ddsketch.DDSketch, error) {
+func CreateDDSketchFromHistogramOfDuration(dp *pmetric.HistogramDataPoint, unit string) (*ddsketch.DDSketch, error) {
 	relativeAccuracy := 0.01 // 1% relative accuracy
 	maxNumBins := 2048
 	newSketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
 	if err != nil {
 		return nil, err
+	}
+
+	if dp == nil {
+		return newSketch, nil
 	}
 
 	bucketCounts := dp.BucketCounts()
@@ -161,13 +165,13 @@ func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDa
 }
 
 // CreateDDSketchFromExponentialHistogramOfDuration creates a DDSketch from exponential histogram data point
-func CreateDDSketchFromExponentialHistogramOfDuration(p pmetric.ExponentialHistogramDataPoint, unit string) (*ddsketch.DDSketch, error) {
+func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHistogramDataPoint, scale int32, unit string) (*ddsketch.DDSketch, error) {
 	// Create the DDSketch stores
 	scaleToNanos := getTimeUnitScaleToNanos(unit)
 
 	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
 	gammaWithOnePercentAccuracy := 1.01 / 0.99
-	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
+	gamma := math.Pow(2, math.Pow(2, float64(-scale)))
 	gamma = math.Min(gamma, gammaWithOnePercentAccuracy)
 	indexOffset := math.Log(scaleToNanos)
 	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, indexOffset)
@@ -176,15 +180,24 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p pmetric.ExponentialHisto
 	}
 
 	// Calculate the base for the exponential histogram
-	base := math.Pow(2, math.Pow(2, float64(-p.Scale())))
-	positiveStore := toStoreFromExponentialBucketsWithUnitScale(p.Positive(), mapping, base, scaleToNanos)
-	negativeStore := toStoreFromExponentialBucketsWithUnitScale(p.Negative(), mapping, base, scaleToNanos)
+	base := math.Pow(2, math.Pow(2, float64(-scale)))
+	var positiveStore store.Store
+	var negativeStore store.Store
+	if p != nil {
+		positiveStore = toStoreFromExponentialBucketsWithUnitScale(p.Positive(), mapping, base, scaleToNanos)
+		negativeStore = toStoreFromExponentialBucketsWithUnitScale(p.Negative(), mapping, base, scaleToNanos)
+	} else {
+		positiveStore = store.NewDenseStore()
+		negativeStore = store.NewDenseStore()
+	}
 
 	// Create DDSketch with the above mapping and stores
 	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
-	err = sketch.AddWithCount(0, float64(p.ZeroCount()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
+	if p != nil {
+		err = sketch.AddWithCount(0, float64(p.ZeroCount()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
+		}
 	}
 
 	return sketch, nil
