@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Integration check failures are now automatically reported to the Agent Health Platform component
+    when enabled via ``health_platform.enabled: true``. This provides structured health issue tracking with:
+
+    * Detailed error context including check name, error message, and configuration source
+    * Actionable remediation steps for debugging check failures
+    * Automatic issue resolution when checks recover
+    * Integration with the health platform telemetry and reporting system
+
+    This feature helps users proactively identify and troubleshoot integration issues across their fleet.
