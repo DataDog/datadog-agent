@@ -18,9 +18,6 @@ import (
 type testBBSClient struct {
 }
 
-type testCCClient struct {
-}
-
 var (
 	bc *BBSCache
 	cc *CCCache
@@ -47,6 +44,7 @@ func TestMain(m *testing.M) {
 		PollInterval: time.Second,
 		IncludeList:  []*regexp.Regexp{},
 		ExcludeList:  []*regexp.Regexp{},
+		CCCache:      cc, // Inject CCCache dependency
 	})
 	<-bc.UpdatedOnce()
 

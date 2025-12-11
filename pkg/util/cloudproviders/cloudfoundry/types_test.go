@@ -8,6 +8,7 @@
 package cloudfoundry
 
 import (
+	"context"
 	"regexp"
 	"testing"
 
@@ -398,6 +399,12 @@ func TestActualLRPFromBBSModel(t *testing.T) {
 }
 
 func TestDesiredLRPFromBBSModel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	config := newTestCCCacheConfig()
+	cc := newTestCCCache(ctx, config)
+
 	includeList := []*regexp.Regexp{regexp.MustCompile("CUSTOM_*")}
 	excludeList := []*regexp.Regexp{regexp.MustCompile("NOT_CUSTOM_*")}
 	result := DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList, cc)
@@ -409,8 +416,6 @@ func TestDesiredLRPFromBBSModel(t *testing.T) {
 	assert.EqualValues(t, ExpectedD1, result)
 
 	// Test with nil CC cache to verify behavior when CC cache is not available
-	globalBBSCache.Lock()
-	defer globalBBSCache.Unlock()
 	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList, nil)
 	assert.EqualValues(t, ExpectedD3NoCCCache, result)
 }

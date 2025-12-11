@@ -210,7 +210,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 }
 
 // DesiredLRPFromBBSModel creates a new DesiredLRP from BBS's DesiredLRP model
-func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp, ccCache *CCCache) DesiredLRP {
+func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp, ccCache CCCacheI) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
 	envVA := map[string]string{}
@@ -319,7 +319,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
 			}
-			if ccCache.sidecarsTags {
+			if ccCache.SidecarsTagsEnabled() {
 				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
 					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
@@ -327,7 +327,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
 				}
 			}
-			if ccCache.segmentsTags {
+			if ccCache.SegmentsTagsEnabled() {
 				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
