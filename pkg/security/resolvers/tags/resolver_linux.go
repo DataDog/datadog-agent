@@ -32,19 +32,19 @@ type Workload struct {
 
 // GetWorkloadID returns the workload ID for a workload
 func (w *Workload) GetWorkloadID() containerutils.WorkloadID {
-	if w.ContainerID != "" {
-		return w.ContainerID
-	} else if w.CGroupID != "" {
-		return w.CGroupID
+	if w.ContainerContext.ContainerID != "" {
+		return w.ContainerContext.ContainerID
+	} else if w.CGroupContext.CGroupID != "" {
+		return w.CGroupContext.CGroupID
 	}
 	return nil
 }
 
 // Type returns the type of the workload
 func (w *Workload) Type() string {
-	if w.ContainerID != "" {
+	if w.ContainerContext.ContainerID != "" {
 		return "container"
-	} else if w.CGroupID != "" {
+	} else if w.CGroupContext.CGroupID != "" {
 		return "cgroup"
 	}
 	return "unknown"
@@ -68,16 +68,16 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, func(cgce *cgroupModel.CacheEntry) {
 		workload := &Workload{CacheEntry: cgce, retries: 3}
-		t.workloads[cgce.CGroupID] = workload
+		t.workloads[cgce.CGroupContext.CGroupID] = workload
 		t.checkTags(workload)
 	}); err != nil {
 		return err
 	}
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
-		if workload, ok := t.workloads[cgce.CGroupID]; ok {
+		if workload, ok := t.workloads[cgce.CGroupContext.CGroupID]; ok {
 			t.NotifyListeners(WorkloadSelectorDeleted, workload)
-			delete(t.workloads, cgce.CGroupID)
+			delete(t.workloads, cgce.CGroupContext.CGroupID)
 		}
 	}); err != nil {
 		return err
@@ -115,7 +115,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 func needsTagsResolution(workload *Workload) bool {
 	// Container or cgroup workloads need tags resolution if they don't have a ready selector
-	return (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady()
+	return (len(workload.ContainerContext.ContainerID) != 0 || len(workload.CGroupContext.CGroupID) != 0) && !workload.Selector.IsReady()
 }
 
 // checkTags checks if the tags of a workload were properly set

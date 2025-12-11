@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
@@ -73,6 +74,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			return &statsd.NoOpClient{}
 		}),
 		ipcfx.ModuleReadOnly(),
+		remotetraceroute.Module(),
 	}
 }
 

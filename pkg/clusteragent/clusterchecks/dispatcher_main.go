@@ -9,7 +9,6 @@ package clusterchecks
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,7 +72,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
 		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			d.extraTags = append(d.extraTags, clusterTagName+":"+clusterTagValue)
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
