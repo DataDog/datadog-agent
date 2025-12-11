@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = ["tag_manager.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/statefulpb",
+        "//pkg/trace/log",
+    ],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = ["tag_manager_test.go"],
+    embed = [":tags"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
