@@ -43,6 +43,8 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	mcpcomp "github.com/DataDog/datadog-agent/comp/mcp/def"
+	mcpfx "github.com/DataDog/datadog-agent/comp/mcp/fx"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -133,6 +135,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
+
+		// Provide MCP server component (optional, disabled by default)
+		fx.Supply(mcpcomp.NewParams()),
+		mcpfx.Module(),
+		fx.Invoke(func(mcpcomp.Component) {}), // Force MCP component instantiation
 
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),

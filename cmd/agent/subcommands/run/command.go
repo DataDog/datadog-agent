@@ -78,6 +78,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	mcpcomp "github.com/DataDog/datadog-agent/comp/mcp/def"
+	mcpfx "github.com/DataDog/datadog-agent/comp/mcp/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -520,6 +522,10 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
+		// MCP server component (optional, disabled by default)
+		fx.Supply(mcpcomp.NewParams()),
+		mcpfx.Module(),
+		fx.Invoke(func(mcpcomp.Component) {}), // Force MCP component instantiation
 		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{

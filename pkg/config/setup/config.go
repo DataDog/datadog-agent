@@ -250,6 +250,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	telemetry,
 	autoconfig,
 	remoteconfig,
+	mcp,
 	logsagent,
 	containerSyspath,
 	containerd,
