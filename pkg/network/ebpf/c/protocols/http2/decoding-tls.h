@@ -28,6 +28,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     if (args == NULL) {
         return false;
     }
+    bpf_printk("guy | http2 | first | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
     dispatcher_args_copy = *args;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
@@ -51,6 +52,8 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     if (args == NULL) {
         return false;
     }
+    bpf_printk("guy | http2 | filter | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
+
     dispatcher_args_copy = *args;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
@@ -78,6 +81,8 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     if (args == NULL) {
         return false;
     }
+    bpf_printk("guy | http2 | parser | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
+
     dispatcher_args_copy = *args;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
@@ -100,6 +105,8 @@ int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
     if (args == NULL) {
         return false;
     }
+    bpf_printk("guy | http2 | cleaner | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
+
     dispatcher_args_copy = *args;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
@@ -127,6 +134,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     if (args == NULL) {
         return false;
     }
+    bpf_printk("guy | http2 | eos | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
+
     dispatcher_args_copy = *args;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
@@ -147,6 +156,7 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_printk("guy | http2 | termination | sport: %ld | dport %ld\n", args->tup.sport, args->tup.dport);
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     terminated_http2_batch_enqueue(&args->tup);

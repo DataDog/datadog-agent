@@ -1119,6 +1119,29 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
+			name: "validate path sent by value 2 (:path)",
+			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
+			// sent by value (:path).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// pathHeaderField is created with a key that sent by value (:path) and
+				// the value (of the path) is /aaa.
+
+				pathHeaderField := []byte{0x40, 0x05, 0x3a, 0x70, 0x61, 0x74, 0x68, 0x04, 0x2f, 0x61, 0x61, 0x61}
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: nil,
+		},
+		{
 			name: "Interesting frame header sent separately from frame payload",
 			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
@@ -2205,4 +2228,18 @@ func dumpTelemetry(t *testing.T, usmMonitor *Monitor, isTLS bool) {
 		}
 		t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
 	}
+}
+
+func TestBla2(t *testing.T) {
+	output := make([]byte, 0, 15)
+	output = hpack.AppendHuffmanString(output, ":path")
+	t.Log(output)
+	output = make([]byte, 0, 15)
+	output = hpack.AppendHuffmanString(output, ":method")
+	t.Log(output)
+
+	output = make([]byte, 0, 15)
+	output = hpack.AppendHuffmanString(output, ":status")
+	t.Log(output)
+
 }

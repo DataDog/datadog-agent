@@ -36,7 +36,8 @@ static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
 
 // Similar to read_hpack_int, but with a small optimization of getting the
 // current character as input argument.
-static __always_inline bool pktbuf_read_hpack_int_with_given_current_char(pktbuf_t pkt, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
+static __always_inline bool pktbuf_read_hpack_int_with_given_current_char(pktbuf_t pkt, __u64 current_char_as_number,
+    __u64 max_number_for_bits, __u64 *out) {
     current_char_as_number &= max_number_for_bits;
 
     // In HPACK, if the number is too big to be stored in max_number_for_bits
@@ -132,8 +133,18 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         return false;
     }
 
+    bpf_printk("guy | http2 | literal: %llu | str_len: %llu", index, str_len);
+
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
+        if (str_len >= 4 && str_len <= 7) {
+            char buf[8] = {0};
+            pktbuf_load_bytes_from_current_offset(pkt, buf, sizeof(buf));
+            bpf_printk("guy | http2 | by value header key | %s |", buf);
+            bpf_printk("guy | http2 | by value header key1 | %d, %d, %d |", buf[0], buf[1], buf[2]);
+            bpf_printk("guy | http2 | by value header key2 | %d, %d, %d |", buf[3], buf[4], buf[5]);
+            bpf_printk("guy | http2 | by value header key3 | %d, %d |", buf[6], buf[7]);
+        }
         pktbuf_advance(pkt, str_len);
         str_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -142,6 +153,8 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
+        bpf_printk("guy | http2 | is_huffman_encoded: %d | str_len: %llu", is_huffman_encoded, str_len);
+
         goto end;
     }
 
@@ -150,10 +163,12 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     // static table. A different index means that the header is not a path, so
     // we skip it.
     if (is_path_index(index)) {
+        bpf_printk("guy | http2 | this is a path");
         update_path_size_telemetry(http2_tel, str_len);
     } else if ((!is_status_index(index)) && (!is_method_index(index))) {
         goto end;
     }
+    bpf_printk("guy | http2 | relevant index");
 
     // We skip if:
     // - The string is too big
@@ -164,11 +179,13 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     }
 
     if (pktbuf_data_offset(pkt) + str_len > pktbuf_data_end(pkt)) {
+        bpf_printk("guy | http2 | abort 1");
         __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 
     if (save_header) {
+        bpf_printk("guy | http2 | parse path");
         headers_to_process->index = global_dynamic_counter - 1;
         headers_to_process->type = kNewDynamicHeader;
     } else {
@@ -250,7 +267,8 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         if (!pktbuf_read_hpack_int_with_given_current_char(pkt, current_ch, max_bits, &index)) {
             break;
         }
-
+        bpf_printk("guy | http2 | current char %d | offset %llu", current_ch, pktbuf_data_offset(pkt));
+        bpf_printk("guy | http2 | indexed %d | literal %d", is_indexed, is_literal);
         current_header = NULL;
         if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
             current_header = &headers_to_process[interesting_headers];
@@ -336,14 +354,17 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
         if (current_header->type == kStaticHeader) {
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
+                bpf_printk("guy | http2 | static | method: %d", current_header->index);
                 current_stream->request_method.static_table_entry = current_header->index;
                 current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
+                bpf_printk("guy | http2 | static | status: %d", current_header->index);
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_path_index(current_header->index)) {
+                bpf_printk("guy | http2 | static | path: %d", current_header->index);
                 current_stream->path.static_table_entry = current_header->index;
                 current_stream->path.finalized = true;
             }
@@ -357,15 +378,18 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
+                bpf_printk("guy | http2 | indexed | path: %d", dynamic_value->original_index);
                 current_stream->path.length = dynamic_value->string_len;
                 current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(dynamic_value->original_index)) {
+                bpf_printk("guy | http2 | indexed | status: %d", dynamic_value->original_index);
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(dynamic_value->original_index)) {
+                bpf_printk("guy | http2 | indexed | method: %d", dynamic_value->original_index);
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->request_method.length = dynamic_value->string_len;
@@ -382,15 +406,19 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
+                bpf_printk("guy | http2 | new | path: %d", current_header->original_index);
                 current_stream->path.length = current_header->new_dynamic_value_size;
                 current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(current_header->original_index)) {
+                bpf_printk("guy | http2 | new | status: %d", current_header->original_index);
+
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
+                bpf_printk("guy | http2 | new | method: %d", current_header->original_index);
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
@@ -930,7 +958,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         }
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
-        
+
          // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
                 // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
         if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
