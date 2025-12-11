@@ -8,10 +8,7 @@
 package clustering
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -34,12 +31,14 @@ const (
 type ClusterManager struct {
 	mu          sync.RWMutex
 	hashBuckets map[uint64][]*Cluster
+	nextID      uint64
 }
 
 // NewClusterManager creates a new ClusterManager.
 func NewClusterManager() *ClusterManager {
 	return &ClusterManager{
 		hashBuckets: make(map[uint64][]*Cluster),
+		nextID:      1,
 	}
 }
 
@@ -81,7 +80,7 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 		}
 
 		// Add the tokenList to the cluster (merges or creates new pattern)
-		pattern := cluster.AddTokenListToPatterns(tokenList)
+		pattern := cluster.AddTokenListToPatterns(tokenList, cm)
 
 		// Check if a new pattern was created (no match found or merge failed)
 		if matchedPattern == nil || matchedPattern.PatternID != pattern.PatternID {
@@ -99,7 +98,7 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 	// If no matching pattern was found, create a new cluster and pattern.
 	newCluster := NewCluster(signature)
 	// Add the token list to create the first pattern
-	pattern := newCluster.AddTokenListToPatterns(tokenList)
+	pattern := newCluster.AddTokenListToPatterns(tokenList, cm)
 	cm.hashBuckets[hash] = append(clusters, newCluster)
 
 	return pattern, PatternNew
@@ -112,12 +111,10 @@ func (cm *ClusterManager) Clear() {
 	cm.hashBuckets = make(map[uint64][]*Cluster)
 }
 
-// generatePatternID generates a unique pattern ID
-func generatePatternID() uint64 {
-	var buf [8]byte
-	_, err := rand.Read(buf[:])
-	if err != nil {
-		return uint64(time.Now().UnixNano())
-	}
-	return binary.BigEndian.Uint64(buf[:])
+// generatePatternID generates a unique pattern ID using a monotonic counter.
+// Must be called while holding the ClusterManager lock.
+func (cm *ClusterManager) generatePatternID() uint64 {
+	id := cm.nextID
+	cm.nextID++
+	return id
 }

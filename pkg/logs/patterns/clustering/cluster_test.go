@@ -41,8 +41,9 @@ func TestCluster_AddTokenListToPatterns(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	signature1 := token.NewSignature(tokenList1)
 
+	cm := NewClusterManager()
 	cluster := NewCluster(signature1)
-	cluster.AddTokenListToPatterns(tokenList1)
+	cluster.AddTokenListToPatterns(tokenList1, cm)
 
 	assert.Equal(t, 1, clusterSize(cluster), "Expected initial cluster size 1")
 
@@ -55,7 +56,7 @@ func TestCluster_AddTokenListToPatterns(t *testing.T) {
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
 	// Add tokenList with matching signature
-	cluster.AddTokenListToPatterns(tokenList2)
+	cluster.AddTokenListToPatterns(tokenList2, cm)
 
 	assert.Equal(t, 2, clusterSize(cluster), "Expected cluster size 2 after adding")
 	assert.NotEmpty(t, cluster.Patterns, "Expected patterns to exist after adding TokenLists")
@@ -71,8 +72,9 @@ func TestCluster_SinglePattern_SingleLog(t *testing.T) {
 	tokenList := token.NewTokenListWithTokens(tokens)
 	signature := token.NewSignature(tokenList)
 
+	cm := NewClusterManager()
 	cluster := NewCluster(signature)
-	cluster.AddTokenListToPatterns(tokenList)
+	cluster.AddTokenListToPatterns(tokenList, cm)
 
 	// Should have exactly one pattern (which is also the primary)
 	assert.Equal(t, 1, len(cluster.Patterns), "Should have exactly one pattern")
@@ -134,9 +136,10 @@ func TestCluster_MultiplePatterns_SpecialCharVariation(t *testing.T) {
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 	tokenList3 := token.NewTokenListWithTokens(tokens3)
 
-	cluster.AddTokenListToPatterns(tokenList1)
-	cluster.AddTokenListToPatterns(tokenList2) // Different special char - new pattern
-	cluster.AddTokenListToPatterns(tokenList3) // Same special char as tokens1 - same pattern
+	cm := NewClusterManager()
+	cluster.AddTokenListToPatterns(tokenList1, cm)
+	cluster.AddTokenListToPatterns(tokenList2, cm) // Different special char - new pattern
+	cluster.AddTokenListToPatterns(tokenList3, cm) // Same special char as tokens1 - same pattern
 
 	// Should have 2 patterns (one for colon, one for semicolon)
 	assert.Len(t, cluster.Patterns, 2, "Expected 2 patterns due to special character variation")
@@ -179,8 +182,9 @@ func TestCluster_FindMatchingPattern(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	pattern1 := cluster.AddTokenListToPatterns(tokenList1)
-	pattern2 := cluster.AddTokenListToPatterns(tokenList2)
+	cm := NewClusterManager()
+	pattern1 := cluster.AddTokenListToPatterns(tokenList1, cm)
+	pattern2 := cluster.AddTokenListToPatterns(tokenList2, cm)
 
 	// Should return different patterns
 	assert.NotEqual(t, pattern1, pattern2, "Should create different patterns for different whitespace")
@@ -201,6 +205,7 @@ func TestCluster_GetMostCommonPattern(t *testing.T) {
 	}
 
 	cluster := NewCluster(signature)
+	cm := NewClusterManager()
 
 	// Add multiple token lists that split into different patterns
 	// Pattern 1: 3 logs (should be most common)
@@ -211,7 +216,7 @@ func TestCluster_GetMostCommonPattern(t *testing.T) {
 			{Value: "started", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
 		}
 		tokenList := token.NewTokenListWithTokens(tokens)
-		cluster.AddTokenListToPatterns(tokenList)
+		cluster.AddTokenListToPatterns(tokenList, cm)
 	}
 
 	// Pattern 2: 1 log (less common)
@@ -221,7 +226,7 @@ func TestCluster_GetMostCommonPattern(t *testing.T) {
 		{Value: "stopped", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
 	}
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
-	cluster.AddTokenListToPatterns(tokenList2)
+	cluster.AddTokenListToPatterns(tokenList2, cm)
 
 	mostCommon := getMostCommonPattern(cluster)
 	assert.NotNil(t, mostCommon, "Most common pattern should not be nil")
@@ -236,6 +241,7 @@ func TestCluster_GetAllPatterns(t *testing.T) {
 	}
 
 	cluster := NewCluster(signature)
+	cm := NewClusterManager()
 
 	// Create 3 different patterns via whitespace variation
 	tokens1 := []token.Token{
@@ -254,9 +260,9 @@ func TestCluster_GetAllPatterns(t *testing.T) {
 		{Value: "200", Type: token.TokenNumeric},
 	}
 
-	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens1))
-	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens2))
-	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens3))
+	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens1), cm)
+	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens2), cm)
+	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens3), cm)
 
 	allPatterns := cluster.Patterns
 	assert.Len(t, allPatterns, 3, "Expected 3 patterns")
@@ -287,8 +293,9 @@ func TestCluster_ExtractWildcardValues_MultiPattern(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	cluster.AddTokenListToPatterns(tokenList1)
-	cluster.AddTokenListToPatterns(tokenList2)
+	cm := NewClusterManager()
+	cluster.AddTokenListToPatterns(tokenList1, cm)
+	cluster.AddTokenListToPatterns(tokenList2, cm)
 
 	// Both should merge into same pattern
 	// Extract wildcard values from tokenList2
@@ -309,6 +316,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 	}
 
 	cluster := NewCluster(signature)
+	cm := NewClusterManager()
 
 	// Add 2 token lists to pattern 1
 	for i := 0; i < 2; i++ {
@@ -317,7 +325,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 			{Value: " ", Type: token.TokenWhitespace},
 			{Value: "passed", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
 		}
-		cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens))
+		cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens), cm)
 	}
 
 	// Add 3 token lists to pattern 2 (different whitespace)
@@ -327,7 +335,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 			{Value: "  ", Type: token.TokenWhitespace}, // Different
 			{Value: "failed", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
 		}
-		cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens))
+		cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens), cm)
 	}
 
 	// Total size should be 5 (2 + 3)
