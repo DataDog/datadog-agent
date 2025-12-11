@@ -47,11 +47,6 @@ func evNS(k ...string) string {
 	return NSkey("event_monitoring_config", k...)
 }
 
-// compNS adds `compliance_config` namespace to configuration key
-func compNS(k ...string) string {
-	return NSkey("compliance_config", k...)
-}
-
 // NSkey returns a full key path in the config file by joining the given namespace and the rest of the path fragments
 func NSkey(ns string, pieces ...string) string {
 	return strings.Join(append([]string{ns}, pieces...), ".")

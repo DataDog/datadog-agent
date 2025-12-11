@@ -39,7 +39,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	webhookName := pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")
 	secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 	status["WebhookName"] = webhookName
-	status["SecretName"] = fmt.Sprintf("%s/%s", ns, secretName)
+	status["SecretName"] = ns + "/" + secretName
 
 	validatingWebhookStatus, err := getValidatingWebhookStatus(webhookName, apiCl)
 	if err != nil {

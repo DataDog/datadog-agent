@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,29 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+var (
+	defaultLibraries = map[string]string{
+		"java":   "v1",
+		"python": "v4",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5",
+		"php":    "v1",
+	}
+
+	// TODO: Add new entry when a new language is supported
+	defaultLibImageVersions = map[language]string{
+		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
+	}
+
+	imageResolver = newNoOpImageResolver()
 )
 
 func TestNewTargetMutator(t *testing.T) {
@@ -159,7 +183,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				"registry/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
@@ -636,7 +660,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
 					defaultLibInfoWithVersion(php, "v1"),
@@ -688,7 +712,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
 					defaultLibInfoWithVersion(php, "v1"),
@@ -874,4 +898,34 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
+}
+
+func defaultLibInfo(l language) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      defaultLibImageVersions[l],
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        defaultLibraries[string(l)],
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithVersion(l language, version string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
+	}
+}
+
+func defaultLibrariesFor(languages ...string) map[string]string {
+	out := map[string]string{}
+	for _, l := range languages {
+		out[l] = defaultLibraries[l]
+	}
+	return out
 }

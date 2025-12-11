@@ -6,7 +6,9 @@
 // Package npcollector used to manage network paths
 package npcollector
 
-import model "github.com/DataDog/agent-payload/v5/process"
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+)
 
 // team: cloud-network-monitoring network-path
 
