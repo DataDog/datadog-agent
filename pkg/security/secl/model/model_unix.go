@@ -397,7 +397,7 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+	return fmt.Sprintf("%d/%d/%s/%d", pc.Pid, pc.PPid, pc.Comm, pc.ExecTime.Nanosecond())
 }
 
 // ParentScope returns the parent entity scope
