@@ -578,7 +578,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroup
 			}
 
 			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
-				ev.ProcessContext.CGroup = cgroupContext
+				ev.ProcessContext.CGroup = *cgroupContext
 			}
 		}
 	}
