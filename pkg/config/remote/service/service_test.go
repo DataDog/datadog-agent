@@ -13,6 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
+	"runtime/pprof"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -483,11 +486,14 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() { errCh <- service.refresh() }()
-	select {
-	case err := <-errCh:
-		t.Fatal("expected refresh to block", err)
-	case <-time.After(10 * time.Millisecond): // ensure we block
-	}
+	// Wait for the refresh call to be blocked before advancing the time. The
+	// clock library doesn't have a nice way to detect if the goroutine is
+	// blocked on a sleep, so we look at the goroutine stack trace.
+	const sleepPat = `(?s)chan receive([^\n]+\n)+[^\n]+clock\.\(\*Mock\)\.Sleep`
+	sleepRegexp := regexp.MustCompile(sleepPat)
+	inSleep := func() bool { return sleepRegexp.MatchString(dumpAllStacks()) }
+	require.Eventually(t, inSleep, 10*time.Second, time.Millisecond)
+
 	// Advance the clock by 1 second to trigger the next refresh.
 	clock.Add(1 * time.Second)
 	require.NoError(t, <-errCh)
@@ -496,6 +502,12 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, service.mu.backoffErrorCount, 0)
 	refreshInterval = service.calculateRefreshInterval()
 	assert.Equal(t, 1*time.Second, refreshInterval)
+}
+
+func dumpAllStacks() string {
+	var buf strings.Builder
+	pprof.Lookup("goroutine").WriteTo(&buf, 2)
+	return buf.String()
 }
 
 func customMeta(tracerPredicates []*pbgo.TracerPredicateV1, expiration int64) *json.RawMessage {
