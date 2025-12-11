@@ -8,6 +8,10 @@ package run
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/spf13/cobra"
@@ -82,5 +86,22 @@ func run(log log.Component, config config.Component, par privateactionrunner.Com
 		return nil
 	}
 	ctx := context.Background()
-	return par.Start(ctx)
+	err := par.Start(ctx)
+	if err != nil {
+		_ = log.Errorf("Failed to start private action runner: %v", err)
+		return err
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-sigChan
+	shutdownCtx, shutdownRelease := context.WithTimeout(ctx, time.Duration(10)*time.Second)
+	defer shutdownRelease()
+	err = par.Stop(shutdownCtx)
+	if err != nil {
+		_ = log.Errorf("Failed to stop private action runner: %v", err)
+		return err
+	}
+	log.Info("Private Action Runner stopped")
+	return nil
 }
