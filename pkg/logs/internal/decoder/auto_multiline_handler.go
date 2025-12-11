@@ -16,15 +16,14 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// AutoMultilineHandler aggregates multiline logs or tags them for detection-only mode.
+// AutoMultilineHandler aggregates multiline logs.
 type AutoMultilineHandler struct {
 	labeler               *automultilinedetection.Labeler
-	aggregator            *automultilinedetection.DefaultAggregator
+	aggregator            *automultilinedetection.Aggregator
 	jsonAggregator        *automultilinedetection.JSONAggregator
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
 	enableJSONAggregation bool
-	detectionOnly         bool // if true, tag instead of aggregate
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
@@ -81,64 +80,37 @@ func NewAutoMultilineHandler(outputFn func(m []*message.Message), maxContentSize
 		tailerInfo),
 	}
 
-	handler := &AutoMultilineHandler{
-		labeler:               automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
-		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
-		flushTimeout:          flushTimeout,
-		enableJSONAggregation: enableJSONAggregation,
-		detectionOnly:         detectionOnly,
-	}
-
-	// Only create aggregator if not in detection-only mode
-	if !detectionOnly {
-		handler.aggregator = automultilinedetection.NewAggregator(
+	return &AutoMultilineHandler{
+		labeler: automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
+		aggregator: automultilinedetection.NewAggregator(
 			outputFn,
 			maxContentSize,
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-			tailerInfo)
+			tailerInfo),
+		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
+		flushTimeout:          flushTimeout,
+		enableJSONAggregation: enableJSONAggregation,
 	}
-
-	return handler
 }
 
 func (a *AutoMultilineHandler) process(msg *message.Message) {
-	if !a.detectionOnly {
-		a.stopFlushTimerIfNeeded()
-		defer a.startFlushTimerIfNeeded()
-	}
+	a.stopFlushTimerIfNeeded()
+	defer a.startFlushTimerIfNeeded()
 
 	if a.enableJSONAggregation {
 		msgs := a.jsonAggregator.Process(msg)
 		for _, m := range msgs {
 			label := a.labeler.Label(m.GetContent())
-			if a.detectionOnly {
-				a.tagWithLabel(m, label)
-				a.outputFn(m)
-			} else {
-				a.aggregator.Aggregate(m, label)
-			}
+			a.aggregator.Aggregate(m, label)
 		}
 	} else {
 		label := a.labeler.Label(msg.GetContent())
-		if a.detectionOnly {
-			a.tagWithLabel(msg, label)
-			a.outputFn(msg)
-		} else {
-			a.aggregator.Aggregate(msg, label)
-		}
+		a.aggregator.Aggregate(msg, label)
 	}
-}
-
-func (a *AutoMultilineHandler) tagWithLabel(msg *message.Message, label automultilinedetection.Label) {
-	labelStr := automultilinedetection.LabelToString(label)
-	msg.ProcessingTags = append(msg.ProcessingTags, "auto_multiline_label:"+labelStr)
 }
 
 func (a *AutoMultilineHandler) flushChan() <-chan time.Time {
-	if a.detectionOnly {
-		return nil // No buffering in detection-only mode
-	}
 	if a.flushTimer != nil {
 		return a.flushTimer.C
 	}
@@ -146,9 +118,6 @@ func (a *AutoMultilineHandler) flushChan() <-chan time.Time {
 }
 
 func (a *AutoMultilineHandler) isEmpty() bool {
-	if a.detectionOnly {
-		return a.jsonAggregator.IsEmpty() // Only JSON aggregator buffer in detection-only mode
-	}
 	return a.aggregator.IsEmpty() && a.jsonAggregator.IsEmpty()
 }
 
@@ -157,18 +126,11 @@ func (a *AutoMultilineHandler) flush() {
 		msgs := a.jsonAggregator.Flush()
 		for _, m := range msgs {
 			label := a.labeler.Label(m.GetContent())
-			if a.detectionOnly {
-				a.tagWithLabel(m, label)
-				a.outputFn(m)
-			} else {
-				a.aggregator.Aggregate(m, label)
-			}
+			a.aggregator.Aggregate(m, label)
 		}
 	}
-	if !a.detectionOnly {
-		a.aggregator.Flush()
-		a.stopFlushTimerIfNeeded()
-	}
+	a.aggregator.Flush()
+	a.stopFlushTimerIfNeeded()
 }
 
 func (a *AutoMultilineHandler) stopFlushTimerIfNeeded() {

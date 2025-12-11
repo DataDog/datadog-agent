@@ -150,13 +150,10 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		}
 	}
 	if lineHandler == nil {
-		// Priority: Detection-only mode (tags without aggregation)
-		if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, true)
-		} else if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
