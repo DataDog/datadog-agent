@@ -13,10 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -36,7 +33,7 @@ type ProcessID uint32
 // at least startDelay. Processes that exit before startDelay are never
 // analyzed.
 //
-// Thread-safety: not thread-safe, use from a single goroutine only.
+// Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
 
 	// startDelay is how long a process must be alive before analysis.
@@ -48,8 +45,11 @@ type Scanner struct {
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
 
-	// live tracks discovered processes that have been reported as live.
-	live *btree.BTreeG[uint32]
+	mu struct {
+		sync.Mutex
+		// live tracks discovered processes that have been reported as live.
+		live *btree.BTreeG[uint32]
+	}
 
 	// listPids returns an iterator over all PIDs in the system.
 	listPids func() iter.Seq2[uint32, error]
@@ -91,7 +91,7 @@ func NewScanner(
 			return tracermetadata.GetTracerMetadata(int(pid), procfsRoot)
 		},
 		func(pid int32) (process.Executable, error) {
-			return resolveExecutable(procfsRoot, pid)
+			return process.ResolveExecutable(procfsRoot, pid)
 		},
 	)
 }
@@ -106,15 +106,16 @@ func newScanner(
 	tracerMetadataReader func(pid int32) (tracermetadata.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
 ) *Scanner {
-	return &Scanner{
+	s := &Scanner{
 		startDelay:           startDelay,
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
-		live:                 btree.NewG(16, cmp.Less[uint32]),
 	}
+	s.mu.live = btree.NewG(16, cmp.Less[uint32])
+	return s
 }
 
 // DiscoveredProcess represents a newly discovered process that should be
@@ -173,7 +174,10 @@ func (p *Scanner) Scan() (
 
 	// Clone the live set. Processes still alive will be removed from this
 	// clone. Whatever remains has exited.
-	noLongerLive := p.live.Clone()
+	p.mu.Lock()
+	noLongerLive := p.mu.live.Clone()
+	p.mu.Unlock()
+
 	var ret []DiscoveredProcess
 
 	for pid, err := range p.listPids() {
@@ -211,7 +215,6 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		p.live.ReplaceOrInsert(pid)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -223,59 +226,30 @@ func (p *Scanner) Scan() (
 	removed = make([]ProcessID, 0, noLongerLive.Len())
 	noLongerLive.Ascend(func(pid uint32) bool {
 		removed = append(removed, ProcessID(pid))
+		p.mu.live.Delete(pid)
 		return true
 	})
 	noLongerLive.Clear(true)
+
+	p.mu.Lock()
+	for _, newProc := range ret {
+		p.mu.live.ReplaceOrInsert(newProc.PID)
+	}
+	p.mu.Unlock()
 
 	p.lastWatermark = nextWatermark
 	return ret, removed, nil
 }
 
-func resolveExecutable(procfsRoot string, pid int32) (process.Executable, error) {
-	exeLink := filepath.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
-	exePath, err := os.Readlink(exeLink)
-	if err != nil {
-		return process.Executable{}, err
-	}
-
-	openPath := exePath
-	file, err := os.Open(openPath)
-	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
-		trimmed := strings.TrimPrefix(openPath, "/")
-		if trimmed != "" {
-			openPath = filepath.Join(
-				procfsRoot,
-				strconv.Itoa(int(pid)),
-				"root",
-				trimmed,
-			)
-			file, err = os.Open(openPath)
-		}
-	}
-	if err != nil {
-		return process.Executable{}, err
-	}
-	defer file.Close()
-
-	info, err := file.Stat()
-	if err != nil {
-		return process.Executable{}, err
-	}
-	statT, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return process.Executable{}, fmt.Errorf(
-			"unexpected stat type %T", info.Sys(),
-		)
-	}
-	key := process.FileKey{
-		FileHandle: process.FileHandle{
-			Dev: uint64(statT.Dev),
-			Ino: statT.Ino,
-		},
-		LastModified: statT.Mtim,
-	}
-	return process.Executable{
-		Path: openPath,
-		Key:  key,
-	}, nil
+// LiveProcesses returns the list of processes that were alive as of the last
+// call to Scan. This can be called concurrently with Scan.
+func (p *Scanner) LiveProcesses() []ProcessID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ret := make([]ProcessID, 0, p.mu.live.Len())
+	p.mu.live.Ascend(func(pid uint32) bool {
+		ret = append(ret, ProcessID(pid))
+		return true
+	})
+	return ret
 }

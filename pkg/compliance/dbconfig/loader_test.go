@@ -310,6 +310,124 @@ func TestMongoDBConfParsing(t *testing.T) {
 	assert.Equal(t, "/var/log/mongodb/mongod.log", *configData.SystemLog.Path)
 }
 
+func TestMongoDBProcessFlags(t *testing.T) {
+	hostroot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(hostroot, "/etc"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hostroot, "/etc/mongod.conf"), []byte(mongodConfigSample), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		name          string
+		args          []string
+		expectedFlags map[string]string
+	}{
+		{
+			name: "basic flags",
+			args: []string{
+				"--dbpath=/var/lib/mongodb",
+				"--port=27017",
+				"--logpath", "/var/log/mongodb/mongod.log",
+				"--fork",
+			},
+			expectedFlags: map[string]string{
+				"--dbpath":  "/var/lib/mongodb",
+				"--port":    "27017",
+				"--logpath": "/var/log/mongodb/mongod.log",
+				"--fork":    "true",
+			},
+		},
+		{
+			name: "flags with redacted values",
+			args: []string{
+				"--dbpath=/var/lib/mongodb",
+				"--tlsCertificateKeyFilePassword=secretpass",
+				"--ldapQueryPassword", "ldapsecret",
+				"--customPasswordFlag=mysecret",
+				"--setParameter", "authenticationMechanisms=SCRAM-SHA-1",
+			},
+			expectedFlags: map[string]string{
+				"--dbpath":                        "/var/lib/mongodb",
+				"--tlsCertificateKeyFilePassword": "<redacted>",
+				"--ldapQueryPassword":             "<redacted>",
+				"--customPasswordFlag":            "<redacted>",
+				"--setParameter":                  "<redacted>",
+			},
+		},
+		{
+			name: "mixed flag formats",
+			args: []string{
+				"--config=/etc/mongod.conf",
+				"--verbose",
+				"positional1",
+				"--port", "27017",
+				"--bind_ip=127.0.0.1,192.168.1.1",
+				"--kmipKeyIdentifier=keyid123",
+				"--quiet=true",
+				"positional2",
+				"--verbose",
+			},
+			expectedFlags: map[string]string{
+				"--config":            "/etc/mongod.conf",
+				"--verbose":           "true",
+				"--port":              "27017",
+				"--bind_ip":           "127.0.0.1,192.168.1.1",
+				"--kmipKeyIdentifier": "<redacted>",
+				"--quiet":             "true",
+			},
+		},
+		{
+			name: "all redacted flags",
+			args: []string{
+				"--auditEncryptionKeyUID=uid123",
+				"--kmipClientCertificatePassword", "certpass",
+				"--ldapQueryUser=ldapuser",
+				"--tlsClusterPassword", "clusterpass",
+			},
+			expectedFlags: map[string]string{
+				"--auditEncryptionKeyUID":         "<redacted>",
+				"--kmipClientCertificatePassword": "<redacted>",
+				"--ldapQueryUser":                 "<redacted>",
+				"--tlsClusterPassword":            "<redacted>",
+			},
+		},
+		{
+			name:          "empty and edge cases",
+			args:          []string{},
+			expectedFlags: map[string]string{},
+		},
+		{
+			name: "non-flag arguments are ignored",
+			args: []string{
+				"positional1",
+				"--flag1=value1",
+				"positional2",
+				"--flag2", "value2",
+				"positional3",
+			},
+			expectedFlags: map[string]string{
+				"--flag1": "value1",
+				"--flag2": "value2",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			proc, stop := launchFakeProcess(context.Background(), t, "mongod", tc.args...)
+			defer stop()
+
+			c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
+
+			assert.True(t, ok)
+			assert.NotNil(t, c.ProcessFlags)
+			assert.Equal(t, tc.expectedFlags, c.ProcessFlags)
+		})
+	}
+}
+
 const pgConfigCommon = `
 # -----------------------------
 # PostgreSQL configuration file

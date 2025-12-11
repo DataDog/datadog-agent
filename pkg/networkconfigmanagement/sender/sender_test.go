@@ -10,7 +10,6 @@ package sender
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -36,16 +35,17 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	// Create test payload
 	configs := []ncmreport.NetworkDeviceConfig{
 		{
-			DeviceID:   "default:10.0.0.1",
-			DeviceIP:   "10.0.0.1",
-			ConfigType: string(ncmreport.RUNNING),
-			Timestamp:  mockClock.Now().Unix(),
-			Tags:       []string{"device_ip:10.0.0.1"},
-			Content:    []byte("version 15.1\nhostname Router1"),
+			DeviceID:     "default:10.0.0.1",
+			DeviceIP:     "10.0.0.1",
+			ConfigType:   string(ncmreport.RUNNING),
+			ConfigSource: string(ncmreport.CLI),
+			Timestamp:    mockClock.Now().Unix(),
+			Tags:         []string{"device_ip:10.0.0.1"},
+			Content:      "version 15.1\nhostname Router1",
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, "", configs, mockClock.Now().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, configs, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
@@ -54,26 +54,23 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	err := ncmSender.SendNCMConfig(payload)
 	assert.NoError(t, err)
 
-	contentStr := "version 15.1\nhostname Router1"
-	contentBytes, _ := json.Marshal([]byte(contentStr))
-
-	var expectedEvent = []byte(fmt.Sprintf(`
+	var expectedEvent = []byte(`
 {
   "namespace": "default",
-  "integration": "",
   "configs": [
     {
       "device_id": "default:10.0.0.1",
       "device_ip": "10.0.0.1",
       "config_type": "running",
+      "config_source": "cli",
       "timestamp": 1754043600,
       "tags": ["device_ip:10.0.0.1"],
-      "content": %s
+      "content": "version 15.1\nhostname Router1"
     }
   ],
   "collect_timestamp": 1754043600
 }
-`, contentBytes))
+`)
 
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, expectedEvent)

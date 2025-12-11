@@ -13,6 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
+	"runtime/pprof"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,17 +87,8 @@ type mockCoreAgentUptane struct {
 	mockUptane
 }
 
-type mockCDNUptane struct {
-	mockUptane
-}
-
 func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error {
 	args := m.Called(response)
-	return args.Error(0)
-}
-
-func (m *mockCDNUptane) Update(ctx context.Context) error {
-	args := m.Called(ctx)
 	return args.Error(0)
 }
 
@@ -492,11 +486,14 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() { errCh <- service.refresh() }()
-	select {
-	case err := <-errCh:
-		t.Fatal("expected refresh to block", err)
-	case <-time.After(10 * time.Millisecond): // ensure we block
-	}
+	// Wait for the refresh call to be blocked before advancing the time. The
+	// clock library doesn't have a nice way to detect if the goroutine is
+	// blocked on a sleep, so we look at the goroutine stack trace.
+	const sleepPat = `(?s)chan receive([^\n]+\n)+[^\n]+clock\.\(\*Mock\)\.Sleep`
+	sleepRegexp := regexp.MustCompile(sleepPat)
+	inSleep := func() bool { return sleepRegexp.MatchString(dumpAllStacks()) }
+	require.Eventually(t, inSleep, 10*time.Second, time.Millisecond)
+
 	// Advance the clock by 1 second to trigger the next refresh.
 	clock.Add(1 * time.Second)
 	require.NoError(t, <-errCh)
@@ -505,6 +502,12 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, service.mu.backoffErrorCount, 0)
 	refreshInterval = service.calculateRefreshInterval()
 	assert.Equal(t, 1*time.Second, refreshInterval)
+}
+
+func dumpAllStacks() string {
+	var buf strings.Builder
+	pprof.Lookup("goroutine").WriteTo(&buf, 2)
+	return buf.String()
 }
 
 func customMeta(tracerPredicates []*pbgo.TracerPredicateV1, expiration int64) *json.RawMessage {
@@ -1243,7 +1246,7 @@ func TestOrgStatus(t *testing.T) {
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
-	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
+	api.On("FetchOrgStatus", mock.Anything).Return(nil, errors.New("Error"))
 	service.orgStatusPoller.poll(service.api, service.rcType)
 	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
@@ -1461,104 +1464,6 @@ func TestWithClientTTL(t *testing.T) {
 
 func getHostTags() []string {
 	return []string{"dogo_state:hungry"}
-}
-
-func setupCDNClient(uptaneClient *mockCDNUptane) *HTTPClient {
-	return &HTTPClient{
-		rcType: "CDN",
-		uptane: uptaneClient,
-	}
-}
-
-// TestHTTPClientRecentUpdate tests that with a recent (<50s ago) last-update-time,
-// the client will not fetch a new update and will return the cached state
-func TestHTTPClientRecentUpdate(t *testing.T) {
-	uptaneClient := &mockCDNUptane{}
-	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
-		DirectorRoot:    1,
-		DirectorTargets: 1,
-		ConfigRoot:      1,
-		ConfigSnapshot:  1,
-	}, nil)
-	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
-	uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
-	uptaneClient.On("Targets").Return(
-		data.TargetFiles{
-			"datadog/2/TESTING1/id/1": {},
-			"datadog/2/TESTING2/id/2": {},
-		},
-		nil,
-	)
-	uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
-
-	client := setupCDNClient(uptaneClient)
-	defer client.Close()
-	client.mu.lastUpdate = time.Now()
-
-	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
-	require.NoError(t, err)
-	uptaneClient.AssertExpectations(t)
-	require.NotNil(t, u)
-	require.Len(t, u.TargetFiles, 1)
-	require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
-	require.Len(t, u.ClientConfigs, 1)
-	require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
-	require.Len(t, u.TUFRoots, 1)
-	require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
-}
-
-// TestHTTPClientUpdateSuccess tests that a stale state will trigger an update of the cached state
-// before returning the cached state. In the event that the Update fails, the stale state will be returned.
-func TestHTTPClientUpdateSuccess(t *testing.T) {
-	var tests = []struct {
-		updateSucceeds bool
-	}{
-		{true},
-		{false},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("updateSucceeds=%t", tt.updateSucceeds), func(t *testing.T) {
-			uptaneClient := &mockCDNUptane{}
-			uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
-				DirectorRoot:    1,
-				DirectorTargets: 1,
-				ConfigRoot:      1,
-				ConfigSnapshot:  1,
-			}, nil)
-			uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
-			uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
-			uptaneClient.On("Targets").Return(
-				data.TargetFiles{
-					"datadog/2/TESTING1/id/1": {},
-					"datadog/2/TESTING2/id/2": {},
-				},
-				nil,
-			)
-			uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
-
-			updateErr := fmt.Errorf("uh oh")
-			if tt.updateSucceeds {
-				updateErr = nil
-			}
-			uptaneClient.On("Update", mock.Anything).Return(updateErr)
-
-			client := setupCDNClient(uptaneClient)
-			defer client.Close()
-			client.mu.lastUpdate = time.Now().Add(time.Second * -60)
-
-			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
-			require.NoError(t, err)
-			uptaneClient.AssertExpectations(t)
-			require.NotNil(t, u)
-			require.Len(t, u.TargetFiles, 1)
-			require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
-			require.Len(t, u.ClientConfigs, 1)
-			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
-			require.Len(t, u.TUFRoots, 1)
-			require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
-		})
-	}
 }
 
 func listsEqual(mustMatch []string) func(candidate []string) bool {

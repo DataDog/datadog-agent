@@ -7,6 +7,7 @@ package dwarfutils
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 )
 
@@ -18,7 +19,7 @@ func GetChildLeafEntries(entryReader *dwarf.Reader, offset dwarf.Offset, tag dwa
 	// Consume the first element from the reader to move it past the parent entry
 	parentEntry, err := entryReader.Next()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't consume initial parent entry from entry reader")
+		return nil, errors.New("couldn't consume initial parent entry from entry reader")
 	}
 	if !parentEntry.Children {
 		return nil, nil

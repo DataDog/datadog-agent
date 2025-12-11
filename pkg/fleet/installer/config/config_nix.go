@@ -116,7 +116,12 @@ func isSameFile(file1, file2 string) bool {
 
 // replaceConfigDirectory replaces the contents of two directories.
 func replaceConfigDirectory(oldDir, newDir string) (err error) {
-	backupPath := filepath.Clean(oldDir) + ".bak"
+	backupDir, err := os.MkdirTemp(filepath.Dir(oldDir), "datadog-backup")
+	if err != nil {
+		return fmt.Errorf("could not create backup directory: %w", err)
+	}
+	defer os.RemoveAll(backupDir)
+	backupPath := filepath.Join(backupDir, filepath.Base(oldDir))
 	err = os.Rename(oldDir, backupPath)
 	if err != nil {
 		return fmt.Errorf("could not rename old directory: %w", err)
@@ -132,10 +137,6 @@ func replaceConfigDirectory(oldDir, newDir string) (err error) {
 	err = os.Rename(newDir, oldDir)
 	if err != nil {
 		return fmt.Errorf("could not rename new directory: %w", err)
-	}
-	err = os.RemoveAll(backupPath)
-	if err != nil {
-		return fmt.Errorf("could not remove old directory: %w", err)
 	}
 	return nil
 }

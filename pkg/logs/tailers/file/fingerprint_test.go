@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
 // FingerprintTestSuite tests the fingerprinting functionality
@@ -64,6 +65,7 @@ func (suite *FingerprintTestSuite) createTailer() *Tailer {
 		Decoder:         decoder.NewDecoderFromSource(source, info),
 		Info:            info,
 		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		FileOpener:      opener.NewFileOpener(),
 	}
 
 	tailer := NewTailer(tailerOptions)
@@ -101,7 +103,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	expectedChecksum := crc64.Checksum([]byte(text), table)
 
 	tailer := suite.createTailer()
-	fingerprinter := NewFingerprinter(config)
+	fingerprinter := NewFingerprinter(config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -145,7 +147,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
@@ -189,7 +191,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 
 	tailer := suite.createTailer()
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
@@ -227,7 +229,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 
 	tailer := suite.createTailer()
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
@@ -251,7 +253,7 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	// Expected: empty file should return nil since we don't have any data to hash
 	tailer := suite.createTailer()
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), receivedChecksum.Value, "Empty file should return fingerprint with Value=0")
 }
@@ -283,7 +285,7 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), receivedChecksum.Value, "Should return fingerprint with Value=0 when insufficient lines")
 }
@@ -318,7 +320,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -350,7 +352,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), receivedChecksum.Value, "Insufficient data after skip should return fingerprint with Value=0")
 }
@@ -386,7 +388,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -418,7 +420,7 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), receivedChecksum.Value, "Insufficient data should return fingerprint with Value=0")
 }
@@ -457,7 +459,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -492,7 +494,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -530,7 +532,7 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
@@ -568,7 +570,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	tailer.osFile = osFile
 
 	// Compute fingerprint (now returns uint64 directly)
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	expectedText := "line 1: important data" + "line 2: more important data"
@@ -604,7 +606,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	textToHash := "thisisexactly20chars"
@@ -633,7 +635,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(uint64(0), fingerprint.Value, "Empty file should return fingerprint with Value=0")
@@ -654,7 +656,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter = NewFingerprinter(*config)
+	fingerprinter = NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ = fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(uint64(0), fingerprint.Value, "Insufficient data should return fingerprint with Value=0")
@@ -687,7 +689,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	expectedText := strings.Repeat("X", 80)
@@ -725,7 +727,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 
 	tailer := suite.createTailer()
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	fmt.Println(lines)
@@ -760,7 +762,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter := NewFingerprinter(*fpConfig)
+	fingerprinter := NewFingerprinter(*fpConfig, opener.NewFileOpener())
 	fingerprint1, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	osFile.Close()
@@ -795,7 +797,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
 
-	fingerprinter = NewFingerprinter(*fpConfig)
+	fingerprinter = NewFingerprinter(*fpConfig, opener.NewFileOpener())
 	fingerprint2, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	textToHash2 := "line1line"
@@ -838,7 +840,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 
 	tailer := suite.createTailer()
 
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Equal(uint64(0), receivedChecksum.Value, "Should return fingerprint with Value=0 when there's insufficient data after skipping")
@@ -859,7 +861,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 	tailer := suite.createTailer()
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 
 	// Initialize osFile and fullpath for DidRotate() filesystem checks
 	osFile, err := os.Open(suite.testPath)
@@ -915,7 +917,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer.osFile = osFile
 	tailer.fullpath = suite.testPath
 
-	fingerprinter = NewFingerprinter(*config)
+	fingerprinter = NewFingerprinter(*config, opener.NewFileOpener())
 	newFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.NotNil(newFingerprint)
 	suite.True(newFingerprint.ValidFingerprint())
@@ -968,7 +970,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer.osFile = osFile3
 	tailer.fullpath = suite.testPath
 
-	fingerprinter = NewFingerprinter(*config)
+	fingerprinter = NewFingerprinter(*config, opener.NewFileOpener())
 	emptyFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), emptyFingerprint.Value, "Fingerprint of an empty file should have Value=0")
 
@@ -1024,7 +1026,7 @@ func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
 	}
 
 	tailer := suite.createTailer()
-	fingerprinter := NewFingerprinter(*config)
+	fingerprinter := NewFingerprinter(*config, opener.NewFileOpener())
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
 	// Since we're trying to skip more lines than exist, and the LimitedReader exhausts,
@@ -1163,7 +1165,7 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigFallback() {
 			}
 
 			// Create fingerprinter with global config
-			fingerprinter := NewFingerprinter(tc.globalConfig)
+			fingerprinter := NewFingerprinter(tc.globalConfig, opener.NewFileOpener())
 
 			file := NewFile(suite.testPath, source.UnderlyingSource(), false)
 
@@ -1223,7 +1225,7 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigPrecedence() {
 		FingerprintConfig: fileConfig,
 	}))
 
-	fingerprinter := NewFingerprinter(globalConfig)
+	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
 
 	file := NewFile(suite.testPath, source.UnderlyingSource(), false)
 
@@ -1300,7 +1302,7 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigEdgeCases() {
 			}))
 
 			// Create fingerprinter with global config
-			fingerprinter := NewFingerprinter(tc.globalConfig)
+			fingerprinter := NewFingerprinter(tc.globalConfig, opener.NewFileOpener())
 
 			// Create file object
 			file := NewFile(suite.testPath, source.UnderlyingSource(), false)
@@ -1326,5 +1328,258 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigEdgeCases() {
 					"Should use file config maxBytes for %s", tc.name)
 			}
 		})
+	}
+}
+
+// TestFingerprintConfigInfo tests the FingerprintConfigInfo struct and its Info() method
+func TestFingerprintConfigInfo(t *testing.T) {
+	testCases := []struct {
+		name           string
+		config         *types.FingerprintConfig
+		expectedOutput []string
+	}{
+		{
+			name: "per_source_line_checksum_with_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               10,
+				CountToSkip:         5,
+				MaxBytes:            1024,
+				Source:              types.FingerprintConfigSourcePerSource,
+			},
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: line_checksum",
+				"Count: 10",
+				"CountToSkip: 5",
+				"MaxBytes: 1024",
+			},
+		},
+		{
+			name: "per_source_byte_checksum_no_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				Count:               512,
+				CountToSkip:         0,
+				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
+			},
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: byte_checksum",
+				"Count: 512",
+				"CountToSkip: 0",
+			},
+		},
+		{
+			name: "global_line_checksum_with_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               1,
+				CountToSkip:         0,
+				MaxBytes:            10000,
+				Source:              types.FingerprintConfigSourceGlobal,
+			},
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: line_checksum",
+				"Count: 1",
+				"CountToSkip: 0",
+				"MaxBytes: 10000",
+			},
+		},
+		{
+			name: "global_byte_checksum",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				Count:               2048,
+				CountToSkip:         100,
+				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourceGlobal,
+			},
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: byte_checksum",
+				"Count: 2048",
+				"CountToSkip: 100",
+			},
+		},
+		{
+			name: "disabled_strategy_per_source",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyDisabled,
+				Count:               0,
+				CountToSkip:         0,
+				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
+			},
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: disabled",
+			},
+		},
+		{
+			name: "disabled_strategy_global",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyDisabled,
+				Source:              types.FingerprintConfigSourceGlobal,
+			},
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: disabled",
+			},
+		},
+		{
+			name: "line_checksum_with_zero_values",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               0,
+				CountToSkip:         0,
+				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
+			},
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: line_checksum",
+				"Count: 0",
+				"CountToSkip: 0",
+				"MaxBytes: 0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			info := NewFingerprintConfigInfo(tc.config)
+
+			// Test InfoKey
+			if info.InfoKey() != "Fingerprint Config" {
+				t.Errorf("Expected InfoKey to be 'Fingerprint Config', got '%s'", info.InfoKey())
+			}
+
+			// Test Info output
+			output := info.Info()
+			if len(output) != len(tc.expectedOutput) {
+				t.Fatalf("Expected %d output lines, got %d.\nExpected: %v\nGot: %v",
+					len(tc.expectedOutput), len(output), tc.expectedOutput, output)
+			}
+
+			for i, expected := range tc.expectedOutput {
+				if output[i] != expected {
+					t.Errorf("Line %d: expected '%s', got '%s'", i, expected, output[i])
+				}
+			}
+		})
+	}
+}
+
+// TestComputeFingerprintPreservesConfigWhenDisabled tests that disabled configs are preserved in fingerprint
+func (suite *FingerprintTestSuite) TestComputeFingerprintPreservesConfigWhenDisabled() {
+	globalConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+	}
+	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
+
+	// Write test data
+	_, err := suite.testFile.WriteString("test data for fingerprinting\n")
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Test with disabled per-source config
+	disabledConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: disabledConfig,
+	}
+	source := sources.NewLogSource("test", sourceConfig)
+	file := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source),
+	}
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(file)
+	suite.Nil(err)
+	suite.NotNil(fingerprint)
+	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+	suite.NotNil(fingerprint.Config, "Config should be preserved even when disabled")
+	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show it was disabled at per-source level")
+	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
+}
+
+// TestComputeFingerprintWithEnabledConfig tests fingerprinting with enabled config includes Source field
+func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
+	globalConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+		Source:              types.FingerprintConfigSourceGlobal,
+	}
+	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
+
+	// Write test data
+	testData := "test data for fingerprinting\n"
+	_, err := suite.testFile.WriteString(testData)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Test with per-source config
+	perSourceConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               100,
+		CountToSkip:         0,
+		Source:              types.FingerprintConfigSourcePerSource,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: perSourceConfig,
+	}
+	source := sources.NewLogSource("test", sourceConfig)
+	file := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source),
+	}
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(file)
+	suite.Nil(err)
+	suite.NotNil(fingerprint)
+	suite.NotEqual(types.InvalidFingerprintValue, fingerprint.Value, "Fingerprint should have valid value")
+	suite.NotNil(fingerprint.Config)
+	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Per-source config should have Source='per-source'")
+
+	// Test with global config (no per-source config)
+	sourceConfig2 := &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	}
+	source2 := sources.NewLogSource("test2", sourceConfig2)
+	file2 := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source2),
+	}
+
+	fingerprint2, err2 := fingerprinter.ComputeFingerprint(file2)
+	suite.Nil(err2)
+	suite.NotNil(fingerprint2)
+	suite.NotEqual(types.InvalidFingerprintValue, fingerprint2.Value)
+	suite.NotNil(fingerprint2.Config)
+	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint2.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourceGlobal, fingerprint2.Config.Source, "Global config should have Source='global'")
+}
+
+// TestDefaultConfigsHaveSource tests that default fallback configs have Source set
+func TestDefaultConfigsHaveSource(t *testing.T) {
+	if defaultBytesConfig.Source != types.FingerprintConfigSourceDefault {
+		t.Errorf("defaultBytesConfig should have Source='default', got '%s'", defaultBytesConfig.Source)
+	}
+
+	if defaultLinesConfig.Source != types.FingerprintConfigSourceDefault {
+		t.Errorf("defaultLinesConfig should have Source='default', got '%s'", defaultLinesConfig.Source)
 	}
 }

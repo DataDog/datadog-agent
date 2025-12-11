@@ -77,6 +77,9 @@ const (
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
 	SourceNodeOrchestrator Source = "node_orchestrator"
 
+	// SourceNVML represents entities detected by the NVML GPU collector.
+	SourceNVML Source = "nvml"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -1717,6 +1720,9 @@ type Process struct {
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
 
+	// GPUs is a reference to a list of GPU entities in WLM that this process is using
+	GPUs []EntityID
+
 	// Service contains service discovery information for this process
 	Service *Service
 }
@@ -2000,6 +2006,9 @@ type GPU struct {
 
 	// VirtualizationMode contains the virtualization mode of the device
 	VirtualizationMode string
+
+	// Healthy indicates whether or not the GPU device is healthy
+	Healthy bool
 }
 
 var _ Entity = &GPU{}

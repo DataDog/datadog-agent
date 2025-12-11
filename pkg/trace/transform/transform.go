@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -182,7 +183,7 @@ func GetDDKeyForOTLPAttribute(k string) string {
 	case found:
 		break
 	case strings.HasPrefix(k, "http.request.header."):
-		mappedKey = fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
+		mappedKey = "http.request.headers." + strings.TrimPrefix(k, "http.request.header.")
 	case !isDatadogAPMConventionKey(k):
 		mappedKey = k
 	default:
@@ -668,41 +669,23 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap map[string]string) int32 {
+func Status2Error(status ptrace.Status, _ ptrace.SpanEventSlice, metaMap map[string]string) int32 {
 	if status.Code() != ptrace.StatusCodeError {
 		return 0
-	}
-	for i := 0; i < events.Len(); i++ {
-		e := events.At(i)
-		if strings.ToLower(e.Name()) != "exception" {
-			continue
-		}
-		attrs := e.Attributes()
-		if v, ok := attrs.Get(string(semconv.ExceptionMessageKey)); ok {
-			metaMap["error.msg"] = v.AsString()
-		}
-		if v, ok := attrs.Get(string(semconv.ExceptionTypeKey)); ok {
-			metaMap["error.type"] = v.AsString()
-		}
-		if v, ok := attrs.Get(string(semconv.ExceptionStacktraceKey)); ok {
-			metaMap["error.stack"] = v.AsString()
-		}
 	}
 	if _, ok := metaMap["error.msg"]; !ok {
 		// no error message was extracted, find alternatives
 		if status.Message() != "" {
 			// use the status message
 			metaMap["error.msg"] = status.Message()
-		} else if _, httpcode := GetFirstFromMap(metaMap, "http.response.status_code", "http.status_code"); httpcode != "" {
+		} else if _, httpCode := GetFirstFromMap(metaMap, "http.response.status_code", "http.status_code"); httpCode != "" {
 			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-
-			// http.status_text was removed in spec v0.7.0 (https://github.com/open-telemetry/opentelemetry-specification/pull/972)
-			// TODO (OTEL-1791) Remove this and use a map from status code to status text.
-			if httptext, ok := metaMap["http.status_text"]; ok {
-				metaMap["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
+			httpCodeInt, _ := strconv.Atoi(httpCode) // Value returned in case of error will not pass the next test
+			if httptext := http.StatusText(httpCodeInt); httptext != "" {
+				metaMap["error.msg"] = fmt.Sprintf("%s %s", httpCode, httptext)
 			} else {
-				metaMap["error.msg"] = httpcode
+				metaMap["error.msg"] = httpCode
 			}
 		}
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 )
@@ -57,7 +58,7 @@ var testOptions = fx.Options(
 	hostnameimpl.MockModule(),
 )
 
-func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
+func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface, tr traceroute.Component) (*fxtest.App, *npCollectorImpl) {
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
@@ -68,6 +69,7 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 			return statsdClient
 		}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() traceroute.Component { return tr }),
 	))
 	npCollector := component.(*npCollectorImpl)
 

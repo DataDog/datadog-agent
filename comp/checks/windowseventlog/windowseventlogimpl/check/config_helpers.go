@@ -8,6 +8,7 @@
 package evtlog
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -55,7 +56,7 @@ func evtRPCFlagsFromString(flags string) (uint, error) {
 func evtRPCFlagsFromOption(authType option.Option[string]) (uint, error) {
 	val, isSet := authType.Get()
 	if !isSet {
-		return 0, fmt.Errorf("option is not set")
+		return 0, errors.New("option is not set")
 	}
 	return evtRPCFlagsFromString(val)
 }
@@ -68,7 +69,7 @@ func isaffirmative(o option.Option[bool]) bool {
 func getEventPriorityFromOption(o option.Option[string]) (agentEvent.Priority, error) {
 	val, isSet := o.Get()
 	if !isSet {
-		return "", fmt.Errorf("option is not set")
+		return "", errors.New("option is not set")
 	}
 	eventPriority, err := agentEvent.GetEventPriorityFromString(val)
 	if err != nil {

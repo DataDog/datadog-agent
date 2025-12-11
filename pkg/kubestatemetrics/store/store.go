@@ -10,7 +10,7 @@
 package store
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -123,7 +123,7 @@ func (s *MetricsStore) Add(obj interface{}) error {
 
 func buildTags(metrics *metric.Metric) (map[string]string, error) {
 	if len(metrics.LabelKeys) != len(metrics.LabelValues) {
-		return nil, fmt.Errorf("LabelKeys and LabelValues not same size")
+		return nil, errors.New("LabelKeys and LabelValues not same size")
 	}
 	tags := make(map[string]string, len(metrics.LabelValues))
 	for i, key := range metrics.LabelKeys {
@@ -227,27 +227,38 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 
 	mRes := make(map[string][]DDMetricsFam)
 
+	// Iterate through all metrics with filters
+	// Preallocate metric slices to avoid growth reallocations
 	for _, metricFamList := range s.metrics {
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
 				continue
 			}
-			resMetric := []DDMetric{}
+
+			// Skip families with no metrics - nothing to process
+			if len(metricFam.ListMetrics) == 0 {
+				continue
+			}
+
+			// Preallocate with full capacity to avoid slice growth reallocations
+			resMetric := make([]DDMetric, 0, len(metricFam.ListMetrics))
+
 			for _, metric := range metricFam.ListMetrics {
 				if !metricFilter(metric) {
 					continue
 				}
-				resMetric = append(resMetric, DDMetric{
-					Val:    metric.Val,
-					Labels: metric.Labels,
+				resMetric = append(resMetric, metric)
+			}
+
+			if len(resMetric) > 0 {
+				mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
+					ListMetrics: resMetric,
+					Type:        metricFam.Type,
+					Name:        metricFam.Name,
 				})
 			}
-			mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
-				ListMetrics: resMetric,
-				Type:        metricFam.Type,
-				Name:        metricFam.Name,
-			})
 		}
 	}
+
 	return mRes
 }

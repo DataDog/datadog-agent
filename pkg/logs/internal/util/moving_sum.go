@@ -8,6 +8,7 @@ package util
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -99,6 +100,6 @@ func (ms *MovingSum) Info() []string {
 	MovingSum := ms.MovingSum()
 
 	return []string{
-		fmt.Sprintf("%d", MovingSum),
+		strconv.FormatInt(MovingSum, 10),
 	}
 }

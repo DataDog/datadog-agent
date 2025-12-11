@@ -8,15 +8,13 @@
 package collectors
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 )
 
 var (
 	// ErrProcessingPanic is the error raised when a panic was caught on resource
 	// processing.
-	ErrProcessingPanic = fmt.Errorf("unable to process resources: a panic occurred")
+	ErrProcessingPanic = errors.New("unable to process resources: a panic occurred")
 )
 
 // NewListingError creates an error that wraps the cause of a listing failure.

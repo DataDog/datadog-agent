@@ -27,11 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
 var chanSize = 10
 var closeTimeout = 1 * time.Second
 
+// TailerTestSuite contains unit tests for the file tailer.
+// These tests are focused on verifying the core functionality of the file tailer
+// with minimal external dependencies. The goal moving forward is to move
+// all of these tests over to file mocks or the integration test suite.
 type TailerTestSuite struct {
 	suite.Suite
 	testDir  string
@@ -41,6 +46,43 @@ type TailerTestSuite struct {
 	tailer     *Tailer
 	outputChan chan *message.Message
 	source     *sources.ReplaceableSource
+}
+
+// createTailerOptions creates TailerOptions with common defaults.
+// Parameters that vary between tests can be customized via the opts parameter.
+type tailerTestOptions struct {
+	source     *sources.LogSource
+	isWildcard bool
+}
+
+func (suite *TailerTestSuite) createTailerOptions(opts *tailerTestOptions) *TailerOptions {
+	if opts == nil {
+		opts = &tailerTestOptions{}
+	}
+
+	// Default to suite.source if no source provided
+	source := opts.source
+	if source == nil {
+		source = suite.source.UnderlyingSource()
+	}
+
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	return &TailerOptions{
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, source, opts.isWildcard),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+}
+
+func TestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -57,30 +99,14 @@ func (suite *TailerTestSuite) SetupTest() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	}))
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
 	suite.tailer.closeTimeout = closeTimeout
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
 
 func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
@@ -114,20 +140,8 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	tailer := NewTailer(tailerOptions)
+	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -258,7 +272,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(
-		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		"file:"+filepath.Join(suite.testDir, "tailer.log"),
 		suite.tailer.Identifier())
 }
 
@@ -283,20 +297,11 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -315,20 +320,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: false,
+	}))
 
 	suite.tailer.StartFromBeginning()
 
@@ -344,20 +340,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -378,20 +365,11 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, source, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     source,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("1234\n")
@@ -412,20 +390,9 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	suite.source.Config().AutoMultiLine = &aml
 	suite.source.Config().AutoMultiLineSampleSize = 3
 
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
-
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		isWildcard: true,
+	}))
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)
@@ -449,20 +416,7 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 	suite.tailer.StartFromBeginning()
 
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
-
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	tailer := NewTailer(tailerOptions)
+	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.fullpath = ""
 	tailer.StartFromBeginning()
 
@@ -513,6 +467,7 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 		Info:            info,
 		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
 		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
 	}
 
 	tailer := NewTailer(tailerOptions)

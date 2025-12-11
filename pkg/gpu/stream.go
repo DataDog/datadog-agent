@@ -174,7 +174,11 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 		return nil, errFatbinParsingDisabled
 	}
 
-	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, cuda.ErrKernelNotProcessedYet)) {
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if e.kernel != nil || (e.err != nil && e.err != cuda.ErrKernelNotProcessedYet) {
 		return e.kernel, e.err
 	}
 
@@ -213,10 +217,12 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
-	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
-		if logLimitProbe.ShouldLog() {
-			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
-		}
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if err != nil && err != cuda.ErrKernelNotProcessedYet && err != errFatbinParsingDisabled && logLimitProbe.ShouldLog() { // Only log the error if it's not the retryable error
+		log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 	}
 
 	sh.kernelLaunchesMutex.Lock()
@@ -341,10 +347,13 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
 		kernel, err := launch.getKernelData()
-		if err != nil {
-			if !errors.Is(err, errFatbinParsingDisabled) && logLimitProbe.ShouldLog() {
-				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
-			}
+		if err != nil && err != errFatbinParsingDisabled && err != cuda.ErrKernelNotProcessedYet && logLimitProbe.ShouldLog() {
+			// Use direct comparison instead of errors.Is() for performance in the hot path.
+			// errFatbinParsingDisabled is a sentinel error that is never wrapped,
+			// so direct comparison is safe and faster.
+			// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+
+			log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
 		} else if kernel != nil {
 			span.avgMemoryUsage[constantMemAlloc] += uint64(kernel.ConstantMem)
 			span.avgMemoryUsage[sharedMemAlloc] += uint64(kernel.SharedMem)
@@ -355,6 +364,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	if span.numKernels == 0 {
+		memPools.kernelSpanPool.Put(span)
 		return nil
 	}
 
@@ -440,6 +450,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
+		if alloc.Header.Ktime_ns >= now {
+			continue
+		}
+
 		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0

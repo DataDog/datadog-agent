@@ -238,78 +238,55 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
 
-	pipelines := s.buildPipelines()
-	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
-	extraHeaders = s.protobufExtraHeadersWithCompression
-
+	pipelines := s.buildPipelines(metricsKindSeries)
+	err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
+	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
 }
 
-func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
+func (s *Serializer) getFailoverAllowlist() metricsserializer.Filter {
 	failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+	if !failoverActive {
+		return nil
+	}
+
 	var allowlist map[string]struct{}
-	if failoverActive && s.config.IsSet("multi_region_failover.metric_allowlist") {
+	if s.config.IsSet("multi_region_failover.metric_allowlist") {
 		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
 			allowlist[allowed] = struct{}{}
 		}
 	}
-	return failoverActive, allowlist
-}
 
-func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
-	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-
-	if failoverActive {
-		return []metricsserializer.Pipeline{
-			{
-				FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-				Destination: transaction.PrimaryOnly,
-			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForMRF[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.SecondaryOnly,
-			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForAutoscaling[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.LocalOnly,
-			},
-		}
+	if len(allowlist) == 0 {
+		return metricsserializer.AllowAllFilter{}
 	}
 
-	// Default: all metrics to AllRegions
-	return []metricsserializer.Pipeline{
-		{
-			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-			Destination: transaction.AllRegions,
-		},
-	}
+	return metricsserializer.NewMapFilter(allowlist)
 }
 
-func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
+func (s *Serializer) getAutoscalingFailoverMetrics() metricsserializer.Filter {
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
-	var allowlist map[string]struct{}
-	if autoscalingFailoverEnabled {
-		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-		allowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
-		}
+	if !autoscalingFailoverEnabled {
+		return nil
 	}
-	return autoscalingFailoverEnabled, allowlist
+
+	var allowlist map[string]struct{}
+	rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+	allowlist = make(map[string]struct{}, len(rawList))
+	for _, allowed := range rawList {
+		allowlist[allowed] = struct{}{}
+	}
+
+	if len(allowlist) == 0 {
+		return nil
+	}
+
+	return metricsserializer.NewMapFilter(allowlist)
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization
@@ -325,13 +302,13 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 
-	pipelines := s.buildPipelines()
-	payloads, err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
+	pipelines := s.buildPipelines(metricsKindSketches)
+	err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %v", err)
 	}
 
-	return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

@@ -30,6 +30,7 @@ var validProducts = map[string]struct{}{
 	ProductLiveDebugging:                {},
 	ProductContainerAutoscalingSettings: {},
 	ProductContainerAutoscalingValues:   {},
+	ProductClusterAutoscalingValues:     {},
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
@@ -37,6 +38,7 @@ var validProducts = map[string]struct{}{
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
 	ProductDataStreamsLiveMessages:      {},
+	ProductDataStreamsKafkaActions:      {},
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
 	ProductApmPolicies:                  {},
@@ -97,6 +99,8 @@ const (
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
+	// ProductClusterAutoscalingValues receives values for cluster autoscaling
+	ProductClusterAutoscalingValues = "CLUSTER_AUTOSCALING_VALUES"
 	// ProductTesting1 is a product used for testing remote config
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config
@@ -113,6 +117,8 @@ const (
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductDataStreamsKafkaActions is used for executing Kafka actions remotely
+	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
 	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
 	ProductGradualRollout = "K8S_INJECTION_DD"
 	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for

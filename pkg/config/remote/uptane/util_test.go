@@ -8,13 +8,13 @@ package uptane
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/DataDog/go-tuf/data"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
@@ -166,11 +166,11 @@ func getBucketMetadata(db *bbolt.DB) (*AgentMetadata, error) {
 	}
 	bucket := tx.Bucket([]byte(metaBucket))
 	if bucket == nil {
-		return nil, fmt.Errorf("No bucket")
+		return nil, errors.New("No bucket")
 	}
 	metaBytes := bucket.Get([]byte(metaFile))
 	if metaBytes == nil {
-		return nil, fmt.Errorf("No meta file")
+		return nil, errors.New("No meta file")
 	}
 	metadata := new(AgentMetadata)
 	err = json.Unmarshal(metaBytes, metadata)
@@ -192,12 +192,12 @@ func checkData(db *bbolt.DB) error {
 	return db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("test"))
 		if bucket == nil {
-			return fmt.Errorf("Bucket not present")
+			return errors.New("Bucket not present")
 		}
 
 		data := bucket.Get([]byte("test"))
 		if !bytes.Equal(data, []byte("test")) {
-			return fmt.Errorf("Invalid test data")
+			return errors.New("Invalid test data")
 		}
 		return nil
 	})
