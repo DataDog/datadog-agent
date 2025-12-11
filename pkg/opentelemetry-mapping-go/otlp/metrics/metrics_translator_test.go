@@ -100,7 +100,7 @@ func (t testProvider) Source(context.Context) (source.Source, error) {
 	}, nil
 }
 
-func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *Translator {
+func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *defaultTranslator {
 	options := []TranslatorOption{
 		WithFallbackSourceProvider(testProvider(fallbackHostname)),
 		WithHistogramMode(HistogramModeDistributions),
@@ -114,17 +114,17 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	tr, err := NewTranslator(
+	tr, err := NewDefaultTranslator(
 		set,
 		attributesTranslator,
 		options...,
 	)
 
 	require.NoError(t, err)
-	return tr
+	return tr.(*defaultTranslator)
 }
 
-func newTranslator(t *testing.T, logger *zap.Logger) *Translator {
+func newTranslator(t *testing.T, logger *zap.Logger) *defaultTranslator {
 	return newTranslatorWithStatsChannel(t, logger, nil)
 }
 
@@ -147,7 +147,7 @@ type sketch struct {
 	host      string
 }
 
-var _ TimeSeriesConsumer = (*mockTimeSeriesConsumer)(nil)
+var _ Consumer = (*mockTimeSeriesConsumer)(nil)
 
 type mockTimeSeriesConsumer struct {
 	metrics []metric
@@ -172,6 +172,33 @@ func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 			host:      dimensions.Host(),
 		},
 	)
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeSketch(
+	_ context.Context,
+	_ *Dimensions,
+	_ uint64,
+	_ int64,
+	_ *quantile.Sketch,
+) {
+	panic("unexpected method call to `ConsumeSketch` on mock consumer")
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeExplicitBoundHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.HistogramDataPointSlice,
+) {
+	panic("unexpected method call to `ConsumeExplicitBoundHistogram` on mock consumer")
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeExponentialHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.ExponentialHistogramDataPointSlice,
+
+) {
+	panic("unexpected method call to `ConsumeExponentialHistogram` on mock consumer")
 }
 
 func newDims(name string) *Dimensions {
@@ -209,7 +236,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	consumer := &mockTimeSeriesConsumer{}
 	dims := newDims("int64.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), 17)},
@@ -217,7 +244,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	consumer = &mockTimeSeriesConsumer{}
 	dims = newDims("int64.delta.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newCount(dims, uint64(ts), 17)},
@@ -226,7 +253,7 @@ func TestMapIntMetrics(t *testing.T) {
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), 17)},
@@ -244,7 +271,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	consumer := &mockTimeSeriesConsumer{}
 	dims := newDims("float64.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), math.Pi)},
@@ -252,7 +279,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	consumer = &mockTimeSeriesConsumer{}
 	dims = newDims("float64.delta.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newCount(dims, uint64(ts), math.Pi)},
@@ -261,7 +288,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.getMapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), math.Pi)},
@@ -1974,7 +2001,23 @@ func TestMapAPMStatsWithBytes(t *testing.T) {
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 	ch := make(chan []byte, 10)
-	tr := newTranslatorWithStatsChannel(t, logger, ch)
+
+	options := []TranslatorOption{
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
+		WithHistogramMode(HistogramModeDistributions),
+		WithNumberMode(NumberModeCumulativeToDelta),
+		WithHistogramAggregations(),
+		WithStatsOut(ch),
+	}
+
+	set := componenttest.NewNopTelemetrySettings()
+	set.Logger = logger
+
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+	tr, err := NewTranslator(set, attributesTranslator, options...)
+	require.NoError(t, err)
+
 	want := &pb.StatsPayload{
 		Stats: []*pb.ClientStatsPayload{statsPayloads[0], statsPayloads[1]},
 	}
@@ -2056,7 +2099,7 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	)
 }
 
-var _ SketchConsumer = (*mockFullConsumer)(nil)
+var _ Consumer = (*mockFullConsumer)(nil)
 
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
@@ -2089,7 +2132,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
 	dims := &Dimensions{name: "test.histogram.one", tags: tags}
-	tr.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
+	mapper := tr.getMapper().(*defaultMapper)
+	mapper.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
 	seriesOne := consumer.metrics
 
 	pointTwo := pmetric.NewHistogramDataPoint()
@@ -2098,7 +2142,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "test.histogram.two", tags: tags}
-	tr.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
+	mapper.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
 	seriesTwo := consumer.metrics
 
 	assert.ElementsMatch(t, seriesOne[0].tags, []string{"lower_bound:-inf", "upper_bound:0"})
