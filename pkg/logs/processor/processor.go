@@ -59,10 +59,23 @@ type Processor struct {
 	instanceID      string
 }
 
+const (
+	// /!\ Warning: this doesn't pass the SMP gates for the moment
+	UseDrainMultiThreaded = false
+)
+
+var singleThreadDrainProcessor = NewDrainProcessor("0", nil)
+var singleThreadDrainProcessorMutex = sync.Mutex{}
+
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+
+	drainProcessor := singleThreadDrainProcessor
+	if UseDrainMultiThreaded {
+		NewDrainProcessor(instanceID, nil)
+	}
 
 	p := &Processor{
 		config:                    config,
@@ -77,7 +90,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		drainProcessor:            NewDrainProcessor(instanceID, nil),
+		drainProcessor:            drainProcessor,
 	}
 
 	// Initialize cached failover config
@@ -178,6 +191,17 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	useDrain := true
+	if !UseDrainMultiThreaded {
+		if useDrain = singleThreadDrainProcessorMutex.TryLock(); useDrain {
+			defer singleThreadDrainProcessorMutex.Unlock()
+		}
+	}
+
+	if useDrain {
+		msg.ProcessingTags = append(msg.ProcessingTags, "drain_processed:true")
+	}
+
 	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
@@ -198,9 +222,13 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.TlmLogsProcessed.Inc()
 
 		// Drain sampling
-		_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent)
-		if toIgnore {
-			msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
+		if useDrain {
+			_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent)
+			// We have an outlier
+			if toIgnore {
+				// TODO: Fully remove...
+				msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
+			}
 		}
 
 		// render the message
@@ -230,8 +258,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 	}
 
 	// Drain metrics
-	processTime := time.Since(logStart)
-	metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
+	if useDrain {
+		processTime := time.Since(logStart)
+		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
+	}
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF

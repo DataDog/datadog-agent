@@ -58,7 +58,6 @@ func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 	return p.inputChan
 }
 
-// TODO A: Verify
 func (p *processorOnlyProvider) NextPipelineChanByTokenLength(_ int) chan *message.Message {
 	return p.inputChan
 }

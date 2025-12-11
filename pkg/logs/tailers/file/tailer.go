@@ -428,13 +428,15 @@ func (t *Tailer) forwardMessages() {
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
-		tokenized := processor.DrainTokenize(output.GetContent())
-		outputChan := t.pipelineProvider.NextPipelineChanByTokenLength(len(tokenized))
-		msg.DrainTokenizedContent = tokenized
-		// outputChan := t.pipelineProvider.NextPipelineChanByTokenLength(0)
+
+		outputChan := t.outputChan
+		if processor.UseDrainMultiThreaded {
+			tokenized := processor.DrainTokenize(output.GetContent())
+			outputChan = t.pipelineProvider.NextPipelineChanByTokenLength(len(tokenized))
+			msg.DrainTokenizedContent = tokenized
+		}
 		select {
 		// TODO A: Verif if we can do that
-		// case t.outputChan <- msg:
 		case outputChan <- msg:
 			t.CapacityMonitor.AddIngress(msg)
 		case <-t.forwardContext.Done():
