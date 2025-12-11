@@ -223,7 +223,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), true, "DD_COLLECT_DNS_DOMAINS")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 20000)
 	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
-	cfg.BindEnvAndSetDefault(join(spNS, "dns_monitoring_ports"), []int{53}, "DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS")
+	cfg.BindEnvAndSetDefault(join(netNS, "dns_monitoring_ports"), []int{53}, "DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack"), true)
 	cfg.BindEnvAndSetDefault(join(spNS, "conntrack_max_state_size"), 65536*2)
