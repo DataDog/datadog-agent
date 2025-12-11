@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -47,6 +48,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -76,6 +78,38 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
+}
+
+func supportsFentry() error {
+	hasPotentialFentryDeadlock, err := kernelbugs.HasTasksRCUExitLockSymbol()
+	if err != nil {
+		return fmt.Errorf("failed to determine if kernel has potential fentry deadlock: %w", err)
+	}
+	if hasPotentialFentryDeadlock {
+		return fmt.Errorf("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+	}
+
+	err = features.HaveProgramType(ebpf.Tracing)
+	if err != nil {
+		return fmt.Errorf("fentry tracer programs are not supported on this kernel %v", kv)
+	}
+
+	if runtime.GOARCH == "arm64" && kv < kernel.VersionCode(6, 0, 0) {
+		return fmt.Errorf("Kernel version %v doesn't have bpf trampoline for arm64", kv)
+	}
+	return nil
+}
+
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+
+	modes = append(modes, ebpftest.Ebpfless)
+
+	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" || supportsFentry() == nil {
+		modes = append(modes, ebpftest.Fentry)
+	}
+
+	return modes
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {

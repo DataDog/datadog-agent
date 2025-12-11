@@ -20,6 +20,10 @@ func platformInit() {
 	_ = driver.Init()
 }
 
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	return ebpftest.SupportedBuildModes()
+}
+
 func httpSupported() bool {
 	return false
 }
