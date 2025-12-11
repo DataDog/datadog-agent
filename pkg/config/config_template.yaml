@@ -1224,12 +1224,6 @@ api_key:
 #
 #   integrations_logs_total_usage: 100
 
-#   # @param kublet_api_client_read_timeout - duration - optional - default: 30s
-#   # @env DD_LOGS_CONFIG_KUBELET_API_CLIENT_READ_TIMEOUT - duration - optional - default: 30s
-#   # Configure the kubelet API client's timeout used while streaming logs.
-#
-#   kublet_api_client_read_timeout: 30
-
 #   # @param k8s_container_use_kubelet_api - boolean - optional - default: false
 #   # @env DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API - boolean - optional - default: false
 #   # Enable container log collection via the kubelet API, typically used for EKS Fargate
@@ -2875,24 +2869,6 @@ api_key:
 #
 # syslog_rfc: false
 
-## @param syslog_pem - string - optional
-## @env DD_SYSLOG_PEM - string - optional
-## If TLS enabled, you must specify a path to a PEM certificate here.
-#
-# syslog_pem: <PEM_CERTIFICATE_PATH>
-
-## @param syslog_key - string - optional
-## @env DD_SYSLOG_KEY - string - optional
-## If TLS enabled, you must specify a path to a private key here.
-#
-# syslog_key: <PEM_KEY_PATH>
-
-## @param syslog_tls_verify - boolean - optional - default: true
-## @env DD_SYSLOG_TLS_VERIFY - boolean - optional - default: true
-## If TLS enabled, you may enforce TLS verification here.
-#
-# syslog_tls_verify: true
-
 ## @param log_format_rfc3339 - boolean - optional - default false
 ## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default false
 ## If enabled the Agent will log using the RFC3339 format for the log time.
@@ -4181,6 +4157,7 @@ api_key:
 #     # @param use_deduplication - boolean - optional - default: false
 #     # Deduplicate IP addresses corresponding to the same device.
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
+#     use_deduplication: false
 
 #     # @param configs - list - required
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
