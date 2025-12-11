@@ -215,6 +215,7 @@ tests_gpu:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .linux_tests
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["gpu:a10-amd64"]
   rules:
     - !reference [.on_gpu_integration_tests]
