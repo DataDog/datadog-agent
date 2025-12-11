@@ -798,6 +798,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
+		event.Source = model.EventSourceReplay
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -812,6 +813,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 			for _, s := range snapshotBoundSockets {
 				entry.Retain()
 				bindEvent := p.newBindEventFromReplay(entry, s)
+				bindEvent.Source = model.EventSourceReplay
+
 				events = append(events, bindEvent)
 			}
 		}
@@ -835,8 +838,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		event.ProcessCacheEntry.Release()
-		p.eventPool.Put(event)
+		p.putBackPoolEvent(event)
 	}
 }
 
@@ -1012,11 +1014,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		panic("should always return a process cache entry")
 	}
 
-	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
-	if event.ProcessContext == nil {
-		panic("should always return a process context")
-	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -1041,8 +1039,22 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
-	p.event.ProcessContext = &model.ProcessContext{}
+	p.event.Source = model.EventSourceRuntime
 	return p.event
+}
+
+func (p *EBPFProbe) getPoolEvent() *model.Event {
+	event := p.eventPool.Get()
+	event.FieldHandlers = p.fieldHandlers
+	return event
+}
+
+func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
+	if event.ProcessCacheEntry != nil {
+		event.ProcessCacheEntry.Release()
+	}
+	probeEventZeroer(event)
+	p.eventPool.Put(event)
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
@@ -1077,7 +1089,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
-		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
 
@@ -1093,6 +1105,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
+			relatedEvent.Source = model.EventSourceRelated
 
 			if err != nil {
 				var errResolution *path.ErrPathResolution
@@ -1160,7 +1173,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
-		p.eventPool.Put(relatedEvent)
+		p.putBackPoolEvent(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
 
@@ -1617,6 +1630,8 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 // handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
 // It returns false if an error occurs or if the event should not be dispatched further, true otherwise
 func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	event.ProcessContext = &model.ProcessContext{}
+
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
@@ -3197,8 +3212,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3460,7 +3478,7 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 		eventType = model.ForkEventType
 	}
 
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 
 	event.Type = uint32(eventType)
 	event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -3473,11 +3491,12 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 
 // newBindEventFromReplay returns a new bind event with a process context
 func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
+	event.AddToFlags(model.EventFlagsFromReplay)
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family
