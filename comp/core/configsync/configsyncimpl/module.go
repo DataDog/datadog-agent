@@ -63,36 +63,41 @@ type configSync struct {
 
 // newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
 func newComponent(deps dependencies) (configsync.Component, error) {
-	agentIPCPort := deps.Config.GetInt("agent_ipc.port")
-	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
+	var compURL *url.URL
+	if deps.Config.GetBool("agent_ipc.use_socket") {
+		path := deps.Config.GetString("agent_ipc.socket_path") + "/agent_ipc.socket"
+		compURL = &url.URL{
+			Scheme: "http",
+			Host:   path,
+			Path:   "/config/v1",
+		}
+	} else {
+		host := deps.Config.GetString("agent_ipc.host")
+		port := deps.Config.GetInt("agent_ipc.port")
+		if port <= 0 {
+			deps.Log.Infof("configsync disabled: agent_ipc.port invalid: %d)", port)
+			return configSync{}, nil
+		}
 
-	if agentIPCPort <= 0 || configRefreshIntervalSec <= 0 {
-		deps.Log.Infof("configsync disabled (agent_ipc.port: %d | agent_ipc.config_refresh_interval: %d)", agentIPCPort, configRefreshIntervalSec)
+		compURL = &url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+			Path:   "/config/v1",
+		}
+	}
+
+	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
+	if configRefreshIntervalSec <= 0 {
+		deps.Log.Infof("configsync disabled: agent_ipc.config_refresh_interval invalid: %d)", configRefreshIntervalSec)
 		return configSync{}, nil
 	}
-
-	deps.Log.Infof("configsync enabled (agent_ipc '%s:%d' | agent_ipc.config_refresh_interval: %d)", deps.Config.GetString("agent_ipc.host"), agentIPCPort, configRefreshIntervalSec)
-	return newConfigSync(deps, agentIPCPort, configRefreshIntervalSec)
-}
-
-// newConfigSync creates a new configSync component.
-// agentIPCPort and configRefreshIntervalSec must be strictly positive.
-func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec int) (configsync.Component, error) {
-	agentIPCHost := deps.Config.GetString("agent_ipc.host")
-
-	url := &url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(agentIPCHost, strconv.Itoa(agentIPCPort)),
-		Path:   "/config/v1",
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
+	ctx, cancel := context.WithCancel(context.Background())
 	configSync := configSync{
 		Config:  deps.Config,
 		Log:     deps.Log,
-		url:     url,
+		url:     compURL,
 		client:  deps.IPCClient,
 		ctx:     ctx,
 		timeout: deps.SyncParams.Timeout,
@@ -108,7 +113,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 			}
 			if time.Now().After(deadline) {
 				cancel()
-				return nil, deps.Log.Errorf("failed to sync config at startup, is the core agent listening on '%s' ?", url.String())
+				return nil, deps.Log.Errorf("failed to sync config at startup, is the core agent listening on '%s' ?", compURL.String())
 			}
 			time.Sleep(2 * time.Second)
 		}
@@ -127,5 +132,6 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		},
 	})
 
+	deps.Log.Infof("configsync enabled (agent_ipc '%s' | agent_ipc.config_refresh_interval: %d)", compURL.Host, configRefreshIntervalSec)
 	return configSync, nil
 }
