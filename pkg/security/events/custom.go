@@ -29,6 +29,11 @@ const (
 	// HeartbeatRuleDesc is the rule description for the heartbeat events
 	HeartbeatRuleDesc = "Heartbeat"
 
+	// RemediationStatusRuleID is the rule ID for the remediation_status events
+	RemediationStatusRuleID = "remediation_status"
+	// RemediationStatusRuleDesc is the rule description for the remediation_status events
+	RemediationStatusRuleDesc = "Remediation status"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
