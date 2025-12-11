@@ -15,7 +15,7 @@ IPV6_HEX_CHARS = 32  # Total hex chars for IPv6 address
 IPV6_HEX_CHARS_PER_WORD = 8  # Hex chars per 32-bit word in /proc/net/tcp6
 
 
-def discover_namespaces(proc_root: str = "/proc") -> Dict[int, int]:
+def discover_namespaces(proc_root: str) -> Dict[int, int]:
     """Scan /proc/*/ns/net to build netns -> pid mapping.
 
     Returns dict of {netns_inode: representative_pid}.
@@ -86,7 +86,7 @@ def parse_hex_addr(hex_addr: str) -> Tuple[int, int]:
         return (0, 0)
 
 
-def parse_proc_net_tcp(pid: int, ipv6: bool = False, proc_root: str = "/proc") -> List[Dict]:
+def parse_proc_net_tcp(pid: int, proc_root: str, ipv6: bool = False) -> List[Dict]:
     """Parse /proc/<pid>/net/tcp{,6}.
 
     Returns list of dicts with local/remote addr info and state.
@@ -135,7 +135,7 @@ def parse_proc_net_tcp(pid: int, ipv6: bool = False, proc_root: str = "/proc") -
     return connections
 
 
-def build_connection_index(namespaces: Dict[int, int], proc_root: str = "/proc") -> Dict[int, ConnectionIndex]:
+def build_connection_index(namespaces: Dict[int, int], proc_root: str) -> Dict[int, ConnectionIndex]:
     """Build per-namespace connection indexes.
 
     Returns dict of {netns_inode: ConnectionIndex}.
@@ -148,7 +148,7 @@ def build_connection_index(namespaces: Dict[int, int], proc_root: str = "/proc")
 
         # Parse both IPv4 and IPv6 connections
         for ipv6 in [False, True]:
-            conns = parse_proc_net_tcp(pid, ipv6=ipv6, proc_root=proc_root)
+            conns = parse_proc_net_tcp(pid, proc_root, ipv6=ipv6)
             for conn in conns:
                 local_key = (
                     conn["local_addr_h"],

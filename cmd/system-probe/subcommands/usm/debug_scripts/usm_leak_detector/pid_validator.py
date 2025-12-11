@@ -29,7 +29,7 @@ def extract_pid(pid_tgid: int) -> int:
     return (pid_tgid >> PID_SHIFT_BITS) & UINT32_MASK
 
 
-def pid_exists(pid: int, proc_root: str = "/proc") -> bool:
+def pid_exists(pid: int, proc_root: str) -> bool:
     """Check if a process with the given PID exists."""
     return os.path.exists(os.path.join(proc_root, str(pid)))
 
@@ -97,7 +97,7 @@ def find_pid_keyed_maps(maps: List[Dict]) -> Dict[str, int]:
 def analyze_pid_map(
     map_name: str,
     backend: EbpfBackend,
-    proc_root: str = "/proc"
+    proc_root: str
 ) -> PIDLeakInfo:
     """Analyze a PID-keyed map for leaked entries using streaming.
 
