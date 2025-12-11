@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "server",
+    srcs = [
+        "config.go",
+        "handler.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/mcp/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/mcp/tools",
+        "//pkg/mcp/types",
+    ],
+)
+
+go_test(
+    name = "server_test",
+    srcs = [
+        "config_test.go",
+        "server_test.go",
+    ],
+    embed = [":server"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/mcp/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

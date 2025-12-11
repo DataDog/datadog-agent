@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "transport",
+    srcs = [
+        "auth.go",
+        "jsonrpc.go",
+        "stdio.go",
+        "tcp.go",
+        "transport.go",
+        "unix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/mcp/transport",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/mcp/types",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "transport_test",
+    srcs = [
+        "jsonrpc_test.go",
+        "stdio_test.go",
+        "tcp_test.go",
+        "unix_test.go",
+    ],
+    embed = [":transport"],
+    deps = [
+        "//pkg/mcp/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,8 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mcp",
+    srcs = glob(["*.go"]),
+    importpath = "github.com/DataDog/datadog-agent/pkg/mcp",
+    visibility = ["//visibility:public"],
+)

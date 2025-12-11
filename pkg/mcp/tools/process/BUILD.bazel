@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "process",
+    srcs = [
+        "handler.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/mcp/tools/process",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/mcp/types",
+        "//pkg/process/procutil",
+        "//pkg/util/hostname",
+        "@com_github_datadog_gopsutil//cpu",
+        "@com_github_datadog_gopsutil//host",
+        "@com_github_datadog_gopsutil//mem",
+    ],
+)
+
+go_test(
+    name = "process_test",
+    srcs = ["handler_test.go"],
+    embed = [":process"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/mcp/types",
+        "//pkg/process/procutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
