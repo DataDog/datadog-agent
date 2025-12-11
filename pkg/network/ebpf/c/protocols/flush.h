@@ -8,6 +8,7 @@
 #include "protocols/kafka/kafka-parsing.h"
 #include "protocols/postgres/decoding.h"
 #include "protocols/redis/decoding.h"
+#include "protocols/tls/connection-close-events.h"
 
 /**
 Note - We used to have a single tracepoint to flush all the protocols, but we had to split it
@@ -87,5 +88,17 @@ int netif_receive_skb_core_redis_4_14(void *ctx) {
     }
     return 0;
 }
+
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb_tcp_close(void *ctx) {
+    tcp_close_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+//SEC("kprobe/__netif_receive_skb_core")
+//int netif_receive_skb_core_tcp_close_4_14(void *ctx) {
+//    tcp_close_batch_flush_with_telemetry(ctx);
+//    return 0;
+//}
 
 #endif // __USM_FLUSH_H
