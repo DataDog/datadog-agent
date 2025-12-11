@@ -133,7 +133,11 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 }
 
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern) LineHandler {
-	outputFn := func(m *message.Message) { outputChan <- m }
+	outputFn := func(messages []*message.Message) {
+		for _, msg := range messages {
+			outputChan <- msg
+		}
+	}
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
 	// construct the lineHandler
@@ -161,7 +165,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	return lineHandler
 }
 
-func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
+func getLegacyAutoMultilineHandler(outputFn func([]*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
 
 	if multiLinePattern != nil {
 		log.Info("Found a previously detected pattern - using multiline handler")
@@ -176,7 +180,7 @@ func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePat
 	return buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
 }
 
-func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
+func buildLegacyAutoMultilineHandlerFromConfig(outputFn func([]*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line_default_sample_size")

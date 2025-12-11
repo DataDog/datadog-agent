@@ -53,7 +53,7 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 type LegacyAutoMultilineHandler struct {
 	multiLineHandler    *MultiLineHandler
 	singleLineHandler   *SingleLineHandler
-	outputFn            func(*message.Message)
+	outputFn            func([]*message.Message)
 	isRunning           bool
 	linesToAssess       int
 	linesTested         int
@@ -73,7 +73,7 @@ type LegacyAutoMultilineHandler struct {
 
 // NewLegacyAutoMultilineHandler returns a new LegacyAutoMultilineHandler.
 func NewLegacyAutoMultilineHandler(
-	outputFn func(*message.Message),
+	outputFn func([]*message.Message),
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
 	matchTimeout time.Duration,

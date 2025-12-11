@@ -19,9 +19,8 @@ import (
 // AutoMultilineHandler aggregates multiline logs or tags them for detection-only mode.
 type AutoMultilineHandler struct {
 	labeler               *automultilinedetection.Labeler
-	aggregator            *automultilinedetection.Aggregator // nil when detectionOnly=true
+	aggregator            *automultilinedetection.DefaultAggregator
 	jsonAggregator        *automultilinedetection.JSONAggregator
-	outputFn              func(m *message.Message) // used for direct output in detection-only mode
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
 	enableJSONAggregation bool
@@ -30,7 +29,7 @@ type AutoMultilineHandler struct {
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
 // If detectionOnly is true, logs are tagged with their label but not aggregated.
-func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, detectionOnly bool) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputFn func(m []*message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, detectionOnly bool) *AutoMultilineHandler {
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
@@ -85,7 +84,6 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	handler := &AutoMultilineHandler{
 		labeler:               automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
 		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
-		outputFn:              outputFn,
 		flushTimeout:          flushTimeout,
 		enableJSONAggregation: enableJSONAggregation,
 		detectionOnly:         detectionOnly,
