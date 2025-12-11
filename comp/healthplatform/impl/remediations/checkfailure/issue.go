@@ -56,7 +56,7 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 	// Build remediation steps
 	remediationSteps := []healthplatform.RemediationStep{
 		{Order: 1, Text: "Check the agent logs for more detailed error information: 'datadog-agent status' or 'tail -f /var/log/datadog/agent.log'"},
-		{Order: 2, Text: fmt.Sprintf("Review the check configuration at: %s", configSource)},
+		{Order: 2, Text: "Review the check configuration at: " + configSource},
 		{Order: 3, Text: "Verify that all required permissions and dependencies are in place for this check"},
 		{Order: 4, Text: "Check if the monitored service/resource is accessible and running correctly"},
 		{Order: 5, Text: "Consult the integration documentation: https://docs.datadoghq.com/integrations/"},
