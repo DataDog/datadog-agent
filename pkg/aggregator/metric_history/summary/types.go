@@ -7,6 +7,28 @@ package summary
 
 import "time"
 
+// ClusterState represents the lifecycle state of a cluster
+type ClusterState int
+
+const (
+	Active      ClusterState = iota // Recently received events
+	Stabilizing                     // No events for 30s
+	Resolved                        // No events for 2min
+)
+
+func (s ClusterState) String() string {
+	switch s {
+	case Active:
+		return "active"
+	case Stabilizing:
+		return "stabilizing"
+	case Resolved:
+		return "resolved"
+	default:
+		return "unknown"
+	}
+}
+
 // AnomalyEvent represents a single detected anomaly
 type AnomalyEvent struct {
 	Timestamp time.Time
@@ -31,13 +53,19 @@ type MetricPattern struct {
 
 // ClusterConfig controls clustering behavior
 type ClusterConfig struct {
-	TimeWindow time.Duration // max time between events in same cluster (e.g., 30s)
+	TimeWindow         time.Duration // max time between events in same cluster
+	StabilizingTimeout time.Duration // time without events before Stabilizing (default 30s)
+	ResolvedTimeout    time.Duration // time without events before Resolved (default 2min)
+	ExpireTimeout      time.Duration // time before cluster is removed (default 10min)
 }
 
 // DefaultClusterConfig returns sensible defaults
 func DefaultClusterConfig() ClusterConfig {
 	return ClusterConfig{
-		TimeWindow: 30 * time.Second,
+		TimeWindow:         30 * time.Second,
+		StabilizingTimeout: 30 * time.Second,
+		ResolvedTimeout:    2 * time.Minute,
+		ExpireTimeout:      10 * time.Minute,
 	}
 }
 
@@ -54,6 +82,7 @@ type AnomalyCluster struct {
 	Pattern   ClusterPattern
 	FirstSeen time.Time
 	LastSeen  time.Time
+	State     ClusterState // Current lifecycle state
 }
 
 // SymmetryType indicates the relationship between metrics

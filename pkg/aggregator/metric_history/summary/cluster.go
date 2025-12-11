@@ -5,6 +5,8 @@
 
 package summary
 
+import "time"
+
 // ClusterSet manages incremental clustering of anomaly events
 type ClusterSet struct {
 	config   ClusterConfig
@@ -164,6 +166,7 @@ func (cs *ClusterSet) createCluster(events []AnomalyEvent) *AnomalyCluster {
 		},
 		FirstSeen: firstSeen,
 		LastSeen:  lastSeen,
+		State:     Active, // New clusters start as Active
 	}
 }
 
@@ -180,6 +183,9 @@ func (cs *ClusterSet) addToCluster(cluster *AnomalyCluster, event AnomalyEvent) 
 		cluster.LastSeen = event.Timestamp
 	}
 
+	// Reset state to Active when new event arrives
+	cluster.State = Active
+
 	// Recompute Pattern
 	metricPattern := ExtractMetricPattern(cluster.Events)
 	tagPartition := PartitionTags(cluster.Events)
@@ -187,4 +193,67 @@ func (cs *ClusterSet) addToCluster(cluster *AnomalyCluster, event AnomalyEvent) 
 		MetricPattern: metricPattern,
 		TagPartition:  tagPartition,
 	}
+}
+
+// Tick updates cluster states based on time elapsed and removes expired clusters.
+// Should be called periodically (e.g., on each flush cycle).
+func (cs *ClusterSet) Tick(now time.Time) {
+	// Track IDs to remove
+	expiredIDs := []int{}
+
+	// Update each cluster's state based on time since LastSeen
+	for id, cluster := range cs.clusters {
+		timeSinceLastSeen := now.Sub(cluster.LastSeen)
+
+		// Check if cluster should be expired and removed
+		if timeSinceLastSeen >= cs.config.ExpireTimeout {
+			expiredIDs = append(expiredIDs, id)
+			continue
+		}
+
+		// Update state based on time since last event
+		if timeSinceLastSeen >= cs.config.ResolvedTimeout {
+			cluster.State = Resolved
+		} else if timeSinceLastSeen >= cs.config.StabilizingTimeout {
+			cluster.State = Stabilizing
+		} else {
+			cluster.State = Active
+		}
+	}
+
+	// Remove expired clusters
+	for _, id := range expiredIDs {
+		delete(cs.clusters, id)
+	}
+
+	// Remove expired pending events
+	validPending := []AnomalyEvent{}
+	for _, event := range cs.pending {
+		if now.Sub(event.Timestamp) < cs.config.ExpireTimeout {
+			validPending = append(validPending, event)
+		}
+	}
+	cs.pending = validPending
+}
+
+// ActiveClusters returns only clusters in Active state
+func (cs *ClusterSet) ActiveClusters() []*AnomalyCluster {
+	result := []*AnomalyCluster{}
+	for _, cluster := range cs.clusters {
+		if cluster.State == Active {
+			result = append(result, cluster)
+		}
+	}
+	return result
+}
+
+// ResolvedClusters returns only clusters in Resolved state
+func (cs *ClusterSet) ResolvedClusters() []*AnomalyCluster {
+	result := []*AnomalyCluster{}
+	for _, cluster := range cs.clusters {
+		if cluster.State == Resolved {
+			result = append(result, cluster)
+		}
+	}
+	return result
 }
