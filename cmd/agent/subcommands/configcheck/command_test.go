@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package configcheck
 
 import (
@@ -63,9 +65,11 @@ func TestConvertConfigToJSON(t *testing.T) {
 	assert.Equal(t, "init config", jsonConfig2.InitConfig)
 	assert.Equal(t, "metrics config", jsonConfig2.MetricConfig)
 	assert.Equal(t, "logs config", jsonConfig2.Logs)
-	assert.Equal(t, 1, len(jsonConfig2.Instances))
+
+	require.Len(t, jsonConfig2.Instances, 1)
 	assert.Equal(t, "123", jsonConfig2.Instances[0].ID)
 	assert.Equal(t, `{"name":"instance name"}`, jsonConfig2.Instances[0].Config)
+
 	assert.Equal(t, "file", jsonConfig2.Provider)
 	assert.Equal(t, "file:/path/to/config.yaml", jsonConfig2.Source)
 }
@@ -96,9 +100,9 @@ value: 456`,
 	var b bytes.Buffer
 
 	err := printJSON(&b, c, false)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.True(t, isJSON(b.Bytes()))
+	require.True(t, isJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }
 
@@ -145,8 +149,8 @@ value: 456`,
 	var b bytes.Buffer
 
 	err := printJSON(&b, c, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.True(t, isJSON(b.Bytes()))
+	require.True(t, isJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }

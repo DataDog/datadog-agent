@@ -777,8 +777,6 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	}
 
 	// get config from custom config file
-	fmt.Printf("Loading custom check config from %q\n", cliParams.customConfig)
-
 	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.customConfig)
 	if err != nil {
 		return nil, fmt.Errorf("fail to load custom config: %v", err)
