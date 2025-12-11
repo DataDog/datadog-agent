@@ -48,13 +48,13 @@ import "C"
 func getLibExtension() string {
 	switch runtime.GOOS {
 	case "linux", "freebsd":
-		return ".so"
-	case "darwin":
-		return ".dylib"
+		return "so"
 	case "windows":
-		return ".dll"
+		return "dll"
+	case "darwin":
+		return "dylib"
 	default:
-		return ".so"
+		return "so"
 	}
 }
 
@@ -82,7 +82,7 @@ type SharedLibraryLoader struct {
 // Load looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Load(name string) (Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+getLibExtension())
+	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 
 	cLibPath := C.CString(libPath)
 	defer C.free(unsafe.Pointer(cLibPath))

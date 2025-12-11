@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 
@@ -23,12 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func TestCreateFakeCheck(t *testing.T) {
+func TestLoad_FakeCheck(t *testing.T) {
 	conf := integration.Config{
-		Name:       "fake_check",
-		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
-		InitConfig: integration.Data("{}"),
-		Source:     "fake_check:/path/to/conf/fake_check.yaml",
+		Name:      "fake_check",
+		Instances: []integration.Data{integration.Data("{\"value\": 1}")},
+		Source:    "fake_check:/path/to/conf/fake_check.yaml",
 	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -37,36 +37,34 @@ func TestCreateFakeCheck(t *testing.T) {
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	// Remove check finalizer that may trigger race condition while testing
-	runtime.SetFinalizer(check, nil)
-
-	assert.Nil(t, err)
 	assert.Equal(t, "fake_check", check.(*Check).name)
 	assert.Equal(t, "noop_version", check.(*Check).version)
 	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
+
+	// Remove check finalizer that may trigger race condition while testing
+	runtime.SetFinalizer(check, nil)
 }
 
-func TestLoadWithMissingLibrary(t *testing.T) {
+func TestLoad_WithoutLibrary(t *testing.T) {
 	conf := integration.Config{
-		Name:       "fake_check",
-		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
-		InitConfig: integration.Data("{}"),
-		Source:     "fake_check:/path/to/conf/fake_check.yaml",
+		Name:      "foo",
+		Instances: []integration.Data{{}},
 	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := ffi.NewSharedLibraryLoader("folder/path/without/expected/library")
 
+	// the library loader will search for shared libraries in a folder that doesn't exist, leading to a loading error
+	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
 	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
 	assert.Error(t, err)
