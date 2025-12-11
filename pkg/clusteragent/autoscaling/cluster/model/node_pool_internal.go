@@ -79,10 +79,6 @@ func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpe
 		Spec: buildNodePoolSpec(n, nodeClassName),
 	}
 
-	if n.TargetName() != "" {
-		knp.ObjectMeta.Annotations = map[string]string{datadogReplicaAnnotationKey: n.TargetName()}
-	}
-
 	return knp
 }
 
@@ -214,17 +210,55 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 		},
 	}
 
-	if n.TargetWeight() != nil {
-		targetWeight := *n.TargetWeight()
+	return npSpec
+}
+
+// BuildReplicaNodePool updates the target NodePool spec to create a replica NodePool
+// TODO: Add logic for any existing requirements that could be incompatible with recommendations
+func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
+
+	// Update NodePool with recommendation
+	instanceTypeLabelFound := false
+	for _, r := range knp.Spec.Template.Spec.Requirements {
+		if r.NodeSelectorRequirement.Key == corev1.LabelInstanceTypeStable {
+			r.Operator = corev1.NodeSelectorOpIn
+			r.Values = npi.RecommendedInstanceTypes()
+
+			instanceTypeLabelFound = true
+		}
+	}
+	if !instanceTypeLabelFound {
+		knp.Spec.Template.Spec.Requirements = append(knp.Spec.Template.Spec.Requirements,
+			karpenterv1.NodeSelectorRequirementWithMinValues{
+				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+					Key:      corev1.LabelInstanceTypeStable,
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   npi.RecommendedInstanceTypes(),
+				},
+			},
+		)
+	}
+
+	// Update NodePool with weight
+	if npi.TargetWeight() != nil {
+		targetWeight := *npi.TargetWeight()
 		if targetWeight >= 0 && targetWeight < 100 {
 			targetWeight++
-			npSpec.Weight = &targetWeight
+			knp.Spec.Weight = &targetWeight
 		} else {
-			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", targetWeight, n.TargetName())
+			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", targetWeight, npi.TargetName())
 		}
 	}
 
-	return npSpec
+	// Reset the top-level labels and annotations
+	knp.ObjectMeta = metav1.ObjectMeta{
+		Name:        npi.Name(),
+		Labels:      map[string]string{DatadogCreatedLabelKey: "true"},
+		Annotations: map[string]string{datadogReplicaAnnotationKey: npi.TargetName()},
+	}
+
+	// Append to NodeClaimTemplate labels
+	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
 }
 
 // BuildNodePoolPatch is used to construct JSON patch
