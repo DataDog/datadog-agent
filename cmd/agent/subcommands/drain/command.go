@@ -8,9 +8,16 @@ package drain
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"os/exec"
 	"slices"
+	"strconv"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -62,6 +69,9 @@ type CliParams struct {
 
 	// OrderByScore indicates whether to order clusters by score instead of size.
 	OrderByScore bool
+
+	// AIProcessClusters indicates whether to process clusters with AI.
+	AIProcessClusters bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -103,14 +113,116 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().IntVar(&cliParams.TopClusters, "top-clusters", 10, "Number of top clusters to display (default: 10)")
 	cmd.Flags().BoolVarP(&cliParams.HideOutput, "hide-output", "", false, "Hide filtered log lines output (only show summary statistics)")
 	cmd.Flags().BoolVarP(&cliParams.OrderByScore, "order-by-score", "", false, "Order clusters by score instead of size")
+	cmd.Flags().BoolVarP(&cliParams.AIProcessClusters, "ai-process-clusters", "", false, "Process clusters with AI for analysis")
 
 	return []*cobra.Command{cmd}
+}
+
+// chatCompletionRequest represents the request body for the AI completion API
+type chatCompletionRequest struct {
+	Model    string    `json:"model"`
+	Messages []message `json:"messages"`
+}
+
+// message represents a single message in the chat completion request
+type message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// chatCompletionResponse represents the response from the AI completion API
+type chatCompletionResponse struct {
+	Choices []choice `json:"choices"`
+}
+
+// choice represents a choice in the completion response
+type choice struct {
+	Message message `json:"message"`
+}
+
+func aiCompletion(question string) (string, error) {
+	// Get auth token from ddtool
+	cmd := exec.Command("ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog", "--http-header")
+	authOutput, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get auth token: %w", err)
+	}
+
+	// Parse the auth header (format: "Authorization: Bearer <token>")
+	authHeader := strings.TrimSpace(string(authOutput))
+	if !strings.HasPrefix(authHeader, "Authorization: ") {
+		return "", fmt.Errorf("unexpected auth header format: %s", authHeader)
+	}
+	authToken := strings.TrimPrefix(authHeader, "Authorization: ")
+
+	// Prepare request body
+	reqBody := chatCompletionRequest{
+		Model: "openai/gpt-5-mini",
+		Messages: []message{
+			{
+				Role:    "user",
+				Content: question,
+			},
+		},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(context.Background(), "POST", "https://ai-gateway.us1.staging.dog/v1/chat/completions", bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("source", "datadog-agent")
+	req.Header.Set("org-id", "2")
+	req.Header.Set("Authorization", authToken)
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to make HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse response
+	var completionResp chatCompletionResponse
+	if err := json.Unmarshal(respBody, &completionResp); err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	// Extract completion text
+	if len(completionResp.Choices) == 0 {
+		return "", fmt.Errorf("no choices in response")
+	}
+
+	return completionResp.Choices[0].Message.Content, nil
 }
 
 // runDrain reads the input file, applies drain filtering, and writes filtered logs to stdout.
 func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error {
 	if cliParams.ScoreThreshold != nil && cliParams.ProgressiveTraining {
 		lc.Warn("Score threshold is set and progressive training is enabled. The score is not accurate in this mode.")
+	}
+	if cliParams.ProgressiveTraining && cliParams.AIProcessClusters {
+		lc.Warn("Progressive training is enabled and AI processing is enabled. The AI processing will not work in this mode.")
 	}
 	fmt.Println("--------------------------------")
 
@@ -133,11 +245,54 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 	processedCount := 0
 	filteredCount := 0
 
+	// These clusters are important according to AI
+	aiMarkedClusters := make(map[int]bool)
 	if !cliParams.ProgressiveTraining {
 		// Train first
 		for _, line := range lines {
 			tokens := processor.DrainTokenize(line)
 			drainProcessor.Train(tokens)
+		}
+
+		if cliParams.AIProcessClusters {
+			clusterPrompt := strings.Builder{}
+			clusterPrompt.WriteString(`
+You will have multiple log patterns. Your goal is to determine which pattern we want to monitor. These patterns are logs that have warnings / errors / meaningful information to improve remediation time.
+We want to keep only the patterns that match these conditions.
+
+You should output only the pattern IDs separated by commas. No other text. You can reply nothing if no pattern matches these conditions.
+---
+`)
+			aiClusters := drainProcessor.Clusters()
+			slices.SortFunc(aiClusters, func(a, b *drain.LogCluster) int {
+				return b.Size() - a.Size()
+			})
+			for i, cluster := range aiClusters {
+				clusterStr := cluster.String()
+				if len(clusterStr) > 160 {
+					clusterStr = clusterStr[:160] + "..."
+				}
+				clusterPrompt.WriteString(fmt.Sprintf("#%d: %s\n", cluster.ID(), clusterStr))
+				if i >= cliParams.TopClusters {
+					break
+				}
+			}
+
+			prompt := clusterPrompt.String()
+			aiResponse, err := aiCompletion(prompt)
+			if err != nil {
+				return fmt.Errorf("failed to process clusters with AI: prompt=%s, error=%w", prompt, err)
+			}
+
+			aiMarkedClusterIDs := strings.Split(aiResponse, ",")
+			lc.Infof("AI marked clusters: %v", aiMarkedClusterIDs)
+			for _, clusterID := range aiMarkedClusterIDs {
+				id, err := strconv.Atoi(clusterID)
+				if err != nil {
+					return fmt.Errorf("failed to convert cluster ID to int: clusterID=%s, error=%w", clusterID, err)
+				}
+				aiMarkedClusters[id] = true
+			}
 		}
 	}
 
@@ -199,6 +354,12 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 			toIgnore = s >= cliParams.Threshold
 		}
 
+		// If this cluster is marked as important, don't ignore it
+		if cliParams.AIProcessClusters {
+			_, isMarked := aiMarkedClusters[cluster.ID()]
+			toIgnore = toIgnore && !isMarked
+		}
+
 		// Write non-filtered lines to stdout
 		if toIgnore {
 			filteredCount++
@@ -206,7 +367,7 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 			processedCount++
 			if !cliParams.HideOutput {
 				if cliParams.PrintInfo {
-					fmt.Printf("%s: score=%f, s=%d, totalSize=%f\n", string(line), score, s, totalSize)
+					fmt.Printf("%s: score=%f, s=%d, totalSize=%f, marked=%v\n", string(line), score, s, totalSize, aiMarkedClusters[cluster.ID()])
 				} else if !cliParams.OrderByScore {
 					fmt.Println(string(line))
 				}
@@ -238,7 +399,7 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 		if i >= cliParams.TopClusters {
 			break
 		}
-		fmt.Printf("Cluster %d: %s\n", i+1, cluster.String())
+		fmt.Printf("Cluster %d (marked=%v): %s\n", i+1, aiMarkedClusters[cluster.ID()], cluster.String())
 	}
 
 	fmt.Printf("Processed %d lines: filtered %f%%\n", len(lines), float64(filteredCount)/float64(len(lines))*100)
