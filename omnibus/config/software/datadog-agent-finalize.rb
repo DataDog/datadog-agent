@@ -29,9 +29,9 @@ build do
 
 	if linux_target?
 	    if heroku_target?
-               command_on_repo_root "bazelisk run -- //packages/agent/heroku:install_license_files --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
             else
-               command_on_repo_root "bazelisk run -- //packages/agent/linux:install_license_files --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
             end
         end
 
