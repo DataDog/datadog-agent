@@ -7,7 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
-from ..constants import COMMAND_TIMEOUT, DEFAULT_SUBPROCESS_TIMEOUT
+from ..constants import DEFAULT_SUBPROCESS_TIMEOUT
 from ..logging_config import logger
 from .streaming import iter_json_objects
 from ..models import ConnTuple
@@ -64,23 +64,7 @@ class SystemProbeBackend(EbpfBackend):
             return None
 
         cmd = [self.binary_path] + args
-        try:
-            result = safe_subprocess_run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=COMMAND_TIMEOUT
-            )
-            if result.returncode != 0:
-                logger.error(f"Error running system-probe: {result.stderr}")
-                return None
-            return result.stdout
-        except FileNotFoundError:
-            logger.error(f"system-probe not found at {self.binary_path}")
-            return None
-        except subprocess.TimeoutExpired:
-            logger.error("system-probe timed out")
-            return None
+        return self._run_command(cmd, tool_name="system-probe")
 
     def list_maps(self) -> List[Dict]:
         """List all eBPF maps using system-probe.

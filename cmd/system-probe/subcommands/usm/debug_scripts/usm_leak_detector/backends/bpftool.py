@@ -7,7 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
-from ..constants import COMMAND_TIMEOUT, DEFAULT_SUBPROCESS_TIMEOUT
+from ..constants import DEFAULT_SUBPROCESS_TIMEOUT
 from ..logging_config import logger
 from .bpftool_downloader import download_bpftool
 from .streaming import iter_json_objects
@@ -74,23 +74,7 @@ class BpftoolBackend(EbpfBackend):
     def _run(self, args: List[str]) -> Optional[str]:
         """Run bpftool command and return stdout, or None on error."""
         cmd = [self._bpftool_path] + args
-        try:
-            result = safe_subprocess_run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=COMMAND_TIMEOUT
-            )
-            if result.returncode != 0:
-                logger.error(f"Error running bpftool: {result.stderr}")
-                return None
-            return result.stdout
-        except FileNotFoundError:
-            logger.error("bpftool not found in PATH")
-            return None
-        except subprocess.TimeoutExpired:
-            logger.error("bpftool timed out")
-            return None
+        return self._run_command(cmd, tool_name="bpftool")
 
     def list_maps(self) -> List[Dict]:
         """List all eBPF maps using bpftool."""
