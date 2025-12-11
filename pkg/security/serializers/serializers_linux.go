@@ -644,10 +644,10 @@ type SetrlimitEventSerializer struct {
 	// Resource being limited
 	Resource string `json:"resource"`
 	// Current limit
-	Current uint64 `json:"current"`
+	Current uint64 `json:"rlim_cur"`
 	// Maximum limit
-	Max uint64 `json:"max"`
-	// process context of the signal target
+	Max uint64 `json:"rlim_max"`
+	// process context of the setrlimit target
 	Target *ProcessContextSerializer `json:"target,omitempty"`
 }
 
