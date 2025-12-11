@@ -19,4 +19,3 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 
 	return []*cobra.Command{versionCmd}
 }
-
