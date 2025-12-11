@@ -71,7 +71,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{a: abc, b: def, c: ghi}"

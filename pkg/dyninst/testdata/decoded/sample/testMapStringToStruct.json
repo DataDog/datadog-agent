@@ -97,7 +97,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "map[foo: {anotherInt: 1, anotherString: one}, bar: {anotherInt: 2, anotherString: two}]"

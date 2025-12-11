@@ -519,7 +519,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "map[{redacted-entries}, ...]"

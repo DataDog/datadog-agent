@@ -21,13 +21,19 @@ import (
 
 // LogsUploaderFactory is a factory for creating and managing log uploaders for different tags.
 type LogsUploaderFactory struct {
+	// The URL to send logs to (i.e. messages without snapshots).
+	logsURL *url.URL
+	// The URL to send snapshots to. They go to a different intake URL than logs
+	// because they go through redaction on the backend.
+	snapshotsURL *url.URL
+	cfg          config
+
 	mu            sync.Mutex
 	uploaders     map[LogsUploaderMetadata]*refCountedUploader
 	maxUploaderID uint64
-	cfg           config
 }
 
-// LogsUploaderMetadata is the metadata applied to the requests sent by this
+// LogsUploaderMetadata is the metadata applied to the requests sent by an
 // uploader.
 type LogsUploaderMetadata struct {
 	Tags        string
@@ -47,18 +53,24 @@ type refCountedUploader struct {
 	refCount int
 }
 
-// LogsUploader is an uploader for sending log-like batches with a specific set of tags.
+// LogsUploader uploads logs and snapshots in batches, adding headers
+// corresponding to a set of tags. It wraps logs batchers and provides a Close()
+// method to remove itself from the parent LogsUploaderFactory.
 type LogsUploader struct {
-	*batcher
-	metadata LogsUploaderMetadata
-	factory  *LogsUploaderFactory
+	logsBatcher      *batcher
+	snapshotsBatcher *batcher
+	// onClose is called when the uploader is closed to decrement its refcount
+	// in the parent LogsUploaderFactory.
+	onClose func()
 }
 
 // NewLogsUploaderFactory creates a new uploader factory.
-func NewLogsUploaderFactory(opts ...Option) *LogsUploaderFactory {
+func NewLogsUploaderFactory(logsURL *url.URL, snapshotsURL *url.URL, opts ...Option) *LogsUploaderFactory {
 	lu := &LogsUploaderFactory{
-		uploaders: make(map[LogsUploaderMetadata]*refCountedUploader),
-		cfg:       defaultConfig(),
+		uploaders:    make(map[LogsUploaderMetadata]*refCountedUploader),
+		cfg:          defaultConfig(),
+		logsURL:      logsURL,
+		snapshotsURL: snapshotsURL,
 	}
 	for _, opt := range opts {
 		opt(&lu.cfg)
@@ -104,31 +116,25 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 	for _, keyVal := range u.cfg.headers {
 		addHeader(keyVal[0], keyVal[1])
 	}
-	var logsURL, name string
-	if metadata.Tags == "" {
-		logsURL = u.cfg.url.String()
-	} else {
-		query, _ := url.ParseQuery(u.cfg.url.RawQuery)
-		// If we failed to parse the query, we'll use an empty query.
-		query.Set("ddtags", metadata.Tags)
-		tagURL := *u.cfg.url
-		tagURL.RawQuery = query.Encode()
-		logsURL = tagURL.String()
-	}
+
+	logsURL := makeIntakeURL(u.logsURL, metadata.Tags)
+	snapshotsURL := makeIntakeURL(u.snapshotsURL, metadata.Tags)
+
 	if metadata.EntityID != "" {
 		addHeader(ddHeaderEntityID, metadata.EntityID)
 	}
 	if metadata.ContainerID != "" {
 		addHeader(ddHeaderContainerID, metadata.ContainerID)
 	}
-	name = fmt.Sprintf("logs:%d", uploaderID)
+	name := fmt.Sprintf("logs:%d", uploaderID)
 	log.Debugf("creating uploader %s with metadata %v", name, metadata)
 
-	sender := newLogSender(u.cfg.client, logsURL, headers)
 	taggedUploader := &LogsUploader{
-		batcher:  newBatcher(name, sender, u.cfg.batcherConfig),
-		metadata: metadata,
-		factory:  u,
+		logsBatcher:      newBatcher(name, newLogSender(u.cfg.client, logsURL, headers), u.cfg.batcherConfig),
+		snapshotsBatcher: newBatcher(name, newLogSender(u.cfg.client, snapshotsURL, headers), u.cfg.batcherConfig),
+		onClose: func() {
+			u.closeUploader(metadata)
+		},
 	}
 
 	u.uploaders[metadata] = &refCountedUploader{
@@ -139,31 +145,56 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 	return taggedUploader
 }
 
-// Enqueue adds a message to the uploader's queue.
-func (u *LogsUploader) Enqueue(data json.RawMessage) {
-	u.enqueue(data)
+func makeIntakeURL(baseURL *url.URL, tags string) string {
+	if tags == "" {
+		return baseURL.String()
+	}
+	query, _ := url.ParseQuery(baseURL.RawQuery)
+	// If we failed to parse the query, we'll use an empty query.
+	query.Set("ddtags", tags)
+	tagURL := *baseURL
+	tagURL.RawQuery = query.Encode()
+	return tagURL.String()
+}
+
+// EnqueueLog adds a message to the uploader's queue.
+func (u *LogsUploader) EnqueueLog(data json.RawMessage) {
+	u.logsBatcher.enqueue(data)
+}
+
+// EnqueueSnapshot adds a snapshot to the uploader's queue.
+func (u *LogsUploader) EnqueueSnapshot(data json.RawMessage) {
+	u.snapshotsBatcher.enqueue(data)
 }
 
 // Close decrements the reference count of the uploader. If the ref count reaches zero,
 // the uploader is stopped and removed from the factory.
 func (u *LogsUploader) Close() {
-	u.factory.mu.Lock()
-	defer u.factory.mu.Unlock()
+	u.onClose()
+}
 
-	rc, ok := u.factory.uploaders[u.metadata]
+// closeUploader decrements the reference count of the uploader with the given
+// metadata. If the ref count reaches zero, the uploader is stopped and removed
+// from the factory.
+func (u *LogsUploaderFactory) closeUploader(metadata LogsUploaderMetadata) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	rc, ok := u.uploaders[metadata]
 	if !ok {
 		log.Warnf(
-			"closing a tagged uploader (%s) that is not in the factory: metadata=%v",
-			u.name, u.metadata,
+			"closing a tagged uploader that is not in the factory: metadata=%v",
+			metadata,
 		)
 		return
 	}
 
 	rc.refCount--
 	if rc.refCount <= 0 {
-		log.Debugf("stopping uploader %s with metadata %v", u.name, u.metadata)
-		delete(u.factory.uploaders, u.metadata)
-		rc.LogsUploader.stop()
+		log.Debugf("stopping uploader with metadata %v", metadata)
+		delete(u.uploaders, metadata)
+		rc.LogsUploader.logsBatcher.stop()
+		rc.LogsUploader.snapshotsBatcher.stop()
 	}
 }
 
@@ -173,7 +204,8 @@ func (u *LogsUploaderFactory) Stop() {
 	defer u.mu.Unlock()
 
 	for tags, rc := range u.uploaders {
-		rc.LogsUploader.stop()
+		rc.LogsUploader.logsBatcher.stop()
+		rc.LogsUploader.snapshotsBatcher.stop()
 		delete(u.uploaders, tags)
 	}
 }
@@ -185,7 +217,7 @@ func (u *LogsUploaderFactory) Stats() map[string]int64 {
 
 	totalStats := make(map[string]int64)
 	for _, rc := range u.uploaders {
-		stats := rc.state.metrics.Stats()
+		stats := rc.logsBatcher.state.metrics.Stats()
 		for k, v := range stats {
 			totalStats[k] += v
 		}
