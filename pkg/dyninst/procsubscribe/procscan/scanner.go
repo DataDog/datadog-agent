@@ -229,7 +229,6 @@ func (p *Scanner) Scan() (
 		p.mu.live.Delete(pid)
 		return true
 	})
-	noLongerLive.Clear(true)
 
 	p.mu.Lock()
 	for _, newProc := range ret {
