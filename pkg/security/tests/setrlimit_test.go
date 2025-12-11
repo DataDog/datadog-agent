@@ -70,6 +70,8 @@ func TestSetrlimitEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Setrlimit.SyscallEvent.Retval, "retval should be 0 for success")
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateSetrlimitSchema(t, event)
 			return true
 		}, time.Second*3, "test_setrlimit_nofile")
 		if err != nil {
@@ -95,6 +97,8 @@ func TestSetrlimitEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Setrlimit.SyscallEvent.Retval, "retval should be 0 for success")
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateSetrlimitSchema(t, event)
 			return true
 		}, time.Second*3, "test_setrlimit_nproc")
 		if err != nil {
@@ -122,6 +126,8 @@ func TestSetrlimitEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Setrlimit.SyscallEvent.Retval, "retval should be 0 for success")
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateSetrlimitSchema(t, event)
 			return true
 		}, time.Second*3, "test_prlimit64_stack")
 		if err != nil {
@@ -147,6 +153,8 @@ func TestSetrlimitEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Setrlimit.SyscallEvent.Retval, "retval should be 0 for success")
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateSetrlimitSchema(t, event)
 			return true
 		}, time.Second*3, "test_setrlimit_core")
 		if err != nil {
