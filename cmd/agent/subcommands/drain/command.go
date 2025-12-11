@@ -366,10 +366,14 @@ You should output only the pattern IDs separated by commas. No other text. You c
 		} else {
 			processedCount++
 			if !cliParams.HideOutput {
+				lineStr := string(line)
+				if len(lineStr) > 130 {
+					lineStr = lineStr[:130] + "..."
+				}
 				if cliParams.PrintInfo {
-					fmt.Printf("%s: score=%f, s=%d, totalSize=%f, marked=%v\n", string(line), score, s, totalSize, aiMarkedClusters[cluster.ID()])
+					fmt.Printf("%s: score=%f, s=%d, totalSize=%f, marked=%v\n", lineStr, score, s, totalSize, aiMarkedClusters[cluster.ID()])
 				} else if !cliParams.OrderByScore {
-					fmt.Println(string(line))
+					fmt.Println(lineStr)
 				}
 			}
 		}
