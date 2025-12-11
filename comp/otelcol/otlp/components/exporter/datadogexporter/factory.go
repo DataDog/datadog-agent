@@ -38,8 +38,11 @@ import (
 )
 
 type factory struct {
-	setupErr               error
-	onceSetupTraceAgentCmp sync.Once
+	traceAgent struct {
+		initOnce  sync.Once
+		initErr   error
+		component traceagent.Component
+	}
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
@@ -49,25 +52,25 @@ type factory struct {
 	s              serializer.MetricSerializer
 	logsAgent      logsagentpipeline.Component
 	h              serializerexporter.SourceProviderFunc
-	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
 	store          serializerexporter.TelemetryStore
 }
 
-// setupTraceAgentCmp sets up the trace agent component.
+// configures the OTel attribute translator of the trace agent component
 // It is needed in trace exporter to send trace and in metrics exporter to send apm stats.
 // The set up happens only once, subsequent calls are no-op.
-func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
-	f.onceSetupTraceAgentCmp.Do(func() {
+func (f *factory) configureTraceAgentAttributeTranslator(settings component.TelemetrySettings) error {
+	f.traceAgent.initOnce.Do(func() {
 		var attributesTranslator *attributes.Translator
-		attributesTranslator, f.setupErr = attributes.NewTranslator(set)
-		if f.setupErr != nil {
+
+		attributesTranslator, f.traceAgent.initErr = attributes.NewTranslator(settings)
+		if f.traceAgent.initErr != nil {
 			return
 		}
-		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
+		f.traceAgent.component.SetOTelAttributeTranslator(attributesTranslator)
 	})
-	return f.setupErr
+	return f.traceAgent.initErr
 }
 
 func newFactoryWithRegistry(
@@ -84,12 +87,12 @@ func newFactoryWithRegistry(
 		registry:       registry,
 		s:              s,
 		logsAgent:      logsagent,
-		traceagentcmp:  traceagentcmp,
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
 		store:          store,
 	}
+	f.traceAgent.component = traceagentcmp
 
 	return exporter.NewFactory(
 		Type,
@@ -146,7 +149,7 @@ func (f *factory) createTracesExporter(
 	// log all warnings found during configuration loading
 	cfg.LogWarnings(set.Logger)
 
-	err = f.setupTraceAgentCmp(set.TelemetrySettings)
+	err = f.configureTraceAgentAttributeTranslator(set.TelemetrySettings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
@@ -165,7 +168,7 @@ func (f *factory) createTracesExporter(
 		return nil, errors.New("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceAgent.component, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -195,7 +198,7 @@ func (f *factory) createMetricsExporter(
 	// log all warnings found during configuration loading
 	cfg.LogWarnings(set.Logger)
 
-	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
+	if err := f.configureTraceAgentAttributeTranslator(set.TelemetrySettings); err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
 	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
@@ -263,7 +266,7 @@ func statsConsumer(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byt
 func (f *factory) spawnStatsConsumers(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
 	for i := 0; i < runtime.NumCPU(); i++ {
 		wg.Add(1)
-		go statsConsumer(ctx, wg, statsIn, tracerVersion, agentVersion, logger, f.traceagentcmp)
+		go statsConsumer(ctx, wg, statsIn, tracerVersion, agentVersion, logger, f.traceAgent.component)
 	}
 }
 
