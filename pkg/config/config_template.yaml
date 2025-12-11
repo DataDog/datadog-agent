@@ -2248,9 +2248,9 @@ api_key:
 #   # @param dns_monitoring_ports - list of integers - optional - default: [53]
 #   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
 #   # A list of ports that should be monitored for DNS traffic.
-#   #
-#   # dns_monitoring_ports:
-#   #   - 53
+#
+#   dns_monitoring_ports:
+#     - 53
 {{ end -}}
 {{ if .UniversalServiceMonitoringModule }}
 #############################################################
