@@ -7,16 +7,55 @@
 
 package sharedlibrarycheck
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
+)
 
 func TestRunCheck(t *testing.T) {
-	testRunCheck(t)
+	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+
+	err = check.runCheckImpl(false)
+	assert.NoError(t, err)
 }
 
 func TestRunCheckWithNullSymbol(t *testing.T) {
-	testRunCheckWithNullSymbol(t)
+	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+
+	// set the symbol handle to NULL
+	check.lib.Run = nil
+
+	err = check.runCheckImpl(false)
+	assert.Error(t, err, "pointer to shared library 'Run' symbol is NULL")
 }
 
 func TestCancelCheck(t *testing.T) {
-	testCancelCheck(t)
+	check, err := newSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+
+	check.Cancel()
+	require.True(t, check.cancelled)
+
+	err = check.runCheckImpl(false)
+	assert.Error(t, err, "check %s is already cancelled", check.name)
+}
+
+func newSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
+	c, err := NewSharedLibraryCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
+
+	// Remove check finalizer that may trigger race condition while testing
+	if err == nil {
+		runtime.SetFinalizer(c, nil)
+	}
+
+	return c, err
 }
