@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -775,4 +776,159 @@ func TestActionHash(t *testing.T) {
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+}
+
+func TestActionKillWithSignature(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
+		})
+	}
+
+	// Create a temporary file that will be used in tail arguments
+	testFile, err := os.CreateTemp("", "test-kill-signature-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	testFilePath := testFile.Name()
+	testFile.Close()
+	defer os.Remove(testFilePath)
+
+	// Rule to trigger on exec of tail with the test file as argument
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_exec_trigger",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"]`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var capturedSignature string
+	var tailCmd *exec.Cmd
+
+	// Cleanup function to kill any remaining tail processes for this test file
+	cleanupTail := func() {
+		exec.Command("pkill", "-f", "tail -F "+testFilePath).Run()
+	}
+	defer cleanupTail()
+
+	// Start tail -F and wait for the rule to trigger
+	test.WaitSignal(t, func() error {
+		// Start tail
+		tailCmd = exec.Command("tail", "-F", testFilePath)
+		if err := tailCmd.Start(); err != nil {
+			return err
+		}
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_exec_trigger")
+		// Capture the signature from the event
+		capturedSignature = event.FieldHandlers.ResolveSignature(event)
+	})
+
+	// Verify we got a valid signature
+	if capturedSignature == "" {
+		t.Fatal("captured signature is empty")
+	}
+
+	// Verify that tail is still running
+	if tailCmd.ProcessState != nil && tailCmd.ProcessState.Exited() {
+		t.Fatal("tail process should still be running after first rule trigger")
+	}
+
+	// Create a new rule with kill action that matches the captured signature
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_exec_trigger",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"] && event.signature != "` + capturedSignature + `"`,
+		},
+		{
+			ID:         "test_kill_with_signature",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"] && event.signature == "` + capturedSignature + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal:                    "SIGKILL",
+						Scope:                     "process",
+						DisableContainerDisarmer:  true,
+						DisableExecutableDisarmer: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Set the new policy and reload (without closing/restarting the module)
+	// On reload, exec events are replayed for running processes, so the kill rule should trigger
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set new policy: %v", err)
+	}
+
+	// Reload the policy and wait for the kill rule to trigger
+	// Use GetEventSent instead of WaitSignal because ActionReports are filled in HandleActions
+	// which is called AFTER RuleMatch (used by WaitSignal) but BEFORE SendEvent (used by GetEventSent)
+	err = test.GetEventSent(t, func() error {
+		return test.reloadPolicies()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_kill_with_signature")
+
+		// Verify the kill action was performed using the event's action reports
+		assert.Equal(t, 1, len(event.ActionReports), "expected at least one action report")
+		if len(event.ActionReports) == 1 {
+			report := event.ActionReports[0]
+			if killReport, ok := report.(*sprobe.KillActionReport); ok {
+				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
+				assert.Equal(t, "process", killReport.Scope, "unexpected scope")
+				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+			}
+		}
+		return true
+	}, 5*time.Second, "test_kill_with_signature")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that tail was killed
+	done := make(chan error, 1)
+	go func() {
+		done <- tailCmd.Wait()
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("tail process should have been killed but is still running")
+	}
+
+	// Now start a new tail process - it should NOT be killed because it has a different signature
+	var tailCmd2 *exec.Cmd
+	test.WaitSignal(t, func() error {
+		tailCmd2 = exec.Command("tail", "-f", testFilePath)
+		return tailCmd2.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		// Only test_exec_trigger should match because the signature is different
+		assertTriggeredRule(t, rule, "test_exec_trigger")
+	})
+
+	// Verify that the second tail is still running (not killed due to different signature)
+	done2 := make(chan error, 1)
+	go func() {
+		done2 <- tailCmd2.Wait()
+	}()
+	select {
+	case <-done2:
+		t.Fatal("second tail process should still be running (different signature)")
+	case <-time.After(3 * time.Second):
+		// Process is still running as expected
+	}
+
+	// Cleanup second tail
+	tailCmd2.Process.Kill()
+	tailCmd2.Wait()
 }
