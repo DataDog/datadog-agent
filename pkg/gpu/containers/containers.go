@@ -80,7 +80,7 @@ func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, erro
 	// If we have an error (e.g, the agent does not have permissions to inspect
 	// the process environment variables) fall back to the container runtime
 	// data
-	envVar, dockerErr := getDockerVisibleDevicesEnvFromRuntime(container)
+	envVar, dockerErr := inspectDockerDevices(container)
 	if dockerErr == nil {
 		return strings.TrimSpace(envVar), nil
 	}

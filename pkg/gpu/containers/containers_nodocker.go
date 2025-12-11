@@ -10,6 +10,6 @@ package containers
 
 import workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
-func getDockerVisibleDevicesEnvFromRuntime(_container *workloadmeta.Container) (string, error) {
+func inspectDockerDevices(_container *workloadmeta.Container) (string, error) {
 	return "", nil
 }

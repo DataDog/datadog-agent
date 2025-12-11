@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-// getDockerVisibleDevicesEnvFromRuntime returns the value of the NVIDIA_VISIBLE_DEVICES environment variable by
+// inspectDockerDevices returns the value of the NVIDIA_VISIBLE_DEVICES environment variable by
 // inspecting the container data from the Docker API.
-func getDockerVisibleDevicesEnvFromRuntime(container *workloadmeta.Container) (string, error) {
+func inspectDockerDevices(container *workloadmeta.Container) (string, error) {
 	dockerUtil, err := docker.GetDockerUtil()
 	if err != nil {
 		return "", fmt.Errorf("error getting docker util: %w", err)
