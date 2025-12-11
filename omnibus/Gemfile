@@ -2,6 +2,6 @@ source 'https://rubygems.org'
 
 # Install omnibus
 gem 'chef-sugar', git: 'https://github.com/chef/chef-sugar.git', tag: 'v3.6.0'
-gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', ref: '735f232e9dc6f0e64f86ff79d4d65a356cb7aec9'
+gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', ref: (ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
 
 gem 'mixlib-cli', '~> 1.7.0'
