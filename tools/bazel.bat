@@ -57,7 +57,9 @@ set "bazel_exit=!errorlevel!"
 
 :: Diagnostics: dump logs on non-trivial failures (https://bazel.build/run/scripts#exit-codes)
 :: TODO(regis): adjust (probably `== 37`) next time a `cannot connect to Bazel server` error happens (#incident-42947)
-if !bazel_exit! geq 2 (
+set "should_diagnose=1"
+for %%c in (0 1 36) do if !bazel_exit!==%%c set "should_diagnose=0"
+if !should_diagnose!==1 (
   >&2 echo 🔴 Bazel failed [!bazel_exit!], dumping available info in !bazel_home! ^(excluding junctions^):
   for /f "delims=" %%d in ('dir /a:d-l /b "!bazel_home!"') do (
     >&2 echo 🟡 [%%d]

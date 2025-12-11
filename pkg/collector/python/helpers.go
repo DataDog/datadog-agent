@@ -25,6 +25,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -273,11 +277,11 @@ func SetPythonPsutilProcPath(procPath string) error {
 	defer glock.unlock()
 
 	module := TrackedCString(psutilModule)
-	defer C._free(unsafe.Pointer(module))
+	defer C.call_free(unsafe.Pointer(module))
 	attrName := TrackedCString(psutilProcPath)
-	defer C._free(unsafe.Pointer(attrName))
+	defer C.call_free(unsafe.Pointer(attrName))
 	attrValue := TrackedCString(procPath)
-	defer C._free(unsafe.Pointer(attrValue))
+	defer C.call_free(unsafe.Pointer(attrValue))
 
 	C.set_module_attr_string(rtloader, module, attrName, attrValue)
 	return getRtLoaderError()

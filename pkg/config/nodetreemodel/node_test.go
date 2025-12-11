@@ -22,43 +22,40 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 		},
 	}
 
-	node, err := NewNodeTree(obj, model.SourceDefault)
+	nodeTree, err := newNodeTree(obj, model.SourceDefault)
 	assert.NoError(t, err)
 
-	n, ok := node.(InnerNode)
-	assert.True(t, ok)
+	assert.True(t, nodeTree.IsInnerNode())
 
-	keys := n.ChildrenKeys()
+	keys := nodeTree.ChildrenKeys()
 	assert.Equal(t, keys, []string{"a", "b", "c"})
 
-	first, err := n.GetChild("a")
+	firstLeaf, err := nodeTree.GetChild("a")
 	assert.NoError(t, err)
 
-	firstLeaf := first.(LeafNode)
 	str := firstLeaf.Get()
 	assert.Equal(t, str, "apple")
 
-	second, err := n.GetChild("b")
+	secondLeaf, err := nodeTree.GetChild("b")
 	assert.NoError(t, err)
 
-	secondLeaf := second.(LeafNode)
 	num := secondLeaf.Get()
 	assert.Equal(t, num, 123)
 
-	child, err := n.GetChild("c")
+	thirdInner, err := nodeTree.GetChild("c")
 	assert.NoError(t, err)
-	third := child.(InnerNode)
 
-	keys = third.ChildrenKeys()
+	keys = thirdInner.ChildrenKeys()
 	assert.Equal(t, keys, []string{"d", "e"})
 
-	fourth, err := third.GetChild("d")
+	fourthLeaf, err := thirdInner.GetChild("d")
 	assert.NoError(t, err)
 
-	fourthLeaf := fourth.(LeafNode)
 	b := fourthLeaf.Get()
 	assert.Equal(t, b, true)
 
-	_, err = third.GetChild("e")
+	fifthLeaf, err := thirdInner.GetChild("e")
 	assert.NoError(t, err)
+
+	assert.True(t, fifthLeaf.IsLeafNode())
 }
