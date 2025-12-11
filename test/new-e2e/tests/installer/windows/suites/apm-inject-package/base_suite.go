@@ -26,7 +26,7 @@ func (s *baseSuite) SetupSuite() {
 
 	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b0d6e40.glci1280793465.g20c05acb-1")
+		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.be5b2bf.glci1285488301.gc7274e38-1")
 	}
 	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
@@ -55,8 +55,8 @@ $env:DD_INJECT_LOG_LEVEL = "debug"
 	output, err := host.Execute(script)
 	s.Require().NoError(err)
 	if enabled {
-		s.Require().Contains(output, "datadog injector version")
+		s.Require().Contains(output, "main executable path")
 	} else {
-		s.Require().NotContains(output, "datadog injector version")
+		s.Require().NotContains(output, "main executable path")
 	}
 }
