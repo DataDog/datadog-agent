@@ -74,8 +74,6 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 		{endpoints.SketchSeriesEndpoint, "POST", sketchPayload, protoCT},
 
 		// Flare endpoint
-		// FIXME: This is an improper use of the Endpoint struct and should be changed.
-		// When done, the IsFQDN and ToPQDN should be removed.
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
 	}
 }
