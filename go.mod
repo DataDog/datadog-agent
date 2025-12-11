@@ -766,7 +766,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.141.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.141.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.141.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.141.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.141.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.141.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.141.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.141.0 // indirect
@@ -1022,8 +1022,8 @@ replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => gi
 // among with the Connect, Bind and Accept requests
 replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5
 
-// Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight-1.7.1
-replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20251126100856-d2e1e78e0816
+// Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
+replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
