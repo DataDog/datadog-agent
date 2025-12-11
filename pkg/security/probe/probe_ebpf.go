@@ -838,8 +838,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		event.ProcessCacheEntry.Release()
-		p.eventPool.Put(event)
+		p.putBackPoolEvent(event)
 	}
 }
 
@@ -1044,6 +1043,20 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+func (p *EBPFProbe) getPoolEvent() *model.Event {
+	event := p.eventPool.Get()
+	event.FieldHandlers = p.fieldHandlers
+	return event
+}
+
+func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
+	if event.ProcessCacheEntry != nil {
+		event.ProcessCacheEntry.Release()
+	}
+	probeEventZeroer(event)
+	p.eventPool.Put(event)
+}
+
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
@@ -1159,7 +1172,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
-		p.eventPool.Put(relatedEvent)
+		p.putBackPoolEvent(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
 
@@ -3464,7 +3477,7 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 		eventType = model.ForkEventType
 	}
 
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 
 	event.Type = uint32(eventType)
 	event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -3477,11 +3490,12 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 
 // newBindEventFromReplay returns a new bind event with a process context
 func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
+	event.AddToFlags(model.EventFlagsFromReplay)
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family
