@@ -76,9 +76,6 @@ func StartCompliance(log log.Component,
 	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
 		compliance.KubernetesExporter,
 	}
-	if config.GetBool("compliance_config.database_benchmarks.enabled") {
-		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
-	}
 
 	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
