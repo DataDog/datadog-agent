@@ -22,4 +22,3 @@ func WithGPUConfigEnabled(t testing.TB) {
 		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
 	})
 }
-
