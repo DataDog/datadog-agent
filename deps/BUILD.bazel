@@ -29,5 +29,8 @@ filegroup(
         ],
         "//conditions:default": [],
     }),
-    visibility = ["//packages:__subpackages__"],
+    visibility = [
+        "//compliance:__pkg__",
+        "//packages:__subpackages__",
+    ],
 )
