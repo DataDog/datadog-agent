@@ -3,13 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test || functionaltests || stresstests
-
 package main
 
 import (
-	"os"
-	"path"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -24,11 +20,11 @@ func TestPrivateActionRunnerCommandCreation(t *testing.T) {
 	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
 	require.NotNil(t, rootCmd)
 	require.Equal(t, "datadog-private-action-runner [command]", rootCmd.Use)
-	
+
 	// Test that subcommands are properly registered
 	subCommands := rootCmd.Commands()
 	require.Greater(t, len(subCommands), 0, "Should have at least one subcommand")
-	
+
 	// Find the run command
 	var runCmd *cobra.Command
 	for _, cmd := range subCommands {
@@ -39,20 +35,4 @@ func TestPrivateActionRunnerCommandCreation(t *testing.T) {
 	}
 	require.NotNil(t, runCmd, "Run command should be registered")
 	require.Equal(t, "Run the Private Action Runner", runCmd.Short)
-}
-
-func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
-	// Create minimal config for private action runner testing
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte(`
-hostname: test
-privateactionrunner:
-  enabled: true
-api_key: test_key
-`), 0644)
-	require.NoError(t, err)
-
-	return &command.GlobalParams{
-		ConfFilePath: config,
-	}
 }
