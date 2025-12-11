@@ -19,9 +19,10 @@ import (
 	"encoding"
 	"fmt"
 
+	"go.opentelemetry.io/collector/pdata/pmetric"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
 // DataType is a timeseries-style metric type.

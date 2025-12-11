@@ -147,12 +147,12 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
 	}
-	// Use custom mapper if provided, otherwise create a DefaultMapper
+	// Use custom mapper if provided, otherwise create a defaultMapper
 	if cfg.customMapper != nil {
 		t.mapper = cfg.customMapper
-	} else {
-		t.mapper = newDefaultMapper(cache, logger, cfg)
+		return t, nil
 	}
+	t.mapper = newDefaultMapper(cache, logger, cfg)
 	return t, nil
 }
 

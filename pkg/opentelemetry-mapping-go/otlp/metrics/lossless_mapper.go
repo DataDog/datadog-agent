@@ -35,9 +35,24 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+}
+
+// mapNumberMetrics maps number datapoints into Datadog metrics.
+// This is a shared implementation used by both defaultMapper and lossLessMapper.
+func mapNumberMetrics(
+	ctx context.Context,
+	consumer Consumer,
+	dims *Dimensions,
+	dt DataType,
+	slice pmetric.NumberDataPointSlice,
+	logger *zap.Logger,
+	inferInterval bool,
+) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
+			// No recorded value, skip.
 			continue
 		}
 
@@ -50,9 +65,13 @@ func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer
 			val = float64(p.IntValue())
 		}
 
+		if isSkippable(logger, pointDims.name, val) {
+			continue
+		}
+
 		// Calculate interval for Count type metrics (from OTLP delta sums)
 		var interval int64
-		if m.cfg.InferDeltaInterval && dt == Count {
+		if inferInterval && dt == Count {
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
 		}
 

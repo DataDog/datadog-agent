@@ -231,8 +231,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
-	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge,
-) {
+	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge) {
 	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
 	if enabled {

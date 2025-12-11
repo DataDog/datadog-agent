@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
-// defaultMapper is the default implementation of the Mapper interface.
+// defaultMapper is the default implementation of the mapper interface.
 // It provides the standard mapping logic for converting OTLP metrics to Datadog format.
 type defaultMapper struct {
 	prevPts *ttlCache
@@ -38,7 +38,7 @@ type defaultMapper struct {
 }
 
 // newDefaultMapper creates a new defaultMapper with the given dependencies.
-// defaultMapper implements Mapper and uses Consumer which includes both sketch and histogram interfaces.
+// defaultMapper implements mapper and uses Consumer which includes both sketch and histogram interfaces.
 func newDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) mapper {
 	return &defaultMapper{
 		prevPts: prevPts,
@@ -55,34 +55,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	for i := 0; i < slice.Len(); i++ {
-		p := slice.At(i)
-		if p.Flags().NoRecordedValue() {
-			// No recorded value, skip.
-			continue
-		}
-
-		pointDims := dims.WithAttributeMap(p.Attributes())
-		var val float64
-		switch p.ValueType() {
-		case pmetric.NumberDataPointValueTypeDouble:
-			val = p.DoubleValue()
-		case pmetric.NumberDataPointValueTypeInt:
-			val = float64(p.IntValue())
-		}
-
-		if isSkippable(m.logger, pointDims.name, val) {
-			continue
-		}
-
-		// Calculate interval for Count type metrics (from OTLP delta sums)
-		var interval int64
-		if m.cfg.InferDeltaInterval && dt == Count {
-			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
-		}
-
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), interval, val)
-	}
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics
