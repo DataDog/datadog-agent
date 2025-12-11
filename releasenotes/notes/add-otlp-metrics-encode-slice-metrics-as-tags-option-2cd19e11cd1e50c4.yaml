@@ -1,0 +1,3 @@
+other:
+  - |
+    Add the ability for the `opentelemetry-mapping-go` package to convert OTLP array attributes to multiple Datadog tags.

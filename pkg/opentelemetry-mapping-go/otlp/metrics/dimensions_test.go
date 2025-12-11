@@ -27,12 +27,20 @@ func TestWithAttributeMap(t *testing.T) {
 		"key1": "val1",
 		"key2": "val2",
 		"key3": "",
+		"key4": int64(1),
 	})
+	key5Slice := attributes.PutEmptySlice("key5")
+	key5Slice.AppendEmpty().SetStr("val51")
+	key5Slice.AppendEmpty().SetStr("val52")
 
 	dims := Dimensions{}
 	assert.ElementsMatch(t,
-		dims.WithAttributeMap(attributes).tags,
-		[...]string{"key1:val1", "key2:val2", "key3:n/a"},
+		dims.WithAttributeMap(attributes, false).tags,
+		[...]string{"key1:val1", "key2:val2", "key3:n/a", "key4:1", "key5:[\"val51\",\"val52\"]"},
+	)
+	assert.ElementsMatch(t,
+		dims.WithAttributeMap(attributes, true).tags,
+		[...]string{"key1:val1", "key2:val2", "key3:n/a", "key4:1", "key5:val51", "key5:val52"},
 	)
 }
 
@@ -115,7 +123,7 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	newDims := dims.
 		AddTags("tagThree:c").
 		WithSuffix("suffix").
-		WithAttributeMap(attributes)
+		WithAttributeMap(attributes, true)
 
 	assert.Equal(t, "example.name.suffix", newDims.Name())
 	assert.Equal(t, "hostname", newDims.Host())
