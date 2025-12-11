@@ -63,7 +63,7 @@ func (g GatewayUsage) GetHostFromAttributesHandler() attributes.HostFromAttribut
 
 // Gauge returns the current gateway usage gauge value and a boolean indicating if gateway usage is enabled.
 func (g *GatewayUsage) Gauge() (float64, bool) {
-	if g.gatewayModeEnv.Load() {
+	if g.gatewayModeEnv != nil && g.gatewayModeEnv.Load() {
 		return 1, true
 	}
 
