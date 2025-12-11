@@ -221,6 +221,8 @@ modules:
     used_by_otel: true
   pkg/logs/patterns/clustering/merging:
     used_by_otel: true
+  pkg/logs/patterns/tags:
+    used_by_otel: true
   pkg/logs/patterns/token:
     used_by_otel: true
   pkg/logs/pipeline:
