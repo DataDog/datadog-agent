@@ -71,19 +71,6 @@ filegroup(
     output_group = "gen_dir",
 )
 
-genrule(
-    name = "copy_fipsmodule_cnf",
-    srcs = [":gendir"],
-    outs = ["fipsmodule.cnf"],
-    cmd = "cp $(location :gendir)/ssl/fipsmodule.cnf $@",
-)
-
-pkg_files(
-    name = "fipsmodule_cnf",
-    srcs = [":copy_fipsmodule_cnf"],
-    prefix = "embedded/ssl",
-)
-
 pkg_files(
     name = "openssl_fips_provider",
     srcs = [":fips_provider"],

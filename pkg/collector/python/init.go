@@ -519,15 +519,17 @@ func initFIPS() {
 
 // enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
 func enableFIPS(embeddedPath string) error {
+	fmt.Printf("enableFIPS EMBEDDED PATH: %s\n", embeddedPath)
 	envVars := map[string][]string{
 		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
 		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
 	}
-
+	fmt.Printf("enableFIPS ENV VARS: %v\n", envVars)
 	for envVar, pathParts := range envVars {
 		if v := os.Getenv(envVar); v != "" {
 			continue
 		}
+		fmt.Printf("enableFIPS ENV VAR: %s\n", envVar)
 		path := filepath.Join(pathParts...)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return fmt.Errorf("path %q does not exist", path)
