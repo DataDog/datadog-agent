@@ -282,6 +282,7 @@ func (f *testFixture) createWorker() *streamWorker {
 func (f *testFixture) createWorkerWithInflight(inflight *inflightTracker) *streamWorker {
 	worker := newStreamWorkerWithClock(
 		"test-worker",
+		"test-pipeline",
 		f.inputChan,
 		f.destCtx,
 		nil, // conn not needed with mock client
