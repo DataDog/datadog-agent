@@ -471,7 +471,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 
 // MarshalJSON marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
-	if d == nil || d.Duration == 0 {
+	if d == nil {
 		return nil, nil
 	}
 	return json.Marshal(d.GetDuration())
