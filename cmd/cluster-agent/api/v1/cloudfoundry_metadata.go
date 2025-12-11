@@ -23,11 +23,11 @@ import (
 // CloudFoundryMetadataHandler handles Cloud Foundry metadata HTTP requests
 type CloudFoundryMetadataHandler struct {
 	bbsCache cloudfoundry.BBSCacheI
-	ccCache  *cloudfoundry.CCCache
+	ccCache  cloudfoundry.CCCacheI
 }
 
 // NewCloudFoundryMetadataHandler creates a new CloudFoundryMetadataHandler with the given caches
-func NewCloudFoundryMetadataHandler(bbsCache cloudfoundry.BBSCacheI, ccCache *cloudfoundry.CCCache) *CloudFoundryMetadataHandler {
+func NewCloudFoundryMetadataHandler(bbsCache cloudfoundry.BBSCacheI, ccCache cloudfoundry.CCCacheI) *CloudFoundryMetadataHandler {
 	return &CloudFoundryMetadataHandler{
 		bbsCache: bbsCache,
 		ccCache:  ccCache,

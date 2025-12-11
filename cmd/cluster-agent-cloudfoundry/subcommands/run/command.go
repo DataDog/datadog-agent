@@ -216,12 +216,14 @@ func run(
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// initialize CC Cache
-	if err = initializeCCCache(mainCtx); err != nil {
+	var ccCache cloudfoundry.CCCacheI
+	ccCache, err = initializeCCCache(mainCtx)
+	if err != nil {
 		_ = pkglog.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
-	// initialize BBS Cache before starting provider/listener
-	if err = initializeBBSCache(mainCtx); err != nil {
+	// initialize BBS Cache before starting provider/listener, passing the CC cache for enrichment
+	if err = initializeBBSCache(mainCtx, ccCache); err != nil {
 		return err
 	}
 
@@ -270,7 +272,7 @@ func run(
 	return nil
 }
 
-func initializeCCCache(ctx context.Context) error {
+func initializeCCCache(ctx context.Context) (cloudfoundry.CCCacheI, error) {
 	pollInterval := time.Second * time.Duration(pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.poll_interval"))
 
 	// Create the CF client
@@ -281,10 +283,10 @@ func initializeCCCache(ctx context.Context) error {
 		SkipSslValidation: pkgconfigsetup.Datadog().GetBool("cloud_foundry_cc.skip_ssl_validation"),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create CC client: %v", err)
+		return nil, fmt.Errorf("failed to create CC client: %v", err)
 	}
 
-	_, err = cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
+	ccCache, err := cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
 		CCClient:           ccClient,
 		PollInterval:       pollInterval,
 		AppsBatchSize:      pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
@@ -294,12 +296,12 @@ func initializeCCCache(ctx context.Context) error {
 		SegmentsTags:       pkgconfigsetup.Datadog().GetBool("cluster_agent.isolation_segments_tags"),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize CC Cache: %v", err)
+		return nil, fmt.Errorf("failed to initialize CC Cache: %v", err)
 	}
-	return nil
+	return ccCache, nil
 }
 
-func initializeBBSCache(ctx context.Context) error {
+func initializeBBSCache(ctx context.Context, ccCache cloudfoundry.CCCacheI) error {
 	pollInterval := time.Second * time.Duration(pkgconfigsetup.Datadog().GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 
@@ -343,6 +345,7 @@ func initializeBBSCache(ctx context.Context) error {
 		PollInterval: pollInterval,
 		IncludeList:  includeList,
 		ExcludeList:  excludeList,
+		CCCache:      ccCache,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())
