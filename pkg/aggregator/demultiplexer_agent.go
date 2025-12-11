@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	metrichistory "github.com/DataDog/datadog-agent/pkg/aggregator/metric_history"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/metric_history/detectors"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/metric_history/summary"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -77,6 +78,7 @@ type AgentDemultiplexer struct {
 
 	// metric history cache for storing historical metric data
 	metricHistoryCache *metrichistory.MetricHistoryCache
+	anomalySummary     *summary.AnomalySummarySystem
 }
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
@@ -207,6 +209,7 @@ func initAgentDemultiplexer(log log.Component,
 	// metric history cache
 	// --------------------
 	var metricHistCache *metrichistory.MetricHistoryCache
+	var anomalySummary *summary.AnomalySummarySystem
 	histCfg := metrichistory.LoadConfig(pkgconfigsetup.Datadog())
 	if histCfg.Enabled {
 		log.Infof("Metric history cache enabled, tracking prefixes: %v", histCfg.IncludePrefixes)
@@ -242,6 +245,9 @@ func initAgentDemultiplexer(log log.Component,
 		}
 		metricHistCache.SetupDetectors(histCfg, registry)
 
+		// Initialize anomaly summary system
+		anomalySummary = summary.NewAnomalySummarySystem()
+
 		// Start debug server for snapshot capture if enabled
 		if histCfg.DebugServerEnabled {
 			log.Infof("Metric history debug server starting on %s", histCfg.DebugServerAddr)
@@ -270,6 +276,7 @@ func initAgentDemultiplexer(log log.Component,
 		hostTagProvider:    hosttags.NewHostTagProvider(),
 		senders:            newSenders(agg),
 		metricHistoryCache: metricHistCache,
+		anomalySummary:     anomalySummary,
 
 		// statsd time samplers
 		statsd: statsd{
@@ -548,9 +555,25 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	// -------------------------------------------------------
 	if d.metricHistoryCache != nil {
 		anomalies := d.metricHistoryCache.OnFlush(start)
+
+		// Log raw anomalies
 		for _, a := range anomalies {
 			d.log.Warnf("[ANOMALY DETECTED] %s | %s %v: %s (severity: %.2f)",
 				a.DetectorName, a.SeriesKey.Name, a.SeriesKey.Tags, a.Message, a.Severity)
+		}
+
+		// Generate and log anomaly summaries
+		if d.anomalySummary != nil && len(anomalies) > 0 {
+			summaries := d.anomalySummary.ProcessAnomalies(anomalies, start)
+			for _, s := range summaries {
+				d.log.Warnf("[ANOMALY SUMMARY] %s", s.Headline)
+				for _, detail := range s.Details {
+					d.log.Warnf("[ANOMALY SUMMARY]   - %s", detail)
+				}
+				if s.LikelyCause != "" {
+					d.log.Warnf("[ANOMALY SUMMARY]   Likely cause: %s", s.LikelyCause)
+				}
+			}
 		}
 	}
 
