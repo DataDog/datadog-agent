@@ -15,6 +15,7 @@ package(
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:blessing"],
+    license_text = "@@//deps:sqlite3/LICENSE.md",
     visibility = ["//visibility:public"],
 )
 
