@@ -367,12 +367,12 @@ func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
 	// Try to get workload from cgroup resolver
 	if ad.Profile.Metadata.ContainerID != "" {
 		// Container workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkload(ad.Profile.Metadata.ContainerID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetContainerWorkload(ad.Profile.Metadata.ContainerID); found {
 			pids = workload.GetPIDs()
 		}
 	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
 		// Host workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkloadByCGroupID(ad.Profile.Metadata.CGroupContext.CGroupID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetHostWorkload(ad.Profile.Metadata.CGroupContext.CGroupID); found {
 			pids = workload.GetPIDs()
 		}
 	}
@@ -523,11 +523,11 @@ workloadLoop:
 		defaultConfig := m.getDefaultLoadConfig()
 
 		// if not a container, check we should trace it
-		if workloads[0].ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		if workloads[0].ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
 			continue
 		}
 
-		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
+		if err := m.startDumpWithConfig(workloads[0].ContainerContext.ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
 			seclog.Debugf("%v", err)
 		}
 	}

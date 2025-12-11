@@ -46,4 +46,3 @@ removed: [1001]
 state:
   current_time: 300
   last_watermark: 200
-  live: [1001]

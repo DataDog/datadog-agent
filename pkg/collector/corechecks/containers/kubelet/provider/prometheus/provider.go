@@ -388,7 +388,7 @@ func (p *Provider) ignoreMetricByLabel(metric *model.Sample, metricName string) 
 func (p *Provider) metricNameWithNamespace(metricName string) string {
 	nameWithNamespace := metricName
 	if p.Config.Namespace != "" {
-		nameWithNamespace = fmt.Sprintf("%s.%s", strings.TrimSuffix(p.Config.Namespace, "."), metricName)
+		nameWithNamespace = strings.TrimSuffix(p.Config.Namespace, ".") + "." + metricName
 	}
 	return nameWithNamespace
 }
