@@ -36,6 +36,9 @@ build do
 
   # The version of bzip2 we use doesn't create a pkgconfig file,
   # we add it here manually (needed at least by the Python build)
+  block do
+    FileUtils.mkdir_p "#{install_dir}/embedded/lib/pkgconfig/"
+  end
   erb source: "bzip2.pc.erb",
       dest: "#{install_dir}/embedded/lib/pkgconfig/bzip2.pc",
       vars: {
