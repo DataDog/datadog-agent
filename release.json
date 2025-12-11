@@ -7,7 +7,7 @@
         "AGENT_DATA_PLANE_HASH_LINUX_AMD64": "4825be3b4d3cf0089722d7b34e5a4f06efd4cd36522ebb13b71b87dd7ce75cac",
         "AGENT_DATA_PLANE_HASH_LINUX_ARM64": "b5d028c3aa58350baf90544bcc936b83c3f5e4232c42af9a7832004707eef42d",
         "AGENT_DATA_PLANE_VERSION": "0.1.24",
-        "INTEGRATIONS_CORE_VERSION": "dd2d491084c88070d2d48d5955d0fcc3a169ad6e",
+        "INTEGRATIONS_CORE_VERSION": "b240c7d2c254c12f5e06591768c6698d6e1128de",
         "JMXFETCH_HASH": "89adfa759b44d588da0e7fb93eaf00e61260c396ad0e55397bef12a56057ab99",
         "JMXFETCH_VERSION": "0.51.0",
         "OMNIBUS_RUBY_VERSION": "b29eb2add13a9631afb433945b1b2b00c3d5e7e3",
@@ -21,6 +21,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.72.4"
+        "7": "7.73.0"
     }
 }
