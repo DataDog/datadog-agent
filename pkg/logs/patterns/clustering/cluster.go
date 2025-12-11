@@ -48,11 +48,11 @@ func NewCluster(signature token.Signature) *Cluster {
 
 // AddTokenListToPatterns adds a TokenList to the appropriate pattern in the cluster.
 // If no matching pattern exists, creates a new one.
-func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList) *Pattern {
+func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList, cm *ClusterManager) *Pattern {
 	// Ensure patterns are generated
 	if len(c.Patterns) == 0 {
 		// No patterns yet, create first one
-		patternID := generatePatternID()
+		patternID := cm.generatePatternID()
 		pattern := newPattern(tokenList, patternID)
 
 		c.Patterns = []*Pattern{pattern}
@@ -99,7 +99,7 @@ func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList) *Pattern {
 	}
 
 	// No matching pattern found, create a new one
-	patternID := generatePatternID()
+	patternID := cm.generatePatternID()
 	pattern := newPattern(tokenList, patternID)
 	c.Patterns = append(c.Patterns, pattern)
 	c.UpdatedAt = time.Now()
