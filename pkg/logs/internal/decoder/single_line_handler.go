@@ -17,13 +17,13 @@ import (
 // SingleLineHandler takes care of tracking the line length
 // and truncating them when they are too long.
 type SingleLineHandler struct {
-	outputFn       func(*message.Message)
+	outputFn       func([]*message.Message)
 	shouldTruncate bool
 	lineLimit      int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler.
-func NewSingleLineHandler(outputFn func(*message.Message), lineLimit int) *SingleLineHandler {
+func NewSingleLineHandler(outputFn func([]*message.Message), lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
 		outputFn:  outputFn,
 		lineLimit: lineLimit,
@@ -76,5 +76,5 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		addTruncatedTag(msg)
 	}
 	msg.SetContent(content) // refresh the content in the message
-	h.outputFn(msg)
+	h.outputFn([]*message.Message{msg})
 }

@@ -8,13 +8,29 @@ package automultilinedetection
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-type bucket struct {
+type bucket interface {
+	add(msg *message.Message)
+	isEmpty() bool
+	reset()
+	flush() []*message.Message
+
+	// Methods for truncation control
+	setShouldTruncate(bool)
+	setNeedsTruncation(bool)
+
+	// Methods for size tracking
+	getBufferLen() int
+	incrementLineCount()
+}
+
+type combiningBucket struct {
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
 	maxContentSize   int
@@ -27,7 +43,7 @@ type bucket struct {
 	needsTruncation bool
 }
 
-func (b *bucket) add(msg *message.Message) {
+func (b *combiningBucket) add(msg *message.Message) {
 	if b.message == nil {
 		b.message = msg
 	}
@@ -39,11 +55,11 @@ func (b *bucket) add(msg *message.Message) {
 	b.lineCount++
 }
 
-func (b *bucket) isEmpty() bool {
+func (b *combiningBucket) isEmpty() bool {
 	return b.originalDataLen == 0
 }
 
-func (b *bucket) reset() {
+func (b *combiningBucket) reset() {
 	b.buffer.Reset()
 	b.message = nil
 	b.lineCount = 0
@@ -51,7 +67,7 @@ func (b *bucket) reset() {
 	b.needsTruncation = false
 }
 
-func (b *bucket) flush() *message.Message {
+func (b *combiningBucket) flush() []*message.Message {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -100,28 +116,115 @@ func (b *bucket) flush() *message.Message {
 	}
 
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	return msg
+	return []*message.Message{msg}
 }
 
-// Aggregator aggregates multiline logs with a given label.
-type Aggregator struct {
-	outputFn           func(m *message.Message)
-	bucket             *bucket
+func (b *combiningBucket) setShouldTruncate(val bool) {
+	b.shouldTruncate = val
+}
+
+func (b *combiningBucket) setNeedsTruncation(val bool) {
+	b.needsTruncation = val
+}
+
+func (b *combiningBucket) getBufferLen() int {
+	return b.buffer.Len()
+}
+
+func (b *combiningBucket) incrementLineCount() {
+	b.lineCount++
+}
+
+// tagOnlyBucket does not aggregate multiline logs into a single log, it
+// only adds a tag indicating they were capable of being tagged
+type tagOnlyBucket struct {
+	messages  []*message.Message
+	lineCount int
+}
+
+// add adds the message to the ongoing bucket
+func (b *tagOnlyBucket) add(msg *message.Message) {
+	b.messages = append(b.messages, msg)
+	b.lineCount++
+}
+
+func (b *tagOnlyBucket) isEmpty() bool {
+	return len(b.messages) == 0
+}
+
+func (b *tagOnlyBucket) reset() {
+	b.messages = nil
+	b.lineCount = 0
+}
+
+func (b *tagOnlyBucket) flush() []*message.Message {
+	defer b.reset()
+
+	if b.lineCount <= 1 {
+		return b.messages // No tags for single-line
+	}
+
+	// Tag all messages with group size
+	for _, msg := range b.messages {
+		msg.ProcessingTags = append(msg.ProcessingTags,
+			fmt.Sprintf("auto_multiline_group_size:%d", b.lineCount))
+	}
+
+	return b.messages
+}
+
+func (b *tagOnlyBucket) setShouldTruncate(val bool) {
+	// No-op: tagOnlyBucket doesn't track truncation
+}
+
+func (b *tagOnlyBucket) setNeedsTruncation(val bool) {
+	// No-op
+}
+
+func (b *tagOnlyBucket) getBufferLen() int {
+	return 0 // No buffer in tagOnlyBucket
+}
+
+func (b *tagOnlyBucket) incrementLineCount() {
+	b.lineCount++
+}
+
+// DefaultAggregator aggregates multiline logs with a given label.
+type DefaultAggregator struct {
+	outputFn           func(m []*message.Message)
+	bucket             bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
 }
 
 // NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) *Aggregator {
+func NewAggregator(outputFn func(m []*message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry, isDetectionOnly bool) *DefaultAggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
 	tailerInfo.Register(linesCombinedInfo)
 
-	return &Aggregator{
+	var bkt bucket
+	if isDetectionOnly {
+		bkt = &tagOnlyBucket{
+			messages: make([]*message.Message, 0),
+		}
+	} else {
+		bkt = &combiningBucket{
+			buffer:           bytes.NewBuffer(nil),
+			tagTruncatedLogs: tagTruncatedLogs,
+			tagMultiLineLogs: tagMultiLineLogs,
+			maxContentSize:   maxContentSize,
+			lineCount:        0,
+			shouldTruncate:   false,
+			needsTruncation:  false,
+		}
+	}
+
+	return &DefaultAggregator{
 		outputFn:           outputFn,
-		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false, needsTruncation: false},
+		bucket:             bkt,
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
@@ -129,12 +232,12 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 }
 
 // Aggregate aggregates a multiline log using a label.
-func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
+func (a *DefaultAggregator) Aggregate(msg *message.Message, label Label) {
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
-		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
+		a.bucket.setShouldTruncate(false) // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
 		a.bucket.add(msg)
 		a.Flush()
 		return
@@ -164,12 +267,12 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// following a smaller than max-size start group label, and will result in the reset (flush) of the entire bucket.
 	// This reset will intentionally break multi-line detection and aggregation for logs larger than the limit, because
 	// doing so is safer than assuming we will correctly get a new startGroup for subsequent single line logs.
-	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
-		a.bucket.needsTruncation = true
-		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
+	if msg.RawDataLen+a.bucket.getBufferLen() >= a.maxContentSize {
+		a.bucket.setNeedsTruncation(true)
+		a.bucket.incrementLineCount() // Account for the current (not yet processed) message being part of the same log
 		a.Flush()
 
-		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
+		a.bucket.incrementLineCount() // Account for the previous (now flushed) message being part of the same log
 		a.bucket.add(msg)
 		a.Flush()
 		return
@@ -181,7 +284,7 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 }
 
 // Flush flushes the aggregator.
-func (a *Aggregator) Flush() {
+func (a *DefaultAggregator) Flush() {
 	if a.bucket.isEmpty() {
 		a.bucket.reset()
 		return
@@ -190,6 +293,6 @@ func (a *Aggregator) Flush() {
 }
 
 // IsEmpty returns true if the bucket is empty.
-func (a *Aggregator) IsEmpty() bool {
+func (a *DefaultAggregator) IsEmpty() bool {
 	return a.bucket.isEmpty()
 }
