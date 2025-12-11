@@ -1,0 +1,3 @@
+features:
+  - |
+    Add a lightweight graphical overlay for Windows that can be launched from the Datadog system tray or hot key to quickly query and display status.
