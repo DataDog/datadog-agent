@@ -134,7 +134,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
 			TokenString:     tokensToString(r.tokens),
-			LabelString:     LabelToString(r.label),
+			LabelString:     labelToString(r.label),
 			labelAssignedBy: r.labelAssignedBy,
 			Count:           r.count,
 			LastIndex:       r.lastIndex})
