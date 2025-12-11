@@ -58,15 +58,6 @@ func getKeys(m map[string]bool) []string {
 	return keys
 }
 
-// getMapKeys returns the keys from a map[string]interface{} (for logging purposes)
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // filterLogsByTag filters logs that have a specific tag with a specific value
 func filterLogsByTag(logs []*aggregator.Log, tagKey, tagValue string) []*aggregator.Log {
 	var filtered []*aggregator.Log

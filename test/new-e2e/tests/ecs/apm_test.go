@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package ecs provides end-to-end tests for the Datadog Agent running on Amazon ECS.
+// It tests APM/tracing, metrics, logs, and agent health across different ECS launch types
+// (Fargate, EC2, and Managed Instances).
 package ecs
 
 import (
@@ -327,7 +330,6 @@ func (suite *ecsAPMSuite) TestTraceSampling() {
 					for _, chunk := range payload.Chunks {
 						for _, span := range chunk.Spans {
 							if samplingPriority, exists := span.Metrics["_sampling_priority_v1"]; exists {
-								foundSamplingPriority = true
 								suite.T().Logf("Found span with sampling priority: %f (service=%s)",
 									samplingPriority, span.Service)
 

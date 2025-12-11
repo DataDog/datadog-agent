@@ -617,7 +617,7 @@ type TestAPMTraceFilterArgs struct {
 }
 
 type TestAPMTraceExpectArgs struct {
-	Tags *[]string
+	Tags      *[]string
 	SpanCount *int
 	// SamplingPriority validates sampling decision
 	SamplingPriority *int

@@ -6,17 +6,17 @@
 package ecs
 
 import (
-	"time"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/stretchr/testify/assert"
 
-	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
 type ecsConfigSuite struct {
@@ -532,4 +532,3 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 		}, 3*time.Minute, 10*time.Second, "Configuration precedence validation completed")
 	})
 }
-

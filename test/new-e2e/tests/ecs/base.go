@@ -18,6 +18,3 @@ type BaseSuite[Env any] struct {
 	Fakeintake  *fakeintake.Client
 	ClusterName string
 }
-
-// baseSuite is an alias for backwards compatibility
-type baseSuite[Env any] = BaseSuite[Env]
