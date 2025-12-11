@@ -76,6 +76,10 @@ single_machine_performance-regression_detector-merge_base_check:
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
+    - !reference [.on_dev_branches]
+    - when: on_success
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -91,6 +95,10 @@ single_machine_performance-regression_detector-merge_base_check:
   allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]
   script:
+    - |
+      if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 10 != 0 )); then
+        exit 0
+      fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `timeout`. At each smp command we will catch any failure exit codes and update this tag properly.
@@ -309,10 +317,6 @@ single-machine-performance-regression_detector:
       artifacts: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_dev_branches]
-    - when: on_success
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
@@ -323,22 +327,20 @@ single-machine-performance-regression_detector:
 single-machine-performance-metal-runners-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  allow_failure: true
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true
       optional: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.manual]
-    - when: on_success
   variables:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: dev-pr3629-bea43153
+    SMP_VERSION: dev-pr3796-e7f7a988
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
+    SAMPLE: "true"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.

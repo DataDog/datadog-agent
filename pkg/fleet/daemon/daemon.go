@@ -177,22 +177,16 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	states, err := d.installer(d.env).States(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var configStates map[string]repository.State
-	configStates, err = d.installer(d.env).ConfigStates(ctx)
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make(map[string]PackageState)
-	for pkg := range states {
+	for pkg := range configAndPackageStates.States {
 		res[pkg] = PackageState{
-			Version: states[pkg],
-			Config:  configStates[pkg],
+			Version: configAndPackageStates.States[pkg],
+			Config:  configAndPackageStates.ConfigStates[pkg],
 		}
 	}
 	return res, nil
@@ -763,15 +757,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			log.Errorf("could not set task state: %v", err)
 		}
 	}
-	state, err := d.installer(d.env).States(ctx)
+
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
-		log.Errorf("could not get installer state: %v", err)
-		return
-	}
-	configState, err := d.installer(d.env).ConfigStates(ctx)
-	if err != nil {
-		log.Errorf("could not get installer config state: %v", err)
+		log.Errorf("could not get installer config and package states: %v", err)
 		return
 	}
 	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
@@ -789,13 +779,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		"datadog-agent": d.env.ConfigID,
 	}
 	var packages []*pbgo.PackageState
-	for pkg, s := range state {
+	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configState[pkg].Stable,
-			ExperimentConfigVersion: configState[pkg].Experiment,
+			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
+			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
 		}
