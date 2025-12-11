@@ -1,4 +1,4 @@
-Top level of dependencies originating outside this source repository.
+# Top level of dependencies originating outside this source repository.
 
 package(default_visibility = ["//visibility:private"])
 
