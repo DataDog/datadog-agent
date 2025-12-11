@@ -142,9 +142,12 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 			case mappingLinear:
 				// Old mapping
 				cpuShares = math.Round(cpuWeightToSharesLinear(weight))
-			case mappingNonLinear, mappingUnknown:
-				// Default to new mapping if unknown
+			case mappingNonLinear:
+				// New mapping
 				cpuShares = math.Round(cpuWeightToSharesNonLinear(weight))
+			default:
+				// Cannot determine mapping, don't emit potentially wrong metric
+				return
 			}
 		}
 
@@ -210,10 +213,9 @@ func (dn *dockerCustomMetricsExtension) detectMapping(containerID string, actual
 		dn.mapping = mappingNonLinear
 		log.Debugf("docker check: detected non-linear (new) shares<->weight mapping (shares=%d, weight=%d)", configuredShares, weight)
 	default:
-		// Ambiguous or unknown runtime - default to new mapping since that's
-		// where the ecosystem is heading (runc >= 1.3.2, crun >= 1.23).
-		dn.mapping = mappingNonLinear
-		log.Debugf("docker check: unknown shares<->weight mapping (shares=%d, weight=%d, expectedLinear=%d, expectedNonLinear=%d), defaulting to non-linear",
+		// Ambiguous or unknown runtime - don't set mapping, will retry detection.
+		// This avoids emitting potentially wrong metrics.
+		log.Debugf("docker check: couldn't determine shares<->weight mapping (shares=%d, weight=%d, expectedLinear=%d, expectedNonLinear=%d), will retry",
 			configuredShares, weight, expectedLinear, expectedNonLinear)
 	}
 }
