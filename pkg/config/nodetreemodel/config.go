@@ -30,6 +30,7 @@ import (
 var sources = []model.Source{
 	model.SourceDefault,
 	model.SourceUnknown,
+	model.SourceInfraMode,
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
@@ -82,6 +83,8 @@ type ntmConfig struct {
 	defaults *nodeImpl
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
 	unknown *nodeImpl
+	// infraMode contains the settings set by infrastructure mode configurations
+	infraMode *nodeImpl
 	// file contains the settings pulled from YAML files
 	file *nodeImpl
 	// envs contains config settings created by environment variables
@@ -167,6 +170,8 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.defaults, nil
 	case model.SourceUnknown:
 		return c.unknown, nil
+	case model.SourceInfraMode:
+		return c.infraMode, nil
 	case model.SourceFile:
 		return c.file, nil
 	case model.SourceEnvVar:
@@ -935,6 +940,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceUnknown:            c.unknown.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceInfraMode:          c.infraMode.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFile:               c.file.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceEnvVar:             c.envs.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFleetPolicies:      c.fleetPolicies.DumpSettings(func(model.Source) bool { return true }),
@@ -1075,6 +1081,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
+		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
 		runtime:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
