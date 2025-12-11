@@ -156,46 +156,72 @@ jobs:
     - name: Extract information from file
       id: extract-info
       run: |
-        # Extract all team labels from the CODEOWNERS file
+        # Get all team labels from the CODEOWNERS file
         if [ -f .github/CODEOWNERS ]; then
           grep -o '@[A-Za-z0-9_.-]*/[A-Za-z0-9_.-]\+' .github/CODEOWNERS | sort -u | sed 's|^@.*\/|team\/|' > team_labels.txt
         else
           echo "team/agent-devx" > team_labels.txt
         fi
-        if [ -f claude.txt ]; then
-          TEAM=$(grep TEAM claude.txt | cut -d ':' -f2)
-          if grep -q "$TEAM" team_labels.txt; then
-            # We validate the team label against the team_labels.txt file
-            echo "team=team/$TEAM" >> $GITHUB_OUTPUT
-          else
+        # Sanitise the generated text and extract information
+        if [ -f claude.txt ] && [ -f issue_details.json ]; then
+          SENSITIVE_FOUND=false
+
+          # Check for Anthropic API keys (sk-ant-api##-...)
+          if grep -qiE 'sk-ant-api[0-9]{2}-[A-Za-z0-9\-]{95,}' claude.txt || grep -qiE 'sk-ant-api[0-9]{2}-[A-Za-z0-9\-]{95,}' issue_details.json; then
+            echo "⚠️ WARNING: Anthropic API key detected in local files"
+            SENSITIVE_FOUND=true
+          fi
+          # Check for GitHub classic tokens (ghp_...)
+          if grep -qE 'ghp_[A-Za-z0-9]{36}' claude.txt || grep -qE 'ghp_[A-Za-z0-9]{36}' issue_details.json; then
+            echo "⚠️ WARNING: GitHub classic token detected in local files"
+            SENSITIVE_FOUND=true
+          fi
+          # Check for GitHub fine-grained tokens (github_pat_...)
+          if grep -qE 'github_pat_[A-Za-z0-9_]{82}' claude.txt || grep -qE 'github_pat_[A-Za-z0-9_]{82}' issue_details.json; then
+            echo "⚠️ WARNING: GitHub fine-grained token detected in local files"
+            SENSITIVE_FOUND=true
+          fi
+          if [ "$SENSITIVE_FOUND" = true ]; then
+            echo "❌ Sensitive information detected in local files. Skipping processing for security."
             echo "team=unknown" >> $GITHUB_OUTPUT
-          fi
-          SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
-          if grep -q "$SLACK" github_slack_map.yaml; then
-            # We validate the slack channel against the github_slack_map.yaml file
-            echo "slack=$SLACK" >> $GITHUB_OUTPUT
+            echo "slack=agent-devx-ops" >> $GITHUB_OUTPUT
+            echo "confidence=low" >> $GITHUB_OUTPUT
+            echo "explanation=Sensitive information detected, processing skipped for security" >> $GITHUB_OUTPUT
+            echo "issue_number=unknown" >> $GITHUB_OUTPUT
+            echo "issue_title=unknown" >> $GITHUB_OUTPUT
+            echo "issue_url=unknown" >> $GITHUB_OUTPUT
           else
-            echo "slack=agent-devx" >> $GITHUB_OUTPUT
+            TEAM=$(grep TEAM claude.txt | cut -d ':' -f2)
+            if [[ "$TEAM" =~ ^[a-zA-Z0-9_-]+$ ]] && grep -q "$TEAM" team_labels.txt; then
+              # We validate the team label against the team_labels.txt file
+              echo "team=team/$TEAM" >> $GITHUB_OUTPUT
+            else
+              echo "team=unknown" >> $GITHUB_OUTPUT
+            fi
+            SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
+            if grep -q "$SLACK" github_slack_map.yaml; then
+              # We validate the slack channel against the github_slack_map.yaml file
+              echo "slack=$SLACK" >> $GITHUB_OUTPUT
+            else
+              echo "slack=agent-devx" >> $GITHUB_OUTPUT
+            fi
+            CONFIDENCE=$(grep CONFIDENCE claude.txt | cut -d ':' -f2)
+            echo "confidence=$CONFIDENCE" >> $GITHUB_OUTPUT
+            # We extract the explanation from the claude.txt file and remove the markdown links
+            EXPLANATION=$(grep EXPLANATION claude.txt | cut -d ':' -f2 | sed -E 's/\[([^]]+)\]\([^)]+\)/\1/g; s/<[^|]+\|([^>]+)>/\1/g')
+            echo "explanation=$EXPLANATION" >> $GITHUB_OUTPUT
+            ISSUE_NUMBER=$(jq -r '.number' issue_details.json)
+            echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            ISSUE_TITLE=$(jq -r '.title' issue_details.json)
+            echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
+            ISSUE_URL=$(jq -r '.url' issue_details.json)
+            echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
           fi
-          CONFIDENCE=$(grep CONFIDENCE claude.txt | cut -d ':' -f2)
-          echo "confidence=$CONFIDENCE" >> $GITHUB_OUTPUT
-          # We extract the explanation from the claude.txt file and remove the markdown links
-          EXPLANATION=$(grep EXPLANATION claude.txt | cut -d ':' -f2 | sed -E 's/\[([^]]+)\]\([^)]+\)/\1/g; s/<[^|]+\|([^>]+)>/\1/g')
-          echo "explanation=$EXPLANATION" >> $GITHUB_OUTPUT
         else
           echo "team=unknown" >> $GITHUB_OUTPUT
-          echo "slack=agent-devx" >> $GITHUB_OUTPUT
+          echo "slack=agent-devx-ops" >> $GITHUB_OUTPUT
           echo "confidence=low" >> $GITHUB_OUTPUT
-          echo "explanation=none" >> $GITHUB_OUTPUT
-        fi
-        if [ -f issue_details.json ]; then
-          ISSUE_NUMBER=$(jq -r '.number' issue_details.json)
-          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          ISSUE_TITLE=$(jq -r '.title' issue_details.json)
-          echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
-          ISSUE_URL=$(jq -r '.url' issue_details.json)
-          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
-        else
+          echo "explanation=No AI output generated" >> $GITHUB_OUTPUT
           echo "issue_number=unknown" >> $GITHUB_OUTPUT
           echo "issue_title=unknown" >> $GITHUB_OUTPUT
           echo "issue_url=unknown" >> $GITHUB_OUTPUT
