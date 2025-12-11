@@ -21,6 +21,7 @@ import (
 
 func TestActivityDumpsThreatScore(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -85,6 +86,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	}
 
 	t.Run("activity-dump-tag-rule-file", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -136,6 +138,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -177,6 +180,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-bind", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -222,6 +226,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)

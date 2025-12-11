@@ -45,6 +45,8 @@ func TestSecurityProfile(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
@@ -74,6 +76,7 @@ func TestSecurityProfile(t *testing.T) {
 	}
 
 	t.Run("security-profile-metadata", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -128,6 +131,7 @@ func TestSecurityProfile(t *testing.T) {
 	})
 
 	t.Run("security-profile-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -166,6 +170,7 @@ func TestSecurityProfile(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		CheckRequiredTest(t)
 
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
@@ -221,6 +226,8 @@ func TestAnomalyDetection(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
@@ -255,6 +262,7 @@ func TestAnomalyDetection(t *testing.T) {
 	}
 
 	t.Run("anomaly-detection-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -287,6 +295,7 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-process-negative", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -316,6 +325,7 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -352,6 +362,7 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-dns-negative", func(t *testing.T) {
+		CheckRequiredTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -398,6 +409,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
@@ -457,6 +470,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	defer testDockerInstance1.stop()
 
 	t.Run("anomaly-detection-warmup-1", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
@@ -468,6 +482,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-warmed-up-autolearned-1", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
@@ -479,6 +494,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-warmed-up-not-autolearned-1", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
@@ -498,6 +514,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	defer testDockerInstance2.stop()
 
 	t.Run("anomaly-detection-warmup-2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
@@ -511,6 +528,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	// already sleep for timeout for warmup period + 2sec spare (5s)
 
 	t.Run("anomaly-detection-warmed-up-autolearned-2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
@@ -522,6 +540,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-warmed-up-autolearned-bis-2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
@@ -533,6 +552,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-warmed-up-autolearned-bis-1", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.GetCustomEventSent(t, func() error {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
@@ -557,6 +577,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
@@ -593,6 +615,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	}
 
 	t.Run("anomaly-detection-reinsertion-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -623,6 +646,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-reinsertion-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -657,6 +681,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-stable-period-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -690,6 +715,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-stable-period-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -741,6 +767,8 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile", "protobuf"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
@@ -812,6 +840,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
 	t.Run("auto-suppression-process-signal", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check that we generate an event during profile learning phase
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
@@ -827,6 +856,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check that we generate an event during profile learning phase
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
@@ -848,6 +878,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
 
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
@@ -867,6 +898,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
@@ -889,6 +921,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	time.Sleep(reinsertPeriod)
 
 	t.Run("auto-suppression-process-no-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we don't autosuppress signals
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getent", []string{}, []string{})
@@ -904,6 +937,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-no-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we don't autosuppress signals
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.baz"}, []string{})
@@ -932,6 +966,8 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec"}
@@ -1042,6 +1078,8 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
 
@@ -1101,6 +1139,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	// HERE: V1 is learning
 
 	t.Run("life-cycle-v1-learning-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1122,6 +1161,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	// HERE: V1 is stable
 
 	t.Run("life-cycle-v1-stable-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1147,6 +1187,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	// HERE: V1 is stable and V2 is learning
 
 	t.Run("life-cycle-v2-learning-new-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1160,6 +1201,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	})
 
 	t.Run("life-cycle-v2-learning-v1-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1171,6 +1213,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	})
 
 	t.Run("life-cycle-v1-stable-v2-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("iconv", []string{"-l"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1191,6 +1234,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	// HERE: V1 is unstable and V2 is learning
 
 	t.Run("life-cycle-v1-unstable-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("scanelf", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1215,6 +1259,8 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
@@ -1275,6 +1321,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	// HERE: V1 is learning
 
 	t.Run("life-cycle-v1-learning-new-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1290,6 +1337,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	// HERE: V1 is stable
 
 	t.Run("life-cycle-v1-stable-dns-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1316,6 +1364,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	// HERE: V1 is stable and V2 is learning
 
 	t.Run("life-cycle-v2-learning-new-dns-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.es"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1332,6 +1381,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	time.Sleep(time.Second)
 
 	t.Run("life-cycle-v2-learning-v1-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1343,6 +1393,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	})
 
 	t.Run("life-cycle-v1-stable-v2-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.es"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1363,6 +1414,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	// HERE: V1 is unstable and V2 is learning
 
 	t.Run("life-cycle-v1-unstable-new-dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.co.uk"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1387,6 +1439,8 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "syscalls"}
@@ -1450,6 +1504,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	// Some syscall will be missing from the initial dump because they had no way to come back to user space
 	// (i.e. no new syscall to flush the dirty entry + no new exec + no new exit)
 	t.Run("life-cycle-v1-learning", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1468,6 +1523,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	// HERE: V1 is stable
 
 	t.Run("life-cycle-v1-stable-no-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1481,6 +1537,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	})
 
 	t.Run("life-cycle-v1-stable-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			// this will generate new syscalls, and should therefore generate an anomaly
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
@@ -1509,6 +1566,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	// HERE: V1 is stable and V2 is learning
 
 	t.Run("life-cycle-v1-stable-v2-learning-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		var gotSyscallsEvent bool
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
@@ -1527,6 +1585,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	})
 
 	t.Run("life-cycle-v1-stable-v2-learning-no-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1549,6 +1608,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	// HERE: V1 is unstable and V2 is learning
 
 	t.Run("life-cycle-v1-unstable-v2-learning", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1576,6 +1636,8 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
@@ -1637,6 +1699,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	// HERE: V1 is learning
 
 	t.Run("life-cycle-eviction-process-v1-learning-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1658,6 +1721,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	// HERE: V1 is stable
 
 	t.Run("life-cycle-eviction-process-v1-stable-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1683,6 +1747,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	// HERE: V1 is stable and V2 is learning
 
 	t.Run("life-cycle-eviction-process-v2-learning-new-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1708,6 +1773,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is learning
 
 	t.Run("life-cycle-eviction-process-check-v1-evicted", func(t *testing.T) {
+		CheckRequiredTest(t)
 		versions, err := test.GetProfileVersions(selector.Image)
 		if err != nil {
 			t.Fatal(err)
@@ -1728,6 +1794,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is stable
 
 	t.Run("life-cycle-eviction-process-v1-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV3.Command("getconf", []string{"-a"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1754,6 +1821,8 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
@@ -1815,6 +1884,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	// HERE: V1 is learning
 
 	t.Run("life-cycle-eviction-dns-v1-learning-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -1836,6 +1906,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	// HERE: V1 is stable
 
 	t.Run("life-cycle-eviction-dns-v1-stable-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1861,6 +1932,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	// HERE: V1 is stable and V2 is learning
 
 	t.Run("life-cycle-eviction-dns-v2-learning-new-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.es"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1886,6 +1958,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is learning
 
 	t.Run("life-cycle-eviction-dns-check-v1-evicted", func(t *testing.T) {
+		CheckRequiredTest(t)
 		versions, err := test.GetProfileVersions(selector.Image)
 		if err != nil {
 			t.Fatal(err)
@@ -1906,6 +1979,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is stable
 
 	t.Run("life-cycle-eviction-dns-v1-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV3.Command("nslookup", []string{"google.fr"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -1932,6 +2006,8 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
@@ -1993,6 +2069,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	// HERE: V1 is learning
 
 	t.Run("life-cycle-eviction-process-unstable-v1-learning-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
@@ -2014,6 +2091,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	// HERE: V1 is unstable
 
 	t.Run("life-cycle-eviction-process-unstable-v1-unstable", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -2037,6 +2115,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	// HERE: V1 is unstable and V2 is learning
 
 	t.Run("life-cycle-eviction-process-unstable-v2-learning", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -2060,6 +2139,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is learning
 
 	t.Run("life-cycle-eviction-process-unstable-v3-learning", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV3.Command("getconf", []string{"-a"}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -2080,6 +2160,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is stable
 
 	t.Run("life-cycle-eviction-process-unstable-v3-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV3.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
@@ -2106,6 +2187,8 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec"}
@@ -2193,6 +2276,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 
 	// check the profile is still applied, and events can be auto suppressed
 	t.Run("persistence-autosuppression-check", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetEventSent(t, func() error {
 			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
 			return err
@@ -2209,6 +2293,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 
 	// check the profile is still applied, and anomaly events can be generated
 	t.Run("persistence-anomaly-check", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			dockerInstance2.Command("getent", []string{}, []string{}).CombinedOutput()
 			return nil
@@ -2222,6 +2307,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 
 	// check the profile is still applied, and anomalies aren't generated for known events
 	t.Run("persistence-no-anomaly-check", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			_, err := dockerInstance2.Command("/bin/echo", []string{"aaa"}, []string{}).CombinedOutput()
 			return err
@@ -2350,6 +2436,8 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
@@ -2385,6 +2473,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	}
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		CheckRequiredTest(t)
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
@@ -2472,6 +2561,8 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
@@ -2507,6 +2598,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	}
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		CheckRequiredTest(t)
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
@@ -2592,6 +2684,8 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
@@ -2621,6 +2715,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	}
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		CheckRequiredTest(t)
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(
@@ -2669,6 +2764,8 @@ func TestSecurityProfileSystemd(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls"}
 
@@ -2705,6 +2802,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	// Test that our systemd service profile metadata is correctly generated
 	// This test verifies that profile metadata includes service name tags and correct cgroup information
 	t.Run("systemd-service-profile-metadata", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-service-" + utils.RandString(6)
 		reloadCmd := syscallTester + " sleep 1"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -2749,6 +2847,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	// Test that systemd service process information is correctly captured in profiles
 	// This test verifies that the process tree includes the expected executables run within the service
 	t.Run("systemd-service-profile-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-service-proc-" + utils.RandString(6)
 		reloadCmd := syscallTester + " sleep 1"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -2796,6 +2895,8 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
@@ -2837,6 +2938,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	// Test that anomaly detection correctly identifies unknown processes in systemd services
 	// This test verifies that executing a process not in the security profile triggers an anomaly detection event
 	t.Run("systemd-anomaly-detection-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-service-anomaly-pos-" + utils.RandString(6)
 		reloadCmd := "getconf -a"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -2868,6 +2970,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	// Test that anomaly detection doesn't trigger false positives for known processes
 	// This test verifies that executing a process that exists in the security profile does not trigger an anomaly
 	t.Run("systemd-anomaly-detection-process-negative", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-service-anomaly-neg-" + utils.RandString(6)
 		reloadCmd := syscallTester + " sleep 1"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -2914,6 +3017,8 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls"}
 
@@ -2955,6 +3060,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	// This test verifies that processes executed during the learning phase are added to the profile
 	// and don't trigger anomaly detection events
 	t.Run("systemd-lifecycle-v1-learning-new-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-lifecycle-learning-" + utils.RandString(6)
 		reloadCmd := syscallTester + " sleep 1"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -2985,6 +3091,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	// This test verifies that once a profile transitions to stable state,
 	// executing processes not in the profile generates anomaly detection events
 	t.Run("systemd-lifecycle-v1-stable-process-anomaly", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-lifecycle-stable-" + utils.RandString(6)
 		reloadCmd := syscallTester + " sleep 1"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -3019,6 +3126,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	// Test that known processes don't trigger anomalies when the profile is stable
 	// This test verifies that processes that exist in the security profile do not trigger anomalies
 	t.Run("systemd-lifecycle-v1-stable-known-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		serviceName := "cws-test-lifecycle-known-" + utils.RandString(6)
 		reloadCmd := "getconf -a"
 		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
@@ -3069,6 +3177,8 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns"}
 
@@ -3104,6 +3214,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	}
 
 	t.Run("node-eviction-basic", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -3188,6 +3299,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	})
 
 	t.Run("node-eviction-partial-children", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)

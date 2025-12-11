@@ -16,13 +16,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"golang.org/x/sys/unix"
 )
 
 func TestSetrlimitEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_setrlimit_nofile",
@@ -52,6 +54,7 @@ func TestSetrlimitEvent(t *testing.T) {
 		t.Fatalf("Failed to load syscall tester: %v", err)
 	}
 	t.Run("setrlimit-nofile", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err := test.GetEventSent(t, func() error {
 			cmd := exec.Command(syscallTester, "setrlimit-nofile")
 			if err := cmd.Start(); err != nil {
@@ -77,6 +80,7 @@ func TestSetrlimitEvent(t *testing.T) {
 		}
 	})
 	t.Run("setrlimit-nproc", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err := test.GetEventSent(t, func() error {
 			cmd := exec.Command(syscallTester, "setrlimit-nproc")
 			if err := cmd.Start(); err != nil {
@@ -102,6 +106,7 @@ func TestSetrlimitEvent(t *testing.T) {
 		}
 	})
 	t.Run("prlimit64-stack", func(t *testing.T) {
+		CheckRequiredTest(t)
 		var expectedPID int
 		err := test.GetEventSent(t, func() error {
 			cmd := exec.Command(syscallTester, "prlimit64-stack")
@@ -129,6 +134,7 @@ func TestSetrlimitEvent(t *testing.T) {
 		}
 	})
 	t.Run("setrlimit-core", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err := test.GetEventSent(t, func() error {
 			cmd := exec.Command(syscallTester, "setrlimit-core")
 			if err := cmd.Start(); err != nil {

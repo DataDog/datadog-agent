@@ -20,6 +20,7 @@ import (
 
 func TestHash(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -39,6 +40,7 @@ func TestHash(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-hash-exec")
 		if err != nil {
 			t.Fatal(err)
@@ -62,6 +64,7 @@ func TestHash(t *testing.T) {
 	})
 
 	t.Run("fifo", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-hash-fifo")
 		if err != nil {
 			t.Fatal(err)

@@ -22,6 +22,7 @@ import (
 
 func TestK8SUserSession(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	executable := which(t, "touch")
 
@@ -44,6 +45,7 @@ func TestK8SUserSession(t *testing.T) {
 	}
 
 	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-k8s-user-session-exec")
 		if err != nil {
 			t.Fatal(err)

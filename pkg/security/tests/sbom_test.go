@@ -27,6 +27,7 @@ import (
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
@@ -70,6 +71,7 @@ func TestSBOM(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
@@ -94,6 +96,7 @@ func TestSBOM(t *testing.T) {
 	})
 
 	t.Run("host", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {

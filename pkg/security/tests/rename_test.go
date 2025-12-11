@@ -27,6 +27,7 @@ import (
 
 func TestRename(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -61,6 +62,7 @@ func TestRename(t *testing.T) {
 
 	renameSyscallIsSupported := false
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		renameSyscallIsSupported = true
 
 		test.WaitSignal(t, func() error {
@@ -95,6 +97,7 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("renameat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
@@ -125,6 +128,7 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("renameat2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(unix.SYS_RENAMEAT2, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
@@ -159,6 +163,7 @@ func TestRename(t *testing.T) {
 
 	t.Run("io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		iour, err := iouring.New(1)
 		if err != nil {
@@ -215,6 +220,7 @@ func TestRename(t *testing.T) {
 
 func TestRenameInvalidate(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -264,6 +270,7 @@ func TestRenameInvalidate(t *testing.T) {
 
 func TestRenameReuseInode(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	// xfs has changed the inode reuse feature in 5.15
 	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
@@ -357,6 +364,7 @@ func TestRenameReuseInode(t *testing.T) {
 
 func TestRenameFolder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

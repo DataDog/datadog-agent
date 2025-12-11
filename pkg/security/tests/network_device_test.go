@@ -39,6 +39,8 @@ func TestNetDevice(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
+	CheckRequiredTest(t)
+
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
@@ -164,6 +166,8 @@ func TestTCFilters(t *testing.T) {
 		t.Skip("skipping tc filters test in docker")
 	}
 
+	CheckRequiredTest(t)
+
 	// dummy rule to force the activation of netdev-related probes
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -192,6 +196,7 @@ func TestTCFilters(t *testing.T) {
 	var newNetNSSleep *exec.Cmd
 
 	t.Run("attach_detach_filters", func(t *testing.T) {
+		CheckRequiredTest(t)
 		newNetNSSleep = exec.Command(syscallTester, "new_netns_exec", sleepExecutable, "600")
 		err := newNetNSSleep.Start()
 		if err != nil {

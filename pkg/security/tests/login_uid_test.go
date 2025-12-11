@@ -28,6 +28,8 @@ func TestLoginUID(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	CheckRequiredTest(t)
+
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{
 		{
 			ID:         "auid_exec",
@@ -56,6 +58,7 @@ func TestLoginUID(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("open", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{
 				"-login-uid-test",
@@ -74,6 +77,7 @@ func TestLoginUID(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{
 				"-login-uid-test",

@@ -36,6 +36,8 @@ func TestContainerCreatedAt(t *testing.T) {
 		return kv.IsRH7Kernel()
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
@@ -68,6 +70,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -81,6 +84,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	})
 
 	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
 			if err := cmd.Run(); err != nil {
@@ -108,6 +112,8 @@ func TestContainerVariables(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -150,6 +156,7 @@ func TestContainerVariables(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "container-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()

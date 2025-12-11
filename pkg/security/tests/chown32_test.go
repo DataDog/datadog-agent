@@ -27,6 +27,8 @@ func TestChown32(t *testing.T) {
 		return kv.IsSuseKernel()
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
@@ -58,7 +60,7 @@ func TestChown32(t *testing.T) {
 	}
 
 	t.Run("chown", func(t *testing.T) {
-
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 100
 			prevGID = 200
@@ -86,6 +88,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 101
 			prevGID = 201
@@ -113,6 +116,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 102
 			prevGID = 202
@@ -140,6 +144,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("lchown", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testSymlink, _, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -172,6 +177,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("lchown32", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testSymlink, _, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -204,7 +210,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
-
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 105
 			prevGID = 205
@@ -232,6 +238,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("chown32", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 106
 			prevGID = 206

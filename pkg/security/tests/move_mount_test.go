@@ -17,12 +17,14 @@ import (
 	"testing"
 	"time"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
+
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func GetMountID(fd int) (uint64, error) {
@@ -47,6 +49,8 @@ func TestMoveMount(t *testing.T) {
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
+
+	CheckRequiredTest(t)
 
 	mountDir := t.TempDir()
 	fsmountfd := 0
@@ -94,6 +98,7 @@ func TestMoveMount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("move-detached-no-propagation", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(fsmountfd, "", unix.AT_FDCWD, submountDir, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err != nil {
@@ -242,6 +247,8 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
 
+	CheckRequiredTest(t)
+
 	te, err := newTestEnvironment(true, t.TempDir())
 	defer te.UnmountAll()
 
@@ -255,7 +262,8 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("moved-attached-recursive-no-propagation", func(_ *testing.T) {
+	t.Run("moved-attached-recursive-no-propagation", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(te.fsmountfd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err == nil {
@@ -301,13 +309,16 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
 
+	CheckRequiredTest(t)
+
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
+	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
+		CheckRequiredTest(t)
 		allMounts := map[uint32]uint32{}
 
 		te, err := newTestEnvironment(false, t.TempDir())

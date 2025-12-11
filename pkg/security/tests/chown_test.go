@@ -26,6 +26,7 @@ import (
 
 func TestChown(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -66,6 +67,7 @@ func TestChown(t *testing.T) {
 	}
 
 	t.Run("fchown", func(t *testing.T) {
+		CheckRequiredTest(t)
 		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
@@ -103,6 +105,7 @@ func TestChown(t *testing.T) {
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() {
 			prevUID = 101
 			prevGID = 201
@@ -135,6 +138,7 @@ func TestChown(t *testing.T) {
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testSymlink, testSymlinkPtr, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -177,6 +181,7 @@ func TestChown(t *testing.T) {
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		defer func() { prevUID, prevGID = 103, 203 }()
 
 		test.WaitSignal(t, func() error {
@@ -206,6 +211,7 @@ func TestChown(t *testing.T) {
 	}))
 
 	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		defer func() { prevUID = 104 }()
 
 		test.WaitSignal(t, func() error {
@@ -231,6 +237,7 @@ func TestChown(t *testing.T) {
 	}))
 
 	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		defer func() { prevGID = 204 }()
 
 		test.WaitSignal(t, func() error {
@@ -256,6 +263,7 @@ func TestChown(t *testing.T) {
 	}))
 
 	test.RunMultiMode(t, "pipe-chown-discarded", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		_ = test.GetSignal(t, func() error {
 			syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 			if err != nil {
@@ -276,6 +284,7 @@ func TestChown(t *testing.T) {
 
 func TestChownUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	testUser := "test_user_1"
 	testUID := int32(1901)
@@ -326,6 +335,7 @@ func TestChownUserGroup(t *testing.T) {
 	defer test.Close()
 
 	t.Run("fchown", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)
@@ -357,6 +367,7 @@ func TestChownUserGroup(t *testing.T) {
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)
@@ -382,6 +393,7 @@ func TestChownUserGroup(t *testing.T) {
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)
@@ -419,6 +431,7 @@ func TestChownUserGroup(t *testing.T) {
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)
@@ -444,6 +457,7 @@ func TestChownUserGroup(t *testing.T) {
 	}))
 
 	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)
@@ -470,6 +484,7 @@ func TestChownUserGroup(t *testing.T) {
 	}))
 
 	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Create("test-chown")
 		if err != nil {
 			t.Fatal(err)

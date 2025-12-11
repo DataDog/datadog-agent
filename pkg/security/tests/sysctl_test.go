@@ -53,6 +53,8 @@ func TestSysctlEvent(t *testing.T) {
 		return !kv.HasCgroupSysctlSupportWithRingbuf() || err != nil || len(mp) == 0
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_sysctl_write",
@@ -88,6 +90,7 @@ func TestSysctlEvent(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sysctl_write", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return writeSysctlValue("kernel/kptr_restrict", "0")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -102,6 +105,7 @@ func TestSysctlEvent(t *testing.T) {
 	})
 
 	t.Run("test_sysctl_read", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, err := readSysctlValue("kernel/kptr_restrict")
 			return err

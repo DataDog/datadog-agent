@@ -45,6 +45,8 @@ func TestActivityDumps(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
@@ -77,6 +79,7 @@ func TestActivityDumps(t *testing.T) {
 	}
 
 	t.Run("activity-dump-cgroup-imds", func(t *testing.T) {
+		CheckRequiredTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -123,6 +126,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -200,6 +204,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -244,6 +249,7 @@ func TestActivityDumps(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		CheckRequiredTest(t)
 
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
@@ -281,6 +287,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -327,6 +334,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-syscalls", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -376,6 +384,7 @@ func TestActivityDumps(t *testing.T) {
 		checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
 			return !kv.HasBPFForEachMapElemHelper()
 		})
+		CheckRequiredTest(t)
 
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
@@ -442,6 +451,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-rate-limiter", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -503,6 +513,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-timeout", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -519,6 +530,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-counts", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// first, stop all running activity dumps
 		err := test.StopAllActivityDumps()
 		if err != nil {
@@ -590,6 +602,8 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
+	CheckRequiredTest(t)
+
 	var expectedFormats = []string{"profile", "protobuf"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
@@ -635,6 +649,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 
 	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
@@ -654,6 +669,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
@@ -686,6 +702,8 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	var expectedFormats = []string{"profile", "protobuf"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
@@ -744,6 +762,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 
 	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
@@ -763,6 +782,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})

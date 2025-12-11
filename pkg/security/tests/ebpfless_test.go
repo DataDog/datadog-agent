@@ -35,6 +35,8 @@ func TestEBPFLessAttach(t *testing.T) {
 		t.Skip("doesn't support nested ptrace")
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_ebpfless_attach",

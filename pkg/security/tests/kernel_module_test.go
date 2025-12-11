@@ -106,6 +106,8 @@ func TestKworker(t *testing.T) {
 		t.Skip("skipping kernel module test in docker")
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_load_module_kworker",
@@ -169,6 +171,8 @@ func TestLoadModule(t *testing.T) {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
 
+	CheckRequiredTest(t)
+
 	modulePath, wasCompressed := getModulePath(testModulePathFmt, t)
 	if wasCompressed {
 		// we need to re-compress the module, otherwise it breaks modprobe
@@ -211,6 +215,7 @@ func TestLoadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("init_module", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
@@ -238,6 +243,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("finit_module", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
@@ -258,6 +264,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_params", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
@@ -279,6 +286,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_params_from_memory", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
@@ -301,6 +309,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 		var args []string
 		for i := 0; i != 10; i++ {
 			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
@@ -352,6 +361,8 @@ func TestUnloadModule(t *testing.T) {
 		t.Skipf("couldn't delete %s module: %v", testModuleName, err)
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_unload_module",
@@ -366,6 +377,7 @@ func TestUnloadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("delete_module", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {

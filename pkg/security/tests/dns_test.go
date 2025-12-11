@@ -25,8 +25,8 @@ import (
 
 func TestDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckRequiredTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -57,6 +57,7 @@ func TestDNS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, err = net.LookupIP("google.com")
 			if err != nil {
@@ -72,6 +73,7 @@ func TestDNS(t *testing.T) {
 	})
 
 	t.Run("dns-case", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, err = net.LookupIP("GOOGLE.COM")
 			if err != nil {
@@ -87,6 +89,7 @@ func TestDNS(t *testing.T) {
 	})
 
 	t.Run("dns-long-domain", func(t *testing.T) {
+		CheckRequiredTest(t)
 		longDomain := strings.Repeat("A", 58) + ".COM"
 		test.WaitSignal(t, func() error {
 			net.LookupIP(longDomain)

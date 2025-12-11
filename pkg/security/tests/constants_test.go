@@ -34,6 +34,8 @@ func TestOctogonConstants(t *testing.T) {
 		t.Skipf("this kernel has BTF data available, skipping octogon")
 	}
 
+	CheckRequiredTest(t)
+
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +52,7 @@ func TestOctogonConstants(t *testing.T) {
 	}
 
 	t.Run("btfhub-vs-fallback", func(t *testing.T) {
+		CheckRequiredTest(t)
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 		if err != nil {
 			t.Skipf("btfhub constant fetcher is not available: %v", err)

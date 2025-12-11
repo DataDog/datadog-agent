@@ -25,6 +25,7 @@ import (
 
 func TestUnlink(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -53,6 +54,7 @@ func TestUnlink(t *testing.T) {
 	inode := getInode(t, testFile)
 
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 				return error(err)
@@ -83,6 +85,7 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("unlinkat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
 				return error(err)
@@ -114,6 +117,7 @@ func TestUnlink(t *testing.T) {
 
 	t.Run("io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		iour, err := iouring.New(1)
 		if err != nil {
@@ -166,6 +170,7 @@ func TestUnlink(t *testing.T) {
 
 func TestUnlinkInvalidate(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

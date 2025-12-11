@@ -40,8 +40,8 @@ import (
 
 func TestNetworkCIDR(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckRequiredTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -68,6 +68,7 @@ func TestNetworkCIDR(t *testing.T) {
 	defer test.Close()
 
 	t.Run("dns", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, err = net.LookupIP("google.com")
 			if err != nil {
@@ -90,8 +91,8 @@ func isRawPacketNotSupported(kv *kernel.Version) bool {
 
 func TestRawPacket(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+	CheckRequiredTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -141,6 +142,7 @@ func TestRawPacket(t *testing.T) {
 	defer test.Close()
 
 	t.Run("udp4", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			conn, err := net.Dial("udp4", net.JoinHostPort(testDestIP, strconv.Itoa(int(testUDPDestPort))))
 			if err != nil {
@@ -168,6 +170,7 @@ func TestRawPacket(t *testing.T) {
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
 		}
+		CheckRequiredTest(t)
 
 		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 		if err != nil {
@@ -187,6 +190,7 @@ func TestRawPacket(t *testing.T) {
 		}
 
 		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			CheckRequiredTest(t)
 			waitSignal(t, func() error {
 				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
 				if out, err := cmd.CombinedOutput(); err != nil {
@@ -211,6 +215,8 @@ func TestRawPacketAction(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule_raw_packet_drop",
@@ -239,6 +245,8 @@ func TestRawPacketAction(t *testing.T) {
 	defer cmdWrapper.stop()
 
 	t.Run("drop", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		cmd := cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
 		if err := cmd.Run(); err != nil {
 			t.Error(err)
@@ -295,6 +303,8 @@ func TestRawPacketFilter(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "RHEL, SLES, SUSE, AWS, Ubuntu and Oracle kernels", isRawPacketNotSupported)
+
+	CheckRequiredTest(t)
 
 	colSpecForMaps := ebpf.CollectionSpec{
 		Maps: map[string]*ebpf.MapSpec{
@@ -384,11 +394,13 @@ func TestRawPacketFilter(t *testing.T) {
 
 	for _, filter := range filters {
 		t.Run(filter.BPFFilter, func(t *testing.T) {
+			CheckRequiredTest(t)
 			runTest(t, []rawpacket.Filter{filter}, rawpacket.DefaultProgOpts())
 		})
 	}
 
 	t.Run("all-without-limit", func(t *testing.T) {
+		CheckRequiredTest(t)
 		runTest(t, filters, rawpacket.DefaultProgOpts())
 	})
 
@@ -397,6 +409,7 @@ func TestRawPacketFilter(t *testing.T) {
 		checkKernelCompatibility(t, "Old debian kernels", func(kv *kernel.Version) bool {
 			return kv.IsDebianKernel() && kv.Code < kernel.Kernel5_2
 		})
+		CheckRequiredTest(t)
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
@@ -413,6 +426,8 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 		// OpenSUSE distributions are missing the dummy kernel module
 		return kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || probe.IsNetworkFlowMonitorNotSupported(kv)
 	})
+
+	CheckRequiredTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -444,6 +459,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	}
 
 	t.Run("test_network_flow_send_udp4", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
 		}, func(event *model.Event, _ *rules.Rule) {

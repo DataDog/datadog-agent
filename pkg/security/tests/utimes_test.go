@@ -23,6 +23,7 @@ import (
 
 func TestUtimes(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -36,6 +37,7 @@ func TestUtimes(t *testing.T) {
 	defer test.Close()
 
 	t.Run("utime", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		fileMode := 0o447
 		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
@@ -71,6 +73,7 @@ func TestUtimes(t *testing.T) {
 	}))
 
 	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		fileMode := 0o447
 		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
@@ -112,6 +115,7 @@ func TestUtimes(t *testing.T) {
 	}))
 
 	t.Run("utimensat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		fileMode := 0o447
 		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
@@ -156,6 +160,7 @@ func TestUtimes(t *testing.T) {
 	})
 
 	t.Run("utimensat-nil", func(t *testing.T) {
+		CheckRequiredTest(t)
 		fileMode := 0o447
 		testFile, _, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
 		if err != nil {

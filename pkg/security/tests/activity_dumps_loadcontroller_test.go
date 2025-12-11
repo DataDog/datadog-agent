@@ -30,12 +30,16 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	outputDir := t.TempDir()
 
@@ -102,6 +106,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	outputDir := t.TempDir()
 
@@ -172,6 +178,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			testName = "none"
 		}
 		t.Run(testName, func(t *testing.T) {
+			CheckRequiredTest(t)
 			// add all event types to the dump
 			test.addAllEventTypesOnDump(dockerInstance, syscallTester, goSyscallTester)
 			time.Sleep(time.Second * 3)
@@ -213,6 +220,8 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
+
+	CheckRequiredTest(t)
 
 	outputDir := t.TempDir()
 

@@ -37,6 +37,8 @@ func TestCapabilitiesEvent(t *testing.T) {
 		return kv.Code >= kernel.Kernel6_14
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_capabilities_used_exec_flush",
@@ -72,6 +74,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("used-exec-flush", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return dockerInstance.Command(syscallTester, []string{"chroot", "/", ";", "self-exec", "self-exec", "check"}, []string{}).Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -85,6 +88,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	})
 
 	t.Run("attempted-exit-flush", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_ = dockerInstance.Command(syscallTester, []string{"acct"}, []string{}).Run()
 			// ignore the error here because the command is expected to fail
@@ -100,6 +104,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	})
 
 	t.Run("used-periodic-flush", func(t *testing.T) {
+		CheckRequiredTest(t)
 		var syscallTesterCmd *exec.Cmd
 		defer func() {
 			if syscallTesterCmd != nil {

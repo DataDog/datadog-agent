@@ -23,6 +23,7 @@ import (
 
 func TestSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	executable := which(t, "touch")
 
@@ -51,6 +52,7 @@ func TestSpan(t *testing.T) {
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
 	test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-span")
 		if err != nil {
 			t.Fatal(err)
@@ -80,6 +82,7 @@ func TestSpan(t *testing.T) {
 	})
 
 	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-span-exec")
 		if err != nil {
 			t.Fatal(err)

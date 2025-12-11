@@ -21,6 +21,7 @@ import (
 )
 
 func TestEnv(t *testing.T) {
+	CheckRequiredTest(t)
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Error("invalid environment")
 		return
@@ -29,6 +30,7 @@ func TestEnv(t *testing.T) {
 
 func TestOsOrigin(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	origin := "ebpf"
 	if ebpfLessEnabled {
@@ -59,6 +61,7 @@ func TestOsOrigin(t *testing.T) {
 
 func TestHostname(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ipcComp := ipcmock.New(t)
 

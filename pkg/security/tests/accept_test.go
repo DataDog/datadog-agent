@@ -18,16 +18,18 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestAcceptEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -58,6 +60,7 @@ func TestAcceptEvent(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not available for ebpfLess")
 		}
+		CheckRequiredTest(t)
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
@@ -74,6 +77,7 @@ func TestAcceptEvent(t *testing.T) {
 	})
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin", func(t *testing.T) {
+		CheckRequiredTest(t)
 
 		port := rand.IntN(MAX-MIN) + MIN
 
@@ -91,6 +95,7 @@ func TestAcceptEvent(t *testing.T) {
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin-io-uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		port := rand.IntN(MAX-MIN) + MIN
 
@@ -183,6 +188,8 @@ func TestAcceptEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		CheckRequiredTest(t)
+
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
@@ -202,6 +209,7 @@ func TestAcceptEvent(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
+		CheckRequiredTest(t)
 
 		port := rand.IntN(MAX-MIN) + MIN
 
