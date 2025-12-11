@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -210,7 +211,7 @@ func aiCompletion(question string) (string, error) {
 
 	// Extract completion text
 	if len(completionResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
+		return "", errors.New("no choices in response")
 	}
 
 	return completionResp.Choices[0].Message.Content, nil
