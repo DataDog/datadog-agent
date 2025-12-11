@@ -217,7 +217,6 @@ tests_gpu:
   extends: .linux_tests
   tags: ["gpu:a10-amd64"]
   rules:
-    - if: $CI_COMMIT_BRANCH == "guillermo.julian/gpu-ci-tests"
     - !reference [.on_gpu_integration_tests]
     - !reference [.except_disable_unit_tests]
   allow_failure: true
