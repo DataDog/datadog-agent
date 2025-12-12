@@ -93,7 +93,7 @@ configure_make(
         "//conditions:default": DEFAULT_CONFIG,
     }),
     install_prefix = select({
-        "@platforms//os:windows": "C:/Program Files/Datadog/Datadog Agent/embedded3",
+        "@platforms//os:windows": "",
         "//conditions:default": "/opt/datadog-agent/embedded",
     }),
     env = select({
