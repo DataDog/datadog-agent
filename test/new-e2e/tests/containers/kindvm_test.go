@@ -36,6 +36,7 @@ func TestKindSuite(t *testing.T) {
 				scenkind.WithDeployTestWorkload(),
 				scenkind.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithClusterAgentLanguageDetectionPatcherShortBackoff(),
 					kubernetesagentparams.WithHelmValues(helmValues),
 				),
 				scenkind.WithDeployArgoRollout(),
