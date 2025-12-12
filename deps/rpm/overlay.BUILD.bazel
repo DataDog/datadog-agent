@@ -124,7 +124,6 @@ cc_shared_library(
     name = "rpmio",
     deps = [":librpmio"],
     dynamic_deps = [
-        "@zstd//:zstd",
         "@popt//:popt",
         "@zlib//:z",
         "@xz//:lzma",
