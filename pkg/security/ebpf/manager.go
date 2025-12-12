@@ -15,14 +15,12 @@ import (
 )
 
 // NewDefaultOptions returns a new instance of the default runtime security manager options
-func NewDefaultOptions(kretprobeMaxActive int) manager.Options {
+func NewDefaultOptions(kretprobeMaxActive int, perfRingBufferSize int) manager.Options {
 	return manager.Options{
 		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
-		DefaultKProbeMaxActive: kretprobeMaxActive,
-
-		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
-
-		RemoveRlimit: true,
+		DefaultKProbeMaxActive:    kretprobeMaxActive,
+		DefaultPerfRingBufferSize: perfRingBufferSize,
+		RemoveRlimit:              true,
 	}
 }
 
