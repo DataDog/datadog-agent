@@ -23,9 +23,9 @@ import (
 
 const (
 	// This is the maximum allowed length for the estimated event text.
-	// It's an estimate because the actual length of the event text is not known until the event is formatted by kubernetesEventBundle.formatEventText()
-	// Since dogweb enforced a limit of 4000 characters, we conservatively limit the estimated event text length to 3750 characters.
-	// See: https://github.com/DataDog/dogweb/blob/ddaf4c0ac06839f45edc19e056b2eccdc012edbc/dogweb/model/event/event.py#L41
+	// The final text isn't known until it's formatted by kubernetesEventBundle.formatEventText().
+	// The Events API limits event text to 4000 characters, so we conservatively limit the estimated text to 3750 characters.
+	// https://docs.datadoghq.com/api/latest/events/#post-an-event-v1
 	maxEstimatedEventTextLength = 3750
 )
 
