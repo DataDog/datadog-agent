@@ -250,7 +250,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
-	github.com/godbus/dbus/v5 v5.1.0
+	github.com/godbus/dbus/v5 v5.2.0
 	github.com/godror/godror v0.37.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
@@ -258,7 +258,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.26.0
+	github.com/google/cel-go v0.26.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/gofuzz v1.2.0
@@ -445,7 +445,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.24.0 // indirect
+	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/auth v0.16.5 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.38.0 // indirect
@@ -516,7 +516,7 @@ require (
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
 	github.com/antchfx/xpath v1.3.5 // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce // indirect
 	github.com/aquasecurity/go-npm-version v0.0.1 // indirect
@@ -641,7 +641,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/nomad/api v0.0.0-20250930071859-eaa0fe0e27af // indirect
@@ -817,7 +817,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.17.3 // indirect
-	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
@@ -978,6 +978,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
+	gitlab.com/gitlab-org/api/client-go v1.8.0
 )
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
