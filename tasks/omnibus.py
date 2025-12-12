@@ -756,11 +756,7 @@ def docker_build(
     build_cmd = f'bash -c "{build_script}"'
 
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -839,7 +835,9 @@ def _cleanup_old_packages(pkg_dir: str, keep: int = 2) -> None:
         return
 
     # Pattern: datadog-agent[-dbg]-VERSION-ARCH.tar[.xz]
-    pattern = re.compile(r'^(datadog-agent(?:-dbg)?)-[\d.]+-devel\.git\.\d+\.[a-f0-9]+-\d+-(arm64|amd64)\.(tar(?:\.xz)?)$')
+    pattern = re.compile(
+        r'^(datadog-agent(?:-dbg)?)-[\d.]+-devel\.git\.\d+\.[a-f0-9]+-\d+-(arm64|amd64)\.(tar(?:\.xz)?)$'
+    )
 
     # Group by (type, arch, ext)
     groups: dict[tuple[str, str, str], list[tuple[str, float]]] = defaultdict(list)
