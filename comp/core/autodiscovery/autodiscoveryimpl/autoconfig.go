@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
@@ -82,6 +83,7 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
+	refreshEvent             chan string
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -201,6 +203,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
+		refreshEvent:             make(chan string, 2),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
@@ -213,10 +216,16 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 
-	// Subscribe to secret updates so we can tear down and recreate any configs
-	// that were resolved with the outdated values.
-	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, _, _ any) {
-		ac.refreshConfig(origin)
+	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, newValue any) {
+		isEnc, _ := utils.IsEnc(oldValue.(string))
+		// - An empty old value means this secret was initially resolved and isn't a refresh.
+		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
+		if oldValue == "" || oldValue == newValue || isEnc {
+			return
+		}
+		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
+		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
+		ac.refreshEvent <- origin
 	})
 
 	return ac
@@ -229,14 +238,8 @@ func (ac *AutoConfig) refreshConfig(origin string) {
 		return
 	}
 
-	if len(resolvedConfigs) > 0 {
-		var unschedule integration.ConfigChanges
-		for _, cfg := range resolvedConfigs {
-			unschedule.UnscheduleConfig(cfg)
-		}
-		ac.applyChanges(unschedule)
-	}
-	ac.cfgMgr.removeActiveConfig(origin)
+	ac.logs.Infof("Found %v configs using recently refreshed secret %v. Refreshing config(s).", len(resolvedConfigs), origin)
+	ac.processRemovedConfigs([]integration.Config{rawConfig})
 	changes := ac.processNewConfig(rawConfig)
 	ac.applyChanges(changes)
 }
@@ -255,6 +258,8 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
+		case origin := <-ac.refreshEvent:
+			ac.refreshConfig(origin)
 		}
 	}
 }
