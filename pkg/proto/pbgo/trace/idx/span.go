@@ -217,7 +217,7 @@ func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*Spa
 // UnmarshalMsg unmarshals a SpanEvent from a byte stream, updating the strings slice with new strings
 func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numSpanEventFields uint32
-	numSpanEventFields, o, err = msgp.ReadMapHeaderBytes(bts)
+	numSpanEventFields, o, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read span event fields header")
 		return
@@ -903,7 +903,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, er
 		tp.Strings = NewStringTable()
 	}
 	var numChunks uint32
-	numChunks, o, err = msgp.ReadArrayHeaderBytes(bts)
+	numChunks, o, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -959,7 +959,7 @@ func (c *InternalTraceChunk) ApplyPromotedFields(convertedFields *SpanConvertedF
 // The provided InternalTraceChunk must have a non-nil Strings field
 func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFields *ChunkConvertedFields) (o []byte, err error) {
 	var numSpans uint32
-	numSpans, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	numSpans, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -998,7 +998,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 	var field []byte
 	_ = field
 	var numFields uint32
-	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -1125,7 +1125,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				break
 			}
 			var numMetaFields uint32
-			numMetaFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			numMetaFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "Meta")
 				return
@@ -1160,7 +1160,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				break
 			}
 			var numMetricsFields uint32
-			numMetricsFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			numMetricsFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "Metrics")
 				return
@@ -1202,7 +1202,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			}
 		case "meta_struct":
 			var numMetaStructFields uint32
-			numMetaStructFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			numMetaStructFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "MetaStruct")
 				return
@@ -1232,7 +1232,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			}
 		case "span_links":
 			var numSpanLinks uint32
-			numSpanLinks, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			numSpanLinks, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanLinks")
 				return
@@ -1262,7 +1262,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			}
 		case "span_events":
 			var numEvents uint32
-			numEvents, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			numEvents, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanEvents")
 				return
@@ -1308,7 +1308,7 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 	var field []byte
 	_ = field
 	var numFields uint32
-	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -1339,7 +1339,7 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 			}
 		case "attributes":
 			var numAttributes uint32
-			numAttributes, bts, err = msgp.ReadMapHeaderBytes(bts)
+			numAttributes, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "Attributes")
 				return
@@ -1389,7 +1389,7 @@ func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 	var field []byte
 	_ = field
 	var numFields uint32
-	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -1449,7 +1449,7 @@ func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				arrayValue = nil
 			} else {
 				var numArrayFields uint32
-				numArrayFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+				numArrayFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 				if err != nil {
 					err = msgp.WrapError(err, "ArrayValue")
 					return
@@ -1464,7 +1464,7 @@ func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 					switch msgp.UnsafeString(field) {
 					case "values":
 						var numArrayElems uint32
-						numArrayElems, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						numArrayElems, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 						if err != nil {
 							err = msgp.WrapError(err, "ArrayValue", "Values")
 							return
@@ -1550,7 +1550,7 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 	var field []byte
 	_ = field
 	var numFields uint32
-	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		err = msgp.WrapError(err)
 		return
@@ -1592,7 +1592,7 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 			}
 		case "attributes":
 			var numAttributes uint32
-			numAttributes, bts, err = msgp.ReadMapHeaderBytes(bts)
+			numAttributes, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
 				err = msgp.WrapError(err, "Attributes")
 				return
