@@ -236,7 +236,8 @@ func hasBatteryAvailable() (bool, error) {
 
 		interfaceDetailData, err := getDeviceInterfaceDetailData(hdev, ifData)
 		if err != nil {
-			return false, fmt.Errorf("error getting device interface detail data: %w", err)
+			log.Errorf("error getting device interface detail data: %w", err)
+			continue
 		}
 
 		_, _, err = queryBatteryDevice(&interfaceDetailData.DevicePath[0])
@@ -256,6 +257,8 @@ func hasBatteryAvailable() (bool, error) {
 	return false, nil
 }
 
+// queryBatteryInfo queries the battery information for a given device path
+// It will return the battery info of the first system battery it finds
 func queryBatteryInfo() (*BatteryInfo, error) {
 	info := &BatteryInfo{}
 	hdev, ifData, cleanup, err := setupBatteryDeviceEnumeration()
