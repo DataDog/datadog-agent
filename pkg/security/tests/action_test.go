@@ -1125,3 +1125,145 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		tailCmd2.Wait()
 	}
 }
+
+func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	// 1. Start a Docker container first
+	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+	if _, err := dockerInstance.start(); err != nil {
+		t.Fatalf("failed to start docker: %v", err)
+	}
+	containerKilled := false
+	defer func() {
+		if !containerKilled {
+			dockerInstance.stop()
+		}
+	}()
+
+	// 2. Create a test file inside the container at a known path
+	testFilePath := "/tmp/test-container-kill-broad-" + utils.RandString(8)
+	cmd := dockerInstance.Command("touch", []string{testFilePath}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create test file in container: %v", err)
+	}
+
+	// 3. Initialize the test module with the rule pointing to the correct path
+	// Use cat with the test file to uniquely identify our process
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_exec_trigger",
+			Expression: `exec.file.name == "cat" && exec.argv in ["` + testFilePath + `"] && process.container.id != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var capturedSignature string
+	var catCmd *exec.Cmd
+
+	// Run cat inside the container and wait for the rule to trigger
+	// cat will exit immediately after reading the file, but that's fine for capturing the signature
+	test.WaitSignal(t, func() error {
+		catCmd = dockerInstance.Command("cat", []string{testFilePath}, []string{})
+		return catCmd.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_container_exec_trigger")
+		// Capture the signature from the event
+		capturedSignature = event.FieldHandlers.ResolveSignature(event)
+	})
+
+	// Wait for cat to finish
+	if catCmd != nil && catCmd.Process != nil {
+		catCmd.Wait()
+	}
+
+	// Verify we got a valid signature
+	if capturedSignature == "" {
+		t.Fatal("captured signature is empty")
+	}
+
+	// Create a new rule with kill action (scope container) using a BROAD rule
+	// This rule will match ANY exec in the container with the captured signature
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_kill_container_broad_signature",
+			Expression: `exec.file.name != "" && process.container.id != "" && event.signature == "` + capturedSignature + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal:                    "SIGKILL",
+						Scope:                     "container",
+						DisableContainerDisarmer:  true,
+						DisableExecutableDisarmer: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Set the new policy and reload
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set new policy: %v", err)
+	}
+
+	// Reload the policy and wait for the kill rule to trigger
+	// The broad rule should match the replayed exec event for the container's entrypoint (sleep)
+	err = test.GetEventSent(t, func() error {
+		return test.reloadPolicies()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_kill_container_broad_signature")
+
+		// Verify the kill action was performed with container scope
+		assert.Equal(t, 1, len(event.ActionReports), "expected at least one action report")
+		if len(event.ActionReports) == 1 {
+			report := event.ActionReports[0]
+			if killReport, ok := report.(*sprobe.KillActionReport); ok {
+				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
+				assert.Equal(t, "container", killReport.Scope, "unexpected scope")
+				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+			}
+		}
+		return true
+	}, 5*time.Second, "test_kill_container_broad_signature")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the container was killed by checking if it's still running
+	err = retry.Do(func() error {
+		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
+		output, err := cmd.Output()
+		if err != nil {
+			// Container might not exist anymore, which is also fine
+			return nil
+		}
+		if strings.TrimSpace(string(output)) == "true" {
+			return errors.New("container still running")
+		}
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatal("container should have been killed but is still running")
+	}
+	containerKilled = true
+}

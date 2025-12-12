@@ -22,7 +22,6 @@ import (
 
 type eventContextToSign struct {
 	CgroupID string `json:"cgroupID"`
-	Pid      uint32 `json:"pid"`
 	Key      uint64 `json:"key"`
 }
 
@@ -48,7 +47,6 @@ func (r *Resolver) Sign(pce *model.ProcessContext) (string, error) {
 	}
 	ctx := eventContextToSign{
 		CgroupID: string(pce.Process.CGroup.CGroupID),
-		Pid:      pce.Process.Pid,
 		Key:      r.signatureKey,
 	}
 
