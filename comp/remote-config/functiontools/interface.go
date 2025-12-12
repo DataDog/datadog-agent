@@ -40,9 +40,8 @@ var registry = map[string]FunctionTool{
 	"list_files": {
 		description: "Recursively list all files under a directory that end with a given extension (e.g. 'log' or 'txt'). Returns full file paths. Commonly used to inspect logs located under '/var/log'.",
 		properties: map[string]Property{
-			"datadog_agent_key": {Type: "string", Description: "The unique identifier of this Datadog Agent."},
-			"directory":         {Type: "string", Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
-			"extension":         {Type: "string", Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
+			"directory": {Type: "string", Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
+			"extension": {Type: "string", Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
 		},
 		handler: func(parameters map[string]string) (any, error) {
 			return listFiles(parameters["directory"], parameters["extension"])
@@ -52,28 +51,14 @@ var registry = map[string]FunctionTool{
 	"tail_file": {
 		description: "Read the last N lines of a text file (such as a log file).",
 		properties: map[string]Property{
-			"datadog_agent_key": {Type: "string", Description: "The unique identifier of this Datadog Agent."},
-			"file_path":         {Type: "string", Description: "The full path of the file to tail."},
-			"n_lines":           {Type: "integer", Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
+			"file_path": {Type: "string", Description: "The full path of the file to tail."},
+			"n_lines":   {Type: "integer", Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
 		},
 		handler: func(parameters map[string]string) (any, error) {
 			return tailFile(parameters["file_path"], parameters["n_lines"])
 		},
 		isExported: true,
 	},
-}
-
-func init() {
-	registry["list_tools"] = FunctionTool{
-		description: "List all available function tools on this Datadog Agent.",
-		properties: map[string]Property{
-			"datadog_agent_key": {Type: "string", Description: "The unique identifier of this Datadog Agent."},
-		},
-		handler: func(parameters map[string]string) (any, error) {
-			return listTools()
-		},
-		isExported: false,
-	}
 }
 
 type FunctionToolCall struct {
