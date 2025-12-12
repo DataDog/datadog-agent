@@ -249,7 +249,6 @@ if do_build
   # the `extra_package_file` directive.
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
-  dependency 'datadog-cf-finalize'
   # Special csae for heroku which does build & packaging in a single step
   if do_package
     dependency "init-scripts-agent"
@@ -324,7 +323,8 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
-    "#{install_dir}\\bin\\agent\\system-probe.exe"
+    "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\datadog-installer.exe"
   ]
 
   if not fips_mode?
@@ -382,7 +382,6 @@ if windows_target?
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{install_dir}\\datadog-installer.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

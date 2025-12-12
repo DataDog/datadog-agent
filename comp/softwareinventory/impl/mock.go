@@ -9,6 +9,8 @@ package softwareinventoryimpl
 
 import (
 	"context"
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -19,8 +21,27 @@ import (
 // This mock provides a testable implementation of the System Probe client
 // interface, allowing tests to control the behavior of software inventory
 // collection without requiring a real System Probe connection.
+// It uses a mutex to protect concurrent access to mock state.
 type mockSysProbeClient struct {
 	mock.Mock
+	mu sync.Mutex
+}
+
+// GetCallCount returns the number of times GetCheck was called.
+// This method provides thread-safe access to check if the mock was called,
+// avoiding race conditions when checking call state from test goroutines.
+func (m *mockSysProbeClient) GetCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Mock.Calls)
+}
+
+// AssertNumberOfCalls wraps the mock.Mock AssertNumberOfCalls with thread-safety.
+// This method provides thread-safe access to assert call counts.
+func (m *mockSysProbeClient) AssertNumberOfCalls(t mock.TestingT, methodName string, expectedCalls int) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Mock.AssertNumberOfCalls(t, methodName, expectedCalls)
 }
 
 // GetCheck implements the mockSysProbeClient interface for testing.
@@ -28,6 +49,8 @@ type mockSysProbeClient struct {
 // for software inventory collection, enabling comprehensive test coverage
 // of the inventory software component.
 func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	args := m.Called(module)
 	argValue := args.Get(0)
 	if argValue == nil {

@@ -88,7 +88,7 @@ func (p *pendingMsg) isResolved() bool {
 
 	if p.sshSessionPatcher != nil {
 		if err := p.sshSessionPatcher.IsResolved(); err != nil {
-			seclog.Debugf("ssh session not resolved: %v", err)
+			seclog.Tracef("ssh session not resolved: %v", err)
 			return false
 		}
 	}
@@ -338,10 +338,12 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
-				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
-					msg.skip = true
-					return false
+				if a.containerFilter != nil {
+					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+						msg.skip = true
+						return false
+					}
 				}
 
 				data, err := msg.toJSON()
