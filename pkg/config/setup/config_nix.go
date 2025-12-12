@@ -30,8 +30,6 @@ var (
 var (
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
-	// DefaultSDAgentAddress is the default unix socket path to be used for connecting to the sd-agent
-	DefaultSDAgentAddress = filepath.Join(InstallPath, "run/sd-agent.sock")
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
 )
