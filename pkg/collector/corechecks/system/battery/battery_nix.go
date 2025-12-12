@@ -16,6 +16,6 @@ func hasBatteryAvailable() (bool, error) {
 }
 
 // getBatteryInfo returns no battery on unsupported platforms
-func getBatteryInfo() (batteryInfo, error) {
-	return batteryInfo{}, errors.New("battery info only supported on macOS and Windows")
+func getBatteryInfo() (*batteryInfo, error) {
+	return nil, errors.New("battery info only supported on macOS and Windows")
 }
