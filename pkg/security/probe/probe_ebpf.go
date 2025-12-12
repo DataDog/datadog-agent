@@ -1014,7 +1014,11 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		panic("should always return a process cache entry")
 	}
 
+	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -1630,8 +1634,6 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 // handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
 // It returns false if an error occurs or if the event should not be dispatched further, true otherwise
 func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
-	event.ProcessContext = &model.ProcessContext{}
-
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
