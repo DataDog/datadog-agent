@@ -2765,6 +2765,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
+		DentryKernelMapSize:           uint32(p.config.Probe.DentryKernelMapSize),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -2870,8 +2871,9 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 // initManagerOptions initializes the eBPF manager options
 func (p *EBPFProbe) initManagerOptions() error {
 	kretprobeMaxActive := p.config.Probe.EventStreamKretprobeMaxActive
+	perfRingBufferSize := p.config.Probe.EventStreamBufferSize
 
-	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive)
+	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive, perfRingBufferSize)
 	p.initManagerOptionsActivatedProbes()
 	p.initManagerOptionsConstants()
 	p.initManagerOptionsTailCalls()

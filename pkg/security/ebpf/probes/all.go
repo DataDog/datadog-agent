@@ -199,6 +199,7 @@ type MapSpecEditorOpts struct {
 	UseRingBuffers                bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
+	DentryKernelMapSize           uint32
 	SecurityProfileMaxCount       int
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
@@ -291,8 +292,12 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	if opts.PathResolutionEnabled {
+		maxEntries := getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries)
+		if opts.DentryKernelMapSize > 0 {
+			maxEntries = opts.DentryKernelMapSize
+		}
 		editors["pathnames"] = manager.MapSpecEditor{
-			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
+			MaxEntries: maxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
