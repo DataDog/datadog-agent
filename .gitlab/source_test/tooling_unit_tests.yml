@@ -13,12 +13,19 @@ invoke_unit_tests:
 
 invoke_unit_tests_windows:
   stage: source_test
-  tags: ["windows-v2:2022"]
+  extends: .windows_docker_default
   needs: []
   # rules:
     # - !reference [.on_invoke_tasks_changes]
+  variables:
+    ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
-    - pip3 install dda
-    - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
-    - dda inv -- -e invoke-unit-tests.run
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI
+      ${WINBUILDIMAGE}
+      powershell -C "cd c:\mnt; dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing; dda inv -- -e invoke-unit-tests.run"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
