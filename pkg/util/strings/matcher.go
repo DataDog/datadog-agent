@@ -118,7 +118,7 @@ func (m *Matcher) StripTags(name string, tags []string) ([]string, bool) {
 			tagName := tag[:tagNamePos]
 			if !slices.Contains(tagset, tagName) {
 				tags[idx] = tag
-				idx += 1
+				idx++
 			} else {
 				stripped = true
 			}

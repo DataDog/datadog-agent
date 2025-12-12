@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/DataDog/datadog-agent/pkg/util/strings"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -544,7 +543,7 @@ func TestFlushMissingContext(t *testing.T) {
 }
 func testFlushFilterList(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := utilstrings.NewMatcher([]string{
+	matcher := strings.NewMatcher([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
 	}, false, map[string][]string{})
@@ -697,7 +696,7 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *utilstrings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *strings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 

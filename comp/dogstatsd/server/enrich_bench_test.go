@@ -63,7 +63,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		matcher := utilstrings.NewMatcher(list[:i], false)
+		matcher := utilstrings.NewMatcher(list[:i], false, map[string][]string{})
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
