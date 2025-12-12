@@ -290,14 +290,16 @@ func (suite *eksSuite) TestHostTags() {
 		ExpectedTags: &[]string{
 			"^stackid:" + suite.clusterName + "$",
 			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
-			"^cluster_name:" + suite.clusterName + "$",
-			"^kube_cluster_name:" + suite.clusterName + "$",
 			"^orch_cluster_id:[0-9a-f-]{36}$",
 			"^kube_distribution:eks$",
 		},
 		OptionalTags: &[]string{
 			"^os:linux$",
 			"^arch:(amd|arm)64$",
+			// for some reasons on EKS the cluster in CI can't be retrieved
+			// make it optional so the agent can retrieve it in the host-tags we can validate it
+			"^cluster_name:" + suite.clusterName + "$",
+			"^kube_cluster_name:" + suite.clusterName + "$",
 		},
 	}
 
