@@ -6,6 +6,8 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
+common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
+common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
 common --verbose_failures
 
@@ -20,14 +22,18 @@ common:macos --strategy=sandboxed
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 # For whatever reason if convenience symlinks are present, the build fails on Windows.
-# Disabling them for now.
 common:windows --noexperimental_convenience_symlinks
+# shell_executable doesn't affect action keys. It can be both an advantage and a disadvantage.
+# For instance, if we need to have some special behavior in bash we can add it, however, in some cases
+# it may lead to cache poisoning.
+common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
 common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_instance_name=remote-caching/datadog-agent
+common:cache --remote_local_fallback  # best-effort on transient connection errors (no such host)
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
 

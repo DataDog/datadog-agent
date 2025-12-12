@@ -220,7 +220,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
-			tagList.AddLow(tags.DockerImage, fmt.Sprintf("%s:%s", image.Name, image.Tag))
+			tagList.AddLow(tags.DockerImage, image.Name+":"+image.Tag)
 		} else {
 			tagList.AddLow(tags.DockerImage, image.Name)
 		}
@@ -591,9 +591,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
 	// These deployments don't report a hostname (task is the unit of identity)
-	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	// IsSidecar() returns true for both ECS Fargate and managed instances in sidecar mode
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
-		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsSidecar()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -611,7 +611,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		// Add global cluster tags for EC2 and Managed Instances in daemon mode
 		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
 		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
-			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsSidecar()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),
@@ -755,6 +755,7 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
@@ -839,9 +840,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tagList.AddHigh(tags.ContainerID, container.ID)
 
 	if container.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", container.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, container.Name+"_"+pod.Name)
 	} else if podContainer.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, podContainer.Name+"_"+pod.Name)
 	}
 
 	image := podContainer.Image
@@ -976,7 +977,7 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {

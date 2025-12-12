@@ -8,8 +8,8 @@ package run
 
 import (
 	"context"
+	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -34,11 +34,14 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
@@ -77,6 +80,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -115,6 +119,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -151,6 +157,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
@@ -293,8 +300,11 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
+	_ healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	snmpScanManager snmpscanmanager.Component,
+	traceroute traceroute.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -315,7 +325,7 @@ func run(log log.Component,
 			stopCh <- nil
 		case <-signals.ErrorStopper:
 			_ = log.Critical("The Agent has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
+			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
@@ -354,6 +364,8 @@ func run(log log.Component,
 		agenttelemetryComponent,
 		hostname,
 		ipc,
+		snmpScanManager,
+		traceroute,
 	); err != nil {
 		return err
 	}
@@ -390,6 +402,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
+		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
 			provider := &hostSbom.FlareProvider{
@@ -498,6 +511,7 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		snmpscanfx.Module(),
+		snmpscanmanagerfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -533,6 +547,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsimpl.Module(),
 		agenttelemetryfx.Module(),
+		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
@@ -545,6 +560,7 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
 	)
 }
@@ -570,6 +586,8 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	snmpScanManager snmpscanmanager.Component,
+	traceroute traceroute.Component,
 ) error {
 	var err error
 
@@ -613,8 +631,10 @@ func startAgent(
 	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
-		controller := datastreams.NewController(ac, rcclient)
-		ac.AddConfigProvider(controller, false, 0)
+		liveMessagesController := datastreams.NewController(ac, rcclient)
+		ac.AddConfigProvider(liveMessagesController, false, 0)
+		actionsController := datastreams.NewActionsController(ac, rcclient)
+		ac.AddConfigProvider(actionsController, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
@@ -657,7 +677,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

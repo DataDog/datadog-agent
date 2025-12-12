@@ -27,7 +27,7 @@ func (n *NoOpResolver) ResolveFilePath(_ *model.FileFields) (string, error) {
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path along with its mount path
-func (n *NoOpResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
+func (n *NoOpResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	return "", "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
@@ -52,6 +52,6 @@ func (n *NoOpResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string
 }
 
 // ResolveMountAttributes resolves the mount attributes of the mountpoint of a file
-func (n *NoOpResolver) ResolveMountAttributes(_ *model.FileEvent, _ *model.PIDContext, _ *model.ContainerContext) error {
+func (n *NoOpResolver) ResolveMountAttributes(_ *model.FileEvent, _ *model.PIDContext) error {
 	return nil
 }

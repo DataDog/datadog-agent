@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -49,6 +51,9 @@ const (
 	tagInstallType = "_dd.install.type"
 	tagInstallTime = "_dd.install.time"
 
+	// tagContainersTags specifies the name of the tag which holds key/value
+	tagContainersTags = "_dd.tags.container"
+
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling   = "-4"
 	manualSamplingV1 = 4
@@ -59,6 +64,9 @@ const (
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
+
+	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+	tagAPMMode = "_dd.apm_mode"
 )
 
 // Writer is an interface that provides the base functionality of a writing component
@@ -105,6 +113,7 @@ type Agent struct {
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
+	ContainerTagsBuffer   containertagsbuffer.ContainerTagsBuffer
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
 	PrioritySampler       *sampler.PrioritySampler
@@ -180,9 +189,12 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
-	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
+
+	containerTagsBuffer := containertagsbuffer.NewContainerTagsBuffer(conf, statsd)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		ContainerTagsBuffer:   containerTagsBuffer,
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -218,6 +230,7 @@ func (a *Agent) Run() {
 	a.Timing.Start()
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
+		a.ContainerTagsBuffer,
 		a.Receiver,
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -307,6 +320,9 @@ func (a *Agent) workV1() {
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
+
+	// stop container tags buffer first to release pending payloads
+	a.ContainerTagsBuffer.Stop()
 
 	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	// Stop the receiver first before other processing components
@@ -526,18 +542,47 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.WriteChunks(sampledChunks)
+			a.writeChunks(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.WriteChunks(sampledChunks)
+		a.writeChunks(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.Add(statsInput)
 	}
+}
+
+func (a *Agent) writeChunks(p *writer.SampledChunks) {
+	// fast path: no container ID or the buffering feature is disabled,
+	if p.TracerPayload.ContainerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
+		a.TraceWriter.WriteChunks(p)
+		return
+	}
+	// callback function to be executed once tags are resolved, or buffer times out
+	fn := func(cTags []string, err error) {
+		enrichTracesWithCtags(p, cTags, err)
+		a.TraceWriter.WriteChunks(p)
+	}
+	a.ContainerTagsBuffer.AsyncEnrichment(p.TracerPayload.ContainerID, fn, int64(p.Size))
+}
+
+// enrichTracesWithCtags modifies the trace payload in-place by overriding container tags.
+func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error) {
+	if err != nil {
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		return
+	}
+	if len(ctags) == 0 {
+		return
+	}
+	if p.TracerPayload.Tags == nil {
+		p.TracerPayload.Tags = make(map[string]string)
+	}
+	p.TracerPayload.Tags[tagContainersTags] = strings.Join(ctags, ",")
 }
 
 // ProcessV1 is the default work unit for a V1 payload that receives a trace, transforms it and
@@ -671,11 +716,38 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriterV1.WriteChunksV1(sampledChunks)
+		a.writeChunksV1(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.AddV1(statsInput)
 	}
+}
+
+func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
+	containerID := p.TracerPayload.ContainerID()
+	// fast path: no container ID or the buffering feature is disabled,
+	if containerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
+		a.TraceWriterV1.WriteChunksV1(p)
+		return
+	}
+	// callback function to be executed once tags are resolved, or buffer times out
+	fn := func(cTags []string, err error) {
+		enrichTracesWithCtagsV1(p, cTags, err)
+		a.TraceWriterV1.WriteChunksV1(p)
+	}
+	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.Size))
+}
+
+// enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+	if err != nil {
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		return
+	}
+	if len(ctags) == 0 {
+		return
+	}
+	p.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 }
 
 func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
@@ -688,6 +760,33 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 	if p.TracerPayload.AppVersion == "" {
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
+	}
+	if p.TracerPayload.Tags[tagAPMMode] == "" {
+		if mode, ok := root.Meta[tagAPMMode]; ok {
+			if v := normalizeAPMModeSpanTag(mode); v != "" {
+				if p.TracerPayload.Tags == nil {
+					p.TracerPayload.Tags = make(map[string]string)
+				}
+				p.TracerPayload.Tags[tagAPMMode] = mode
+			}
+		}
+	}
+}
+
+// normalizeAPMModeSpanTag validates and normalizes the '_dd.apm_mode' span tag value.
+// Returns the normalized lowercase value if valid (currently only "edge"), or an empty string if invalid.
+// Invalid values are logged at debug level.
+func normalizeAPMModeSpanTag(apmMode string) string {
+	if apmMode == "" {
+		log.Debugf("empty value for '_dd.apm_mode' span tag")
+		return ""
+	}
+	switch strings.ToLower(apmMode) {
+	case "edge":
+		return "edge"
+	default:
+		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
+		return ""
 	}
 }
 
@@ -789,7 +888,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	shouldObfuscate := obfuscationVersion == ""
 	if !shouldObfuscate {
 		if versionInt, err := strconv.Atoi(obfuscationVersion); err != nil && versionInt < obfuscate.Version {
-			log.Debug("Tracer is using older version of obfuscation %d", versionInt)
+			log.Debugf("Tracer is using older version of obfuscation %d", versionInt)
 		}
 	}
 	for i, group := range in.Stats {

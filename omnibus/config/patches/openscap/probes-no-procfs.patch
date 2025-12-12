@@ -1,0 +1,39 @@
+--- a/src/OVAL/probes/independent/environmentvariable58_probe.c
++++ b/src/OVAL/probes/independent/environmentvariable58_probe.c
+@@ -266,7 +266,7 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+ 	SEXP_t *item, *pid_sexp;
+ 	DIR *d;
+ 	struct dirent *d_entry;
+-	char *buffer, *null_char, path[PATH_MAX] = {0};
++	char *buffer, *null_char, path[PATH_MAX] = {0}, initpath[PATH_MAX] = {0};
+ 	ssize_t buffer_used;
+ 	size_t buffer_size;
+ 
+@@ -291,6 +291,13 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+ 	}
+ 
+ 	const char *prefix = getenv("OSCAP_PROBE_ROOT");
++
++	snprintf(initpath, PATH_MAX, "%s/proc/1", prefix ? prefix : "");
++	if (access(initpath, F_OK) < 0) {
++		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++		return 0;
++	}
++
+ 	snprintf(path, PATH_MAX, "%s/proc", prefix ? prefix : "");
+ 	d = opendir(path);
+ 	if (d == NULL) {
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -274,6 +274,11 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+         const char *prefix = getenv("OSCAP_PROBE_ROOT");
+         snprintf(mnt_path, PATH_MAX, "%s"MTAB_PATH, prefix ? prefix : "");
+ 
++	if (access(mnt_path, F_OK) < 0) {
++		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++		return 0;
++	}
++
+ #if defined(OS_LINUX)
+         int   mnt_fd;
+         struct statfs stfs;

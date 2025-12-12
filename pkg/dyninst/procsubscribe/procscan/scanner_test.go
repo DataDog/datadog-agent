@@ -10,6 +10,7 @@ package procscan
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"iter"
 	"os"
@@ -290,7 +291,7 @@ type scanCommand struct{}
 
 func (c *scanCommand) execute(_ *testing.T, ts *scannerTestState) error {
 	if !ts.initialized {
-		return fmt.Errorf(
+		return errors.New(
 			"scanner not initialized: use !initialize command first",
 		)
 	}
@@ -373,8 +374,10 @@ type scanOutput struct {
 func (ts *scannerTestState) cloneState(
 	includeStartDelay bool,
 ) *scannerStateSnapshot {
+	ts.scanner.mu.Lock()
+	defer ts.scanner.mu.Unlock()
 	live := make([]int32, 0)
-	ts.scanner.live.Ascend(func(pid uint32) bool {
+	ts.scanner.mu.live.Ascend(func(pid uint32) bool {
 		live = append(live, int32(pid))
 		return true
 	})
@@ -463,12 +466,12 @@ func parseCommandsFromAST(
 	file *ast.File,
 ) ([]command, []ast.Node, error) {
 	if len(file.Docs) == 0 {
-		return nil, nil, fmt.Errorf("no documents in file")
+		return nil, nil, errors.New("no documents in file")
 	}
 
 	doc := file.Docs[0]
 	if doc.Body == nil {
-		return nil, nil, fmt.Errorf("empty document")
+		return nil, nil, errors.New("empty document")
 	}
 
 	// The body should be a sequence.
