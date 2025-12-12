@@ -719,13 +719,14 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 4 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = binary.NativeEndian.Uint32(data[0:4])
+	e.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
 
-	return 8, nil
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

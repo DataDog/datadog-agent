@@ -419,7 +419,7 @@ func TestMountResolver(t *testing.T) {
 					mr.insert(&evt.mount.Mount, false)
 				}
 				if evt.umount != nil {
-					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
+					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid, true)
 					if err != nil {
 						t.Fatal(err)
 					}
