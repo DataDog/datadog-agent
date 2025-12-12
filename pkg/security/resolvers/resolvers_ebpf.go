@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sign"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
@@ -68,6 +69,7 @@ type EBPFResolvers struct {
 	SyscallCtxResolver   *syscallctx.Resolver
 	DNSResolver          *dns.Resolver
 	FileMetadataResolver *file.Resolver
+	SignatureResolver    *sign.Resolver
 
 	SnapshotUsingListmount bool
 }
@@ -219,6 +221,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
+		SignatureResolver:      sign.NewSignatureResolver(),
 	}
 
 	return resolvers, nil

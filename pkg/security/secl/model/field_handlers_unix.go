@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveSignature(ev)
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -1174,6 +1175,7 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSignature(ev *Event) string
 	ResolveSource(ev *Event, e *BaseEvent) string
 	ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int
@@ -1454,6 +1456,7 @@ func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) str
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string {
 	return string(e.User)
 }
+func (dfh *FakeFieldHandlers) ResolveSignature(ev *Event) string            { return string(ev.Signature) }
 func (dfh *FakeFieldHandlers) ResolveSource(ev *Event, e *BaseEvent) string { return string(e.Source) }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
 	return int(e.IntArg1)

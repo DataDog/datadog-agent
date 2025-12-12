@@ -2308,6 +2308,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
+        "signature": {
+            "type": "string"
+        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -2416,6 +2419,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `signature` | string |  |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
