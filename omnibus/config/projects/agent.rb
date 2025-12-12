@@ -249,7 +249,6 @@ if do_build
   # the `extra_package_file` directive.
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
-  dependency 'datadog-cf-finalize'
   # Special csae for heroku which does build & packaging in a single step
   if do_package
     dependency "init-scripts-agent"

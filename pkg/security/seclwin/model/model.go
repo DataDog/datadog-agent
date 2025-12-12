@@ -101,8 +101,10 @@ type ContainerContext struct {
 }
 
 // Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+func (c *ContainerContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(c.ContainerID),
+	}
 }
 
 // ParentScope returns the parent entity scope
