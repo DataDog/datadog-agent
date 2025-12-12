@@ -875,11 +875,17 @@ type ChunkConvertedFields struct {
 	GitCommitShaRef uint32
 }
 
-// applyPromotedFields applies chunk promoted fields to the tracer payload
-func (tp *InternalTracerPayload) applyPromotedFields(convertedFields *ChunkConvertedFields) {
-	tp.envRef = convertedFields.EnvRef
-	tp.hostnameRef = convertedFields.HostnameRef
-	tp.appVersionRef = convertedFields.AppVersionRef
+// ApplyPromotedFields applies chunk promoted fields to the tracer payload
+func (tp *InternalTracerPayload) ApplyPromotedFields(convertedFields *ChunkConvertedFields) {
+	if tp.envRef == 0 {
+		tp.envRef = convertedFields.EnvRef
+	}
+	if tp.hostnameRef == 0 {
+		tp.hostnameRef = convertedFields.HostnameRef
+	}
+	if tp.appVersionRef == 0 {
+		tp.appVersionRef = convertedFields.AppVersionRef
+	}
 	if convertedFields.GitCommitShaRef != 0 {
 		tp.setStringRefAttribute("_dd.git.commit.sha", convertedFields.GitCommitShaRef)
 	}
@@ -916,20 +922,22 @@ func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, er
 			return
 		}
 	}
-	tp.applyPromotedFields(&chunkConvertedFields)
+	tp.ApplyPromotedFields(&chunkConvertedFields)
 	o = bts
 	return
 }
 
-// applyPromotedFields applies span promoted fields to the chunk, copying chunk promoted fields to chunkConvertedFields
-func (c *InternalTraceChunk) applyPromotedFields(convertedFields *SpanConvertedFields, chunkConvertedFields *ChunkConvertedFields) {
+// ApplyPromotedFields applies span promoted fields to the chunk, copying chunk promoted fields to chunkConvertedFields
+func (c *InternalTraceChunk) ApplyPromotedFields(convertedFields *SpanConvertedFields, chunkConvertedFields *ChunkConvertedFields) {
 	tid := make([]byte, 16)
 	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDLower)
 	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDUpper)
 	c.TraceID = tid
 	c.samplingMechanism = convertedFields.SamplingMechanism
 	c.Priority = int32(convertedFields.SamplingPriority)
-	c.originRef = convertedFields.OriginRef
+	if convertedFields.OriginRef != 0 {
+		c.originRef = convertedFields.OriginRef
+	}
 	if convertedFields.APMModeRef != 0 {
 		chunkConvertedFields.APMModeRef = convertedFields.APMModeRef
 	}
@@ -971,6 +979,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 			c.Spans[i] = nil
 		} else {
 			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
+			c.Spans[i].SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
 			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
 			if err != nil {
 				err = msgp.WrapError(err, i)
@@ -978,7 +987,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 			}
 		}
 	}
-	c.applyPromotedFields(convertedFields, chunkConvertedFields)
+	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
 	return
 }

@@ -99,9 +99,9 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 				return err
 			}
 		}
-		tp.Chunks[i].applyPromotedFields(convertedFields, &chunkConvertedFields)
+		tp.Chunks[i].ApplyPromotedFields(convertedFields, &chunkConvertedFields)
 	}
-	tp.applyPromotedFields(&chunkConvertedFields)
+	tp.ApplyPromotedFields(&chunkConvertedFields)
 	return nil
 }
 

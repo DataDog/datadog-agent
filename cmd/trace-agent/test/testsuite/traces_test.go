@@ -8,6 +8,7 @@ package testsuite
 import (
 	"bytes"
 	_ "embed"
+	"encoding/binary"
 	"slices"
 	"strings"
 	"testing"
@@ -300,8 +301,11 @@ func tracesEqual(t *testing.T, from pb.Trace, to *idx.InternalTraceChunk) bool {
 	if len(from) == 0 {
 		return true
 	}
-	traceID, err := from[0].Get128BitTraceID()
+	upper, lower, err := from[0].Get128BitTraceID()
 	assert.NoError(t, err)
+	traceID := make([]byte, 16)
+	binary.BigEndian.PutUint64(traceID[8:], lower)
+	binary.BigEndian.PutUint64(traceID[:8], upper)
 	if !bytes.Equal(traceID, to.TraceID) {
 		return false
 	}

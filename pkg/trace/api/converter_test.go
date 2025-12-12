@@ -847,7 +847,7 @@ func TestConvertToIdx_DecisionMakerFromChunkTags(t *testing.T) {
 		Chunks: []*pb.TraceChunk{
 			{
 				Tags: map[string]string{
-					"_dd.p.dm": "5",
+					"_dd.p.dm": "-5",
 				},
 				Spans: []*pb.Span{
 					{
@@ -874,7 +874,7 @@ func TestConvertToIdx_SpanDecisionMakerTakesPrecedence(t *testing.T) {
 		Chunks: []*pb.TraceChunk{
 			{
 				Tags: map[string]string{
-					"_dd.p.dm": "5",
+					"_dd.p.dm": "-5",
 				},
 				Spans: []*pb.Span{
 					{
@@ -884,7 +884,7 @@ func TestConvertToIdx_SpanDecisionMakerTakesPrecedence(t *testing.T) {
 						TraceID:  123,
 						SpanID:   456,
 						Meta: map[string]string{
-							"_dd.p.dm": "8",
+							"_dd.p.dm": "-8",
 						},
 					},
 				},
@@ -1254,4 +1254,425 @@ func TestConvertToIdx_ConvertedV1AttributeSet(t *testing.T) {
 			assert.False(t, ok, "span %d should not have _dd.convertedv1 attribute when originPayloadVersion is empty", i)
 		}
 	})
+}
+
+func TestConverterParity(t *testing.T) {
+	// Test that ConvertToIdx and UnmarshalMsgConverted produce functionally equivalent results
+	// Note: The string table indices may differ, but the actual string values should be the same
+
+	tests := []struct {
+		name   string
+		traces pb.Traces
+	}{
+		{
+			name: "basic span",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "my-service",
+						Name:     "span-name",
+						Resource: "GET /res",
+						SpanID:   12345678,
+						ParentID: 1111,
+						Duration: 234,
+						Start:    171615,
+						TraceID:  556677,
+						Type:     "web",
+					},
+				},
+			},
+		},
+		{
+			name: "span with meta and metrics",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "my-service",
+						Name:     "span-name",
+						Resource: "GET /res",
+						SpanID:   12345678,
+						ParentID: 1111,
+						Duration: 234,
+						Start:    171615,
+						TraceID:  556677,
+						Meta: map[string]string{
+							"someStr":            "bar",
+							"_dd.p.tid":          "BABA",
+							"env":                "production",
+							"version":            "1.2.3",
+							"component":          "http-client",
+							"span.kind":          "client",
+							"_dd.git.commit.sha": "abc123def456",
+							"_dd.p.dm":           "-1",
+							"_dd.hostname":       "my-hostname",
+						},
+						Metrics: map[string]float64{
+							"someNum":               1.0,
+							"_sampling_priority_v1": 2.0,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "span with error",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "test-service",
+						Name:     "error-span",
+						Resource: "GET /error",
+						SpanID:   789,
+						ParentID: 0,
+						Duration: 100,
+						Start:    1000,
+						TraceID:  111,
+						Error:    1,
+					},
+				},
+			},
+		},
+		{
+			name: "span with links",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "test-service",
+						Name:     "span-with-links",
+						Resource: "GET /linked",
+						SpanID:   456,
+						ParentID: 0,
+						Duration: 200,
+						Start:    2000,
+						TraceID:  222,
+						SpanLinks: []*pb.SpanLink{
+							{
+								TraceID:     0xAA_BB,
+								TraceIDHigh: 0x12_34,
+								SpanID:      1111,
+								Tracestate:  "test=state",
+								Flags:       1,
+								Attributes: map[string]string{
+									"link.attr": "link.value",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "span with events",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "test-service",
+						Name:     "span-with-events",
+						Resource: "GET /events",
+						SpanID:   789,
+						ParentID: 0,
+						Duration: 300,
+						Start:    3000,
+						TraceID:  333,
+						SpanEvents: []*pb.SpanEvent{
+							{
+								TimeUnixNano: 171615,
+								Name:         "event-name",
+								Attributes: map[string]*pb.AttributeAnyValue{
+									"event.attr": {
+										Type:        pb.AttributeAnyValue_STRING_VALUE,
+										StringValue: "event.value",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple spans in trace",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "service-1",
+						Name:     "parent-span",
+						Resource: "GET /parent",
+						SpanID:   100,
+						ParentID: 0,
+						Duration: 500,
+						Start:    1000,
+						TraceID:  444,
+						Meta: map[string]string{
+							"env": "staging",
+						},
+					},
+					{
+						Service:  "service-1",
+						Name:     "child-span",
+						Resource: "GET /child",
+						SpanID:   101,
+						ParentID: 100,
+						Duration: 200,
+						Start:    1100,
+						TraceID:  444,
+					},
+				},
+			},
+		},
+		{
+			name: "multiple traces",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "service-a",
+						Name:     "span-a",
+						Resource: "GET /a",
+						SpanID:   200,
+						ParentID: 0,
+						Duration: 100,
+						Start:    5000,
+						TraceID:  555,
+					},
+				},
+				{
+					{
+						Service:  "service-b",
+						Name:     "span-b",
+						Resource: "GET /b",
+						SpanID:   300,
+						ParentID: 0,
+						Duration: 150,
+						Start:    6000,
+						TraceID:  666,
+					},
+				},
+			},
+		},
+		{
+			name: "span with metastruct",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "test-service",
+						Name:     "span-with-metastruct",
+						Resource: "GET /meta",
+						SpanID:   400,
+						ParentID: 0,
+						Duration: 50,
+						Start:    7000,
+						TraceID:  777,
+						MetaStruct: map[string][]byte{
+							"binary.data": {0x01, 0x02, 0x03},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "span with origin",
+			traces: pb.Traces{
+				{
+					{
+						Service:  "test-service",
+						Name:     "span-with-origin",
+						Resource: "GET /origin",
+						SpanID:   500,
+						ParentID: 0,
+						Duration: 75,
+						Start:    8000,
+						TraceID:  888,
+						Meta: map[string]string{
+							"_dd.origin": "lambda",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Method 1: Use UnmarshalMsgConverted
+			tracesBytes, err := tt.traces.MarshalMsg(nil)
+			require.NoError(t, err)
+
+			tp1 := &idx.InternalTracerPayload{}
+			_, err = tp1.UnmarshalMsgConverted(tracesBytes)
+			require.NoError(t, err)
+
+			// Method 2: Use ConvertToIdx
+			// First convert traces to TracerPayload structure
+			tracerPayload := &pb.TracerPayload{
+				Chunks: traceChunksFromTraces(tt.traces),
+			}
+			tp2 := ConvertToIdx(tracerPayload, "v04") // Use "v04" to match what UnmarshalMsgConverted sets
+
+			// Compare the two results
+			require.Equal(t, len(tp1.Chunks), len(tp2.Chunks), "number of chunks should match")
+
+			for chunkIdx := range tp1.Chunks {
+				chunk1 := tp1.Chunks[chunkIdx]
+				chunk2 := tp2.Chunks[chunkIdx]
+
+				// Compare chunk-level fields
+				assert.Equal(t, chunk1.Priority, chunk2.Priority, "chunk %d: priority should match", chunkIdx)
+				assert.Equal(t, chunk1.Origin(), chunk2.Origin(), "chunk %d: origin should match", chunkIdx)
+				assert.Equal(t, chunk1.DroppedTrace, chunk2.DroppedTrace, "chunk %d: dropped trace should match", chunkIdx)
+				assert.Equal(t, chunk1.TraceID, chunk2.TraceID, "chunk %d: trace ID should match", chunkIdx)
+				assert.Equal(t, chunk1.SamplingMechanism(), chunk2.SamplingMechanism(), "chunk %d: sampling mechanism should match", chunkIdx)
+
+				require.Equal(t, len(chunk1.Spans), len(chunk2.Spans), "chunk %d: number of spans should match", chunkIdx)
+
+				for spanIdx := range chunk1.Spans {
+					span1 := chunk1.Spans[spanIdx]
+					span2 := chunk2.Spans[spanIdx]
+
+					// Compare span-level fields
+					assert.Equal(t, span1.Service(), span2.Service(), "chunk %d span %d: service should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Name(), span2.Name(), "chunk %d span %d: name should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Resource(), span2.Resource(), "chunk %d span %d: resource should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.SpanID(), span2.SpanID(), "chunk %d span %d: span ID should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.ParentID(), span2.ParentID(), "chunk %d span %d: parent ID should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Start(), span2.Start(), "chunk %d span %d: start should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Duration(), span2.Duration(), "chunk %d span %d: duration should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Error(), span2.Error(), "chunk %d span %d: error should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Type(), span2.Type(), "chunk %d span %d: type should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Kind(), span2.Kind(), "chunk %d span %d: kind should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Env(), span2.Env(), "chunk %d span %d: env should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Version(), span2.Version(), "chunk %d span %d: version should match", chunkIdx, spanIdx)
+					assert.Equal(t, span1.Component(), span2.Component(), "chunk %d span %d: component should match", chunkIdx, spanIdx)
+
+					// Compare attributes by iterating through each one
+					// We use GetAttributeAsString and GetAttributeAsFloat64 which handle promoted fields
+					compareSpanAttributes(t, span1, span2, chunkIdx, spanIdx)
+
+					// Compare links
+					links1 := span1.Links()
+					links2 := span2.Links()
+					require.Equal(t, len(links1), len(links2), "chunk %d span %d: number of links should match", chunkIdx, spanIdx)
+					for linkIdx := range links1 {
+						assert.Equal(t, links1[linkIdx].TraceID(), links2[linkIdx].TraceID(), "chunk %d span %d link %d: trace ID should match", chunkIdx, spanIdx, linkIdx)
+						assert.Equal(t, links1[linkIdx].SpanID(), links2[linkIdx].SpanID(), "chunk %d span %d link %d: span ID should match", chunkIdx, spanIdx, linkIdx)
+						assert.Equal(t, links1[linkIdx].Tracestate(), links2[linkIdx].Tracestate(), "chunk %d span %d link %d: tracestate should match", chunkIdx, spanIdx, linkIdx)
+						assert.Equal(t, links1[linkIdx].Flags(), links2[linkIdx].Flags(), "chunk %d span %d link %d: flags should match", chunkIdx, spanIdx, linkIdx)
+						compareLinkAttributes(t, links1[linkIdx], links2[linkIdx], span1.Strings, span2.Strings, chunkIdx, spanIdx, linkIdx)
+					}
+
+					// Compare events
+					events1 := span1.Events()
+					events2 := span2.Events()
+					require.Equal(t, len(events1), len(events2), "chunk %d span %d: number of events should match", chunkIdx, spanIdx)
+					for eventIdx := range events1 {
+						assert.Equal(t, events1[eventIdx].Time(), events2[eventIdx].Time(), "chunk %d span %d event %d: time should match", chunkIdx, spanIdx, eventIdx)
+						assert.Equal(t, events1[eventIdx].Name(), events2[eventIdx].Name(), "chunk %d span %d event %d: name should match", chunkIdx, spanIdx, eventIdx)
+						compareEventAttributes(t, events1[eventIdx], events2[eventIdx], span1.Strings, span2.Strings, chunkIdx, spanIdx, eventIdx)
+					}
+				}
+			}
+
+			// Compare payload-level fields (these come from span metadata)
+			assert.Equal(t, tp1.Env(), tp2.Env(), "payload env should match")
+			assert.Equal(t, tp1.Hostname(), tp2.Hostname(), "payload hostname should match")
+			assert.Equal(t, tp1.AppVersion(), tp2.AppVersion(), "payload app version should match")
+		})
+	}
+}
+
+// compareSpanAttributes compares attributes between two spans, handling the fact that
+// string table indices may be different
+func compareSpanAttributes(t *testing.T, span1, span2 *idx.InternalSpan, chunkIdx, spanIdx int) {
+	// Get all attribute keys from both spans
+	keys1 := make(map[string]bool)
+	keys2 := make(map[string]bool)
+
+	for keyRef := range span1.Attributes() {
+		key := span1.Strings.Get(keyRef)
+		// Skip promoted fields as they are stored differently
+		if key == "env" || key == "version" || key == "component" || key == "span.kind" {
+			continue
+		}
+		keys1[key] = true
+	}
+	for keyRef := range span2.Attributes() {
+		key := span2.Strings.Get(keyRef)
+		// Skip promoted fields as they are stored differently
+		if key == "env" || key == "version" || key == "component" || key == "span.kind" {
+			continue
+		}
+		keys2[key] = true
+	}
+
+	// Check all keys from span1 exist in span2 with same values
+	for key := range keys1 {
+		_, ok := keys2[key]
+		assert.True(t, ok, "chunk %d span %d: attribute key %q should exist in both spans", chunkIdx, spanIdx, key)
+
+		// Try to get as string first
+		val1, ok1 := span1.GetAttributeAsString(key)
+		val2, ok2 := span2.GetAttributeAsString(key)
+		if ok1 && ok2 {
+			assert.Equal(t, val1, val2, "chunk %d span %d: string attribute %q should match", chunkIdx, spanIdx, key)
+			continue
+		}
+
+		// Try to get as float64
+		fval1, fok1 := span1.GetAttributeAsFloat64(key)
+		fval2, fok2 := span2.GetAttributeAsFloat64(key)
+		if fok1 && fok2 {
+			assert.Equal(t, fval1, fval2, "chunk %d span %d: float64 attribute %q should match", chunkIdx, spanIdx, key)
+			continue
+		}
+
+		// Fall back to raw attribute comparison
+		attr1, _ := span1.GetAttribute(key)
+		attr2, _ := span2.GetAttribute(key)
+		assert.Equal(t, attr1.AsString(span1.Strings), attr2.AsString(span2.Strings), "chunk %d span %d: attribute %q should match", chunkIdx, spanIdx, key)
+	}
+
+	// Check all keys from span2 exist in span1
+	for key := range keys2 {
+		_, ok := keys1[key]
+		assert.True(t, ok, "chunk %d span %d: attribute key %q should exist in both spans", chunkIdx, spanIdx, key)
+	}
+}
+
+// compareLinkAttributes compares attributes between two span links
+func compareLinkAttributes(t *testing.T, link1, link2 *idx.InternalSpanLink, strings1, strings2 *idx.StringTable, chunkIdx, spanIdx, linkIdx int) {
+	attrs1 := link1.Attributes()
+	attrs2 := link2.Attributes()
+
+	keys1 := make(map[string]string)
+	keys2 := make(map[string]string)
+
+	for keyRef, val := range attrs1 {
+		key := strings1.Get(keyRef)
+		keys1[key] = val.AsString(strings1)
+	}
+	for keyRef, val := range attrs2 {
+		key := strings2.Get(keyRef)
+		keys2[key] = val.AsString(strings2)
+	}
+
+	assert.Equal(t, keys1, keys2, "chunk %d span %d link %d: attributes should match", chunkIdx, spanIdx, linkIdx)
+}
+
+// compareEventAttributes compares attributes between two span events
+func compareEventAttributes(t *testing.T, event1, event2 *idx.InternalSpanEvent, strings1, strings2 *idx.StringTable, chunkIdx, spanIdx, eventIdx int) {
+	attrs1 := event1.Attributes()
+	attrs2 := event2.Attributes()
+
+	keys1 := make(map[string]string)
+	keys2 := make(map[string]string)
+
+	for keyRef, val := range attrs1 {
+		key := strings1.Get(keyRef)
+		keys1[key] = val.AsString(strings1)
+	}
+	for keyRef, val := range attrs2 {
+		key := strings2.Get(keyRef)
+		keys2[key] = val.AsString(strings2)
+	}
+
+	assert.Equal(t, keys1, keys2, "chunk %d span %d event %d: attributes should match", chunkIdx, spanIdx, eventIdx)
 }
