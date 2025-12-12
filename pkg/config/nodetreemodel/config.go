@@ -1053,7 +1053,7 @@ func (c *ntmConfig) GetSubfields(key string) []string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:forbidigo // testing behavior //nolint:errcheck
 	c.SetDefault(key, val)
 }
 
