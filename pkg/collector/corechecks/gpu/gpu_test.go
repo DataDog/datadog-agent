@@ -29,7 +29,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -54,8 +53,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -216,10 +214,7 @@ func TestRunDoesNotError(t *testing.T) {
 	})
 
 	// Enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
-	})
+	WithGPUConfigEnabled(t)
 
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
@@ -271,8 +266,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	// configure check
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -343,8 +337,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -418,8 +411,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { check.Cancel() })
