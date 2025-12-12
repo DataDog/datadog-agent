@@ -1489,6 +1489,7 @@ func (suite *k8sSuite) TestContainerImage() {
 type scanMethod struct {
 	mode       string
 	helmValues string
+	method     string
 }
 
 type scanResult struct {
@@ -1502,15 +1503,21 @@ type scanResult struct {
 func (suite *k8sSuite) TestSBOM() {
 	scanMethods := []scanMethod{
 		{
-			mode: "default",
+			mode:   "default",
+			method: "filesystem",
 			helmValues: `
 clusterAgent:
   envDict:
     DD_CSI_ENABLED: "true"
+datadog:
+  sbom:
+    containerImage:
+      uncompressedLayersSupport: false
 `,
 		},
 		{
-			mode: "mount",
+			mode:   "mount",
+			method: "filesystem",
 			helmValues: `
 clusterAgent:
   envDict:
@@ -1522,7 +1529,8 @@ datadog:
 `,
 		},
 		{
-			mode: "overlayfs",
+			mode:   "overlayfs",
+			method: "overlayfs",
 			helmValues: `
 clusterAgent:
   envDict:
@@ -1561,6 +1569,7 @@ datadog:
 
 	for n, mode := range scanMethods {
 		m := mode.mode
+		method := mode.method
 		helmValues := mode.helmValues
 
 		for _, img := range images {
@@ -1686,6 +1695,7 @@ datadog:
 							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
 							regexp.MustCompile(`^os_name:linux$`),
 							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
+							regexp.MustCompile(`^scan_method:` + method + `$`),
 						}
 
 						if len(img.expectedTags) != 0 {
