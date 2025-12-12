@@ -15,7 +15,6 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -47,6 +46,17 @@ type ActivityDumpMsgSender = MsgSender[api.ActivityDumpStreamMessage]
 type ChanMsgSender[T any] struct {
 	msgs chan *T
 }
+
+type TrackType string
+
+const (
+	// Runtime is the track type for runtime events
+	Runtime TrackType = "runtime"
+	// Logs is the track type for logs events
+	Logs TrackType = "logs"
+	// SecInfo is the track type for secinfo events
+	SecInfo TrackType = "secinfo"
+)
 
 // Send the message
 func (cs *ChanMsgSender[T]) Send(msg *T, expireFnc func(*T)) {
@@ -87,10 +97,10 @@ func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
 
 // DirectEventMsgSender defines a direct sender
 type DirectEventMsgSender struct {
-	reporter             common.RawReporter
-	endpoints            *logsconfig.Endpoints
-	remediationReporter  common.RawReporter
-	remediationEndpoints *logsconfig.Endpoints
+	reporter         common.RawReporter
+	endpoints        *logsconfig.Endpoints
+	secInfoReporter  common.RawReporter
+	secInfoEndpoints *logsconfig.Endpoints
 }
 
 var _ MsgSender[api.SecurityEventMessage] = &DirectEventMsgSender{}
@@ -98,9 +108,8 @@ var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
 
 // Send the message
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	if msg.RuleID == events.RemediationStatusRuleID {
-		seclog.Infof("Sending %s event", events.RemediationStatusRuleDesc)
-		ds.remediationReporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+	if msg.Track == string(SecInfo) {
+		ds.secInfoReporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 	} else {
 		ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 	}
@@ -111,7 +120,7 @@ func (ds *DirectEventMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
 // GetEndpointsStatus returns the status of the endpoints
 func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
-	return append(ds.endpoints.GetStatus(), ds.remediationEndpoints.GetStatus()...)
+	return append(ds.endpoints.GetStatus(), ds.secInfoEndpoints.GetStatus()...)
 }
 
 // NewDirectEventMsgSender returns a new direct sender
@@ -123,19 +132,19 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
 
-	remediationEndpoints, remediationDestinationsCtx, err := common.NewLogContextRemediation()
+	secInfoEndpoints, secInfoDestinationsCtx, err := common.NewLogContextSecInfo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create direct remediation endpoints: %w", err)
+		return nil, fmt.Errorf("failed to create direct secinfo endpoints: %w", err)
 	}
 
 	stopper.Add(destinationsCtx)
-	stopper.Add(remediationDestinationsCtx)
+	stopper.Add(secInfoDestinationsCtx)
 
 	for _, status := range endpoints.GetStatus() {
 		log.Info(status)
 	}
 
-	for _, status := range remediationEndpoints.GetStatus() {
+	for _, status := range secInfoEndpoints.GetStatus() {
 		log.Info(status)
 	}
 
@@ -151,16 +160,16 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
-	remediationReporter, err := reporter.NewCWSReporter(hostname, stopper, remediationEndpoints, remediationDestinationsCtx, compression)
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create direct remediation reporter: %w", err)
+		return nil, fmt.Errorf("failed to create direct secinfo reporter: %w", err)
 	}
 
 	return &DirectEventMsgSender{
-		reporter:             runtimeReporter,
-		endpoints:            endpoints,
-		remediationReporter:  remediationReporter,
-		remediationEndpoints: remediationEndpoints,
+		reporter:         runtimeReporter,
+		endpoints:        endpoints,
+		secInfoReporter:  secInfoReporter,
+		secInfoEndpoints: secInfoEndpoints,
 	}, nil
 }
 

@@ -287,6 +287,12 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	}
 }
 
+func (a *APIServer) updateMsgTrack(msg *api.SecurityEventMessage) {
+	if slices.Contains(events.AllSecInfoRuleIDs(), msg.RuleID) {
+		msg.Track = string(SecInfo)
+	}
+}
+
 func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	appendTagsIfNotPresent := func(toAdd []string) {
 		for _, tag := range toAdd {
@@ -522,6 +528,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
+		a.updateMsgTrack(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}

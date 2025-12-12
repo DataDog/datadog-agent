@@ -42,8 +42,8 @@ func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *clie
 	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
-// NewLogContextRemediation returns the context fields to send remediation events to the intake
-func NewLogContextRemediation() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+// NewLogContextSecInfo returns the context fields to send remediation events to the intake
+func NewLogContextSecInfo() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfigsetup.Datadog())
 	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", "secinfo", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }

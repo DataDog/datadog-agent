@@ -127,6 +127,13 @@ func AllCustomRuleIDs() []string {
 		InternalCoreDumpRuleID,
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
+		RemediationStatusRuleID,
+	}
+}
+
+func AllSecInfoRuleIDs() []string {
+	return []string{
+		RemediationStatusRuleID,
 	}
 }
 
