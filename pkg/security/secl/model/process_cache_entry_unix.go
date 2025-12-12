@@ -36,7 +36,6 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
-		err       error
 	)
 
 	for pc != nil {
@@ -47,12 +46,12 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.IsParentMissing {
-			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
+			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
-				return err == nil, err
+				return true, nil
 			}
 			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: string(ctrID)}
 		}
