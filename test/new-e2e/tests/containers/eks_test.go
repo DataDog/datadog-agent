@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -35,6 +36,9 @@ func TestEKSSuite(t *testing.T) {
 				),
 				sceneks.WithDeployDogstatsd(),
 				sceneks.WithDeployTestWorkload(),
+				sceneks.WithFakeIntakeOptions(
+					fakeintake.WithRetentionPeriod("31m"),
+				),
 				sceneks.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
 					kubernetesagentparams.WithHelmValues(helmValues),
@@ -278,4 +282,26 @@ func (suite *eksSuite) TestNginxFargate() {
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
+}
+
+func (suite *eksSuite) TestHostTags() {
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^stackid:" + suite.clusterName + "$",
+			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
+			"^orch_cluster_id:[0-9a-f-]{36}$",
+			"^kube_distribution:eks$",
+		},
+		OptionalTags: &[]string{
+			"^os:linux$",
+			"^arch:(amd|arm)64$",
+			// for some reasons on EKS the cluster in CI can't be retrieved
+			// make it optional so the agent can retrieve it in the host-tags we can validate it
+			"^cluster_name:" + suite.clusterName + "$",
+			"^kube_cluster_name:" + suite.clusterName + "$",
+		},
+	}
+
+	suite.testHostTags(args)
 }
