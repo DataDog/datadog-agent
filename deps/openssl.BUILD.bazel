@@ -37,23 +37,32 @@ LINUX_LIBCRYPTO = "libcrypto.so"
 MACOS_LIBSSL = "libssl.dylib"
 MACOS_LIBCRYPTO = "libcrypto.dylib"
 
-# Common script to fix OPENSSLDIR, ENGINESDIR, MODULESDIR paths in binaries
+# Common script to fix OPENSSLDIR, ENGINESDIR, MODULESDIR and other paths in binaries
 # Expects $LIBS to be set by caller to the list of libraries to patch
 # In case of OPENSSLDIR there is no additional slash between BUILD_TMPDIR and INSTALL_PREFIX,
 # but there is for ENGINESDIR and MODULESDIR.
 FIX_OPENSSL_PATHS = """
-    # Fix OPENSSLDIR, ENGINESDIR, MODULESDIR paths in binaries
+    # Fix OpenSSL hardcoded paths in binaries
     SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
     TARGET="$$INSTALL_PREFIX"
 
-    # OPENSSLDIR
+    # OPENSSLDIR: /ssl"
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
+    # SSL private dir: /ssl/private
+    OLD_PATH="$${SANDBOX}/ssl/private" NEW_PATH="$${TARGET}/ssl/private" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL certs dir: /ssl/certs
+    OLD_PATH="$${SANDBOX}/ssl/certs" NEW_PATH="$${TARGET}/ssl/certs" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL cert.pem: /ssl/cert.pem
+    OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
     SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
-    # ENGINESDIR
+    # ENGINESDIR: /lib/engines-3"
     OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
-    # MODULESDIR
+    # MODULESDIR: /lib/ossl-modules"
     OLD_PATH="$${SANDBOX}/lib/ossl-modules\\"" NEW_PATH="$${TARGET}/lib/ossl-modules\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 """
 
