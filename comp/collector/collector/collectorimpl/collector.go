@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -78,7 +79,8 @@ type collectorImpl struct {
 	checks         map[checkid.ID]*middleware.CheckWrapper
 	eventReceivers []collector.EventReceiver
 
-	cancelCheckTimeout time.Duration
+	cancelCheckTimeout     time.Duration
+	watchdogWarningTimeout time.Duration
 
 	m         sync.RWMutex
 	createdAt time.Time
@@ -121,22 +123,27 @@ func newProvides(deps dependencies) provides {
 
 func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
-		log:                deps.Log,
-		config:             deps.Config,
-		haAgent:            deps.HaAgent,
-		hostname:           deps.Hostname,
-		senderManager:      deps.SenderManager,
-		metricSerializer:   deps.MetricSerializer,
-		agentTelemetry:     deps.AgentTelemetry,
-		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
-		state:              atomic.NewUint32(stopped),
-		checkInstances:     int64(0),
-		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
-		createdAt:          time.Now(),
+		log:                    deps.Log,
+		config:                 deps.Config,
+		haAgent:                deps.HaAgent,
+		hostname:               deps.Hostname,
+		senderManager:          deps.SenderManager,
+		metricSerializer:       deps.MetricSerializer,
+		agentTelemetry:         deps.AgentTelemetry,
+		checks:                 make(map[checkid.ID]*middleware.CheckWrapper),
+		state:                  atomic.NewUint32(stopped),
+		checkInstances:         int64(0),
+		cancelCheckTimeout:     deps.Config.GetDuration("check_cancel_timeout"),
+		watchdogWarningTimeout: deps.Config.GetDuration("check_watchdog_warning_timeout"),
+		createdAt:              time.Now(),
 	}
 
 	if !deps.Config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
+	}
+
+	if deps.Config.GetBool("shared_library_check.enabled") {
+		sharedlibrarycheck.InitSharedLibraryChecksLoader()
 	}
 
 	deps.Lc.Append(fx.Hook{

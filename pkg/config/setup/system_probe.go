@@ -84,8 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -110,6 +108,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	cfg.BindEnvAndSetDefault("disable_file_logging", false)
 	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
+	cfg.BindEnvAndSetDefault("log_use_slog", false)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")

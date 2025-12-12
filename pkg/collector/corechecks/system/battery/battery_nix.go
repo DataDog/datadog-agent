@@ -7,7 +7,9 @@
 
 package battery
 
-import "errors"
+import (
+	"errors"
+)
 
 func hasBatteryAvailable() (bool, error) {
 	return false, errors.New("battery info only supported on macOS and Windows")

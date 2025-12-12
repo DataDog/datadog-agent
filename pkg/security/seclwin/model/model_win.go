@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -doc ../../../../docs/cloud-workload-security/secl_windows.json -field-accessors-output field_accessors_windows.go
+//go:generate event_deep_copy -tags windows -types-file model.go -output event_deep_copy_windows.go
 
 // Package model holds model related files
 package model
 
 import (
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -92,7 +92,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
 
 	return func(e *Event) {
 		*e = eventZero
@@ -243,8 +243,10 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return strconv.Itoa(int(pc.Pid))
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+	}
 }
 
 // ParentScope returns the parent entity scope

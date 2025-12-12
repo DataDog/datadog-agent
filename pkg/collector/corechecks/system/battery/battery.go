@@ -35,9 +35,9 @@ type batteryInfo struct {
 	designedCapacity   float64  // mWh
 	maximumCapacity    float64  // mWh
 	maximumCapacityPct float64  // percentage (0-100)
-	currentCharge      float64  // percentage (0-100)
-	voltage            float64  // mV
-	chargeRate         float64  // mW (positive = charging, negative = discharging)
+	currentChargePct   *float64 // percentage (0-100)
+	voltage            *float64 // mV
+	chargeRate         *float64 // mW (positive = charging, negative = discharging)
 	powerState         []string // power state tags
 }
 
@@ -89,13 +89,19 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	sender.Gauge("system.battery.cycle_count", info.cycleCount, "", nil)
 	sender.Gauge("system.battery.designed_capacity", info.designedCapacity, "", nil)
 	sender.Gauge("system.battery.maximum_capacity", info.maximumCapacity, "", nil)
 	sender.Gauge("system.battery.maximum_capacity_pct", info.maximumCapacityPct, "", nil)
-	sender.Gauge("system.battery.current_charge", info.currentCharge, "", nil)
-	sender.Gauge("system.battery.voltage", info.voltage, "", nil)
-	sender.Gauge("system.battery.charge_rate", info.chargeRate, "", nil)
+	sender.Gauge("system.battery.cycle_count", info.cycleCount, "", nil)
+	if info.currentChargePct != nil {
+		sender.Gauge("system.battery.current_charge_pct", *info.currentChargePct, "", nil)
+	}
+	if info.voltage != nil {
+		sender.Gauge("system.battery.voltage", *info.voltage, "", nil)
+	}
+	if info.chargeRate != nil {
+		sender.Gauge("system.battery.charge_rate", *info.chargeRate, "", nil)
+	}
 
 	if len(info.powerState) > 0 {
 		sender.Gauge("system.battery.power_state", 1, "", info.powerState)

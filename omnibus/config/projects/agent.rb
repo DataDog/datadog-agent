@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -210,9 +211,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target? || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
 end
 
 # ------------------------------------
@@ -243,7 +249,6 @@ if do_build
   # the `extra_package_file` directive.
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
-  dependency 'datadog-cf-finalize'
   # Special csae for heroku which does build & packaging in a single step
   if do_package
     dependency "init-scripts-agent"
@@ -318,7 +323,8 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
-    "#{install_dir}\\bin\\agent\\system-probe.exe"
+    "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\datadog-installer.exe"
   ]
 
   if not fips_mode?
@@ -369,14 +375,13 @@ if windows_target?
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
       "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
-      fips_mode? ? "#{python_3_embedded}\\bin\\openssl.exe" : nil,
+      "#{python_3_embedded}\\bin\\openssl.exe",
       fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
     ].compact
 
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{install_dir}\\datadog-installer.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

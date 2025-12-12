@@ -42,6 +42,10 @@ const (
 	BATTERY_DISCHARGING   = 0x00000002
 	BATTERY_CHARGING      = 0x00000004
 	BATTERY_CRITICAL      = 0x00000008
+
+	BATTERY_UNKNOWN_CAPACITY = 0xFFFFFFFF
+	BATTERY_UNKNOWN_VOLTAGE  = 0xFFFFFFFF
+	BATTERY_UNKNOWN_RATE     = -2147483648 // 0x80000000 as signed int32
 )
 
 // The level of the battery information being queried. The data returned by the IOCTL depends on this value.
@@ -99,142 +103,157 @@ type BATTERY_WAIT_STATUS struct {
 	HighCapacity uint32
 }
 
-//revive:enable:var-naming (const)
-//revive:enable:exported Windows API types intentionally match Windows naming
+// ErrNotSystemBattery is returned when a battery is not a system battery
+var ErrNotSystemBattery = errors.New("battery is not a system battery")
+
+// setupBatteryDeviceEnumeration sets up battery device enumeration and returns device info handle and interface data
+func setupBatteryDeviceEnumeration() (windows.DevInfo, *winutil.SP_DEVICE_INTERFACE_DATA, func(), error) {
+	hdev, err := windows.SetupDiGetClassDevsEx(&GUID_DEVCLASS_BATTERY, "", 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE, 0, "")
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("SetupDiGetClassDevs: %w", err)
+	}
+
+	cleanup := func() {
+		if err := windows.SetupDiDestroyDeviceInfoList(hdev); err != nil {
+			log.Errorf("error destroying device info list: %v", err)
+		}
+	}
+
+	ifData := &winutil.SP_DEVICE_INTERFACE_DATA{
+		CbSize: uint32(unsafe.Sizeof(winutil.SP_DEVICE_INTERFACE_DATA{})),
+	}
+
+	return hdev, ifData, cleanup, nil
+}
+
+// isSystemBatteryError checks if the error indicates a non-system battery
+func isSystemBatteryError(err error) bool {
+	return errors.Is(err, ErrNotSystemBattery)
+}
 
 // hasBatteryAvailable checks if at least one battery device is present
 func hasBatteryAvailable() (bool, error) {
-	hdev, err := windows.SetupDiGetClassDevsEx(&GUID_DEVCLASS_BATTERY, "", 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE, 0, "")
+	hdev, ifData, cleanup, err := setupBatteryDeviceEnumeration()
 	if err != nil {
-		return false, fmt.Errorf("SetupDiGetClassDevs: %w", err)
+		return false, err
 	}
-	defer func() {
-		err := windows.SetupDiDestroyDeviceInfoList(hdev)
-		if err != nil {
-			log.Errorf("Error destroying device info list: %v", err)
-		}
-	}()
-
-	var ifData winutil.SP_DEVICE_INTERFACE_DATA
-	ifData.CbSize = uint32(unsafe.Sizeof(ifData))
-
-	err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, 0, &ifData)
-	if err != nil {
-		// No battery devices found
-		log.Debugf("No battery devices found")
-		return false, nil
-	}
-
-	// At least one battery device exists
-	log.Debugf("At least one battery device exists")
-	return true, nil
-}
-
-func getBatteryInfo() (batteryInfo, error) {
-	hdev, err := windows.SetupDiGetClassDevsEx(&GUID_DEVCLASS_BATTERY, "", 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE, 0, "")
-	if err != nil {
-		return batteryInfo{}, fmt.Errorf("SetupDiGetClassDevs: %w", err)
-	}
-	defer func() {
-		err := windows.SetupDiDestroyDeviceInfoList(hdev)
-		if err != nil {
-			log.Errorf("Error destroying device info list: %v", err)
-		}
-	}()
-
-	var ifData winutil.SP_DEVICE_INTERFACE_DATA
-	ifData.CbSize = uint32(unsafe.Sizeof(ifData))
+	defer cleanup()
 
 	for i := uint32(0); ; i++ {
-		err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, i, &ifData)
+		err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, i, ifData)
+		if err != nil {
+			if err == windows.ERROR_NO_MORE_ITEMS && i == 0 {
+				log.Debugf("No battery devices found")
+				return false, nil
+			} else if err == windows.ERROR_NO_MORE_ITEMS {
+				break
+			}
+			return false, fmt.Errorf("error enumerating device interfaces: %w", err)
+		}
+
+		interfaceDetailData, err := getDeviceInterfaceDetailData(hdev, ifData)
+		if err != nil {
+			log.Errorf("error getting device interface detail data: %v", err)
+			continue
+		}
+
+		_, _, err = queryBatteryDevice(&interfaceDetailData.DevicePath[0])
+		if err != nil {
+			if isSystemBatteryError(err) {
+				continue
+			}
+			log.Errorf("error querying battery device: %v", err)
+			continue
+		}
+
+		log.Debugf("At least one system battery device exists")
+		return true, nil
+	}
+
+	log.Debugf("No system battery device found")
+	return false, nil
+}
+
+// getBatteryInfo queries the battery information for a given device path
+// It will return the battery info of the first system battery it finds
+func getBatteryInfo() (*batteryInfo, error) {
+	info := &batteryInfo{}
+	hdev, ifData, cleanup, err := setupBatteryDeviceEnumeration()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	for i := uint32(0); ; i++ {
+		err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, i, ifData)
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
-				// No more interfaces found
 				log.Debugf("No more interfaces found")
 				break
 			}
-			log.Errorf("Error enumerating device interfaces: %v", err)
-			return batteryInfo{}, fmt.Errorf("Error enumerating device interfaces: %w", err)
+			log.Errorf("error enumerating device interfaces: %v", err)
+			return nil, fmt.Errorf("error enumerating device interfaces: %w", err)
 		}
 
-		// First call: get required size
-		var required uint32
-		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, nil, 0, &required)
-		if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
-			log.Errorf("Error getting device interface detail: %v", err)
-			continue
-		}
-
-		// Validate required size
-		if required == 0 {
-			log.Errorf("Required buffer size is 0")
-			continue
-		}
-
-		// Allocate buffer
-		buf := make([]byte, required)
-
-		// Windows SP_DEVICE_INTERFACE_DETAIL_DATA structure:
-		//   DWORD cbSize (4 bytes)
-		//   WCHAR DevicePath[1] (2 bytes for first char)
-		// The structure size is: sizeof(uint32) + sizeof(uint16) = 6 bytes
-		// Windows aligns this to pointer size on 64-bit (8 bytes), but structure is still 6 bytes on 32-bit
-		// ref: https://stackoverflow.com/questions/10728644
-		cbSizeBase := unsafe.Sizeof(uint32(0)) + unsafe.Sizeof(uint16(0))
-		ptrSize := unsafe.Sizeof(uintptr(0))
-		cbSizeValue := uint32(cbSizeBase)
-		if ptrSize > cbSizeBase {
-			cbSizeValue = uint32(ptrSize)
-		}
-
-		// Write cbSize directly to the buffer (first 4 bytes)
-		*(*uint32)(unsafe.Pointer(&buf[0])) = cbSizeValue
-
-		// Cast buffer to structure pointer for the API call
-		interfaceDetailData := (*winutil.SP_DEVICE_INTERFACE_DETAIL_DATA)(unsafe.Pointer(&buf[0]))
-
-		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, interfaceDetailData, required, nil)
+		interfaceDetailData, err := getDeviceInterfaceDetailData(hdev, ifData)
 		if err != nil {
-			log.Errorf("Error getting device interface detail: %v", err)
+			log.Errorf("error getting device interface detail data: %v", err)
 			continue
 		}
 
-		// DevicePath is WCHAR* of the first element of the DevicePath array.
 		devicePathPtr := &interfaceDetailData.DevicePath[0]
 		devicePath := windows.UTF16PtrToString(devicePathPtr)
 
 		log.Debugf("Querying battery device %s", devicePath)
 		bi, bs, err := queryBatteryDevice(devicePathPtr)
 		if err != nil {
-			log.Errorf("Error querying battery device: %v", err)
+			if isSystemBatteryError(err) {
+				log.Infof("Battery is not a system battery, skipping")
+			} else {
+				log.Errorf("error querying battery device: %v", err)
+			}
 			continue
 		}
 
-		if bi.DesignedCapacity == 0 {
-			log.Errorf("Designed capacity is 0 for battery device: %s", devicePath)
-			return batteryInfo{}, fmt.Errorf("designed capacity is 0 for battery device: %s", devicePath)
+		if bi.DesignedCapacity == 0 || bi.FullChargedCapacity == 0 {
+			log.Errorf("invalid capacity for battery device: %s (designed=%d, full=%d)",
+				devicePath, bi.DesignedCapacity, bi.FullChargedCapacity)
+			continue
 		}
 
-		if bi.FullChargedCapacity == 0 {
-			log.Errorf("Full charged capacity is 0 for battery device: %s", devicePath)
-			return batteryInfo{}, fmt.Errorf("full charged capacity is 0 for battery device: %s", devicePath)
+		info.designedCapacity = float64(bi.DesignedCapacity)
+		info.maximumCapacity = float64(bi.FullChargedCapacity)
+		info.maximumCapacityPct = math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100)
+		info.cycleCount = float64(bi.CycleCount)
+
+		if bs.Capacity == BATTERY_UNKNOWN_CAPACITY {
+			log.Debugf("Current charge percentage is unknown, metric not submitted")
+			info.currentChargePct = nil
+		} else {
+			currentChargePct := math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
+			info.currentChargePct = &currentChargePct
+		}
+		if bs.Voltage == BATTERY_UNKNOWN_VOLTAGE {
+			log.Debugf("Voltage is unknown, metric not submitted")
+			info.voltage = nil
+		} else {
+			voltage := float64(bs.Voltage)
+			info.voltage = &voltage
+		}
+		if bs.Rate == BATTERY_UNKNOWN_RATE {
+			log.Debugf("Charge rate is unknown, metric not submitted")
+			info.chargeRate = nil
+		} else {
+			chargeRate := float64(bs.Rate)
+			info.chargeRate = &chargeRate
 		}
 
-		// Return the first battery info found
-		return batteryInfo{
-			cycleCount:         float64(bi.CycleCount),
-			designedCapacity:   float64(bi.DesignedCapacity),
-			maximumCapacity:    float64(bi.FullChargedCapacity),
-			maximumCapacityPct: math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100),
-			currentCharge:      math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100),
-			voltage:            float64(bs.Voltage),
-			chargeRate:         float64(bs.Rate),
-			powerState:         getPowerState(bs.PowerState),
-		}, nil
+		info.powerState = getPowerState(bs.PowerState)
+
+		return info, nil
 	}
 
-	// If no battery info found, return an error
-	return batteryInfo{}, errors.New("no battery info found")
+	return info, nil
 }
 
 // queryBatteryDevice queries the battery information for a given device path
@@ -249,12 +268,11 @@ func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_S
 		0,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error creating file handle: %w", err)
+		return nil, nil, fmt.Errorf("error creating file handle: %w", err)
 	}
 	defer func() {
-		err := windows.CloseHandle(handle)
-		if err != nil {
-			log.Errorf("Error closing handle: %v", err)
+		if err := windows.CloseHandle(handle); err != nil {
+			log.Errorf("error closing handle: %v", err)
 		}
 	}()
 
@@ -274,11 +292,11 @@ func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_S
 		nil,
 	)
 	if err != nil {
-		log.Errorf("Error querying battery tag: %v", err)
-		return nil, nil, fmt.Errorf("Error querying battery tag: %w", err)
+		log.Errorf("error querying battery tag: %v", err)
+		return nil, nil, fmt.Errorf("error querying battery tag: %w", err)
 	}
 	if tag == 0 {
-		log.Errorf("Battery returned zero tag")
+		log.Errorf("battery returned zero tag")
 		return nil, nil, errors.New("battery returned zero tag")
 	}
 
@@ -301,14 +319,14 @@ func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_S
 		nil,
 	)
 	if err != nil {
-		log.Errorf("Error querying battery information: %v", err)
-		return nil, nil, fmt.Errorf("Error querying battery information: %w", err)
+		log.Errorf("error querying battery information: %v", err)
+		return nil, nil, fmt.Errorf("error querying battery information: %w", err)
 	}
 
 	// Check if this is a System Battery
 	log.Debugf("Checking battery capabilities: %x", bi.Capabilities)
 	if bi.Capabilities&BATTERY_SYSTEM_BATTERY == 0 {
-		return nil, nil, errors.New("battery is not a system battery")
+		return nil, nil, ErrNotSystemBattery
 	}
 
 	bws := BATTERY_WAIT_STATUS{
@@ -327,8 +345,8 @@ func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_S
 		nil,
 	)
 	if err != nil {
-		log.Errorf("Error querying battery status: %v", err)
-		return nil, nil, fmt.Errorf("Error querying battery status: %w", err)
+		log.Errorf("error querying battery status: %v", err)
+		return nil, nil, fmt.Errorf("error querying battery status: %w", err)
 	}
 
 	return &bi, &bs, nil
@@ -351,4 +369,50 @@ func getPowerState(powerState uint32) []string {
 	}
 	log.Debugf("Power state tags: %+v", powerStateTags)
 	return powerStateTags
+}
+
+func getDeviceInterfaceDetailData(hdev windows.DevInfo, ifData *winutil.SP_DEVICE_INTERFACE_DATA) (*winutil.SP_DEVICE_INTERFACE_DETAIL_DATA, error) {
+	// First call: get required size
+	var required uint32
+	err := winutil.SetupDiGetDeviceInterfaceDetail(hdev, ifData, nil, 0, &required)
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
+		log.Errorf("error getting device interface detail: %v", err)
+		return nil, fmt.Errorf("error getting device interface detail: %w", err)
+	}
+
+	// Validate required size
+	if required == 0 {
+		log.Errorf("required buffer size is 0")
+		return nil, errors.New("required buffer size is 0")
+	}
+
+	// Allocate buffer
+	buf := make([]byte, required)
+
+	// Windows SP_DEVICE_INTERFACE_DETAIL_DATA structure:
+	//   DWORD cbSize (4 bytes)
+	//   WCHAR DevicePath[1] (2 bytes for first char)
+	// The structure size is: sizeof(uint32) + sizeof(uint16) = 6 bytes
+	// Windows aligns this to pointer size on 64-bit (8 bytes), but structure is still 6 bytes on 32-bit
+	// ref: https://stackoverflow.com/questions/10728644
+	cbSizeBase := unsafe.Sizeof(uint32(0)) + unsafe.Sizeof(uint16(0))
+	ptrSize := unsafe.Sizeof(uintptr(0))
+	cbSizeValue := uint32(cbSizeBase)
+	if ptrSize > cbSizeBase {
+		cbSizeValue = uint32(ptrSize)
+	}
+
+	// Write cbSize directly to the buffer (first 4 bytes)
+	*(*uint32)(unsafe.Pointer(&buf[0])) = cbSizeValue
+
+	// Cast buffer to structure pointer for the API call
+	interfaceDetailData := (*winutil.SP_DEVICE_INTERFACE_DETAIL_DATA)(unsafe.Pointer(&buf[0]))
+
+	err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, ifData, interfaceDetailData, required, nil)
+	if err != nil {
+		log.Errorf("error getting device interface detail: %v", err)
+		return nil, fmt.Errorf("error getting device interface detail: %w", err)
+	}
+
+	return interfaceDetailData, nil
 }

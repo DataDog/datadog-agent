@@ -86,7 +86,7 @@ func (r *Releasable) CallReleaseCallback() {
 
 // AppendReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) AppendReleaseCallback(callback func()) {
-	if callback != nil {
+	if callback != nil && r != nil {
 		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
 }
@@ -101,8 +101,10 @@ type ContainerContext struct {
 }
 
 // Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+func (c *ContainerContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(c.ContainerID),
+	}
 }
 
 // ParentScope returns the parent entity scope
