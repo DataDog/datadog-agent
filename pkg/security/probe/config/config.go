@@ -78,6 +78,10 @@ type Config struct {
 	// DentryCacheSize is the size of the user space dentry cache
 	DentryCacheSize int
 
+	// DentryKernelMapSize is the size of the kernel space dentry map in entries
+	DentryKernelMapSize int
+
+	// PathResolutionCacheSize is the size of the user space path resolution cache in entries
 	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string

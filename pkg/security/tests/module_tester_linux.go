@@ -803,8 +803,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	ipcComp := ipcmock.New(t)
 
-	// increase by a lot to avoid ring buffer overflows in slow machines
+	// increase by a lot the buffer size to avoid ring buffer overflows in slow machines
 	secconfig.Probe.EventStreamBufferSize = 1024 * os.Getpagesize()
+	secconfig.Probe.DentryCacheSize = 30000
+	secconfig.Probe.DentryKernelMapSize = 30000
 
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
 	if err != nil {
