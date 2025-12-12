@@ -78,6 +78,11 @@ const (
 	FailedDNSRuleID = "failed_dns"
 	// FailedDNSRuleDesc is the rule description for raw packet action events
 	FailedDNSRuleDesc = "Failed DNS"
+
+	// RemediationStatusRuleID is the rule ID for remediation status
+	RemediationStatusRuleID = "remediation_status"
+	// RemediationStatusRuleDesc is the rule description for remediation status
+	RemediationStatusRuleDesc = "Remediation Status"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -122,6 +127,7 @@ func AllCustomRuleIDs() []string {
 		InternalCoreDumpRuleID,
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
+		RemediationStatusRuleID,
 	}
 }
 

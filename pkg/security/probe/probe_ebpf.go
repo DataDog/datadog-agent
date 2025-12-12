@@ -188,6 +188,10 @@ type EBPFProbe struct {
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
 
+	// network isolation tracking
+	networkIsolations     map[string]struct{}
+	networkIsolationsLock sync.RWMutex
+
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 }
@@ -2914,6 +2918,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		networkIsolations:    make(map[string]struct{}),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3402,6 +3407,15 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
+				// Send kill action event with status and tags if a new report was added
+				if killReport, ok := ev.ActionReports[len(ev.ActionReports)-1].(*KillActionReport); ok {
+					hostname := ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+					killActionEvent := NewKillRemediationEvent(p, rule, killReport, ev, hostname)
+					customRule := events.NewCustomRule(events.RemediationStatusRuleID, events.RemediationStatusRuleDesc)
+					customEvent := events.NewCustomEvent(model.CustomEventType, killActionEvent)
+					p.probe.DispatchCustomEvent(customRule, customEvent)
+				}
+
 			}
 
 		case action.Def.CoreDump != nil:
@@ -3451,6 +3465,23 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				ev.ActionReports = append(ev.ActionReports, report)
 
 				p.probe.onRuleActionPerformed(rule, action.Def)
+				agentEventID := getAgentEventID(rule)
+				if agentEventID != "" {
+					// Send network filter action only for remediation events, so when an agent_event_id is set
+					p.networkIsolationsLock.RLock()
+					if _, ok := p.networkIsolations[agentEventID]; !ok {
+						// Only send event if the network isolation is not already applied
+						p.networkIsolations[agentEventID] = struct{}{}
+						p.networkIsolationsLock.RUnlock()
+						networkFilterEvent := NewnetworkRemediationEvent(p, rule, report, ev, ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent))
+						customRule := events.NewCustomRule(events.RemediationStatusRuleID, events.RemediationStatusRuleDesc)
+						customEvent := events.NewCustomEvent(model.CustomEventType, networkFilterEvent)
+						p.probe.DispatchCustomEvent(customRule, customEvent)
+					} else {
+						p.networkIsolationsLock.RUnlock()
+					}
+				}
+
 			}
 		}
 	}
