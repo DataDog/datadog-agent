@@ -479,7 +479,7 @@ logs_config:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior for compatibility
+	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)

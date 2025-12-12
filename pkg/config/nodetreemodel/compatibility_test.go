@@ -510,7 +510,7 @@ unknown_section:
 		"apm_config.telemetry.dd_url",
 		//"database_monitoring.samples", (missing)
 		"database_monitoring.samples.dd_url",
-		//"logs_config.auto_multi_line", (missing)
+		"logs_config.auto_multi_line",
 		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
 		"runtime_security_config.endpoints",
 		"runtime_security_config.endpoints.dd_url",
