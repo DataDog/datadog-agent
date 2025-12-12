@@ -279,7 +279,7 @@ expand_template(
         "@libdir@": "${prefix}/lib",
         "@includedir@": "${prefix}/include",
         "@VERSION@": VERSION,
-        "@ZSTD_REQUIRES@": "libzstd",
+        "@ZSTD_REQUIRES@": "",
         "@WITH_LZMA_LIB@": "-llzma",
         "@WITH_BZ2_LIB@": "-lbz2",
         "@WITH_ZLIB_LIB@": "-lz",
