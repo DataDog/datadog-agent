@@ -19,6 +19,9 @@ var (
 	// TlmDrainClusters is the total number of drain clusters
 	TlmDrainClusters = telemetry.NewGauge("logs", "drain_clusters",
 		nil, "Total number of drain clusters")
+	// TlmDrainClustersByService is the total number of drain clusters by service
+	TlmDrainClustersByService = telemetry.NewGauge("logs", "drain_clusters_by_service",
+		nil, "Total number of drain clusters by service")
 	// TODO: Remove
 	// TlmDrainClustersRatio is the total number of drain clusters relative to the total number of logs
 	TlmDrainClustersRatio = telemetry.NewGauge("logs", "drain_clusters_ratio",
@@ -32,7 +35,7 @@ var (
 		nil, "Max cluster size for drain clusters relative to the total number of logs")
 	// TlmDrainHistClusterSize is the histogram of cluster size for drain clusters (relative)
 	TlmDrainHistClusterSize = telemetry.NewHistogram("logs", "drain_clusters_hist_size",
-		nil, "Histogram of cluster size for drain clusters (relative)", []float64{0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100})
+		nil, "Histogram of cluster size for drain clusters (relative)", []float64{0, 1, 2, 4, 6, 8, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100})
 	// TlmDrainProcessTime is the average drain process time for each log
 	TlmDrainProcessTime = telemetry.NewGauge("logs", "drain_process_time",
 		nil, "Drain process time for each log (average)")

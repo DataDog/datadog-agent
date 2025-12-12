@@ -223,7 +223,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// Drain sampling
 		if useDrain {
-			_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent)
+			_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent, msg.Origin.Service())
 			// We have an outlier
 			if toIgnore {
 				// TODO: Fully remove...

@@ -33,6 +33,8 @@ type DrainProcessor struct {
 	drainLastTimeUpdated  time.Time
 	drainNLogs            int64
 	id                    string
+	// Used only for telemetry, maps a cluster id to the service of logs that belong to this cluster
+	clusterToService map[int]string
 }
 
 func NewDrainProcessor(instanceID string, config *drain.Config) *DrainProcessor {
@@ -46,6 +48,7 @@ func NewDrainProcessor(instanceID string, config *drain.Config) *DrainProcessor 
 		drainLastTimeUpdated:  time.Now(),
 		drainNLogs:            0,
 		id:                    instanceID,
+		clusterToService:      make(map[int]string),
 	}
 }
 
@@ -57,13 +60,16 @@ func (d *DrainProcessor) Train(tokens []string) {
 	d.drainProcessor.TrainFromTokens(tokens)
 }
 
-func (d *DrainProcessor) MatchAndTrain(tokens []string) (*drain.LogCluster, bool) {
+func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.LogCluster, bool) {
 	start := time.Now()
 
 	metrics.TlmDrainProcessed.Inc()
 	d.drainNLogs++
 
 	cluster := d.drainProcessor.MatchFromTokens(tokens)
+	if cluster == nil {
+		d.clusterToService[cluster.ID()] = service
+	}
 	d.drainProcessor.TrainFromTokens(tokens)
 
 	// Update if necessary
@@ -107,7 +113,7 @@ func (d *DrainProcessor) ShowClusters() {
 	})
 	nClusters := len(clusters)
 	for i, cluster := range clusters[:min(10, nClusters)] {
-		log.Infof("drain(%s): Cluster #%d: %s", d.id, i+1, cluster.String())
+		log.Infof("drain(%s): Cluster #%d (service: %s): %s", d.id, i+1, d.clusterToService[cluster.ID()], cluster.String())
 	}
 }
 
@@ -132,6 +138,13 @@ func (d *DrainProcessor) ReportInfo() {
 		if cluster.Size() >= drainClusterSizeThreshold {
 			nClustersAboveThreshold++
 		}
+	}
+	clusterByService := make(map[string]int)
+	for _, cluster := range clusters {
+		clusterByService[d.clusterToService[cluster.ID()]]++
+	}
+	for service, count := range clusterByService {
+		metrics.TlmDrainClustersByService.Set(float64(count), "service", service)
 	}
 	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold))
 	metrics.TlmDrainClusters.Set(float64(len(clusters)))
