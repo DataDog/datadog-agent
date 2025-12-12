@@ -39,10 +39,6 @@ import (
 )
 
 const (
-	// gcInterval is the interval at which the GC will run
-	gcInterval = 1 * time.Hour
-	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 30 * time.Second
 	// disableClientIDCheck is the magic string to disable the client ID check.
 	disableClientIDCheck = "disable-client-id-check"
 )
@@ -98,6 +94,8 @@ type daemonImpl struct {
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
 	clientID        string
+	refreshInterval time.Duration
+	gcInterval      time.Duration
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -151,10 +149,12 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env, taskDB), nil
+	refreshInterval := config.GetDuration("installer.refresh_interval")
+	gcInterval := config.GetDuration("installer.gc_interval")
+	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -167,6 +167,8 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		configsOverride: make(map[string]installerConfig),
 		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
+		refreshInterval: refreshInterval,
+		gcInterval:      gcInterval,
 	}
 	i.refreshState(context.Background())
 	return i
@@ -309,9 +311,9 @@ func (d *daemonImpl) Start(_ context.Context) error {
 	}
 
 	go func() {
-		gcTicker := time.NewTicker(gcInterval)
+		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
-		refreshStateTicker := time.NewTicker(refreshStateInterval)
+		refreshStateTicker := time.NewTicker(d.refreshInterval)
 		defer refreshStateTicker.Stop()
 		for {
 			select {
