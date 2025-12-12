@@ -92,15 +92,6 @@ func (p *Processor) ProcessV1(pt *traceutil.ProcessedTraceV1) (numEvents, numExt
 	return numEvents, numExtracted, events
 }
 
-func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
-	for _, extractor := range p.extractors {
-		if rate, ok := extractor.Extract(span, priority); ok {
-			return rate, ok
-		}
-	}
-	return 0, false
-}
-
 func (p *Processor) extractV1(span *idx.InternalSpan, priority sampler.SamplingPriority) (float64, bool) {
 	for _, extractor := range p.extractors {
 		if rate, ok := extractor.ExtractV1(span, priority); ok {
@@ -108,12 +99,6 @@ func (p *Processor) extractV1(span *idx.InternalSpan, priority sampler.SamplingP
 		}
 	}
 	return 0, false
-}
-func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriority) (sampled bool, rate float64) {
-	if priority == sampler.PriorityUserKeep {
-		return true, 1
-	}
-	return p.maxEPSSampler.Sample(event)
 }
 
 func (p *Processor) maxEPSSampleV1(traceID uint64, priority sampler.SamplingPriority) (sampled bool, rate float64) {
