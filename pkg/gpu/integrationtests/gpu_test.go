@@ -43,7 +43,7 @@ func TestDeviceCacheInitialization(t *testing.T) {
 	testutil.RequireGPU(t)
 	lib := initNVML(t)
 
-	cache := safenvml.NewDeviceCacheWithOptions(lib)
+	cache := safenvml.NewDeviceCache(safenvml.WithDeviceCacheLib(lib))
 	require.NotNil(t, cache, "Device cache should not be nil")
 
 	devices, err := cache.All()
