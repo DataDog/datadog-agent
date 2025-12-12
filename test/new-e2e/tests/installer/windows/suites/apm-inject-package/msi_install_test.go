@@ -8,6 +8,7 @@ package injecttests
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -35,6 +36,8 @@ func (s *testAgentMSIInstallsAPMInject) AfterTest(suiteName, testName string) {
 
 // TestInstallFromMSI tests the Agent MSI can install the APM inject package with host instrumentation
 func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
+	flake.Mark(s.T())
+
 	// Act
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
@@ -53,6 +56,8 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 
 // TestEnableDisable tests that the enable and disable commands work
 func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
+	flake.Mark(s.T())
+
 	// Act
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),

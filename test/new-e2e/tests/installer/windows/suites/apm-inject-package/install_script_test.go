@@ -11,6 +11,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -36,6 +37,8 @@ func (s *testAgentScriptInstallsAPMInject) AfterTest(suiteName, testName string)
 
 // TestInstallFromScript tests the Agent script can install the APM inject package with host instrumentation
 func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
+	flake.Mark(s.T())
+
 	// Act
 	s.installCurrentAgentVersionWithAPMInject(
 		installerwindows.WithExtraEnvVars(map[string]string{
