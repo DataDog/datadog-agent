@@ -11,6 +11,7 @@ package converters
 import (
 	"fmt"
 	"slices"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func removeInfraAttributesProcessor(confStringMap map[string]any) error {
@@ -115,4 +116,32 @@ func getMapStr(confStringMap map[string]any, keys []string) (map[string]any, err
 		}
 	}
 	return confStringMap, nil
+}
+
+func mergeMap(destination map[string]any, source map[string]any) bool {
+	hasMerged := false
+	for key, sourceValue := range source {
+		destinationChild, ok := destination[key]
+		if !ok {
+			// if node not present in destination, add it
+			destination[key] = sourceValue
+			hasMerged = true
+			log.Debugf("Added node to configuration file: %s:\n\t%v", key, sourceValue)
+			continue
+		}
+
+		sourceChildMap, isSourceMap := sourceValue.(map[string]any)
+		destinationChildMap, isDestinationMap := destinationChild.(map[string]any)
+
+		if isSourceMap && isDestinationMap {
+			changed := mergeMap(destinationChildMap, sourceChildMap)
+			hasMerged = hasMerged || changed
+		} else if destinationChild != sourceValue {
+			log.Debugf("Modified configuration leaf %s:%v", key, sourceValue)
+			destination[key] = sourceValue
+			hasMerged = true
+		}
+	}
+
+	return hasMerged
 }
