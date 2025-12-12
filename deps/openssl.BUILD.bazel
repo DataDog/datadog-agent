@@ -282,9 +282,7 @@ pkg_files(
     srcs = [":openssl_bin"],
     prefix = "bin",
     attributes = pkg_attributes(
-        group = "root",
         mode = "0755",
-        owner = "root",
     ),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
