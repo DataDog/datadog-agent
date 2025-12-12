@@ -35,7 +35,7 @@
 # For now, agent-build are the experts in that.
 /compliance/                            @DataDog/agent-build
 /third_party/                           @DataDog/agent-build
-.copyright-overrides.yml                @DataDog/agent-build @DataDog/agent-devx
+/.copyright-overrides.yml               @DataDog/agent-build @DataDog/agent-devx
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
