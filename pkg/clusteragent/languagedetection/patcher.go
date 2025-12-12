@@ -265,7 +265,7 @@ func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.Name
 }
 
 func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
-	deploymentID := owner.Namespace + "/" + owner.Name
+	deploymentID := fmt.Sprintf("%s/%s", owner.Namespace, owner.Name)
 
 	// get the complete entity
 	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)

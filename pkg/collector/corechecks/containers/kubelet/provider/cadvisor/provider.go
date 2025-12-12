@@ -11,6 +11,7 @@ Package cadvisor exposes a metric provider to handle metrics exposed by the /met
 package cadvisor
 
 import (
+	"fmt"
 	"math"
 	"strings"
 
@@ -183,7 +184,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, label+":"+string(value))
+				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
 			}
 		}
 
@@ -226,7 +227,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, label+":"+string(value))
+				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
 			}
 		}
 
@@ -273,7 +274,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, label+":"+string(value))
+				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
 			}
 		}
 

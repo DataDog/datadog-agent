@@ -314,5 +314,5 @@ func getCacheKey(resource, group string) string {
 	if group == "" {
 		return resource
 	}
-	return resource + "/" + group
+	return fmt.Sprintf("%s/%s", resource, group)
 }

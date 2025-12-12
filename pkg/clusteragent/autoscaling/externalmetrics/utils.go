@@ -80,13 +80,13 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 	if len(labels) == 0 {
 		result = metricName + "{*}"
 	} else {
-		datadogTags := make([]string, 0, len(labels))
+		datadogTags := []string{}
 		for key, val := range labels {
-			datadogTags = append(datadogTags, key+":"+val)
+			datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 		}
 		sort.Strings(datadogTags)
 		tags := strings.Join(datadogTags, ",")
-		result = metricName + "{" + tags + "}"
+		result = fmt.Sprintf("%s{%s}", metricName, tags)
 	}
 
 	return fmt.Sprintf("%s:%s.rollup(%d)", queryConfigAggregator, result, queryConfigRollup)

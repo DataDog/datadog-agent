@@ -146,7 +146,7 @@ func TestFormatEvent(t *testing.T) {
 				SourceTypeName: "kubernetes",
 				EventType:      CheckName,
 				Ts:             timestamp,
-				Host:           nodeName + "-" + clusterName,
+				Host:           fmt.Sprintf("%s-%s", nodeName, clusterName),
 				Tags: []string{
 					"kube_namespace:default",
 					"kube_kind:Pod",

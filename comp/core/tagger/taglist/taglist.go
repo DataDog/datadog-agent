@@ -7,6 +7,7 @@
 package taglist
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 	"unique"
@@ -45,13 +46,13 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 		// common for tags like "kube_namespace", "pod_phase", "env",
 		// "kube_qos", etc. Using the unique package helps optimize memory usage
 		// in such cases.
-		key := unique.Make(name + ":" + value)
+		key := unique.Make(fmt.Sprintf("%s:%s", name, value))
 		target[key.Value()] = true
 		return
 	}
 
 	for _, elt := range strings.Split(value, sep) {
-		key := unique.Make(name + ":" + elt)
+		key := unique.Make(fmt.Sprintf("%s:%s", name, elt))
 		target[key.Value()] = true
 	}
 }

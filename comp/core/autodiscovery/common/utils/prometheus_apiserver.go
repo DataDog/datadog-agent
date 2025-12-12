@@ -8,6 +8,8 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -26,7 +28,7 @@ const (
 // ConfigsForService returns the openmetrics configurations for a given service if it matches the AD configuration
 func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration.Config {
 	var configs []integration.Config
-	namespacedName := svc.GetNamespace() + "/" + svc.GetName()
+	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
 
 	// Ignore headless services because we can't resolve the IP.
 	// Ref: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
@@ -56,7 +58,7 @@ func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration
 // configuration for related service
 func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *v1.Endpoints) []integration.Config {
 	var configs []integration.Config
-	namespacedName := svc.GetNamespace() + "/" + svc.GetName()
+	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		for _, subset := range ep.Subsets {
