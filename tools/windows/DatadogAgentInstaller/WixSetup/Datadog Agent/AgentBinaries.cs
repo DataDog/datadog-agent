@@ -17,6 +17,7 @@ namespace WixSetup.Datadog_Agent
         public string SecurityAgent => $@"{_binSource}\security-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\libdatadog-agent-three.dll";
         public string DatadogInterop => $@"{_binSource}\libdatadog-interop.dll";
+        public string DdCompilePolicy => $@"{_binSource}\dd-compile-policy.exe";
 
         public AgentBinaries(string binSource, string installerSource)
         {

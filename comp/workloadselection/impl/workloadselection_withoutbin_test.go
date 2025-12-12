@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && !windows
 
 package workloadselectionimpl
 
@@ -17,8 +17,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
-// TestNewComponent_NonLinux tests that the component is created but RCListener is not enabled on non-Linux platforms
-func TestNewComponent_NonLinux(t *testing.T) {
+// TestNewComponent_WithoutBin tests that the component is created but RCListener is not enabled on platforms without the compile policy binary
+func TestNewComponent_WithoutBin(t *testing.T) {
 	tests := []struct {
 		name                     string
 		workloadSelectionEnabled bool

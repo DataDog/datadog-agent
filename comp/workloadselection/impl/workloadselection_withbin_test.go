@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
 package workloadselectionimpl
 
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,14 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+// getBinaryPath returns the correct binary path based on the platform
+func getBinaryPath(tempDir string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(tempDir, "bin", "dd-compile-policy.exe")
+	}
+	return filepath.Join(tempDir, "embedded", "bin", "dd-compile-policy")
+}
 
 // TestNewComponent tests the component initialization
 func TestNewComponent(t *testing.T) {
@@ -62,7 +71,7 @@ func TestNewComponent(t *testing.T) {
 
 			// Create binary if needed
 			if tt.setupBinary {
-				binaryPath := filepath.Join(tempDir, ddPolicyCompileRelativePath)
+				binaryPath := getBinaryPath(tempDir)
 				require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
 				// Create executable file
 				require.NoError(t, os.WriteFile(binaryPath, []byte("#!/bin/sh\necho test"), 0755))
@@ -100,7 +109,7 @@ func TestIsCompilePolicyBinaryAvailable(t *testing.T) {
 		{
 			name: "binary exists and is executable",
 			setupFunc: func(t *testing.T, tempDir string) string {
-				binaryPath := filepath.Join(tempDir, ddPolicyCompileRelativePath)
+				binaryPath := getBinaryPath(tempDir)
 				require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
 				require.NoError(t, os.WriteFile(binaryPath, []byte("#!/bin/sh\necho test"), 0755))
 				return tempDir
@@ -117,17 +126,19 @@ func TestIsCompilePolicyBinaryAvailable(t *testing.T) {
 		{
 			name: "binary exists but is not executable",
 			setupFunc: func(t *testing.T, tempDir string) string {
-				binaryPath := filepath.Join(tempDir, ddPolicyCompileRelativePath)
+				binaryPath := getBinaryPath(tempDir)
 				require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
 				require.NoError(t, os.WriteFile(binaryPath, []byte("#!/bin/sh\necho test"), 0644))
 				return tempDir
 			},
-			expectResult: false,
+			// On Windows, executability is determined by extension, not permissions
+			// So this test expects different results on Windows vs Unix
+			expectResult: runtime.GOOS == "windows",
 		},
 		{
 			name: "binary exists but is a directory",
 			setupFunc: func(t *testing.T, tempDir string) string {
-				binaryPath := filepath.Join(tempDir, ddPolicyCompileRelativePath)
+				binaryPath := getBinaryPath(tempDir)
 				require.NoError(t, os.MkdirAll(binaryPath, 0755))
 				return tempDir
 			},
