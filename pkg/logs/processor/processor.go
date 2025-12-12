@@ -192,12 +192,14 @@ func (p *Processor) run() {
 
 func (p *Processor) processMessage(msg *message.Message) {
 	useDrain := true
-	if !UseDrainMultiThreaded {
+	if msg.DrainTokenizedContent == nil {
+		useDrain = false
+	}
+	if useDrain && !UseDrainMultiThreaded {
 		if useDrain = singleThreadDrainProcessorMutex.TryLock(); useDrain {
 			defer singleThreadDrainProcessorMutex.Unlock()
 		}
 	}
-
 	if useDrain {
 		msg.ProcessingTags = append(msg.ProcessingTags, "drain_processed:true")
 	}
