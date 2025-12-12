@@ -210,7 +210,7 @@ func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
-	if s.EnabledInternal() {
+	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
