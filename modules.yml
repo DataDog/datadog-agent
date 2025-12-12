@@ -355,6 +355,9 @@ modules:
     used_by_otel: true
   pkg/version:
     used_by_otel: true
+  system-tests/utils/build/docker/golang/app: ignored
+  system-tests/utils/build/docker/golang/app/net-http-orchestrion: ignored
+  system-tests/utils/build/docker/golang/parametric: ignored
   tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:
