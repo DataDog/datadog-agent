@@ -275,20 +275,27 @@ func TestSetUnkownKey(t *testing.T) {
 
 func TestAllSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b.c", 0)
-	cfg.SetDefault("b.d", 0)
-	cfg.SetKnown("b.e") //nolint:forbidigo // testing behavior
+	cfg.SetDefault("a", 0)         // "a"   @ file
+	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)       // "b.d" @ default
+	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
+	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (defined)
+	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (undefined)
+	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
 	cfg.Set("b.c", 123, model.SourceAgentRuntime)
 
+	// AllSettings does not include 'known' nor 'bindenv (undefined)'
 	expected := map[string]interface{}{
-		"a": 987,
+		"a": 987, // file
 		"b": map[string]interface{}{
-			"c": 123,
-			"d": 0,
+			"c": 123, // agent-runtime
+			"d": 0,   // default
+		},
+		"f": map[string]interface{}{
+			"g": "456", // env-var defined
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettings())
@@ -296,9 +303,13 @@ func TestAllSettings(t *testing.T) {
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b.c", 0)
-	cfg.SetDefault("b.d", 0)
+	cfg.SetDefault("a", 0)         // "a"   @ file
+	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)       // "b.d" @ default
+	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
+	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (defined)
+	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (undefined)
+	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -308,6 +319,9 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 		"a": 987,
 		"b": map[string]interface{}{
 			"c": 123,
+		},
+		"f": map[string]interface{}{
+			"g": "456",
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsWithoutDefault())
@@ -434,15 +448,21 @@ func TestEmptyEnvVarSettings(t *testing.T) {
 
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b", 0)
+	cfg.SetDefault("a", 0)         // "a"   @ file
+	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)       // "b.d" @ default
+	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
+	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (not defined)
+	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (env var defined)
+	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
-	cfg.Set("b", 123, model.SourceAgentRuntime)
+	cfg.ReadConfig(strings.NewReader("a: 987"))
+	cfg.Set("b.c", 123, model.SourceAgentRuntime)
 
 	keys := cfg.AllKeysLowercased()
 	sort.Strings(keys)
-	assert.Equal(t, []string{"a", "b"}, keys)
+	assert.Equal(t, []string{"a", "b.c", "b.d", "b.e", "f.g", "f.h"}, keys)
 }
 
 func TestIsConfiguredHasSection(t *testing.T) {

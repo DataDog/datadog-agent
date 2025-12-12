@@ -224,6 +224,32 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 }
 
+func TestCompareAllSettings(t *testing.T) {
+	t.Setenv("TEST_API_KEY", "12345")
+
+	dataYaml := `timeout: 60`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.SetDefault("timeout", 30)
+		cfg.SetDefault("host", "localhost")
+		cfg.SetKnown("port")                   //nolint:forbidigo // testing behavior
+		cfg.BindEnv("api_key", "TEST_API_KEY") //nolint:forbidigo // testing behavior
+		cfg.BindEnv("log_level")               //nolint:forbidigo // testing behavior
+		cfg.BindEnvAndSetDefault("logs_config.enabled", false)
+	})
+
+	// AllSettings does not include 'known' nor 'bindenv (undefined)'
+	expect := map[string]interface{}{
+		"timeout": 60,          // file
+		"host":    "localhost", // default
+		"api_key": "12345",     // env var (defined)
+		"logs_config": map[string]interface{}{
+			"enabled": false,
+		},
+	}
+	assert.Equal(t, expect, viperConf.AllSettings())
+	assert.Equal(t, expect, ntmConf.AllSettings())
+}
+
 func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes SetKnown keys", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
@@ -249,6 +275,16 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 
 	t.Run("Includes environment bindings", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
+		})
+
+		wantKeys := []string{"log", "log.level"}
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
+	t.Run("Includes env var even if undefined", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
 			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
 		})
