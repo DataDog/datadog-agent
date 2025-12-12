@@ -454,7 +454,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample)
+			checkSampler.addSample(ss.metricSample, &agg.flushFilterList)
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
@@ -470,7 +470,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket)
+		checkSampler.addBucket(checkBucket.bucket, &agg.flushFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}

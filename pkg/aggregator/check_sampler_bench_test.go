@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type benchmarkDeps struct {
@@ -65,6 +66,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
+	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -76,7 +78,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	}
 
 	for n := 0; n < b.N; n++ {
-		checkSampler.addBucket(bucket)
+		checkSampler.addBucket(bucket, &matcher)
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
 	}
@@ -85,6 +87,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
+	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{
@@ -101,7 +104,7 @@ func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 			}
 			bucket.LowerBound = bounds[i-1]
 			bucket.UpperBound = bounds[i]
-			checkSampler.addBucket(bucket)
+			checkSampler.addBucket(bucket, &matcher)
 		}
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)

@@ -16,11 +16,12 @@ import (
 type Matcher struct {
 	data        []string
 	matchPrefix bool
+	tags        map[string][]string
 }
 
 // NewMatcher creates a new strings matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
-func NewMatcher(data []string, matchPrefix bool) Matcher {
+func NewMatcher(data []string, matchPrefix bool, tags map[string][]string) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -38,12 +39,18 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 		data = data[:i+1]
 	}
 
+	// Ensure all tags are sorted
+	for _, v := range tags {
+		sort.Strings(v)
+	}
+
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
 	return Matcher{
 		data:        data,
 		matchPrefix: matchPrefix,
+		tags:        tags,
 	}
 }
 
@@ -81,4 +88,44 @@ func (m *Matcher) Test(name string) bool {
 	}
 
 	return false
+}
+
+// ShouldStripTags returns true if it has been configured to strip tags
+// from the given metric name.
+func (m *Matcher) ShouldStripTags(name string) bool {
+	_, ok := m.tags[name]
+	return ok
+}
+
+// StripTags removes the configured tag from the given tags.
+// Returns the stripped tags and a boolean that is true if any tags
+// were actually removed.
+func (m *Matcher) StripTags(name string, tags []string) ([]string, bool) {
+	tagset, ok := m.tags[name]
+	if ok {
+		stripped := false
+		idx := 0
+		for _, tag := range tags {
+			tagNamePos := strings.Index(tag, ":")
+			if tagNamePos == 0 {
+				// Invalid tag
+				continue
+			}
+			if tagNamePos < 0 {
+				tagNamePos = len(tag)
+			}
+
+			tagName := tag[:tagNamePos]
+			if !slices.Contains(tagset, tagName) {
+				tags[idx] = tag
+				idx += 1
+			} else {
+				stripped = true
+			}
+		}
+		tags = tags[0:idx]
+
+		return tags, stripped
+	}
+	return tags, false
 }

@@ -8,6 +8,7 @@ package strings
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	stdstrings "strings"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 
 func TestNewMatcher(t *testing.T) {
 	check := func(data []string) []string {
-		b := NewMatcher(data, true)
+		b := NewMatcher(data, true, nil)
 		return b.data
 	}
 
@@ -48,7 +49,7 @@ func TestIsStringMatching(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
 			func(t *testing.T) {
-				b := NewMatcher(c.list, c.matchPrefix)
+				b := NewMatcher(c.list, c.matchPrefix, nil)
 				assert.Equal(t, c.result, b.Test(c.name))
 			})
 	}
@@ -91,9 +92,130 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	matcher := NewMatcher(values, false)
+	matcher := NewMatcher(values, false, nil)
 
 	for n := 0; n < b.N; n++ {
 		matcher.Test(words[n%len(words)])
 	}
+}
+
+func TestStripTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		matcherTags  map[string][]string
+		lookupName   string
+		inputTags    []string
+		expectedTags []string
+	}{
+		{
+			name:         "no tags config for name",
+			matcherTags:  map[string][]string{"metric1": {"env", "host"}},
+			lookupName:   "metric2",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{"env:prod", "host:server1", "version:1.0"},
+		},
+		{
+			name:         "strip single tag with value",
+			matcherTags:  map[string][]string{"metric1": {"env"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{"host:server1", "version:1.0"},
+		},
+		{
+			name:         "strip multiple tags",
+			matcherTags:  map[string][]string{"metric1": {"env", "host"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+			expectedTags: []string{"version:1.0", "region:us"},
+		},
+		{
+			name:         "strip all tags",
+			matcherTags:  map[string][]string{"metric1": {"env", "host", "version"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{},
+		},
+		{
+			name:         "no matching tags to strip",
+			matcherTags:  map[string][]string{"metric1": {"foo", "bar"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+		{
+			name:         "empty input tags",
+			matcherTags:  map[string][]string{"metric1": {"env", "host"}},
+			lookupName:   "metric1",
+			inputTags:    []string{},
+			expectedTags: []string{},
+		},
+		{
+			name:         "tags without values",
+			matcherTags:  map[string][]string{"metric1": {"env", "host"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env", "host:server1", "version"},
+			expectedTags: []string{"version"},
+		},
+		{
+			name:         "invalid tag starting with colon",
+			matcherTags:  map[string][]string{"metric1": {"env", "invalid"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
+			expectedTags: []string{"host:server1"},
+		},
+		{
+			name:         "partial tag name match should not strip",
+			matcherTags:  map[string][]string{"metric1": {"env"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"environment:prod", "env_var:test", "host:server1"},
+			expectedTags: []string{"environment:prod", "env_var:test", "host:server1"},
+		},
+		{
+			name:         "tag name with empty value",
+			matcherTags:  map[string][]string{"metric1": {"env"}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:", "host:server1"},
+			expectedTags: []string{"host:server1"},
+		},
+		{
+			name:         "nil matcher tags map",
+			matcherTags:  nil,
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+		{
+			name:         "empty tags to strip list",
+			matcherTags:  map[string][]string{"metric1": {}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := NewMatcher([]string{}, false, tt.matcherTags)
+			resultTags, stripped := matcher.StripTags(tt.lookupName, tt.inputTags)
+
+			assert.Equal(t, tt.expectedTags, resultTags)
+			assert.Equal(t, !slices.Equal(resultTags, tt.inputTags), stripped)
+		})
+	}
+}
+
+func TestStripTagsModifiesInPlace(t *testing.T) {
+	// Test that StripTags modifies the slice in place and returns a re-sliced version
+	matcherTags := map[string][]string{"metric1": {"env"}}
+	matcher := NewMatcher([]string{}, false, matcherTags)
+
+	inputTags := []string{"env:prod", "host:server1", "version:1.0"}
+	originalCap := cap(inputTags)
+
+	resultTags, stripped := matcher.StripTags("metric1", inputTags)
+
+	assert.True(t, stripped, "tags should be stripped")
+	assert.Equal(t, []string{"host:server1", "version:1.0"}, resultTags)
+	// The result should be a slice of the same underlying array
+	assert.Equal(t, originalCap, cap(resultTags), "capacity should be preserved")
 }
