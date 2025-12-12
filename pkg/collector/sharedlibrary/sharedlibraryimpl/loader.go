@@ -43,8 +43,8 @@ func (sl *CheckLoader) String() string {
 
 // Load returns a Shared Library check
 func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
-	// load the library and get pointers to its symbols through the library loader
-	lib, err := sl.loader.Load(config.Name)
+	// open the library and get pointers to its symbols through the library loader
+	lib, err := sl.loader.Open(config.Name)
 	if err != nil {
 		return nil, err
 	}

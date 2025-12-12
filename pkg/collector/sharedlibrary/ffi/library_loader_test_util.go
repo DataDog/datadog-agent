@@ -31,7 +31,7 @@ import "C"
 type NoopSharedLibraryLoader struct{}
 
 // Load does nothing
-func (ml *NoopSharedLibraryLoader) Load(_ string) (Library, error) {
+func (ml *NoopSharedLibraryLoader) Open(_ string) (Library, error) {
 	return Library{}, nil
 }
 

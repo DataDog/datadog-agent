@@ -58,29 +58,29 @@ func getLibExtension() string {
 	}
 }
 
-// Library stores everything needed for a shared library check
+// Library stores everything needed for using the shared libraries' symbols
 type Library struct {
 	Handle  unsafe.Pointer
 	Run     *C.run_function_t
 	Version *C.version_function_t
 }
 
-// LibraryLoader is an interface to load/close checks' shared libraries and call their symbols
+// LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
-	Load(name string) (Library, error)
+	Open(name string) (Library, error)
 	Close(lib Library) error
 	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Version(versionPtr *C.version_function_t) (string, error)
 }
 
-// SharedLibraryLoader can be used to open/close shared libraries for checks
+// SharedLibraryLoader loads and uses shared libraries
 type SharedLibraryLoader struct {
 	folderPath string
 	aggregator *C.aggregator_t
 }
 
-// Load looks for a shared library with the corresponding name and check if it has the required symbols
-func (l *SharedLibraryLoader) Load(name string) (Library, error) {
+// Open looks for a shared library with the corresponding name and check if it has the required symbols
+func (l *SharedLibraryLoader) Open(name string) (Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 
@@ -102,7 +102,7 @@ func (l *SharedLibraryLoader) Load(name string) (Library, error) {
 	}, nil
 }
 
-// Close calls `dlclose` to close the shared library
+// Close closes the shared library
 func (l *SharedLibraryLoader) Close(lib Library) error {
 	var cErr *C.char
 
@@ -137,7 +137,7 @@ func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, init
 	return nil
 }
 
-// Version calls the `Version` symbol to retrieve the check version directly from the shared library
+// Version calls the `Version` symbol to retrieve the check version
 func (l *SharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
 	var cErr *C.char
 
@@ -151,7 +151,7 @@ func (l *SharedLibraryLoader) Version(versionPtr *C.version_function_t) (string,
 
 }
 
-// NewSharedLibraryLoader creates a new SharedLibraryLoader that will look at shared libraries in a specific folder
+// NewSharedLibraryLoader creates a new SharedLibraryLoader
 func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 	return &SharedLibraryLoader{
 		folderPath: folderPath,

@@ -53,10 +53,10 @@ void *open_lib(const char *lib_path, char **lib_error) {
     void *lib_handle;
     char *dlsym_error = NULL;
 
-    // Calling `dlopen` again for the same shared library doesn't reopen it. The handle returned will be the same.
+    // Calling `dlopen` again for the same shared library doesn't reopen it. The returned handle is the same.
     // (https://man7.org/linux/man-pages/man3/dlopen.3p.html)
-    // This is great for running multiple instances in parallel but keep in mind that the global state of the shared library
-    // is the same for all the instances.
+    // This is great for running multiple instances in parallel but the global state of the shared library
+    // remains the same for all the instances.
     lib_handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL);
     
     // catch library opening error
@@ -118,7 +118,8 @@ library_t load_shared_library(const char *lib_path, const char **error) {
         return lib;
     }
 
-    // get pointer of 'Version' symbol (not required)
+    // get pointer of 'Version' symbol
+    // it's not required, the pointer is set to NULL if the symbol wasn't found
     lib.version = (version_function_t *)get_symbol(lib.handle, "Version", &lib_error);
     if (lib_error) {
         lib.version = NULL;

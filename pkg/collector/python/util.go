@@ -16,7 +16,8 @@ import "C"
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
+
 	"io"
 	"os/exec"
 	"sync"
@@ -29,7 +30,7 @@ import (
 //
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
-	subprocessArgs := aggregator.CStringArrayToSlice(unsafe.Pointer(argv))
+	subprocessArgs := collectoraggregator.CStringArrayToSlice(unsafe.Pointer(argv))
 	// this should never happen as this case is filtered by rtloader
 	if len(subprocessArgs) == 0 {
 		return
@@ -38,7 +39,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	ctx, _ := GetSubprocessContextCancel()
 	cmd := exec.CommandContext(ctx, subprocessArgs[0], subprocessArgs[1:]...)
 
-	subprocessEnv := aggregator.CStringArrayToSlice(unsafe.Pointer(env))
+	subprocessEnv := collectoraggregator.CStringArrayToSlice(unsafe.Pointer(env))
 	if len(subprocessEnv) != 0 {
 		cmd.Env = subprocessEnv
 	}
