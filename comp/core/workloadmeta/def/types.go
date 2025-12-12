@@ -452,10 +452,13 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 	return sb.String()
 }
 
+// RequestAllGPUs is a constant for requesting all GPUs in a host, used in Docker runtimes
+const RequestAllGPUs = -1
+
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *uint64 // Number of GPUs
-	GPULimit      *uint64
+	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64

@@ -12,12 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
@@ -25,6 +25,8 @@ import (
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -327,6 +329,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			Hostname:     container.Config.Hostname,
 			PID:          container.State.Pid,
 			RestartCount: container.RestartCount,
+			Resources:    extractResources(container),
 		}
 
 	case events.ActionDie, docker.ActionDied:
@@ -735,4 +738,34 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 	}
 
 	return layers
+}
+
+func extractResources(container container.InspectResponse) workloadmeta.ContainerResources {
+	var resources workloadmeta.ContainerResources
+
+	if container.HostConfig == nil {
+		return resources
+	}
+
+	numRequestedGPUs := 0
+	for _, deviceRequest := range container.HostConfig.Resources.DeviceRequests {
+		for _, capabilityGroup := range deviceRequest.Capabilities {
+			if slices.Contains(capabilityGroup, "gpu") {
+				if deviceRequest.Count == workloadmeta.RequestAllGPUs {
+					numRequestedGPUs = workloadmeta.RequestAllGPUs
+				} else if numRequestedGPUs != workloadmeta.RequestAllGPUs {
+					numRequestedGPUs += deviceRequest.Count
+				}
+
+				if deviceRequest.Driver != "" && !slices.Contains(resources.GPUVendorList, deviceRequest.Driver) {
+					resources.GPUVendorList = append(resources.GPUVendorList, deviceRequest.Driver)
+				}
+			}
+		}
+	}
+
+	resources.GPURequest = pointer.Ptr(int64(numRequestedGPUs))
+	resources.GPULimit = pointer.Ptr(int64(numRequestedGPUs))
+
+	return resources
 }
