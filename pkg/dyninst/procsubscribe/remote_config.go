@@ -215,14 +215,15 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
-		// Add a factor of 5 from how long the scan took to ensure that if
-		// scanning is slow, that we don't scan too frequently.
+		// Add a factor of 100 from how long the scan took to ensure that if
+		// scanning is slow, that we don't scan too frequently. This should
+		// mean we are never scanning for more than 1% of any core time.
 		//
 		// Generally speaking, scanning should be very fast relative to the
 		// interval, so we expect this factor to be small.
 		took := s.clk.Since(start)
 		interval := s.scanInterval
-		interval = interval + 5*took
+		interval = interval + 100*took
 		jittered := jitter(interval, s.jitterFactor)
 		next = jittered
 	}
