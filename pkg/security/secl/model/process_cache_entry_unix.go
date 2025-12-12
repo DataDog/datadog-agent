@@ -64,7 +64,12 @@ func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, e
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
 func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	vlres := new(validLineageResult)
+	vlres := &validLineageResult{
+		valid: false,
+		// if this error is returned, it means that we saw this cache entry in
+		// an ancestor of the current pce, hence a cycle
+		err: ErrCycleInProcessLineage,
+	}
 
 	res, err := hasValidLineage(pc, vlres)
 
