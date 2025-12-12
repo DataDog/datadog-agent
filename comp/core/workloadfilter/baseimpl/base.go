@@ -7,10 +7,16 @@
 package baseimpl
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"sync"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
@@ -214,9 +220,113 @@ func (f *BaseFilterStore) GetProcessFilters(processFilters [][]workloadfilter.Pr
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
 }
 
-// GetFilterConfigString returns a string representation of the raw filter configuration
-func (f *BaseFilterStore) GetFilterConfigString() (string, error) {
-	return f.FilterConfig.String()
+func (f *BaseFilterStore) FlareCallback(fb flaretypes.FlareBuilder) error {
+	fb.AddFile("workload-filter.log", []byte(f.String(false)))
+	return nil
+}
+
+// String returns a string representation of the workloadfilter configuration
+func (f *BaseFilterStore) String(useColor bool) string {
+	var buffer bytes.Buffer
+
+	printMainHeader(&buffer, "=== Workload Filter Status ===", useColor)
+	fmt.Fprintln(&buffer)
+
+	// Container Autodiscovery Filters
+	printSectionHeader(&buffer, "-------- Container Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Logs:"), f.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter), useColor)
+
+	// Service Autodiscovery Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Kube Service Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+
+	// Endpoint Autodiscovery Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Kube Endpoint Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+
+	// Pod Shared Metric Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Pod Shared Metrics Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SharedMetrics:"), f.GetPodSharedMetricFilters(), useColor)
+
+	// Container Shared Metric Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container Shared Metrics Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SharedMetrics:"), f.GetContainerSharedMetricFilters(), useColor)
+
+	// Container Paused Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container Paused Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "PausedContainers:"), f.GetContainerPausedFilters(), useColor)
+
+	// Container SBOM Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container SBOM Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SBOM:"), f.GetContainerSBOMFilters(), useColor)
+
+	// Print raw filter configuration
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Raw Filter Configuration --------", useColor)
+
+	if f.FilterConfig == nil {
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Filter config not initialized"))
+		} else {
+			fmt.Fprintf(&buffer, "      -> Filter config not initialized\n")
+		}
+	} else {
+		fmt.Fprint(&buffer, f.FilterConfig.String(useColor))
+	}
+
+	return buffer.String()
+}
+
+func printMainHeader(w io.Writer, text string, useColor bool) {
+	if useColor {
+		fmt.Fprintf(w, "    %s\n", color.HiCyanString(text))
+	} else {
+		fmt.Fprintf(w, "%s\n", text)
+	}
+}
+
+func printSectionHeader(w io.Writer, text string, useColor bool) {
+	if useColor {
+		fmt.Fprintf(w, "    %s\n", color.HiCyanString(text))
+	} else {
+		fmt.Fprintf(w, "%s\n", text)
+	}
+}
+
+func printFilter(w io.Writer, name string, bundle workloadfilter.FilterBundle, useColor bool) {
+	if bundle == nil {
+		fmt.Fprintf(w, "%s: No filters configured\n", name)
+		return
+	}
+
+	errors := bundle.GetErrors()
+	if len(errors) > 0 {
+		if useColor {
+			fmt.Fprintf(w, "%s %s %s\n", color.HiRedString("✗"), name, color.HiRedString("failed to load"))
+		} else {
+			fmt.Fprintf(w, "x %s failed to load\n", name)
+		}
+		for _, err := range errors {
+			fmt.Fprintf(w, "        Error: %s\n", err)
+		}
+		return
+	}
+
+	if useColor {
+		fmt.Fprintf(w, "%s %s Loaded successfully\n", color.HiGreenString("✓"), name)
+	} else {
+		fmt.Fprintf(w, "v %s Loaded successfully\n", name)
+	}
 }
 
 // getFilterBundle constructs a filter bundle for a given resource type and filters.
