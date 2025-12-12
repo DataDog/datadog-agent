@@ -154,7 +154,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("ab -n 1500 -c 1500 " + testURL)
+	v.Env().RemoteHost.MustExecute("ab -n 1500 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -167,7 +167,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 1500 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
