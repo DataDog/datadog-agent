@@ -913,7 +913,7 @@ func TestActionKillWithSignature(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		tailCmd2 = exec.Command("tail", "-f", testFilePath)
 		return tailCmd2.Start()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		// Only test_exec_trigger should match because the signature is different
 		assertTriggeredRule(t, rule, "test_exec_trigger")
 	})
@@ -1098,7 +1098,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		tailCmd2 = dockerInstance2.Command("tail", []string{"-f", testFilePath}, []string{})
 		return tailCmd2.Start()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		// Only test_container_exec_trigger should match because the signature is different
 		assertTriggeredRule(t, rule, "test_container_exec_trigger")
 	})

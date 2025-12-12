@@ -1568,7 +1568,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
-	s.Signature = event.Signature
+	s.Signature = event.FieldHandlers.ResolveSignature(event)
 
 	if !event.NetworkContext.IsZero() {
 		s.NetworkContextSerializer = newNetworkContextSerializer(event, &event.NetworkContext)

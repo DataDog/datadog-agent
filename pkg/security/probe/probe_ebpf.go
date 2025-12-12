@@ -872,9 +872,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
 
-	// sign the event
-	p.fieldHandlers.ResolveSignature(event)
-
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
 
