@@ -1,0 +1,1350 @@
+=== RUN   TestRawEncoder
+--- PASS: TestRawEncoder (0.00s)
+=== RUN   TestRawEncoderDefaults
+--- PASS: TestRawEncoderDefaults (0.00s)
+=== RUN   TestRawEncoderEmpty
+--- PASS: TestRawEncoderEmpty (0.00s)
+=== RUN   TestIsRFC5424Formatted
+--- PASS: TestIsRFC5424Formatted (0.00s)
+=== RUN   TestProtoEncoder
+--- PASS: TestProtoEncoder (0.00s)
+=== RUN   TestProtoEncoderEmpty
+--- PASS: TestProtoEncoderEmpty (0.00s)
+=== RUN   TestProtoEncoderHandleInvalidUTF8
+--- PASS: TestProtoEncoderHandleInvalidUTF8 (0.00s)
+=== RUN   TestJsonEncoder
+--- PASS: TestJsonEncoder (0.00s)
+=== RUN   TestEncoderToValidUTF8
+--- PASS: TestEncoderToValidUTF8 (0.00s)
+=== RUN   TestExclusion
+--- PASS: TestExclusion (0.00s)
+=== RUN   TestInclusion
+--- PASS: TestInclusion (0.00s)
+=== RUN   TestExclusionWithInclusion
+--- PASS: TestExclusionWithInclusion (0.00s)
+=== RUN   TestMask
+--- PASS: TestMask (0.00s)
+=== RUN   TestTruncate
+--- PASS: TestTruncate (0.00s)
+=== RUN   TestExcludeTruncated
+--- PASS: TestExcludeTruncated (0.00s)
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+BenchmarkRegexPatterns
+
+=== Validating 173 regex patterns ===
+[1] mail_gun_api_key (type: mask_sequences)
+    Pattern: (?i)key-[0-9a-zA-Z]{32}
+    Placeholder: [REDACTED mail_gun_api_key]
+    GPT Optimized: (?i)key-[0-9A-Za-z]{32}
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: key-0a1B2c3D4e5F6g7H8i9J0k1L2m3N4oP
+    SKIPPED due to original pattern validation failures
+[2] reset_password_token (type: mask_sequences)
+    Pattern: (?i)(?:reset_password(_token)?=[A-Za-z0-9\s_]*[A-Za-z0-9][A-Za-z0-9\s_])
+    Placeholder: [REDACTED reset_password_token]
+[3] Scrub portal token (type: exclude_at_match)
+    Pattern: .*returning portal token.*
+[4] Scrub communication 10007 (type: exclude_at_match)
+    Pattern: .*Communication.*10007.*
+[5] Exclude Kafka patterns (type: exclude_at_match)
+    Pattern: .*Incremented log start offset to.*
+[6] aws_mws_key (type: mask_sequences)
+    Pattern: (?i)amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+    Placeholder: [REDACTED aws_mws_key]
+    GPT Optimized: (?i)amzn\.mws\.[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}
+[7] google_cloud_platform_api_key (type: mask_sequences)
+    Pattern: (?i)(google|gcp|youtube|drive|yt)(.{0,20})?['\"]AIza[0-9a-z\-_]{35}['\"]
+    Placeholder: [REDACTED google_cloud_platform_api_key]
+    GPT Optimized: (?i)(google|gcp|youtube|drive|yt).{0,20}?['"]AIza[0-9a-z\-_]{35}['"]
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: 0abcdefghijklmnopqrstuvwxyzabcdefg
+    SKIPPED due to original pattern validation failures
+[8] okta_oauth_admin_penny (type: mask_sequences)
+    Pattern: oktaoauth\/callback\?code=.*&state=.*
+    Placeholder: oktaoauth/callback?[REDACTED okta_oauth]
+[9] generic_hash_string_value (type: mask_sequences)
+    Pattern: (?is)(\\*"?:?\b(?:account_number|address|address1|address2|auth_token|authentication_token|available_balance|cash_balance|cardSecurityCode|city|current_sign_in_ip|date_of_birth|dob|expiration_date|first_name|firstName|last_four_ssn|last_name|lastName|login_token|lost_card_number|memo|name|password|physical_address|physical_address_2|physicalAddress|physicalAddress2|routing_number|secret|ssn_digest|state|state_code|sur_name|surName|zip|zip_code|zipCode)\b\\*"?\s*(?:=>|=|:)\s*\\*").*?(\\*")
+    Placeholder: $1[REDACTED]$2
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: *"name"*=>*"John Doe*"
+    SKIPPED due to original pattern validation failures
+[10] pay anyone claim url path for chime web app (type: mask_sequences)
+    Pattern: app.chime.com/pay/.*
+    Placeholder: app.chime.com/pay/[REDACTED pay anyone token]
+[11] no_info (type: exclude_at_match)
+    Pattern: (level.*info)|(INFO.[^R][^a][^i][^l][^s])|(INFO.*status=[23])
+    GPT Optimized: (?:level.*info|INFO.[^R][^a][^i][^l][^s]|INFO.*status=[23])
+[12] Launch Darkly noisy logs (type: exclude_at_match)
+    Pattern: .*Launch darkly client is not initialised.*
+[13] first_name_tag (type: mask_sequences)
+    Pattern: (?i)<first_name>.*?<\/first_name>
+    Placeholder: <first_name>[REDACTED]</first_name>
+[14] ach_batch_header_filter (type: mask_sequences)
+    Pattern: (?i)(<batch_hdr>)(.*?)(<\/batch_hdr>)
+    Placeholder: $1[FILTERED]$3
+[15] aws_secret_key (type: mask_sequences)
+    Pattern: (?i)aws(.{0,20})?(?-i)['\"][0-9a-zA-Z\/+]{40}['\"]
+    Placeholder: [REDACTED aws_secret_key]
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: aws"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdEFGHIJKL"
+    SKIPPED due to original pattern validation failures
+[16] facebook_client_id (type: mask_sequences)
+    Pattern: (?i)(facebook|fb)(.{0,20})?['\"][0-9]{13,17}
+    Placeholder: [REDACTED facebook_client_id]
+[17] k8s_filter6 (type: exclude_at_match)
+    Pattern: Overriding "Content-Type" header "application/x-www-form-urlencoded"
+[18] ict-msteams-callevent-identifier flooding logs (type: exclude_at_match)
+    Pattern: .*No license found for Tenant UUID.*tenant licenses, returning default value false.*
+[19] phone_number (type: mask_sequences)
+    Pattern: \\"phone_number\\"\\s*:\\s*\\".+?\\"
+    Placeholder: \"phone_number\": \"[PHONE NUMBER REDACTED]\"
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: "phone_number": "123-456-7890"
+    SKIPPED due to original pattern validation failures
+[20] RFC_5322_email (type: mask_sequences)
+    Pattern: (?i)(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@
+    Placeholder: [REDACTED RFC_5322_email]
+[21] google_drive_oauth (type: mask_sequences)
+    Pattern: (?i)([0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com)
+    Placeholder: [REDACTED google_drive_oauth]
+[22] large integer leaks (type: mask_sequences)
+    Pattern: (integer [0-9]{1,6})(.*)(too big to convert to `int')
+    Placeholder: $1[REDACTED] $3
+[23] Scrub finder user (type: exclude_at_match)
+    Pattern: .*Finder user logged.*
+[24] filter collector identification request (type: exclude_at_match)
+    Pattern: .*collector identification request.*
+[25] Act noisy logs (type: exclude_at_match)
+    Pattern: .*Received unknown topic or partition error in fetch for partition.*
+[26] prn_basic (type: mask_sequences)
+    Pattern: (?i)(\\?(?:"|')?:?(?:prn(?:_\d+)?|accountNo)\\?(?:"|')?\s*(?:=|=>|:)\s*\\?(?:"|')?\b\d{3})\d+(\\?(?:"|')?)
+    Placeholder: $1*$2
+    GPT Optimized: (?i)(\\?(?:"|')?:?(?:prn(?:_\d+)?|accountNo)\\?(?:"|')?\s*(?:=|=>|:)\s*\\?(?:"|')?\b\d{3})\d+(\\?(?:"|')?)
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: ?prn? = ?123456? 
+    SKIPPED due to original pattern validation failures
+[27] dob_tag (type: mask_sequences)
+    Pattern: (?i)<dob>.*?<\/dob>
+    Placeholder: <dob>[REDACTED]</dob>
+[28] vault_token (type: mask_sequences)
+    Pattern: (?i)([sb]\.[a-zA-Z0-9]{24})
+    Placeholder: [REDACTED vault_token]
+    GPT Optimized: (?i)([sb]\.[0-9A-Za-z]{24})
+[29] password (type: mask_sequences)
+    Pattern: \\"password\\"\s*:\s*\\".+?\\"
+    Placeholder: \"password\": \"[PASSWORD REDACTED]\"
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: """password"": ""secret123"""
+    SKIPPED due to original pattern validation failures
+[30] k8s_filter1 (type: exclude_at_match)
+    Pattern: mutation rules from policy applied successfully
+[31] Getting contents for the filelogs (type: exclude_at_match)
+    Pattern: .*Getting contents for the file.*
+[32] exclude_metrics_listener (type: exclude_at_match)
+    Pattern: org.jboss.aerogear.keycloak.metrics.MetricsEventListener
+    Mistral Optimized: org\.jboss\.aerogear\.keycloak\.metrics\.MetricsEventListener
+[33] github (type: mask_sequences)
+    Pattern: (?i)github(.{0,20})?(?-i)['\"][0-9a-zA-Z]{35,40}
+    Placeholder: [REDACTED github]
+[34] twilio_api_key (type: mask_sequences)
+    Pattern: (?i)\b(SK|55)[0-9a-fA-F]{32}\b
+    Placeholder: [REDACTED twilio_api_key]
+    GPT Optimized: (?i)\b(?:SK|55)[0-9A-Fa-f]{32}\b
+[35] reset_phone_token (type: mask_sequences)
+    Pattern: (?i)(\/reset\/phone\/)([A-Za-z0-9-_]*)
+    Placeholder: $1[REDACTED reset_phone_token]
+    GPT Optimized: (?i)(/reset/phone/)([A-Za-z0-9-_]*)
+[36] replace_host_key (type: mask_sequences)
+    Pattern: "host"
+    Placeholder: "app_host"
+[37] mask_api_keys_sha256 (type: mask_sequences)
+    Pattern: (?:api_key=([sS][hH][aA][0-9]{1,3}):[a-fA-F0-9]{34,}([a-fA-F0-9]{6}))
+    Placeholder: api_key=${1}:**********************************************************${2}
+    ⚠️  ORIGINAL VALIDATION FAILED: 'miss' string should NOT match but does
+        Miss string: api_key=Sha256:abcdefABCDEF0123456789abcdefABCDEF0123456789Xbcdef
+    SKIPPED due to original pattern validation failures
+[38] k8s_filter2 (type: exclude_at_match)
+    Pattern: /ml/(ping|predict)
+[39] aws_client_id (type: mask_sequences)
+    Pattern: (?i)(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}
+    Placeholder: [REDACTED aws_client_id]
+[40] google_gmail_api_key (type: mask_sequences)
+    Pattern: (?i)AIza[0-9A-Za-z\-_]{35}
+    Placeholder: [REDACTED google_gmail_api_key]
+    GPT Optimized: (?i)AIza[0-9A-Za-z_-]{35}
+[41] cloud_google_cloud_platform_api_key (type: mask_sequences)
+    Pattern: (?i)[A-Za-z0-9_]{21}--[A-Za-z0-9_]{8}
+    Placeholder: [REDACTED cloud_google_cloud_platform_api_key]
+    GPT Optimized: (?i)[0-9A-Za-z_]{21}--[0-9A-Za-z_]{8}
+[42] mask_api_keys (type: mask_sequences)
+    Pattern: (?:api_key=[a-fA-F0-9]{26})
+    Placeholder: api_key=**************************
+[43] exclude Aggregation-service flooding logs (type: exclude_at_match)
+    Pattern: .*number of inventory cache records expired.*
+[44] Collector proxy noisy logs (type: exclude_at_match)
+    Pattern: .*Unable to send ping to websocket.*
+[45] exclude_sensitive_info (type: exclude_at_match)
+    Pattern: (?i)(?:sensitive\-info)
+    GPT Optimized: (?i)sensitive-info
+[46] google_api_key (type: mask_sequences)
+    Pattern: (?i)AIza[0-9A-Za-z\-_]{35}
+    Placeholder: [REDACTED google_api_key]
+[47] exclude_word_timestamp_integrity (type: exclude_at_match)
+    Pattern: .*Word timestamp integrity failed, adjusting based on heuristics.*
+[48] processing_by (type: exclude_at_match)
+    Pattern: Processing by .*#.* as .*
+[49] cannot_create_service_service_port_not_found (type: exclude_at_match)
+    Pattern: Cannot create service: service port not found
+[50] removed noisy logs from custom-fields-value-updater-api (type: exclude_at_match)
+    Pattern: .*Element.*is already a child of.*
+[51] mailgun_api_key (type: mask_sequences)
+    Pattern: (?i)key-[0-9a-zA-Z]{32}
+    Placeholder: [REDACTED mailgun_api_key]
+    GPT Optimized: (?i)key-[0-9A-Za-z]{32}
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: key-0Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jk
+    SKIPPED due to original pattern validation failures
+[52] pay anyone claim url path (type: mask_sequences)
+    Pattern: pf\/claim\/.*
+    Placeholder: pf/claim/[REDACTED pay anyone token]
+[53] mask_dd_api_keys (type: mask_sequences)
+    Pattern: (?:dd-api-key=[a-fA-F0-9]{26})
+    Placeholder: dd-api-key=**************************
+[54] exclude_pts_reset_logs (type: exclude_at_match)
+    Pattern: Gap Detected
+    Qwen Optimized: Gap Detected
+[55] Content-exchange-service noisy logs (type: exclude_at_match)
+    Pattern: .*groupId=content-exchange-service.*join.*group.*
+[56] removed noisy logs from main service (type: exclude_at_match)
+    Pattern: unable to open connection to broker
+[57] Dex flooding logs (type: exclude_at_match)
+    Pattern: .*Key validation failed: path fingerprintByType.*
+[58] auth_token_filter (type: mask_sequences)
+    Pattern: (?i)(?:("?\b(?:auth_token|secret)\b"?\s*[=:]\s*)(\w+-?)+("?))
+    Placeholder: $1[FILTERED]$3
+    ⚠️  ORIGINAL VALIDATION FAILED: 'miss' string should NOT match but does
+        Miss string: auth_token = value-123fffff-
+    SKIPPED due to original pattern validation failures
+[59] diners_credit_card (type: mask_sequences)
+    Pattern: (?i)\b[0-9]{4}\s[0-9]{6}\s[0-9]{4}\b
+    Placeholder: [REDACTED diners_credit_card]
+    GPT Optimized: (?i)\b\d{4}\s\d{6}\s\d{4}\b
+[60] exclude_nql_service_logs_reloading_configmaps (type: exclude_at_match)
+    Pattern: .*Reloading.*configmaps.*for.*
+[61] Content has no min_mtp_version (type: exclude_at_match)
+    Pattern: .*Content has no.*min_mtp_version.*
+[62] last_name_tag (type: mask_sequences)
+    Pattern: (?i)<last_name>.*?<\/last_name>
+    Placeholder: <last_name>[REDACTED]</last_name>
+[63] k8s_filter4 (type: exclude_at_match)
+    Pattern: Service "churn/(chn|pur)-.*does not have any active Endpoint
+[64] address_tags (type: mask_sequences)
+    Pattern: (?i)(?:(<\w*address\w*>)\b\d+(?:\s[\w\.,]+){2,}\b(<\/\w*address\w*>))
+    Placeholder: $1[REDACTED address]$2
+    GPT Optimized: (?i)(<\w*address\w*>)\b\d+(?:\s[\w\.,]+){2,}\b(<\/\w*address\w*>)
+[65] facebook_secret_key (type: mask_sequences)
+    Pattern: (?i)(facebook|fb)(.{0,20})?(?-i)['\"][0-9a-f]{32}
+    Placeholder: [REDACTED facebook_secret_key]
+[66] access_key_ids (type: mask_sequences)
+    Pattern: (?:\b)[A-Z0-9]{4}[IJ][A-Z2-7]{14}[AQ](?:\b)
+    Placeholder: [REDACTED access_key_ids]
+    GPT Optimized: \b[A-Z0-9]{4}[IJ][A-Z2-7]{14}[AQ]\b
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: AB9CIABCDEFGH23456A
+    SKIPPED due to original pattern validation failures
+[67] exclude_ignored_delete_event (type: exclude_at_match)
+    Pattern: .*ignoring.*event.*TaskDelete.*
+[68] v6 flooding logs (type: exclude_at_match)
+    Pattern: .*Cannot perform operation after producer has been closed.*
+[69] json_sensitive_data (type: mask_sequences)
+    Pattern: (?i)(?:"?password"?(=|\:))(\b)*.*\b
+    Placeholder: [REDACTED json_sensitive_data]
+    GPT Optimized: (?i)"?password"?(=|:)\b*.*\b
+[70] feature_flag_init (type: exclude_at_match)
+    Pattern: Feature Flag evaluation attempted before client has initialized
+[71] rendered_text_template (type: exclude_at_match)
+    Pattern: Rendered text template 
+[72] cannot_create_service_service_not_found (type: exclude_at_match)
+    Pattern: Cannot create service: service not found
+    Mistral Optimized: Cannot create service: service not found
+[73] platform-inventory-generator flooding logs (type: exclude_at_match)
+    Pattern: .*Not authorized to access group.*
+[74] Produce trigger tenant_id alert_uuid logs (type: exclude_at_match)
+    Pattern: .*Produce trigger tenant_id.*alert_uuid.*context_type.*NQL_GENERIC_ALERT scheduled_time_millis.*
+[75] LocalLog partition LOG_DIR logs (type: exclude_at_match)
+    Pattern: .*LocalLog partition.*LOG_DIR.*Rolled new log segment at offset.*
+[76] slack_token (type: mask_sequences)
+    Pattern: xox[baprs]-[0-9]{11}-[0-9]{11}-[0-9a-zA-Z]{24}
+    Placeholder: [REDACTED slack_token]
+[77] cloud_google_cloud_platform_o_auth_2_0 (type: mask_sequences)
+    Pattern: (?i)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}
+    Placeholder: [REDACTED cloud_google_cloud_platform_o_auth_2_0]
+    GPT Optimized: (?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}
+[78] mfa_token (type: mask_sequences)
+    Pattern: (?i)(?:token=[A-Za-z0-9\s_]*[A-Za-z0-9][A-Za-z0-9\s_])
+    Placeholder: token=[REDACTED mfa_token]
+    GPT Optimized: (?i)token=[A-Za-z0-9\s_]*[A-Za-z0-9][A-Za-z0-9\s_]
+[79] mask_user_email (type: mask_sequences)
+    Pattern: [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
+    Placeholder: MASKED_EMAIL
+[80] mask_aws_hadoop_s3_secret_access_key (type: mask_sequences)
+    Pattern: .*spark\.hadoop\.fs\.s3[an]?\.awsSecretAccessKey=[^"]*
+    Placeholder: spark.hadoop.fs.s3[an]?.awsSecretAccessKey=REDACTED
+[81] date_newline (type: multi_line)
+    Pattern: \d{4}\-\d{2}\-\d{2}
+    GPT Optimized: \d{4}-\d{2}-\d{2}
+    Mistral Optimized: \d{4}-\d{2}-\d{2}
+[82] cannot_create_service_no_endpoints_found (type: exclude_at_match)
+    Pattern: .*annot.*create.*service.*no.*endpoints.*found.*
+[83] KinesisStreamService putRecords logs (type: exclude_at_match)
+    Pattern: .*.*KinesisStreamService.*method.*putRecords, streamName: prod-adopt-user-activities.*.*method.*putRecords, streamName: prod-adopt-user-activities.*
+[84] apilogin_apitranskey_basic (type: mask_sequences)
+    Pattern: (?i)(?:("?\b(?:apiLogin|apiTransKey)\b"?\s*[=:]\s*)("?)(\w+)("?))
+    Placeholder: $1$2[REDACTED apilogin_apitranskey_basic]$4
+    GPT Optimized: (?i)("?\b(?:apiLogin|apiTransKey)\b"?\s*[=:]\s*("?)(\w+)("?))
+    ⚠️  ORIGINAL VALIDATION FAILED: 'miss' string should NOT match but does
+        Miss string: apiLogin = myUser-123ffff33
+    SKIPPED due to original pattern validation failures
+[85] google_gmail_oauth (type: mask_sequences)
+    Pattern: (?i)([0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com)
+    Placeholder: [REDACTED google_gmail_oauth]
+[86] social_media_instagram_o_auth_2_0 (type: mask_sequences)
+    Pattern: (?i)\b[0-9a-fA-F]{7}\.[0-9a-fA-F]{32}\b
+    Placeholder: [REDACTED social_media_instagram_o_auth_2_0]
+    GPT Optimized: (?i)\b[0-9A-Fa-f]{7}\.[0-9A-Fa-f]{32}\b
+[87] mask_aws_secret_access_key (type: mask_sequences)
+    Pattern: SECRET_ACCESS_KEY[\s]+[^\s]+[\s]*
+    Placeholder: SECRET_ACCESS_KEY 'REDACTED'
+[88] Scrub finderManagerImpl (type: exclude_at_match)
+    Pattern: .*FinderManagerImpl.*removing.*
+[89] Clickhouse flooding logs (type: exclude_at_match)
+    Pattern: .*but should be merged into.*happen often.*
+[90] library-content-embedder noisy logs (type: exclude_at_match)
+    Pattern: .*Document with package_uuid deleted successfully.*
+[91] prn_tag (type: mask_sequences)
+    Pattern: (?i)<pmt_ref_no>\d{12}<\/pmt_ref_no>
+    Placeholder: <pmt_ref_no>[REDACTED]</pmt_ref_no>
+    GPT Optimized: (?i)<pmt_ref_no>\d{12}</pmt_ref_no>
+[92] phone_basic (type: mask_sequences)
+    Pattern: (?i)(\\*"?:?(?:phone|mobile|cell|to|mobileNumber)\\*"?\s*(?:=|=>|:)\s*\\*"?\+?(?:%2B)?)\d{6,7}(\d{4})(\\*"?)
+    Placeholder: $1[PHONE $2]$3
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: *"phone*" = *"+12345678901*"
+    SKIPPED due to original pattern validation failures
+[93] facebook_access_token (type: mask_sequences)
+    Pattern: (?i)EAACEdEose0cBA[0-9A-Za-z]+
+    Placeholder: [REDACTED facebook_access_token]
+    GPT Optimized: (?i)EAACEdEose0cBA[0-9A-Za-z]+
+[94] slack_webhook (type: mask_sequences)
+    Pattern: (?i)\bT[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}\b
+    Placeholder: [REDACTED slack_webhook]
+    GPT Optimized: (?i)\bT[0-9A-Z_a-z]{8}/B[0-9A-Z_a-z]{8}/[0-9A-Z_a-z]{24}\b
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: Taaaaaaaa/Bbbbbbbb/Cccccccccccccccccccccccc
+    SKIPPED due to original pattern validation failures
+[95] mask_aws_hadoop_s3_secret_dot_key (type: mask_sequences)
+    Pattern: .*spark\.hadoop\.fs\.s3[an]?\.secret\.key=[^"]*
+    Placeholder: spark.hadoop.fs.s3[an]?.secret.key=REDACTED
+[96] exclude_health (type: exclude_at_match)
+    Pattern: /health|"type":"health"
+[97] phone (type: mask_sequences)
+    Pattern: (?i)\b\(?([0-9]{3})\)?[-\. ]([0-9]{3})[-\. ]([0-9]{4})\b
+    Placeholder: [REDACTED phone]
+    GPT Optimized: (?i)\b\(?([0-9]{3})\)?[-. ]([0-9]{3})[-. ]([0-9]{4})\b
+[98] generic_query_string_value (type: mask_sequences)
+    Pattern: (\[?(address|address2|available_balance|cash_balance|cardSecurityCode|chimesign|current_sign_in_ip|date_of_birth|dateOfBirth|dob|email|first_name|last_4_ssn|last_four_ssn|last_name|last4ssn|lastfourssn|phone|phone_number|phoneNumber|ssn|state_code|zip_code|payeeName|payeeAddress)\]?=)[^&]+&*
+    Placeholder: $1[REDACTED]
+[99] social_security_galileo_create_account_query_param (type: mask_sequences)
+    Pattern: &id=\d{9}&
+    Placeholder: &id=[REDACTED social security number]&
+[100] email_address (type: mask_sequences)
+    Pattern: (?:[a-z0-9!#$%&''*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])
+    Placeholder: [EMAIL REDACTED]
+[101] exclude_transcript_data_logs (type: exclude_at_match)
+    Pattern: .*"text":\s*"[^"]*",\s*"confidence":\s*[0-9.]+,\s*"start":\s*[0-9.]+,\s*"end":\s*[0-9.]+.*
+[102] SKIPPED mask_password: invalid regex - error parsing regexp: invalid nested repetition operator: `**`
+[103] UnifiedLog partition sparm logs (type: exclude_at_match)
+    Pattern: .*[UnifiedLog partition.*dir=LOG_DIR] Deleting.*
+[104] mask_aws_access_key_id (type: mask_sequences)
+    Pattern: ACCESS_KEY_ID[\s]+[^\s]+[\s]*
+    Placeholder: ACCESS_KEY_ID 'REDACTED'
+[105] mask_dd_api_keys_pub (type: mask_sequences)
+    Pattern: (?:dd-api-key=pub[a-fA-F0-9]{26})
+    Placeholder: dd-api-key=pub**************************
+[106] update-to-java17 (type: exclude_at_match)
+    Pattern: .*JULIAN.*isTenantValid.*
+[107] github_tokens (type: mask_sequences)
+    Pattern: gh[pousr]_[a-zA-Z0-9]*
+    Placeholder: [REDACTED github_token]
+[108] exclude_traces_export_connection_refused_logs (type: exclude_at_match)
+    Pattern: traces export:.*connection refused
+[109] mask_reserved_word_hostname (type: mask_sequences)
+    Pattern: "hostname"
+    Placeholder: "mhostname"
+[110] skipping_service_no_endpoints_found (type: exclude_at_match)
+    Pattern: .*Skipping.*service.*no.*endpoints.*found.*
+    Mistral Optimized: .*Skipping.*service.*no.*endpoints.*found.*
+[111] vpa_skipping_object_due_to_mode (type: exclude_at_match)
+    Pattern: .*skipping.*VPA.*object.*because.*its.*mode.*is.*not.*Recreate.*or.*Auto.*
+    Mistral Optimized: .*skipping.*VPA.*object.*because.*its.*mode.*is.*not.*(?:Recreate|Auto).*
+    ⚠️  Mistral: matches 'miss' string (should not)
+[112] removed noisy logs from DD trace agent (type: exclude_at_match)
+    Pattern: .*DEBUG datadog.trace.*
+[113] phone_tags (type: mask_sequences)
+    Pattern: (?i)(?:(<\w*phone\w*>).*?(<\/\w*phone\w*>))
+    Placeholder: $1[REDACTED]$2
+[114] base64 (type: mask_sequences)
+    Pattern: (?i)(eyJ|YTo|Tzo|PD[89]|aHR0cHM6L|aHR0cDo|rO0)[a-zA-Z0-9+/]+={0,2}
+    Placeholder: [REDACTED base64]
+    ⚠️  ORIGINAL VALIDATION FAILED: 'miss' string should NOT match but does
+        Miss string: eyJabcD!F123+/
+    SKIPPED due to original pattern validation failures
+[115] mailto (type: mask_sequences)
+    Pattern: (?i)([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)
+    Placeholder: [REDACTED mailto]
+[116] phone_lists (type: mask_sequences)
+    Pattern: (?i)(\[)("?\d{6,7}(\d{4})"?\,*\s*)+(\])
+    Placeholder: $1[REDACTED]$4
+[117] k8s_filter8 (type: exclude_at_match)
+    Pattern:  warning: already initialized constant 
+[118] exclude_debug (type: exclude_at_match)
+    Pattern: "logger_name":"cloud.celonis.web.config.RequestLoggingFilter"
+[119] missing_gcr_secret (type: exclude_at_match)
+    Pattern: .*secret.*missione-gcr-io.*not.*found.*
+[120] dex-bin-aggregator error (type: exclude_at_match)
+    Pattern: .*Secret refreshed .*
+[121] social_security_number_xml (type: mask_sequences)
+    Pattern: (?i)(?:(Ssn|typ:Ssn|social|SocialSecurityNumber)>\d{3}\d{2}(\d{4})<\/(Ssn|typ:Ssn|social|SocialSecurityNumber))
+    Placeholder: REDACTED_SSN_XML>[SSN_XML $1]<REDACTED_SSN_XML
+    GPT Optimized: (?i)(Ssn|typ:Ssn|social|SocialSecurityNumber)>\d{5}(\d{4})<\/(Ssn|typ:Ssn|social|SocialSecurityNumber)
+[122] account_number (type: mask_sequences)
+    Pattern: (?i)(account.?number..\d+)
+    Placeholder: account_number: [REDACTED]
+[123] exclude_datadog_tracer_logs (type: exclude_at_match)
+    Pattern: Datadog Tracer .*(ERROR|WARN|INFO|Error)
+    GPT Optimized: Datadog Tracer .*(?:ERROR|WARN|INFO|Error)
+[124] visa_mc_amex_diners_discover_jcb_credit_card (type: mask_sequences)
+    Pattern: \b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b
+    Placeholder: [CREDIT CARD REDACTED]
+[125] mask_aws_hadooping_secret_key (type: mask_sequences)
+    Pattern: .*co\.actioniq\.hadooping\.aws\.S3Conf\.secret_key=[^"]*
+    Placeholder: co.actioniq.hadooping.aws.S3Conf.secret_key=REDACTED
+[126] k8s_filter3 (type: exclude_at_match)
+    Pattern: churn-nginx-ingress-controller.*certificate
+[127] syncing_iptables_rules_complete (type: exclude_at_match)
+    Pattern: .*SyncProxyRules.*complete.*elapsed.*
+    Mistral Optimized: [^.]*SyncProxyRules[^.]*complete[^.]*elapsed[^.]*
+    ⚠️  Mistral: doesn't match 'match' string
+[128] update_hostname (type: mask_sequences)
+    Pattern: hostname
+    Placeholder: hostlog
+[129] Scrub session id (type: exclude_at_match)
+    Pattern: .*logged with session id.*
+[130] Filer DD library logs (type: exclude_at_match)
+    Pattern: .*DDAgentApi.*Success while sending.*
+[131] Telemetry (type: exclude_at_match)
+    Pattern: .*telemetry.*date_time.*protocol_version.*component.*component_version.*
+[132] mfa_token_android_hash (type: mask_sequences)
+    Pattern: (?i)(member\.chime\.com(\s\#|\+\%23)\d{6})
+    Placeholder: [REDACTED mfa_token]
+    GPT Optimized: (?i)(member\.chime\.com(?:\s\#|\+%23)\d{6})
+[133] remote actions NQL error (type: exclude_at_match)
+    Pattern: .*NQL condition has an invalid specification.*
+[134] Downstream monitor flooding logs (type: exclude_at_match)
+    Pattern: .*Skipping record for expired segment.*
+[135] ProducerStateManager partition logs (type: exclude_at_match)
+    Pattern: .*ProducerStateManager partition.*Wrote producer snapshot at offset.*
+[136] deprecate_started_get (type: exclude_at_match)
+    Pattern: Started GET
+    Placeholder: [VISIT ME: go/chime-log-cleanup] Started GET
+[137] galileo_account_number (type: mask_sequences)
+    Pattern: (?i)<galileo_account_number type=\\\"integer\\\">\d+?<\/galileo_account_number>
+    Placeholder: <galileo_account_number>[REDACTED]</galileo_account_number>
+    GPT Optimized: (?i)<galileo_account_number type=\"integer\">\d+<\/galileo_account_number>
+    ⚠️  GPT: doesn't match 'match' string
+[138] mobile_device_token (type: mask_sequences)
+    Pattern: (?i)("token"=>")[a-zA-Z0-9]{64}
+    Placeholder: $1[REDACTED mobile_device_token]
+    GPT Optimized: (?i)("token"=>")[0-9A-Za-z]{64}
+[139] exclude_transcript_insights_warning_multiline (type: exclude_at_match)
+    Pattern: WARNING:root:Transcript insights result is.*
+[140] k8s_filter7 (type: exclude_at_match)
+    Pattern: URI.escape is obsolete
+[141] exclude_tracestate_character_warning (type: exclude_at_match)
+    Pattern: .*Won.t.*propagate.*tag.*tracestate.*value.*contains.*invalid.*character.*
+    GPT Optimized: .*Won.t.*propagate.*tag.*tracestate.*value.*contains.*invalid.*character.*
+    Mistral Optimized: .*won't.*propagate.*tag.*tracestate.*value.*contains.*invalid.*character.*
+    ⚠️  Mistral: doesn't match 'match' string
+[142] user-device-aggregator flooding logs (type: exclude_at_match)
+    Pattern: .*Messages arrived out of order, previous event.*
+[143] deprecate_started_post (type: exclude_at_match)
+    Pattern: Started POST
+    Placeholder: [VISIT ME: go/chime-log-cleanup] Started POST
+[144] github_fine_grained_tokens (type: mask_sequences)
+    Pattern: github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}
+    Placeholder: [REDACTED github_fine_grained_tokens]
+    GPT Optimized: github_pat_[0-9A-Za-z]{22}_[0-9A-Za-z]{59}
+    ⚠️  ORIGINAL VALIDATION FAILED: 'match' string should match but doesn't
+        Match string: github_pat_Ab3XyZ9kLmNPqR8sT1uV2w_0123456789abcdefghijklmno!qrstuvwxyzABCDEFXYZ123456789abcd
+    SKIPPED due to original pattern validation failures
+[145] copla-enrichment-service-user noisy logs (type: exclude_at_match)
+    Pattern: .*Extension should be of type.*UNRECOGNIZED.*
+[146] social_security_number_basic (type: mask_sequences)
+    Pattern: (?i)(?:\b\d{3}-\d{2}-(\d{4})\b)
+    Placeholder: [SSN $1]
+[147] mask_app_keys (type: mask_sequences)
+    Pattern: (?:(app(?:lication)?_key)=[a-fA-F0-9]{34})
+    Placeholder: ${1}=**********************************
+[148] telegraf_unsupported_distro (type: exclude_at_match)
+    Pattern: Statsd Metric type d unsupported
+[149] mask_aws_flame_spark_io_secret_key (type: mask_sequences)
+    Pattern: .*co\.actioniq\.flame\.launcher\.SparkSubmitIO\.secret_key=[^"]*
+    Placeholder: co.actioniq.flame.launcher.SparkSubmitIO.secret_key=REDACTED
+[150] Istio proxy noisy logs (type: exclude_at_match)
+    Pattern: .*Forward pub_list.*messageId.*
+[151] removed noisy logs from copla-enrichment-service  (type: exclude_at_match)
+    Pattern: .*There was an error retrieving customerKeySecret for tenantId.*9999.*
+[152] deprecate_request_params (type: exclude_at_match)
+    Pattern: request_params=
+    Placeholder: [VISIT ME: go/chime-log-cleanup] request_params=
+[153] amex_credit_card (type: mask_sequences)
+    Pattern: (?i)\b[0-9]{4}\s[0-9]{6}\s[0-9]{5}\b
+    Placeholder: [REDACTED amex_credit_card]
+[154] facebook_oauth (type: mask_sequences)
+    Pattern: (?i)[f|F][a|A][c|C][e|E][b|B][o|O][o|O][k|K].*['|"][0-9a-f]{32}['|"]
+    Placeholder: [REDACTED facebook_oauth]
+    GPT Optimized: (?i)facebook.*['"][0-9a-f]{32}['"]
+[155] rails_20X_ok (type: exclude_at_match)
+    Pattern: Completed 20[012] .* in
+[156] JSON serializing error (type: exclude_at_match)
+    Pattern: .*Error serializing json from the property.*
+[157] removed noisy logs from master service (type: exclude_at_match)
+    Pattern: .*red_parrot.*decoder.*ExecutionHeaders.*
+[158] removed noisy logs from content-builtin-api (type: exclude_at_match)
+    Pattern: .*Current MTP version is.*
+[159] SLF4J System out logs (type: exclude_at_match)
+    Pattern: SLF4J.*
+[160] exclude_healthcheck (type: exclude_at_match)
+    Pattern: healthcheck
+[161] authorization_basic (type: mask_sequences)
+    Pattern: (?i)basic [a-zA-Z0-9_\-:\.=]+
+    Placeholder: [REDACTED authorization_basic]
+    GPT Optimized: (?i)basic [A-Za-z0-9_.:=-]+
+[162] authorization_bearer (type: mask_sequences)
+    Pattern: (?i)bearer [a-zA-Z0-9_\-\.=]+
+    Placeholder: [REDACTED authorization_bearer]
+    GPT Optimized: (?i)bearer [A-Za-z0-9_.=-]+
+[163] syncing_iptables_rules (type: exclude_at_match)
+    Pattern: "Syncing iptables rules"
+    Mistral Optimized: Syncing iptables rules
+[164] Bad Open telemetry configuration (type: exclude_at_match)
+    Pattern: .*Failed to export metrics.*
+[165] ssn_basic (type: mask_sequences)
+    Pattern: (?i)(\b\\*"?:?(?:ssn|social|social_?security|social_?security_?number|nationalId)\\*"?\s*(?:=|=>|:)\s*\\*"?\b)\d{3}-?\d{2}-?(\d{4})\b(\\*"?)
+    Placeholder: $1[SSN $2]$3
+[166] visa_mc_discover_jcb_credit_card (type: mask_sequences)
+    Pattern: (?i)\b[0-9]{4}\s[0-9]{4}\s[0-9]{4}\s[0-9]{4}\b
+    Placeholder: [REDACTED visa_mc_discover_jcb_credit_card]
+    GPT Optimized: (?i)\b\d{4}\s\d{4}\s\d{4}\s\d{4}\b
+[167] google_drive_api_key (type: mask_sequences)
+    Pattern: (?i)AIza[0-9A-Za-z\-_]{35}
+    Placeholder: [REDACTED google_drive_api_key]
+    GPT Optimized: (?i)AIza[0-9A-Za-z_-]{35}
+[168] twilio_mfa_token (type: mask_sequences)
+    Pattern: (?i)(Security[\+\s]code(\:\s|%3A\+)\d{6})
+    Placeholder: [REDACTED mfa_token]
+[169] exclude_g2s_publish_errors_logs (type: exclude_at_match)
+    Pattern: g2s: publish: write udp
+    GPT Optimized: g2s: publish: write udp
+[170] k8s_filter5 (type: exclude_at_match)
+    Pattern: k8s_nginx-ingress-controller_nginx-ingress-controller
+[171] Filer DD agent logs - UTC (type: exclude_at_match)
+    Pattern: .*UTC.*PROCESS.*
+[172] SKIPPED basic_auth_credentials: invalid regex - error parsing regexp: invalid nested repetition operator: `**`
+[173] google_oauth_access_token (type: mask_sequences)
+    Pattern: (?i)ya29\.[0-9A-Za-z\-_]+
+    Placeholder: [REDACTED google_oauth_access_token]
+    GPT Optimized: (?i)ya29\.[0-9A-Za-z_-]+
+
+=== Benchmarking 155 valid patterns (18 skipped) ===
+GPT optimized mismatches: 1 match failures, 0 miss failures
+Mistral optimized mismatches: 2 match failures, 1 miss failures
+Qwen optimized mismatches: 0 match failures, 0 miss failures
+
+BenchmarkRegexPatterns/reset_password_token/match/original
+BenchmarkRegexPatterns/reset_password_token/match/original-16         	 3413724	       350.1 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/reset_password_token/miss/original
+BenchmarkRegexPatterns/reset_password_token/miss/original-16          	 2574069	       461.0 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/Scrub_portal_token/match/original
+BenchmarkRegexPatterns/Scrub_portal_token/match/original-16           	 1599855	       751.8 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Scrub_portal_token/miss/original
+BenchmarkRegexPatterns/Scrub_portal_token/miss/original-16            	 1533100	       779.7 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Scrub_communication_10007/match/original
+BenchmarkRegexPatterns/Scrub_communication_10007/match/original-16    	 1000000	      1110 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Scrub_communication_10007/miss/original
+BenchmarkRegexPatterns/Scrub_communication_10007/miss/original-16     	 1220234	       984.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Exclude_Kafka_patterns/match/original
+BenchmarkRegexPatterns/Exclude_Kafka_patterns/match/original-16       	  999816	      1254 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Exclude_Kafka_patterns/miss/original
+BenchmarkRegexPatterns/Exclude_Kafka_patterns/miss/original-16        	 1000000	      1150 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/aws_mws_key/match/original
+BenchmarkRegexPatterns/aws_mws_key/match/original-16                  	 3357891	       354.0 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/aws_mws_key/miss/original
+BenchmarkRegexPatterns/aws_mws_key/miss/original-16                   	 1743908	       685.8 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/aws_mws_key/match/gpt
+BenchmarkRegexPatterns/aws_mws_key/match/gpt-16                       	 3378254	       354.6 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/aws_mws_key/miss/gpt
+BenchmarkRegexPatterns/aws_mws_key/miss/gpt-16                        	 1751787	       683.5 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/okta_oauth_admin_penny/match/original
+BenchmarkRegexPatterns/okta_oauth_admin_penny/match/original-16       	 2299443	       521.7 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/okta_oauth_admin_penny/miss/original
+BenchmarkRegexPatterns/okta_oauth_admin_penny/miss/original-16        	45136537	        26.65 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/match/original
+BenchmarkRegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/match/original-16         	 4593250	       262.7 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/miss/original
+BenchmarkRegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/miss/original-16          	24185401	        48.39 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/no_info/match/original
+BenchmarkRegexPatterns/no_info/match/original-16                                             	 5558952	       214.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/no_info/miss/original
+BenchmarkRegexPatterns/no_info/miss/original-16                                              	 3138021	       381.1 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/no_info/match/gpt
+BenchmarkRegexPatterns/no_info/match/gpt-16                                                  	 5817142	       206.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/no_info/miss/gpt
+BenchmarkRegexPatterns/no_info/miss/gpt-16                                                   	 4572798	       257.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Launch_Darkly_noisy_logs/match/original
+BenchmarkRegexPatterns/Launch_Darkly_noisy_logs/match/original-16                            	 1000000	      1140 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Launch_Darkly_noisy_logs/miss/original
+BenchmarkRegexPatterns/Launch_Darkly_noisy_logs/miss/original-16                             	 2094850	       574.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/first_name_tag/match/original
+BenchmarkRegexPatterns/first_name_tag/match/original-16                                      	 3676814	       327.7 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/first_name_tag/miss/original
+BenchmarkRegexPatterns/first_name_tag/miss/original-16                                       	 3510561	       342.8 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/ach_batch_header_filter/match/original
+BenchmarkRegexPatterns/ach_batch_header_filter/match/original-16                             	 1827249	       659.3 ns/op	     243 B/op	       8 allocs/op
+BenchmarkRegexPatterns/ach_batch_header_filter/miss/original
+BenchmarkRegexPatterns/ach_batch_header_filter/miss/original-16                              	 1704060	       705.3 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_client_id/match/original
+BenchmarkRegexPatterns/facebook_client_id/match/original-16                                  	 2329872	       516.5 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_client_id/miss/original
+BenchmarkRegexPatterns/facebook_client_id/miss/original-16                                   	 2008720	       594.3 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/k8s_filter6/match/original
+BenchmarkRegexPatterns/k8s_filter6/match/original-16                                         	 2319926	       523.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter6/miss/original
+BenchmarkRegexPatterns/k8s_filter6/miss/original-16                                          	22885222	        62.62 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/ict-msteams-callevent-identifier_flooding_logs/match/original
+BenchmarkRegexPatterns/ict-msteams-callevent-identifier_flooding_logs/match/original-16      	  430130	      2891 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/ict-msteams-callevent-identifier_flooding_logs/miss/original
+BenchmarkRegexPatterns/ict-msteams-callevent-identifier_flooding_logs/miss/original-16       	  356320	      3446 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/RFC_5322_email/match/original
+BenchmarkRegexPatterns/RFC_5322_email/match/original-16                                      	 4287115	       279.8 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/RFC_5322_email/miss/original
+BenchmarkRegexPatterns/RFC_5322_email/miss/original-16                                       	 1764526	       677.3 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_drive_oauth/match/original
+BenchmarkRegexPatterns/google_drive_oauth/match/original-16                                  	 2313028	       522.0 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_drive_oauth/miss/original
+BenchmarkRegexPatterns/google_drive_oauth/miss/original-16                                   	 1314608	       914.9 ns/op	     104 B/op	       3 allocs/op
+BenchmarkRegexPatterns/large_integer_leaks/match/original
+BenchmarkRegexPatterns/large_integer_leaks/match/original-16                                 	 1000000	      1047 ns/op	     242 B/op	       8 allocs/op
+BenchmarkRegexPatterns/large_integer_leaks/miss/original
+BenchmarkRegexPatterns/large_integer_leaks/miss/original-16                                  	  836695	      1447 ns/op	      88 B/op	       3 allocs/op
+BenchmarkRegexPatterns/Scrub_finder_user/match/original
+BenchmarkRegexPatterns/Scrub_finder_user/match/original-16                                   	 1622367	       739.7 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Scrub_finder_user/miss/original
+BenchmarkRegexPatterns/Scrub_finder_user/miss/original-16                                    	 2302448	       522.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/filter_collector_identification_request/match/original
+BenchmarkRegexPatterns/filter_collector_identification_request/match/original-16             	 1211631	       990.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/filter_collector_identification_request/miss/original
+BenchmarkRegexPatterns/filter_collector_identification_request/miss/original-16              	 1355463	       886.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Act_noisy_logs/match/original
+BenchmarkRegexPatterns/Act_noisy_logs/match/original-16                                      	  843255	      1463 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Act_noisy_logs/miss/original
+BenchmarkRegexPatterns/Act_noisy_logs/miss/original-16                                       	  777252	      1496 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/dob_tag/match/original
+BenchmarkRegexPatterns/dob_tag/match/original-16                                             	 4362253	       273.4 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/dob_tag/miss/original
+BenchmarkRegexPatterns/dob_tag/miss/original-16                                              	 4703286	       255.1 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/vault_token/match/original
+BenchmarkRegexPatterns/vault_token/match/original-16                                         	 4225400	       285.5 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/vault_token/miss/original
+BenchmarkRegexPatterns/vault_token/miss/original-16                                          	 2528517	       471.9 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/vault_token/match/gpt
+BenchmarkRegexPatterns/vault_token/match/gpt-16                                              	 4123069	       286.8 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/vault_token/miss/gpt
+BenchmarkRegexPatterns/vault_token/miss/gpt-16                                               	 2583819	       463.5 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/k8s_filter1/match/original
+BenchmarkRegexPatterns/k8s_filter1/match/original-16                                         	 3284144	       366.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter1/miss/original
+BenchmarkRegexPatterns/k8s_filter1/miss/original-16                                          	68048265	        16.92 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Getting_contents_for_the_filelogs/match/original
+BenchmarkRegexPatterns/Getting_contents_for_the_filelogs/match/original-16                   	 1543759	       777.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Getting_contents_for_the_filelogs/miss/original
+BenchmarkRegexPatterns/Getting_contents_for_the_filelogs/miss/original-16                    	 1408870	       851.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_metrics_listener/match/original
+BenchmarkRegexPatterns/exclude_metrics_listener/match/original-16                            	 3065676	       393.8 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_metrics_listener/miss/original
+BenchmarkRegexPatterns/exclude_metrics_listener/miss/original-16                             	 3475164	       344.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_metrics_listener/match/mistral
+BenchmarkRegexPatterns/exclude_metrics_listener/match/mistral-16                             	 2772106	       433.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_metrics_listener/miss/mistral
+BenchmarkRegexPatterns/exclude_metrics_listener/miss/mistral-16                              	23679030	        49.20 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/github/match/original
+BenchmarkRegexPatterns/github/match/original-16                                              	 1970107	       609.4 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/github/miss/original
+BenchmarkRegexPatterns/github/miss/original-16                                               	26577410	        46.87 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/twilio_api_key/match/original
+BenchmarkRegexPatterns/twilio_api_key/match/original-16                                      	 3733197	       319.1 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/twilio_api_key/miss/original
+BenchmarkRegexPatterns/twilio_api_key/miss/original-16                                       	 2364456	       503.7 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/twilio_api_key/match/gpt
+BenchmarkRegexPatterns/twilio_api_key/match/gpt-16                                           	 3798250	       313.7 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/twilio_api_key/miss/gpt
+BenchmarkRegexPatterns/twilio_api_key/miss/gpt-16                                            	 2457206	       487.9 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/reset_phone_token/match/original
+BenchmarkRegexPatterns/reset_phone_token/match/original-16                                   	 3691350	       329.2 ns/op	     195 B/op	       7 allocs/op
+BenchmarkRegexPatterns/reset_phone_token/miss/original
+BenchmarkRegexPatterns/reset_phone_token/miss/original-16                                    	 7350506	       162.8 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/reset_phone_token/match/gpt
+BenchmarkRegexPatterns/reset_phone_token/match/gpt-16                                        	 3829875	       311.3 ns/op	     196 B/op	       7 allocs/op
+BenchmarkRegexPatterns/reset_phone_token/miss/gpt
+BenchmarkRegexPatterns/reset_phone_token/miss/gpt-16                                         	 7331844	       162.6 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/replace_host_key/match/original
+BenchmarkRegexPatterns/replace_host_key/match/original-16                                    	 7249971	       166.4 ns/op	      82 B/op	       5 allocs/op
+BenchmarkRegexPatterns/replace_host_key/miss/original
+BenchmarkRegexPatterns/replace_host_key/miss/original-16                                     	62881546	        19.61 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/k8s_filter2/match/original
+BenchmarkRegexPatterns/k8s_filter2/match/original-16                                         	12405124	        97.28 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter2/miss/original
+BenchmarkRegexPatterns/k8s_filter2/miss/original-16                                          	14286110	        83.56 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/aws_client_id/match/original
+BenchmarkRegexPatterns/aws_client_id/match/original-16                                       	 4527970	       265.3 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/aws_client_id/miss/original
+BenchmarkRegexPatterns/aws_client_id/miss/original-16                                        	 1951455	       612.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_gmail_api_key/match/original
+BenchmarkRegexPatterns/google_gmail_api_key/match/original-16                                	 3070854	       387.1 ns/op	     179 B/op	       6 allocs/op
+BenchmarkRegexPatterns/google_gmail_api_key/miss/original
+BenchmarkRegexPatterns/google_gmail_api_key/miss/original-16                                 	 2192263	       546.5 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_gmail_api_key/match/gpt
+BenchmarkRegexPatterns/google_gmail_api_key/match/gpt-16                                     	 3112754	       386.7 ns/op	     179 B/op	       6 allocs/op
+BenchmarkRegexPatterns/google_gmail_api_key/miss/gpt
+BenchmarkRegexPatterns/google_gmail_api_key/miss/gpt-16                                      	 2170172	       552.3 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/match/original
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/match/original-16                 	 3753435	       318.6 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/miss/original
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/miss/original-16                  	  654598	      1855 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/match/gpt
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/match/gpt-16                      	 3884352	       311.9 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/miss/gpt
+BenchmarkRegexPatterns/cloud_google_cloud_platform_api_key/miss/gpt-16                       	  670396	      1817 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_api_keys/match/original
+BenchmarkRegexPatterns/mask_api_keys/match/original-16                                       	 4240633	       283.1 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_api_keys/miss/original
+BenchmarkRegexPatterns/mask_api_keys/miss/original-16                                        	 5529483	       216.8 ns/op	      73 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_Aggregation-service_flooding_logs/match/original
+BenchmarkRegexPatterns/exclude_Aggregation-service_flooding_logs/match/original-16           	  995698	      1225 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_Aggregation-service_flooding_logs/miss/original
+BenchmarkRegexPatterns/exclude_Aggregation-service_flooding_logs/miss/original-16            	 1000000	      1125 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Collector_proxy_noisy_logs/match/original
+BenchmarkRegexPatterns/Collector_proxy_noisy_logs/match/original-16                          	 1000000	      1012 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Collector_proxy_noisy_logs/miss/original
+BenchmarkRegexPatterns/Collector_proxy_noisy_logs/miss/original-16                           	 1317352	       910.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_sensitive_info/match/original
+BenchmarkRegexPatterns/exclude_sensitive_info/match/original-16                              	 8176131	       147.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_sensitive_info/miss/original
+BenchmarkRegexPatterns/exclude_sensitive_info/miss/original-16                               	 3710076	       325.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_sensitive_info/match/gpt
+BenchmarkRegexPatterns/exclude_sensitive_info/match/gpt-16                                   	 7603982	       149.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_sensitive_info/miss/gpt
+BenchmarkRegexPatterns/exclude_sensitive_info/miss/gpt-16                                    	 3712113	       324.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/google_api_key/match/original
+BenchmarkRegexPatterns/google_api_key/match/original-16                                      	 3206857	       372.4 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_api_key/miss/original
+BenchmarkRegexPatterns/google_api_key/miss/original-16                                       	 2286416	       523.2 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_word_timestamp_integrity/match/original
+BenchmarkRegexPatterns/exclude_word_timestamp_integrity/match/original-16                    	  873579	      1414 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_word_timestamp_integrity/miss/original
+BenchmarkRegexPatterns/exclude_word_timestamp_integrity/miss/original-16                     	  897260	      1341 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/processing_by/match/original
+BenchmarkRegexPatterns/processing_by/match/original-16                                       	 2223666	       542.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/processing_by/miss/original
+BenchmarkRegexPatterns/processing_by/miss/original-16                                        	 3763798	       317.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_port_not_found/match/original
+BenchmarkRegexPatterns/cannot_create_service_service_port_not_found/match/original-16        	 3345296	       359.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_port_not_found/miss/original
+BenchmarkRegexPatterns/cannot_create_service_service_port_not_found/miss/original-16         	31413475	        48.15 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/match/original-16         	  702636	      1700 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/miss/original-16          	  682886	      1797 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/pay_anyone_claim_url_path/match/original
+BenchmarkRegexPatterns/pay_anyone_claim_url_path/match/original-16                                       	 5462622	       219.0 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/pay_anyone_claim_url_path/miss/original
+BenchmarkRegexPatterns/pay_anyone_claim_url_path/miss/original-16                                        	63461984	        19.10 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/mask_dd_api_keys/match/original
+BenchmarkRegexPatterns/mask_dd_api_keys/match/original-16                                                	 3996927	       302.8 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_dd_api_keys/miss/original
+BenchmarkRegexPatterns/mask_dd_api_keys/miss/original-16                                                 	 4999315	       241.2 ns/op	      73 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_pts_reset_logs/match/original
+BenchmarkRegexPatterns/exclude_pts_reset_logs/match/original-16                                          	 9762661	       124.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_pts_reset_logs/miss/original
+BenchmarkRegexPatterns/exclude_pts_reset_logs/miss/original-16                                           	70427874	        17.07 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_pts_reset_logs/match/qwen
+BenchmarkRegexPatterns/exclude_pts_reset_logs/match/qwen-16                                              	 9662356	       124.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_pts_reset_logs/miss/qwen
+BenchmarkRegexPatterns/exclude_pts_reset_logs/miss/qwen-16                                               	69093912	        17.31 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Content-exchange-service_noisy_logs/match/original
+BenchmarkRegexPatterns/Content-exchange-service_noisy_logs/match/original-16                             	  714421	      1685 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Content-exchange-service_noisy_logs/miss/original
+BenchmarkRegexPatterns/Content-exchange-service_noisy_logs/miss/original-16                              	  723914	      1667 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_main_service/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_main_service/match/original-16                            	 5381559	       229.5 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_main_service/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_main_service/miss/original-16                             	69392571	        17.48 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Dex_flooding_logs/match/original
+BenchmarkRegexPatterns/Dex_flooding_logs/match/original-16                                               	  930199	      1321 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Dex_flooding_logs/miss/original
+BenchmarkRegexPatterns/Dex_flooding_logs/miss/original-16                                                	 1275841	       941.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/diners_credit_card/match/original
+BenchmarkRegexPatterns/diners_credit_card/match/original-16                                              	 5106192	       235.4 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/diners_credit_card/miss/original
+BenchmarkRegexPatterns/diners_credit_card/miss/original-16                                               	27780590	        43.73 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/diners_credit_card/match/gpt
+BenchmarkRegexPatterns/diners_credit_card/match/gpt-16                                                   	 5159161	       232.1 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/diners_credit_card/miss/gpt
+BenchmarkRegexPatterns/diners_credit_card/miss/gpt-16                                                    	28881474	        42.19 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_nql_service_logs_reloading_configmaps/match/original
+BenchmarkRegexPatterns/exclude_nql_service_logs_reloading_configmaps/match/original-16                   	  827380	      1490 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_nql_service_logs_reloading_configmaps/miss/original
+BenchmarkRegexPatterns/exclude_nql_service_logs_reloading_configmaps/miss/original-16                    	 1756429	       686.7 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Content_has_no_min_mtp_version/match/original
+BenchmarkRegexPatterns/Content_has_no_min_mtp_version/match/original-16                                  	 1000000	      1171 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Content_has_no_min_mtp_version/miss/original
+BenchmarkRegexPatterns/Content_has_no_min_mtp_version/miss/original-16                                   	 1673980	       717.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/last_name_tag/match/original
+BenchmarkRegexPatterns/last_name_tag/match/original-16                                                   	 3991959	       299.7 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/last_name_tag/miss/original
+BenchmarkRegexPatterns/last_name_tag/miss/original-16                                                    	 3900153	       307.3 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/k8s_filter4/match/original
+BenchmarkRegexPatterns/k8s_filter4/match/original-16                                                     	 1870521	       643.6 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter4/miss/original
+BenchmarkRegexPatterns/k8s_filter4/miss/original-16                                                      	 1683787	       712.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/address_tags/match/original
+BenchmarkRegexPatterns/address_tags/match/original-16                                                    	 1562235	       772.0 ns/op	     235 B/op	       8 allocs/op
+BenchmarkRegexPatterns/address_tags/miss/original
+BenchmarkRegexPatterns/address_tags/miss/original-16                                                     	 1403043	       856.0 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/address_tags/match/gpt
+BenchmarkRegexPatterns/address_tags/match/gpt-16                                                         	 1540282	       780.8 ns/op	     235 B/op	       8 allocs/op
+BenchmarkRegexPatterns/address_tags/miss/gpt
+BenchmarkRegexPatterns/address_tags/miss/gpt-16                                                          	 1384092	       855.1 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_secret_key/match/original
+BenchmarkRegexPatterns/facebook_secret_key/match/original-16                                             	 2095042	       573.3 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_secret_key/miss/original
+BenchmarkRegexPatterns/facebook_secret_key/miss/original-16                                              	 1000000	      1037 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_ignored_delete_event/match/original
+BenchmarkRegexPatterns/exclude_ignored_delete_event/match/original-16                                    	  640336	      1889 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_ignored_delete_event/miss/original
+BenchmarkRegexPatterns/exclude_ignored_delete_event/miss/original-16                                     	  568864	      2144 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/v6_flooding_logs/match/original
+BenchmarkRegexPatterns/v6_flooding_logs/match/original-16                                                	  941958	      1278 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/v6_flooding_logs/miss/original
+BenchmarkRegexPatterns/v6_flooding_logs/miss/original-16                                                 	 1000000	      1012 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/feature_flag_init/match/original
+BenchmarkRegexPatterns/feature_flag_init/match/original-16                                               	 2477040	       482.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/feature_flag_init/miss/original
+BenchmarkRegexPatterns/feature_flag_init/miss/original-16                                                	68253724	        17.49 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/rendered_text_template/match/original
+BenchmarkRegexPatterns/rendered_text_template/match/original-16                                          	 5931020	       202.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/rendered_text_template/miss/original
+BenchmarkRegexPatterns/rendered_text_template/miss/original-16                                           	70237394	        17.29 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/match/original
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/match/original-16                         	 3656629	       327.7 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/miss/original
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/miss/original-16                          	29947934	        52.46 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/match/mistral
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/match/mistral-16                          	 3655557	       328.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/miss/mistral
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/miss/mistral-16                           	30080872	        49.61 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/platform-inventory-generator_flooding_logs/match/original
+BenchmarkRegexPatterns/platform-inventory-generator_flooding_logs/match/original-16                      	 1000000	      1170 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/platform-inventory-generator_flooding_logs/miss/original
+BenchmarkRegexPatterns/platform-inventory-generator_flooding_logs/miss/original-16                       	 1265655	       950.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/match/original
+BenchmarkRegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/match/original-16                       	  244455	      4944 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/miss/original
+BenchmarkRegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/miss/original-16                        	  241422	      5031 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/LocalLog_partition_LOG_DIR_logs/match/original
+BenchmarkRegexPatterns/LocalLog_partition_LOG_DIR_logs/match/original-16                                 	  456860	      2652 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/LocalLog_partition_LOG_DIR_logs/miss/original
+BenchmarkRegexPatterns/LocalLog_partition_LOG_DIR_logs/miss/original-16                                  	  420520	      2874 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/slack_token/match/original
+BenchmarkRegexPatterns/slack_token/match/original-16                                                     	 2817205	       425.1 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/slack_token/miss/original
+BenchmarkRegexPatterns/slack_token/miss/original-16                                                      	 3322624	       361.7 ns/op	      89 B/op	       3 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match/original
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match/original-16                          	 4724632	       253.8 ns/op	     179 B/op	       5 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss/original
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss/original-16                           	 1479164	       813.1 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match/gpt
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match/gpt-16                               	 4686165	       253.9 ns/op	     180 B/op	       5 allocs/op
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss/gpt
+BenchmarkRegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss/gpt-16                                	 1499888	       799.4 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mfa_token/match/original
+BenchmarkRegexPatterns/mfa_token/match/original-16                                                       	 4698592	       254.9 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mfa_token/miss/original
+BenchmarkRegexPatterns/mfa_token/miss/original-16                                                        	 5595172	       215.4 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mfa_token/match/gpt
+BenchmarkRegexPatterns/mfa_token/match/gpt-16                                                            	 4680426	       256.3 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mfa_token/miss/gpt
+BenchmarkRegexPatterns/mfa_token/miss/gpt-16                                                             	 5535374	       215.6 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_user_email/match/original
+BenchmarkRegexPatterns/mask_user_email/match/original-16                                                 	 2959428	       404.1 ns/op	      81 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_user_email/miss/original
+BenchmarkRegexPatterns/mask_user_email/miss/original-16                                                  	 1662525	       722.0 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_access_key/match/original
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_access_key/match/original-16                            	 1233486	       971.7 ns/op	     177 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_access_key/miss/original
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_access_key/miss/original-16                             	 1525398	       783.1 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/date_newline/match/original
+BenchmarkRegexPatterns/date_newline/match/original-16                                                    	72689644	        16.39 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/miss/original
+BenchmarkRegexPatterns/date_newline/miss/original-16                                                     	75679339	        16.69 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/match/gpt
+BenchmarkRegexPatterns/date_newline/match/gpt-16                                                         	71974449	        16.83 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/miss/gpt
+BenchmarkRegexPatterns/date_newline/miss/gpt-16                                                          	74358656	        16.46 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/match/mistral
+BenchmarkRegexPatterns/date_newline/match/mistral-16                                                     	73191742	        16.38 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/miss/mistral
+BenchmarkRegexPatterns/date_newline/miss/mistral-16                                                      	74246894	        16.36 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_no_endpoints_found/match/original
+BenchmarkRegexPatterns/cannot_create_service_no_endpoints_found/match/original-16                        	  344240	      3519 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_no_endpoints_found/miss/original
+BenchmarkRegexPatterns/cannot_create_service_no_endpoints_found/miss/original-16                         	  291723	      4131 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/KinesisStreamService_putRecords_logs/match/original
+BenchmarkRegexPatterns/KinesisStreamService_putRecords_logs/match/original-16                            	  111972	     10779 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/KinesisStreamService_putRecords_logs/miss/original
+BenchmarkRegexPatterns/KinesisStreamService_putRecords_logs/miss/original-16                             	  121642	      9860 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/google_gmail_oauth/match/original
+BenchmarkRegexPatterns/google_gmail_oauth/match/original-16                                              	 2387509	       501.1 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_gmail_oauth/miss/original
+BenchmarkRegexPatterns/google_gmail_oauth/miss/original-16                                               	 1371496	       875.0 ns/op	     104 B/op	       3 allocs/op
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/match/original
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/match/original-16                               	 3595375	       334.1 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/miss/original
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/miss/original-16                                	 1975622	       606.6 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/match/gpt
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/match/gpt-16                                    	 3583191	       334.9 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/miss/gpt
+BenchmarkRegexPatterns/social_media_instagram_o_auth_2_0/miss/gpt-16                                     	 1924618	       622.2 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_aws_secret_access_key/match/original
+BenchmarkRegexPatterns/mask_aws_secret_access_key/match/original-16                                      	 3777768	       316.9 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_secret_access_key/miss/original
+BenchmarkRegexPatterns/mask_aws_secret_access_key/miss/original-16                                       	 5567461	       215.7 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/Scrub_finderManagerImpl/match/original
+BenchmarkRegexPatterns/Scrub_finderManagerImpl/match/original-16                                         	  686281	      1748 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Scrub_finderManagerImpl/miss/original
+BenchmarkRegexPatterns/Scrub_finderManagerImpl/miss/original-16                                          	  557901	      2113 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Clickhouse_flooding_logs/match/original
+BenchmarkRegexPatterns/Clickhouse_flooding_logs/match/original-16                                        	  656032	      1893 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Clickhouse_flooding_logs/miss/original
+BenchmarkRegexPatterns/Clickhouse_flooding_logs/miss/original-16                                         	  557674	      2148 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/library-content-embedder_noisy_logs/match/original
+BenchmarkRegexPatterns/library-content-embedder_noisy_logs/match/original-16                             	 1000000	      1024 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/library-content-embedder_noisy_logs/miss/original
+BenchmarkRegexPatterns/library-content-embedder_noisy_logs/miss/original-16                              	 1000000	      1041 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/prn_tag/match/original
+BenchmarkRegexPatterns/prn_tag/match/original-16                                                         	 3416984	       352.8 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/prn_tag/miss/original
+BenchmarkRegexPatterns/prn_tag/miss/original-16                                                          	 6189832	       194.2 ns/op	      73 B/op	       3 allocs/op
+BenchmarkRegexPatterns/prn_tag/match/gpt
+BenchmarkRegexPatterns/prn_tag/match/gpt-16                                                              	 3451962	       343.8 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/prn_tag/miss/gpt
+BenchmarkRegexPatterns/prn_tag/miss/gpt-16                                                               	 6371896	       191.2 ns/op	      73 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_access_token/match/original
+BenchmarkRegexPatterns/facebook_access_token/match/original-16                                           	 4837274	       245.7 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_access_token/miss/original
+BenchmarkRegexPatterns/facebook_access_token/miss/original-16                                            	28020550	        43.06 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_access_token/match/gpt
+BenchmarkRegexPatterns/facebook_access_token/match/gpt-16                                                	 4888492	       244.0 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_access_token/miss/gpt
+BenchmarkRegexPatterns/facebook_access_token/miss/gpt-16                                                 	28329781	        42.96 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_dot_key/match/original
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_dot_key/match/original-16                               	 1378548	       869.9 ns/op	     145 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_dot_key/miss/original
+BenchmarkRegexPatterns/mask_aws_hadoop_s3_secret_dot_key/miss/original-16                                	 1471248	       817.1 ns/op	      88 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_health/match/original
+BenchmarkRegexPatterns/exclude_health/match/original-16                                                  	13768764	        87.09 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_health/miss/original
+BenchmarkRegexPatterns/exclude_health/miss/original-16                                                   	67947926	        17.36 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/phone/match/original
+BenchmarkRegexPatterns/phone/match/original-16                                                           	 4755087	       254.0 ns/op	      98 B/op	       6 allocs/op
+BenchmarkRegexPatterns/phone/miss/original
+BenchmarkRegexPatterns/phone/miss/original-16                                                            	 3316699	       359.9 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/phone/match/gpt
+BenchmarkRegexPatterns/phone/match/gpt-16                                                                	 4721322	       254.0 ns/op	      98 B/op	       6 allocs/op
+BenchmarkRegexPatterns/phone/miss/gpt
+BenchmarkRegexPatterns/phone/miss/gpt-16                                                                 	 3309883	       362.1 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/generic_query_string_value/match/original
+BenchmarkRegexPatterns/generic_query_string_value/match/original-16                                      	 2445580	       490.7 ns/op	     138 B/op	       7 allocs/op
+BenchmarkRegexPatterns/generic_query_string_value/miss/original
+BenchmarkRegexPatterns/generic_query_string_value/miss/original-16                                       	  990081	      1225 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/social_security_galileo_create_account_query_param/match/original
+BenchmarkRegexPatterns/social_security_galileo_create_account_query_param/match/original-16              	 5420906	       219.4 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/social_security_galileo_create_account_query_param/miss/original
+BenchmarkRegexPatterns/social_security_galileo_create_account_query_param/miss/original-16               	25269518	        47.62 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/email_address/match/original
+BenchmarkRegexPatterns/email_address/match/original-16                                                   	 2265778	       528.9 ns/op	      81 B/op	       5 allocs/op
+BenchmarkRegexPatterns/email_address/miss/original
+BenchmarkRegexPatterns/email_address/miss/original-16                                                    	  800188	      1490 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_transcript_data_logs/match/original
+BenchmarkRegexPatterns/exclude_transcript_data_logs/match/original-16                                    	 1000000	      1171 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_transcript_data_logs/miss/original
+BenchmarkRegexPatterns/exclude_transcript_data_logs/miss/original-16                                     	  872106	      1342 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/UnifiedLog_partition_sparm_logs/match/original
+BenchmarkRegexPatterns/UnifiedLog_partition_sparm_logs/match/original-16                                 	 1213725	       989.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/UnifiedLog_partition_sparm_logs/miss/original
+BenchmarkRegexPatterns/UnifiedLog_partition_sparm_logs/miss/original-16                                  	  765104	      1568 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/mask_aws_access_key_id/match/original
+BenchmarkRegexPatterns/mask_aws_access_key_id/match/original-16                                          	 4323234	       277.7 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_access_key_id/miss/original
+BenchmarkRegexPatterns/mask_aws_access_key_id/miss/original-16                                           	 7966630	       151.3 ns/op	      49 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_dd_api_keys_pub/match/original
+BenchmarkRegexPatterns/mask_dd_api_keys_pub/match/original-16                                            	 3620503	       331.2 ns/op	     146 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_dd_api_keys_pub/miss/original
+BenchmarkRegexPatterns/mask_dd_api_keys_pub/miss/original-16                                             	23609517	        51.25 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/update-to-java17/match/original
+BenchmarkRegexPatterns/update-to-java17/match/original-16                                                	  872679	      1390 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/update-to-java17/miss/original
+BenchmarkRegexPatterns/update-to-java17/miss/original-16                                                 	  806767	      1451 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/github_tokens/match/original
+BenchmarkRegexPatterns/github_tokens/match/original-16                                                   	 5600978	       215.2 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/github_tokens/miss/original
+BenchmarkRegexPatterns/github_tokens/miss/original-16                                                    	13528957	        89.93 ns/op	      41 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_traces_export_connection_refused_logs/match/original
+BenchmarkRegexPatterns/exclude_traces_export_connection_refused_logs/match/original-16                   	 2543898	       469.0 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_traces_export_connection_refused_logs/miss/original
+BenchmarkRegexPatterns/exclude_traces_export_connection_refused_logs/miss/original-16                    	 2371544	       508.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/mask_reserved_word_hostname/match/original
+BenchmarkRegexPatterns/mask_reserved_word_hostname/match/original-16                                     	 5867107	       203.6 ns/op	      90 B/op	       6 allocs/op
+BenchmarkRegexPatterns/mask_reserved_word_hostname/miss/original
+BenchmarkRegexPatterns/mask_reserved_word_hostname/miss/original-16                                      	61867628	        19.58 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/match/original
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/match/original-16                             	  364983	      3283 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/miss/original
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/miss/original-16                              	  334840	      3589 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/match/mistral
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/match/mistral-16                              	  367762	      3286 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/miss/mistral
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/miss/mistral-16                               	  333796	      3621 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/match/original
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/match/original-16                                 	  218259	      5511 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/miss/original
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/miss/original-16                                  	  186618	      6451 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/match/mistral
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/match/mistral-16                                  	  235418	      5127 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/miss/mistral
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/miss/mistral-16                                   	  203476	      5945 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_DD_trace_agent/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_DD_trace_agent/match/original-16                          	 1274865	       941.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_DD_trace_agent/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_DD_trace_agent/miss/original-16                           	 1273717	       943.3 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/phone_tags/match/original
+BenchmarkRegexPatterns/phone_tags/match/original-16                                                      	 2209566	       543.0 ns/op	     194 B/op	       8 allocs/op
+BenchmarkRegexPatterns/phone_tags/miss/original
+BenchmarkRegexPatterns/phone_tags/miss/original-16                                                       	 2336546	       516.6 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mailto/match/original
+BenchmarkRegexPatterns/mailto/match/original-16                                                          	 3013672	       399.0 ns/op	      97 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mailto/miss/original
+BenchmarkRegexPatterns/mailto/miss/original-16                                                           	 1636438	       729.8 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/phone_lists/match/original
+BenchmarkRegexPatterns/phone_lists/match/original-16                                                     	 2063894	       579.1 ns/op	     170 B/op	       7 allocs/op
+BenchmarkRegexPatterns/phone_lists/miss/original
+BenchmarkRegexPatterns/phone_lists/miss/original-16                                                      	 1644409	       730.9 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/k8s_filter8/match/original
+BenchmarkRegexPatterns/k8s_filter8/match/original-16                                                     	 3754735	       320.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter8/miss/original
+BenchmarkRegexPatterns/k8s_filter8/miss/original-16                                                      	68300342	        17.75 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_debug/match/original
+BenchmarkRegexPatterns/exclude_debug/match/original-16                                                   	 2790117	       429.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_debug/miss/original
+BenchmarkRegexPatterns/exclude_debug/miss/original-16                                                    	 3050688	       403.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/missing_gcr_secret/match/original
+BenchmarkRegexPatterns/missing_gcr_secret/match/original-16                                              	  501374	      2401 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/missing_gcr_secret/miss/original
+BenchmarkRegexPatterns/missing_gcr_secret/miss/original-16                                               	  439248	      2778 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/dex-bin-aggregator_error/match/original
+BenchmarkRegexPatterns/dex-bin-aggregator_error/match/original-16                                        	 1770768	       677.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/dex-bin-aggregator_error/miss/original
+BenchmarkRegexPatterns/dex-bin-aggregator_error/miss/original-16                                         	 2471823	       484.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/social_security_number_xml/match/original
+BenchmarkRegexPatterns/social_security_number_xml/match/original-16                                      	 3638125	       331.4 ns/op	     261 B/op	       7 allocs/op
+BenchmarkRegexPatterns/social_security_number_xml/miss/original
+BenchmarkRegexPatterns/social_security_number_xml/miss/original-16                                       	 1251619	       958.5 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/social_security_number_xml/match/gpt
+BenchmarkRegexPatterns/social_security_number_xml/match/gpt-16                                           	 3540495	       335.6 ns/op	     260 B/op	       7 allocs/op
+BenchmarkRegexPatterns/social_security_number_xml/miss/gpt
+BenchmarkRegexPatterns/social_security_number_xml/miss/gpt-16                                            	 1251577	       957.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/account_number/match/original
+BenchmarkRegexPatterns/account_number/match/original-16                                                  	 4385109	       269.8 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/account_number/miss/original
+BenchmarkRegexPatterns/account_number/miss/original-16                                                   	 3332779	       362.2 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/match/original
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/match/original-16                                     	 2881761	       417.0 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/miss/original
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/miss/original-16                                      	 1581504	       758.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/match/gpt
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/match/gpt-16                                          	 2974114	       405.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/miss/gpt
+BenchmarkRegexPatterns/exclude_datadog_tracer_logs/miss/gpt-16                                           	 1632030	       738.1 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/match/original
+BenchmarkRegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/match/original-16                    	 4033332	       295.8 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/miss/original
+BenchmarkRegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/miss/original-16                     	 3275446	       365.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadooping_secret_key/match/original
+BenchmarkRegexPatterns/mask_aws_hadooping_secret_key/match/original-16                                   	  932298	      1316 ns/op	     177 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_hadooping_secret_key/miss/original
+BenchmarkRegexPatterns/mask_aws_hadooping_secret_key/miss/original-16                                    	  830119	      1432 ns/op	     136 B/op	       3 allocs/op
+BenchmarkRegexPatterns/k8s_filter3/match/original
+BenchmarkRegexPatterns/k8s_filter3/match/original-16                                                     	 2536942	       475.6 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter3/miss/original
+BenchmarkRegexPatterns/k8s_filter3/miss/original-16                                                      	 2465085	       490.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/match/original
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/match/original-16                                 	  554288	      2171 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/miss/original
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/miss/original-16                                  	  439269	      2724 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/match/mistral
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/match/mistral-16                                  	  770160	      1573 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/miss/mistral
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/miss/mistral-16                                   	  746094	      1588 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/update_hostname/match/original
+BenchmarkRegexPatterns/update_hostname/match/original-16                                                 	 6939723	       173.8 ns/op	      65 B/op	       5 allocs/op
+BenchmarkRegexPatterns/update_hostname/miss/original
+BenchmarkRegexPatterns/update_hostname/miss/original-16                                                  	58882339	        19.65 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Scrub_session_id/match/original
+BenchmarkRegexPatterns/Scrub_session_id/match/original-16                                                	 1869304	       641.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Scrub_session_id/miss/original
+BenchmarkRegexPatterns/Scrub_session_id/miss/original-16                                                 	 1828938	       654.2 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Filer_DD_library_logs/match/original
+BenchmarkRegexPatterns/Filer_DD_library_logs/match/original-16                                           	  855000	      1438 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Filer_DD_library_logs/miss/original
+BenchmarkRegexPatterns/Filer_DD_library_logs/miss/original-16                                            	  775590	      1544 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Telemetry/match/original
+BenchmarkRegexPatterns/Telemetry/match/original-16                                                       	  464636	      2578 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Telemetry/miss/original
+BenchmarkRegexPatterns/Telemetry/miss/original-16                                                        	  440709	      2696 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/mfa_token_android_hash/match/original
+BenchmarkRegexPatterns/mfa_token_android_hash/match/original-16                                          	 4447744	       268.6 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mfa_token_android_hash/miss/original
+BenchmarkRegexPatterns/mfa_token_android_hash/miss/original-16                                           	27243754	        44.69 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mfa_token_android_hash/match/gpt
+BenchmarkRegexPatterns/mfa_token_android_hash/match/gpt-16                                               	 4519051	       265.7 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mfa_token_android_hash/miss/gpt
+BenchmarkRegexPatterns/mfa_token_android_hash/miss/gpt-16                                                	26887065	        44.60 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/remote_actions_NQL_error/match/original
+BenchmarkRegexPatterns/remote_actions_NQL_error/match/original-16                                        	 1000000	      1168 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/remote_actions_NQL_error/miss/original
+BenchmarkRegexPatterns/remote_actions_NQL_error/miss/original-16                                         	 1428772	       839.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Downstream_monitor_flooding_logs/match/original
+BenchmarkRegexPatterns/Downstream_monitor_flooding_logs/match/original-16                                	 1000000	      1197 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Downstream_monitor_flooding_logs/miss/original
+BenchmarkRegexPatterns/Downstream_monitor_flooding_logs/miss/original-16                                 	 1000000	      1116 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/ProducerStateManager_partition_logs/match/original
+BenchmarkRegexPatterns/ProducerStateManager_partition_logs/match/original-16                             	  555676	      2191 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/ProducerStateManager_partition_logs/miss/original
+BenchmarkRegexPatterns/ProducerStateManager_partition_logs/miss/original-16                              	  510384	      2367 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/deprecate_started_get/match/original
+BenchmarkRegexPatterns/deprecate_started_get/match/original-16                                           	10216272	       117.7 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/deprecate_started_get/miss/original
+BenchmarkRegexPatterns/deprecate_started_get/miss/original-16                                            	67912836	        17.93 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/galileo_account_number/match/original
+BenchmarkRegexPatterns/galileo_account_number/match/original-16                                          	 2361973	       508.0 ns/op	     178 B/op	       5 allocs/op
+BenchmarkRegexPatterns/galileo_account_number/miss/original
+BenchmarkRegexPatterns/galileo_account_number/miss/original-16                                           	 2890915	       424.0 ns/op	     105 B/op	       3 allocs/op
+BenchmarkRegexPatterns/galileo_account_number/match/gpt
+BenchmarkRegexPatterns/galileo_account_number/match/gpt-16                                               	 5079022	       238.5 ns/op	     105 B/op	       3 allocs/op
+BenchmarkRegexPatterns/galileo_account_number/miss/gpt
+BenchmarkRegexPatterns/galileo_account_number/miss/gpt-16                                                	 5030467	       240.0 ns/op	     105 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mobile_device_token/match/original
+BenchmarkRegexPatterns/mobile_device_token/match/original-16                                             	 2199843	       537.6 ns/op	     178 B/op	       7 allocs/op
+BenchmarkRegexPatterns/mobile_device_token/miss/original
+BenchmarkRegexPatterns/mobile_device_token/miss/original-16                                              	21934984	        56.63 ns/op	     104 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mobile_device_token/match/gpt
+BenchmarkRegexPatterns/mobile_device_token/match/gpt-16                                                  	 2205818	       539.7 ns/op	     178 B/op	       7 allocs/op
+BenchmarkRegexPatterns/mobile_device_token/miss/gpt
+BenchmarkRegexPatterns/mobile_device_token/miss/gpt-16                                                   	21729009	        56.05 ns/op	     104 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_transcript_insights_warning_multiline/match/original
+BenchmarkRegexPatterns/exclude_transcript_insights_warning_multiline/match/original-16                   	 3006006	       392.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_transcript_insights_warning_multiline/miss/original
+BenchmarkRegexPatterns/exclude_transcript_insights_warning_multiline/miss/original-16                    	66949184	        17.86 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/k8s_filter7/match/original
+BenchmarkRegexPatterns/k8s_filter7/match/original-16                                                     	 6229257	       192.0 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter7/miss/original
+BenchmarkRegexPatterns/k8s_filter7/miss/original-16                                                      	67767094	        17.96 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/original
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/original-16                            	  202843	      5826 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/original
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/original-16                             	  587444	      2068 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/gpt
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/gpt-16                                 	  204291	      5840 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/gpt
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/gpt-16                                  	  587430	      2057 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/mistral
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match/mistral-16                             	 1000000	      1142 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/mistral
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss/mistral-16                              	 1211412	       988.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/user-device-aggregator_flooding_logs/match/original
+BenchmarkRegexPatterns/user-device-aggregator_flooding_logs/match/original-16                            	 1000000	      1180 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/user-device-aggregator_flooding_logs/miss/original
+BenchmarkRegexPatterns/user-device-aggregator_flooding_logs/miss/original-16                             	 1000000	      1065 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/deprecate_started_post/match/original
+BenchmarkRegexPatterns/deprecate_started_post/match/original-16                                          	 9573346	       125.6 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/deprecate_started_post/miss/original
+BenchmarkRegexPatterns/deprecate_started_post/miss/original-16                                           	67355185	        17.86 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/copla-enrichment-service-user_noisy_logs/match/original
+BenchmarkRegexPatterns/copla-enrichment-service-user_noisy_logs/match/original-16                        	  752551	      1606 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/copla-enrichment-service-user_noisy_logs/miss/original
+BenchmarkRegexPatterns/copla-enrichment-service-user_noisy_logs/miss/original-16                         	 1425034	       842.6 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/social_security_number_basic/match/original
+BenchmarkRegexPatterns/social_security_number_basic/match/original-16                                    	 4908445	       246.3 ns/op	     114 B/op	       7 allocs/op
+BenchmarkRegexPatterns/social_security_number_basic/miss/original
+BenchmarkRegexPatterns/social_security_number_basic/miss/original-16                                     	27472683	        43.58 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/mask_app_keys/match/original
+BenchmarkRegexPatterns/mask_app_keys/match/original-16                                                   	 3074781	       389.7 ns/op	     187 B/op	       7 allocs/op
+BenchmarkRegexPatterns/mask_app_keys/miss/original
+BenchmarkRegexPatterns/mask_app_keys/miss/original-16                                                    	 4522833	       265.7 ns/op	      73 B/op	       3 allocs/op
+BenchmarkRegexPatterns/telegraf_unsupported_distro/match/original
+BenchmarkRegexPatterns/telegraf_unsupported_distro/match/original-16                                     	 4422568	       272.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/telegraf_unsupported_distro/miss/original
+BenchmarkRegexPatterns/telegraf_unsupported_distro/miss/original-16                                      	66899730	        17.86 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/mask_aws_flame_spark_io_secret_key/match/original
+BenchmarkRegexPatterns/mask_aws_flame_spark_io_secret_key/match/original-16                              	  842893	      1439 ns/op	     177 B/op	       5 allocs/op
+BenchmarkRegexPatterns/mask_aws_flame_spark_io_secret_key/miss/original
+BenchmarkRegexPatterns/mask_aws_flame_spark_io_secret_key/miss/original-16                               	  801076	      1529 ns/op	     136 B/op	       3 allocs/op
+BenchmarkRegexPatterns/Istio_proxy_noisy_logs/match/original
+BenchmarkRegexPatterns/Istio_proxy_noisy_logs/match/original-16                                          	  752179	      1607 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Istio_proxy_noisy_logs/miss/original
+BenchmarkRegexPatterns/Istio_proxy_noisy_logs/miss/original-16                                           	  671661	      1796 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/match/original-16               	  607612	      2017 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/miss/original-16                	  473763	      2528 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/deprecate_request_params/match/original
+BenchmarkRegexPatterns/deprecate_request_params/match/original-16                                        	 7475263	       153.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/deprecate_request_params/miss/original
+BenchmarkRegexPatterns/deprecate_request_params/miss/original-16                                         	70187070	        17.64 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/amex_credit_card/match/original
+BenchmarkRegexPatterns/amex_credit_card/match/original-16                                                	 5045560	       239.0 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/amex_credit_card/miss/original
+BenchmarkRegexPatterns/amex_credit_card/miss/original-16                                                 	27994731	        43.24 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_oauth/match/original
+BenchmarkRegexPatterns/facebook_oauth/match/original-16                                                  	 1682382	       713.2 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_oauth/miss/original
+BenchmarkRegexPatterns/facebook_oauth/miss/original-16                                                   	 1000000	      1158 ns/op	      88 B/op	       3 allocs/op
+BenchmarkRegexPatterns/facebook_oauth/match/gpt
+BenchmarkRegexPatterns/facebook_oauth/match/gpt-16                                                       	 1664868	       720.9 ns/op	     113 B/op	       5 allocs/op
+BenchmarkRegexPatterns/facebook_oauth/miss/gpt
+BenchmarkRegexPatterns/facebook_oauth/miss/gpt-16                                                        	 1000000	      1176 ns/op	      88 B/op	       3 allocs/op
+BenchmarkRegexPatterns/rails_20X_ok/match/original
+BenchmarkRegexPatterns/rails_20X_ok/match/original-16                                                    	 5496723	       218.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/rails_20X_ok/miss/original
+BenchmarkRegexPatterns/rails_20X_ok/miss/original-16                                                     	 4981321	       241.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/JSON_serializing_error/match/original
+BenchmarkRegexPatterns/JSON_serializing_error/match/original-16                                          	  874156	      1358 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/JSON_serializing_error/miss/original
+BenchmarkRegexPatterns/JSON_serializing_error/miss/original-16                                           	  951037	      1277 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_master_service/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_master_service/match/original-16                          	  406284	      2955 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_master_service/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_master_service/miss/original-16                           	  373694	      3205 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_content-builtin-api/match/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_content-builtin-api/match/original-16                     	 1000000	      1124 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/removed_noisy_logs_from_content-builtin-api/miss/original
+BenchmarkRegexPatterns/removed_noisy_logs_from_content-builtin-api/miss/original-16                      	 1380268	       874.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/SLF4J_System_out_logs/match/original
+BenchmarkRegexPatterns/SLF4J_System_out_logs/match/original-16                                           	 6695205	       178.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/SLF4J_System_out_logs/miss/original
+BenchmarkRegexPatterns/SLF4J_System_out_logs/miss/original-16                                            	35207048	        34.49 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_healthcheck/match/original
+BenchmarkRegexPatterns/exclude_healthcheck/match/original-16                                             	10120855	       117.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_healthcheck/miss/original
+BenchmarkRegexPatterns/exclude_healthcheck/miss/original-16                                              	68073036	        17.96 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/authorization_basic/match/original
+BenchmarkRegexPatterns/authorization_basic/match/original-16                                             	 3573274	       336.3 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/authorization_basic/miss/original
+BenchmarkRegexPatterns/authorization_basic/miss/original-16                                              	 3330751	       360.2 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/authorization_basic/match/gpt
+BenchmarkRegexPatterns/authorization_basic/match/gpt-16                                                  	 3570892	       335.7 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/authorization_basic/miss/gpt
+BenchmarkRegexPatterns/authorization_basic/miss/gpt-16                                                   	 3338205	       360.4 ns/op	      56 B/op	       3 allocs/op
+BenchmarkRegexPatterns/authorization_bearer/match/original
+BenchmarkRegexPatterns/authorization_bearer/match/original-16                                            	 4333488	       275.4 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/authorization_bearer/miss/original
+BenchmarkRegexPatterns/authorization_bearer/miss/original-16                                             	 4087995	       292.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/authorization_bearer/match/gpt
+BenchmarkRegexPatterns/authorization_bearer/match/gpt-16                                                 	 4366866	       278.6 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/authorization_bearer/miss/gpt
+BenchmarkRegexPatterns/authorization_bearer/miss/gpt-16                                                  	 4053981	       295.4 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/match/original
+BenchmarkRegexPatterns/syncing_iptables_rules/match/original-16                                          	 5458594	       222.8 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/miss/original
+BenchmarkRegexPatterns/syncing_iptables_rules/miss/original-16                                           	67942956	        17.79 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/match/mistral
+BenchmarkRegexPatterns/syncing_iptables_rules/match/mistral-16                                           	 5754218	       206.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/miss/mistral
+BenchmarkRegexPatterns/syncing_iptables_rules/miss/mistral-16                                            	68247897	        17.71 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Bad_Open_telemetry_configuration/match/original
+BenchmarkRegexPatterns/Bad_Open_telemetry_configuration/match/original-16                                	 1293853	       926.9 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Bad_Open_telemetry_configuration/miss/original
+BenchmarkRegexPatterns/Bad_Open_telemetry_configuration/miss/original-16                                 	 1377830	       870.0 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/ssn_basic/match/original
+BenchmarkRegexPatterns/ssn_basic/match/original-16                                                       	 2781364	       431.6 ns/op	     154 B/op	       7 allocs/op
+BenchmarkRegexPatterns/ssn_basic/miss/original
+BenchmarkRegexPatterns/ssn_basic/miss/original-16                                                        	 1605001	       745.3 ns/op	      40 B/op	       3 allocs/op
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/match/original
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/match/original-16                                	 4828196	       249.6 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/miss/original
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/miss/original-16                                 	 2917312	       410.4 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/match/gpt
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/match/gpt-16                                     	 4846002	       248.1 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/miss/gpt
+BenchmarkRegexPatterns/visa_mc_discover_jcb_credit_card/miss/gpt-16                                      	 2916817	       415.5 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_drive_api_key/match/original
+BenchmarkRegexPatterns/google_drive_api_key/match/original-16                                            	 3674691	       326.2 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_drive_api_key/miss/original
+BenchmarkRegexPatterns/google_drive_api_key/miss/original-16                                             	25986048	        46.94 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_drive_api_key/match/gpt
+BenchmarkRegexPatterns/google_drive_api_key/match/gpt-16                                                 	 3639025	       331.8 ns/op	     114 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_drive_api_key/miss/gpt
+BenchmarkRegexPatterns/google_drive_api_key/miss/gpt-16                                                  	25061239	        46.72 ns/op	      72 B/op	       3 allocs/op
+BenchmarkRegexPatterns/twilio_mfa_token/match/original
+BenchmarkRegexPatterns/twilio_mfa_token/match/original-16                                                	 4414383	       258.2 ns/op	      98 B/op	       5 allocs/op
+BenchmarkRegexPatterns/twilio_mfa_token/miss/original
+BenchmarkRegexPatterns/twilio_mfa_token/miss/original-16                                                 	26516797	        44.82 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/match/original
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/match/original-16                                 	 5873574	       204.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/miss/original
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/miss/original-16                                  	34592557	        33.80 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/match/gpt
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/match/gpt-16                                      	 5863466	       205.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/miss/gpt
+BenchmarkRegexPatterns/exclude_g2s_publish_errors_logs/miss/gpt-16                                       	34929794	        33.91 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/k8s_filter5/match/original
+BenchmarkRegexPatterns/k8s_filter5/match/original-16                                                     	 2827705	       424.8 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/k8s_filter5/miss/original
+BenchmarkRegexPatterns/k8s_filter5/miss/original-16                                                      	69585890	        17.65 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/Filer_DD_agent_logs_-_UTC/match/original
+BenchmarkRegexPatterns/Filer_DD_agent_logs_-_UTC/match/original-16                                       	 1211244	       991.1 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/Filer_DD_agent_logs_-_UTC/miss/original
+BenchmarkRegexPatterns/Filer_DD_agent_logs_-_UTC/miss/original-16                                        	 1399443	       856.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/google_oauth_access_token/match/original
+BenchmarkRegexPatterns/google_oauth_access_token/match/original-16                                       	 5109439	       231.6 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_oauth_access_token/miss/original
+BenchmarkRegexPatterns/google_oauth_access_token/miss/original-16                                        	28252438	        42.50 ns/op	      32 B/op	       3 allocs/op
+BenchmarkRegexPatterns/google_oauth_access_token/match/gpt
+BenchmarkRegexPatterns/google_oauth_access_token/match/gpt-16                                            	 5227687	       229.2 ns/op	     147 B/op	       5 allocs/op
+BenchmarkRegexPatterns/google_oauth_access_token/miss/gpt
+BenchmarkRegexPatterns/google_oauth_access_token/miss/gpt-16                                             	28695261	        42.05 ns/op	      32 B/op	       3 allocs/op
+PASS
+ok  	github.com/DataDog/datadog-agent/pkg/logs/processor	463.974s

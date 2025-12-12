@@ -1,0 +1,951 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+                                                                               │ original.txt  │                gpt.txt                │              mistral.txt              │               qwen.txt               │
+                                                                               │    sec/op     │    sec/op      vs base                │    sec/op     vs base                 │    sec/op     vs base                │
+RegexPatterns/reset_password_token/match-16                                       350.1n ± ∞ ¹
+RegexPatterns/reset_password_token/miss-16                                        461.0n ± ∞ ¹
+RegexPatterns/Scrub_portal_token/match-16                                         751.8n ± ∞ ¹
+RegexPatterns/Scrub_portal_token/miss-16                                          779.7n ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/match-16                                  1.110µ ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/miss-16                                   984.5n ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/match-16                                     1.254µ ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/miss-16                                      1.150µ ± ∞ ¹
+RegexPatterns/aws_mws_key/match-16                                                354.0n ± ∞ ¹    354.6n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/aws_mws_key/miss-16                                                 685.8n ± ∞ ¹    683.5n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/okta_oauth_admin_penny/match-16                                     521.7n ± ∞ ¹
+RegexPatterns/okta_oauth_admin_penny/miss-16                                      26.65n ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/match-16                262.7n ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/miss-16                 48.39n ± ∞ ¹
+RegexPatterns/no_info/match-16                                                    214.3n ± ∞ ¹    206.3n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/no_info/miss-16                                                     381.1n ± ∞ ¹    257.3n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Launch_Darkly_noisy_logs/match-16                                   1.140µ ± ∞ ¹
+RegexPatterns/Launch_Darkly_noisy_logs/miss-16                                    574.2n ± ∞ ¹
+RegexPatterns/first_name_tag/match-16                                             327.7n ± ∞ ¹
+RegexPatterns/first_name_tag/miss-16                                              342.8n ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/match-16                                    659.3n ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/miss-16                                     705.3n ± ∞ ¹
+RegexPatterns/facebook_client_id/match-16                                         516.5n ± ∞ ¹
+RegexPatterns/facebook_client_id/miss-16                                          594.3n ± ∞ ¹
+RegexPatterns/k8s_filter6/match-16                                                523.3n ± ∞ ¹
+RegexPatterns/k8s_filter6/miss-16                                                 62.62n ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/match-16             2.891µ ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/miss-16              3.446µ ± ∞ ¹
+RegexPatterns/RFC_5322_email/match-16                                             279.8n ± ∞ ¹
+RegexPatterns/RFC_5322_email/miss-16                                              677.3n ± ∞ ¹
+RegexPatterns/google_drive_oauth/match-16                                         522.0n ± ∞ ¹
+RegexPatterns/google_drive_oauth/miss-16                                          914.9n ± ∞ ¹
+RegexPatterns/large_integer_leaks/match-16                                        1.047µ ± ∞ ¹
+RegexPatterns/large_integer_leaks/miss-16                                         1.447µ ± ∞ ¹
+RegexPatterns/Scrub_finder_user/match-16                                          739.7n ± ∞ ¹
+RegexPatterns/Scrub_finder_user/miss-16                                           522.3n ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/match-16                    990.2n ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/miss-16                     886.4n ± ∞ ¹
+RegexPatterns/Act_noisy_logs/match-16                                             1.463µ ± ∞ ¹
+RegexPatterns/Act_noisy_logs/miss-16                                              1.496µ ± ∞ ¹
+RegexPatterns/dob_tag/match-16                                                    273.4n ± ∞ ¹
+RegexPatterns/dob_tag/miss-16                                                     255.1n ± ∞ ¹
+RegexPatterns/vault_token/match-16                                                285.5n ± ∞ ¹    286.8n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vault_token/miss-16                                                 471.9n ± ∞ ¹    463.5n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter1/match-16                                                366.1n ± ∞ ¹
+RegexPatterns/k8s_filter1/miss-16                                                 16.92n ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/match-16                          777.4n ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/miss-16                           851.8n ± ∞ ¹
+RegexPatterns/exclude_metrics_listener/match-16                                   393.8n ± ∞ ¹                                           433.4n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_metrics_listener/miss-16                                   344.20n ± ∞ ¹                                           49.20n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/github/match-16                                                     609.4n ± ∞ ¹
+RegexPatterns/github/miss-16                                                      46.87n ± ∞ ¹
+RegexPatterns/twilio_api_key/match-16                                             319.1n ± ∞ ¹    313.7n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_api_key/miss-16                                              503.7n ± ∞ ¹    487.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/reset_phone_token/match-16                                          329.2n ± ∞ ¹    311.3n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/reset_phone_token/miss-16                                           162.8n ± ∞ ¹    162.6n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/replace_host_key/match-16                                           166.4n ± ∞ ¹
+RegexPatterns/replace_host_key/miss-16                                            19.61n ± ∞ ¹
+RegexPatterns/k8s_filter2/match-16                                                97.28n ± ∞ ¹
+RegexPatterns/k8s_filter2/miss-16                                                 83.56n ± ∞ ¹
+RegexPatterns/aws_client_id/match-16                                              265.3n ± ∞ ¹
+RegexPatterns/aws_client_id/miss-16                                               612.9n ± ∞ ¹
+RegexPatterns/google_gmail_api_key/match-16                                       387.1n ± ∞ ¹    386.7n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_gmail_api_key/miss-16                                        546.5n ± ∞ ¹    552.3n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_api_key/match-16                        318.6n ± ∞ ¹    311.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_api_key/miss-16                         1.855µ ± ∞ ¹    1.817µ ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_api_keys/match-16                                              283.1n ± ∞ ¹
+RegexPatterns/mask_api_keys/miss-16                                               216.8n ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/match-16                  1.225µ ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/miss-16                   1.125µ ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/match-16                                 1.012µ ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/miss-16                                  910.9n ± ∞ ¹
+RegexPatterns/exclude_sensitive_info/match-16                                     147.1n ± ∞ ¹    149.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_sensitive_info/miss-16                                      325.9n ± ∞ ¹    324.2n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_api_key/match-16                                             372.4n ± ∞ ¹
+RegexPatterns/google_api_key/miss-16                                              523.2n ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/match-16                           1.414µ ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/miss-16                            1.341µ ± ∞ ¹
+RegexPatterns/processing_by/match-16                                              542.4n ± ∞ ¹
+RegexPatterns/processing_by/miss-16                                               317.6n ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/match-16               359.9n ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/miss-16                48.15n ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/match-16    1.700µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/miss-16     1.797µ ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/match-16                                  219.0n ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/miss-16                                   19.10n ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/match-16                                           302.8n ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/miss-16                                            241.2n ± ∞ ¹
+RegexPatterns/exclude_pts_reset_logs/match-16                                     124.1n ± ∞ ¹                                                                                   124.2n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_pts_reset_logs/miss-16                                      17.07n ± ∞ ¹                                                                                   17.31n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Content-exchange-service_noisy_logs/match-16                        1.685µ ± ∞ ¹
+RegexPatterns/Content-exchange-service_noisy_logs/miss-16                         1.667µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/match-16                       229.5n ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/miss-16                        17.48n ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/match-16                                          1.321µ ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/miss-16                                           941.3n ± ∞ ¹
+RegexPatterns/diners_credit_card/match-16                                         235.4n ± ∞ ¹    232.1n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/diners_credit_card/miss-16                                          43.73n ± ∞ ¹    42.19n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/match-16              1.490µ ± ∞ ¹
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/miss-16               686.7n ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/match-16                             1.171µ ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/miss-16                              717.2n ± ∞ ¹
+RegexPatterns/last_name_tag/match-16                                              299.7n ± ∞ ¹
+RegexPatterns/last_name_tag/miss-16                                               307.3n ± ∞ ¹
+RegexPatterns/k8s_filter4/match-16                                                643.6n ± ∞ ¹
+RegexPatterns/k8s_filter4/miss-16                                                 712.8n ± ∞ ¹
+RegexPatterns/address_tags/match-16                                               772.0n ± ∞ ¹    780.8n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/address_tags/miss-16                                                856.0n ± ∞ ¹    855.1n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_secret_key/match-16                                        573.3n ± ∞ ¹
+RegexPatterns/facebook_secret_key/miss-16                                         1.037µ ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/match-16                               1.889µ ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/miss-16                                2.144µ ± ∞ ¹
+RegexPatterns/v6_flooding_logs/match-16                                           1.278µ ± ∞ ¹
+RegexPatterns/v6_flooding_logs/miss-16                                            1.012µ ± ∞ ¹
+RegexPatterns/feature_flag_init/match-16                                          482.9n ± ∞ ¹
+RegexPatterns/feature_flag_init/miss-16                                           17.49n ± ∞ ¹
+RegexPatterns/rendered_text_template/match-16                                     202.1n ± ∞ ¹
+RegexPatterns/rendered_text_template/miss-16                                      17.29n ± ∞ ¹
+RegexPatterns/cannot_create_service_service_not_found/match-16                    327.7n ± ∞ ¹                                           328.2n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_service_not_found/miss-16                     52.46n ± ∞ ¹                                           49.61n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/platform-inventory-generator_flooding_logs/match-16                 1.170µ ± ∞ ¹
+RegexPatterns/platform-inventory-generator_flooding_logs/miss-16                  950.6n ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/match-16                  4.944µ ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/miss-16                   5.031µ ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/match-16                            2.652µ ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/miss-16                             2.874µ ± ∞ ¹
+RegexPatterns/slack_token/match-16                                                425.1n ± ∞ ¹
+RegexPatterns/slack_token/miss-16                                                 361.7n ± ∞ ¹
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match-16                     253.8n ± ∞ ¹    253.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss-16                      813.1n ± ∞ ¹    799.4n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/match-16                                                  254.9n ± ∞ ¹    256.3n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/miss-16                                                   215.4n ± ∞ ¹    215.6n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_user_email/match-16                                            404.1n ± ∞ ¹
+RegexPatterns/mask_user_email/miss-16                                             722.0n ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/match-16                       971.7n ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/miss-16                        783.1n ± ∞ ¹
+RegexPatterns/date_newline/match-16                                               16.39n ± ∞ ¹    16.83n ± ∞ ¹       ~ (p=1.000 n=1) ²   16.38n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/date_newline/miss-16                                                16.69n ± ∞ ¹    16.46n ± ∞ ¹       ~ (p=1.000 n=1) ²   16.36n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_no_endpoints_found/match-16                   3.519µ ± ∞ ¹
+RegexPatterns/cannot_create_service_no_endpoints_found/miss-16                    4.131µ ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/match-16                       10.78µ ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/miss-16                        9.860µ ± ∞ ¹
+RegexPatterns/google_gmail_oauth/match-16                                         501.1n ± ∞ ¹
+RegexPatterns/google_gmail_oauth/miss-16                                          875.0n ± ∞ ¹
+RegexPatterns/social_media_instagram_o_auth_2_0/match-16                          334.1n ± ∞ ¹    334.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/social_media_instagram_o_auth_2_0/miss-16                           606.6n ± ∞ ¹    622.2n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_secret_access_key/match-16                                 316.9n ± ∞ ¹
+RegexPatterns/mask_aws_secret_access_key/miss-16                                  215.7n ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/match-16                                    1.748µ ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/miss-16                                     2.113µ ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/match-16                                   1.893µ ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/miss-16                                    2.148µ ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/match-16                        1.024µ ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/miss-16                         1.041µ ± ∞ ¹
+RegexPatterns/prn_tag/match-16                                                    352.8n ± ∞ ¹    343.8n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/prn_tag/miss-16                                                     194.2n ± ∞ ¹    191.2n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/match-16                                      245.7n ± ∞ ¹    244.0n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/miss-16                                       43.06n ± ∞ ¹    42.96n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/match-16                          869.9n ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/miss-16                           817.1n ± ∞ ¹
+RegexPatterns/exclude_health/match-16                                             87.09n ± ∞ ¹
+RegexPatterns/exclude_health/miss-16                                              17.36n ± ∞ ¹
+RegexPatterns/phone/match-16                                                      254.0n ± ∞ ¹    254.0n ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/phone/miss-16                                                       359.9n ± ∞ ¹    362.1n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/generic_query_string_value/match-16                                 490.7n ± ∞ ¹
+RegexPatterns/generic_query_string_value/miss-16                                  1.225µ ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/match-16         219.4n ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/miss-16          47.62n ± ∞ ¹
+RegexPatterns/email_address/match-16                                              528.9n ± ∞ ¹
+RegexPatterns/email_address/miss-16                                               1.490µ ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/match-16                               1.171µ ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/miss-16                                1.342µ ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/match-16                            989.3n ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/miss-16                             1.568µ ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/match-16                                     277.7n ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/miss-16                                      151.3n ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/match-16                                       331.2n ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/miss-16                                        51.25n ± ∞ ¹
+RegexPatterns/update-to-java17/match-16                                           1.390µ ± ∞ ¹
+RegexPatterns/update-to-java17/miss-16                                            1.451µ ± ∞ ¹
+RegexPatterns/github_tokens/match-16                                              215.2n ± ∞ ¹
+RegexPatterns/github_tokens/miss-16                                               89.93n ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/match-16              469.0n ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/miss-16               508.2n ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/match-16                                203.6n ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/miss-16                                 19.58n ± ∞ ¹
+RegexPatterns/skipping_service_no_endpoints_found/match-16                        3.283µ ± ∞ ¹                                           3.286µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/skipping_service_no_endpoints_found/miss-16                         3.589µ ± ∞ ¹                                           3.621µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/match-16                            5.511µ ± ∞ ¹                                           5.127µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/miss-16                             6.451µ ± ∞ ¹                                           5.945µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/match-16                     941.3n ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/miss-16                      943.3n ± ∞ ¹
+RegexPatterns/phone_tags/match-16                                                 543.0n ± ∞ ¹
+RegexPatterns/phone_tags/miss-16                                                  516.6n ± ∞ ¹
+RegexPatterns/mailto/match-16                                                     399.0n ± ∞ ¹
+RegexPatterns/mailto/miss-16                                                      729.8n ± ∞ ¹
+RegexPatterns/phone_lists/match-16                                                579.1n ± ∞ ¹
+RegexPatterns/phone_lists/miss-16                                                 730.9n ± ∞ ¹
+RegexPatterns/k8s_filter8/match-16                                                320.4n ± ∞ ¹
+RegexPatterns/k8s_filter8/miss-16                                                 17.75n ± ∞ ¹
+RegexPatterns/exclude_debug/match-16                                              429.2n ± ∞ ¹
+RegexPatterns/exclude_debug/miss-16                                               403.8n ± ∞ ¹
+RegexPatterns/missing_gcr_secret/match-16                                         2.401µ ± ∞ ¹
+RegexPatterns/missing_gcr_secret/miss-16                                          2.778µ ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/match-16                                   677.3n ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/miss-16                                    484.2n ± ∞ ¹
+RegexPatterns/social_security_number_xml/match-16                                 331.4n ± ∞ ¹    335.6n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/social_security_number_xml/miss-16                                  958.5n ± ∞ ¹    957.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/account_number/match-16                                             269.8n ± ∞ ¹
+RegexPatterns/account_number/miss-16                                              362.2n ± ∞ ¹
+RegexPatterns/exclude_datadog_tracer_logs/match-16                                417.0n ± ∞ ¹    405.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_datadog_tracer_logs/miss-16                                 758.2n ± ∞ ¹    738.1n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/match-16               295.8n ± ∞ ¹
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/miss-16                365.9n ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/match-16                              1.316µ ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/miss-16                               1.432µ ± ∞ ¹
+RegexPatterns/k8s_filter3/match-16                                                475.6n ± ∞ ¹
+RegexPatterns/k8s_filter3/miss-16                                                 490.8n ± ∞ ¹
+RegexPatterns/syncing_iptables_rules_complete/match-16                            2.171µ ± ∞ ¹                                           1.573µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules_complete/miss-16                             2.724µ ± ∞ ¹                                           1.588µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/update_hostname/match-16                                            173.8n ± ∞ ¹
+RegexPatterns/update_hostname/miss-16                                             19.65n ± ∞ ¹
+RegexPatterns/Scrub_session_id/match-16                                           641.9n ± ∞ ¹
+RegexPatterns/Scrub_session_id/miss-16                                            654.2n ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/match-16                                      1.438µ ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/miss-16                                       1.544µ ± ∞ ¹
+RegexPatterns/Telemetry/match-16                                                  2.578µ ± ∞ ¹
+RegexPatterns/Telemetry/miss-16                                                   2.696µ ± ∞ ¹
+RegexPatterns/mfa_token_android_hash/match-16                                     268.6n ± ∞ ¹    265.7n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token_android_hash/miss-16                                      44.69n ± ∞ ¹    44.60n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/remote_actions_NQL_error/match-16                                   1.168µ ± ∞ ¹
+RegexPatterns/remote_actions_NQL_error/miss-16                                    839.9n ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/match-16                           1.197µ ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/miss-16                            1.116µ ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/match-16                        2.191µ ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/miss-16                         2.367µ ± ∞ ¹
+RegexPatterns/deprecate_started_get/match-16                                      117.7n ± ∞ ¹
+RegexPatterns/deprecate_started_get/miss-16                                       17.93n ± ∞ ¹
+RegexPatterns/galileo_account_number/match-16                                     508.0n ± ∞ ¹    238.5n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/galileo_account_number/miss-16                                      424.0n ± ∞ ¹    240.0n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/match-16                                        537.6n ± ∞ ¹    539.7n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/miss-16                                         56.63n ± ∞ ¹    56.05n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_transcript_insights_warning_multiline/match-16              392.2n ± ∞ ¹
+RegexPatterns/exclude_transcript_insights_warning_multiline/miss-16               17.86n ± ∞ ¹
+RegexPatterns/k8s_filter7/match-16                                                192.0n ± ∞ ¹
+RegexPatterns/k8s_filter7/miss-16                                                 17.96n ± ∞ ¹
+RegexPatterns/exclude_tracestate_character_warning/match-16                       5.826µ ± ∞ ¹    5.840µ ± ∞ ¹       ~ (p=1.000 n=1) ²   1.142µ ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_tracestate_character_warning/miss-16                       2068.0n ± ∞ ¹   2057.0n ± ∞ ¹       ~ (p=1.000 n=1) ²   988.5n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/user-device-aggregator_flooding_logs/match-16                       1.180µ ± ∞ ¹
+RegexPatterns/user-device-aggregator_flooding_logs/miss-16                        1.065µ ± ∞ ¹
+RegexPatterns/deprecate_started_post/match-16                                     125.6n ± ∞ ¹
+RegexPatterns/deprecate_started_post/miss-16                                      17.86n ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/match-16                   1.606µ ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/miss-16                    842.6n ± ∞ ¹
+RegexPatterns/social_security_number_basic/match-16                               246.3n ± ∞ ¹
+RegexPatterns/social_security_number_basic/miss-16                                43.58n ± ∞ ¹
+RegexPatterns/mask_app_keys/match-16                                              389.7n ± ∞ ¹
+RegexPatterns/mask_app_keys/miss-16                                               265.7n ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/match-16                                272.1n ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/miss-16                                 17.86n ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/match-16                         1.439µ ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/miss-16                          1.529µ ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/match-16                                     1.607µ ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/miss-16                                      1.796µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/match-16          2.017µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/miss-16           2.528µ ± ∞ ¹
+RegexPatterns/deprecate_request_params/match-16                                   153.2n ± ∞ ¹
+RegexPatterns/deprecate_request_params/miss-16                                    17.64n ± ∞ ¹
+RegexPatterns/amex_credit_card/match-16                                           239.0n ± ∞ ¹
+RegexPatterns/amex_credit_card/miss-16                                            43.24n ± ∞ ¹
+RegexPatterns/facebook_oauth/match-16                                             713.2n ± ∞ ¹    720.9n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_oauth/miss-16                                              1.158µ ± ∞ ¹    1.176µ ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/rails_20X_ok/match-16                                               218.2n ± ∞ ¹
+RegexPatterns/rails_20X_ok/miss-16                                                241.8n ± ∞ ¹
+RegexPatterns/JSON_serializing_error/match-16                                     1.358µ ± ∞ ¹
+RegexPatterns/JSON_serializing_error/miss-16                                      1.277µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/match-16                     2.955µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/miss-16                      3.205µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/match-16                1.124µ ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/miss-16                 874.4n ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/match-16                                      178.3n ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/miss-16                                       34.49n ± ∞ ¹
+RegexPatterns/exclude_healthcheck/match-16                                        117.9n ± ∞ ¹
+RegexPatterns/exclude_healthcheck/miss-16                                         17.96n ± ∞ ¹
+RegexPatterns/authorization_basic/match-16                                        336.3n ± ∞ ¹    335.7n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_basic/miss-16                                         360.2n ± ∞ ¹    360.4n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/match-16                                       275.4n ± ∞ ¹    278.6n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/miss-16                                        292.9n ± ∞ ¹    295.4n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/match-16                                     222.8n ± ∞ ¹                                           206.3n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/miss-16                                      17.79n ± ∞ ¹                                           17.71n ± ∞ ¹        ~ (p=1.000 n=1) ²
+RegexPatterns/Bad_Open_telemetry_configuration/match-16                           926.9n ± ∞ ¹
+RegexPatterns/Bad_Open_telemetry_configuration/miss-16                            870.0n ± ∞ ¹
+RegexPatterns/ssn_basic/match-16                                                  431.6n ± ∞ ¹
+RegexPatterns/ssn_basic/miss-16                                                   745.3n ± ∞ ¹
+RegexPatterns/visa_mc_discover_jcb_credit_card/match-16                           249.6n ± ∞ ¹    248.1n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_discover_jcb_credit_card/miss-16                            410.4n ± ∞ ¹    415.5n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/match-16                                       326.2n ± ∞ ¹    331.8n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/miss-16                                        46.94n ± ∞ ¹    46.72n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_mfa_token/match-16                                           258.2n ± ∞ ¹
+RegexPatterns/twilio_mfa_token/miss-16                                            44.82n ± ∞ ¹
+RegexPatterns/exclude_g2s_publish_errors_logs/match-16                            204.4n ± ∞ ¹    205.4n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_g2s_publish_errors_logs/miss-16                             33.80n ± ∞ ¹    33.91n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter5/match-16                                                424.8n ± ∞ ¹
+RegexPatterns/k8s_filter5/miss-16                                                 17.65n ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/match-16                                  991.1n ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/miss-16                                   856.4n ± ∞ ¹
+RegexPatterns/google_oauth_access_token/match-16                                  231.6n ± ∞ ¹    229.2n ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_oauth_access_token/miss-16                                   42.50n ± ∞ ¹    42.05n ± ∞ ¹       ~ (p=1.000 n=1) ²
+geomean                                                                           428.1n          278.1n        -3.22%               ⁴   394.7n        -28.55%               ⁴   46.37n        +0.74%               ⁴
+¹ need >= 6 samples for confidence interval at level 0.95
+² need >= 4 samples to detect a difference at alpha level 0.05
+³ all samples are equal
+⁴ benchmark set differs from baseline; geomeans may not be comparable
+
+                                                                               │ original.txt │               gpt.txt                │             mistral.txt              │              qwen.txt               │
+                                                                               │     B/op     │     B/op      vs base                │     B/op      vs base                │    B/op      vs base                │
+RegexPatterns/reset_password_token/match-16                                       114.0 ± ∞ ¹
+RegexPatterns/reset_password_token/miss-16                                        56.00 ± ∞ ¹
+RegexPatterns/Scrub_portal_token/match-16                                         32.00 ± ∞ ¹
+RegexPatterns/Scrub_portal_token/miss-16                                          8.000 ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/match-16                                  32.00 ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/miss-16                                   8.000 ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/match-16                                     32.00 ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/aws_mws_key/match-16                                                97.00 ± ∞ ¹    97.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/aws_mws_key/miss-16                                                 72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/okta_oauth_admin_penny/match-16                                     146.0 ± ∞ ¹
+RegexPatterns/okta_oauth_admin_penny/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/match-16                147.0 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/miss-16                 48.00 ± ∞ ¹
+RegexPatterns/no_info/match-16                                                    32.00 ± ∞ ¹    32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/no_info/miss-16                                                     8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Launch_Darkly_noisy_logs/match-16                                   32.00 ± ∞ ¹
+RegexPatterns/Launch_Darkly_noisy_logs/miss-16                                    8.000 ± ∞ ¹
+RegexPatterns/first_name_tag/match-16                                             146.0 ± ∞ ¹
+RegexPatterns/first_name_tag/miss-16                                              56.00 ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/match-16                                    243.0 ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/miss-16                                     72.00 ± ∞ ¹
+RegexPatterns/facebook_client_id/match-16                                         113.0 ± ∞ ¹
+RegexPatterns/facebook_client_id/miss-16                                          48.00 ± ∞ ¹
+RegexPatterns/k8s_filter6/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter6/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/match-16             32.00 ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/miss-16              8.000 ± ∞ ¹
+RegexPatterns/RFC_5322_email/match-16                                             114.0 ± ∞ ¹
+RegexPatterns/RFC_5322_email/miss-16                                              48.00 ± ∞ ¹
+RegexPatterns/google_drive_oauth/match-16                                         113.0 ± ∞ ¹
+RegexPatterns/google_drive_oauth/miss-16                                          104.0 ± ∞ ¹
+RegexPatterns/large_integer_leaks/match-16                                        242.0 ± ∞ ¹
+RegexPatterns/large_integer_leaks/miss-16                                         88.00 ± ∞ ¹
+RegexPatterns/Scrub_finder_user/match-16                                          32.00 ± ∞ ¹
+RegexPatterns/Scrub_finder_user/miss-16                                           8.000 ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/match-16                    32.00 ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/miss-16                     8.000 ± ∞ ¹
+RegexPatterns/Act_noisy_logs/match-16                                             32.00 ± ∞ ¹
+RegexPatterns/Act_noisy_logs/miss-16                                              8.000 ± ∞ ¹
+RegexPatterns/dob_tag/match-16                                                    98.00 ± ∞ ¹
+RegexPatterns/dob_tag/miss-16                                                     48.00 ± ∞ ¹
+RegexPatterns/vault_token/match-16                                                97.00 ± ∞ ¹    98.00 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/vault_token/miss-16                                                 56.00 ± ∞ ¹    56.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter1/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter1/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/match-16                          32.00 ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/miss-16                           8.000 ± ∞ ¹
+RegexPatterns/exclude_metrics_listener/match-16                                   32.00 ± ∞ ¹                                           32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_metrics_listener/miss-16                                    8.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/github/match-16                                                     97.00 ± ∞ ¹
+RegexPatterns/github/miss-16                                                      72.00 ± ∞ ¹
+RegexPatterns/twilio_api_key/match-16                                             114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_api_key/miss-16                                              72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/reset_phone_token/match-16                                          195.0 ± ∞ ¹    196.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/reset_phone_token/miss-16                                           48.00 ± ∞ ¹    48.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/replace_host_key/match-16                                           82.00 ± ∞ ¹
+RegexPatterns/replace_host_key/miss-16                                            8.000 ± ∞ ¹
+RegexPatterns/k8s_filter2/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter2/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/aws_client_id/match-16                                              97.00 ± ∞ ¹
+RegexPatterns/aws_client_id/miss-16                                               48.00 ± ∞ ¹
+RegexPatterns/google_gmail_api_key/match-16                                       179.0 ± ∞ ¹    179.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_gmail_api_key/miss-16                                        72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_api_key/match-16                        146.0 ± ∞ ¹    147.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/cloud_google_cloud_platform_api_key/miss-16                         56.00 ± ∞ ¹    56.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_api_keys/match-16                                              146.0 ± ∞ ¹
+RegexPatterns/mask_api_keys/miss-16                                               73.00 ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/match-16                  32.00 ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/miss-16                   8.000 ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/match-16                                 32.00 ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/miss-16                                  8.000 ± ∞ ¹
+RegexPatterns/exclude_sensitive_info/match-16                                     32.00 ± ∞ ¹    32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_sensitive_info/miss-16                                      8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_api_key/match-16                                             113.0 ± ∞ ¹
+RegexPatterns/google_api_key/miss-16                                              72.00 ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/match-16                           32.00 ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/miss-16                            8.000 ± ∞ ¹
+RegexPatterns/processing_by/match-16                                              32.00 ± ∞ ¹
+RegexPatterns/processing_by/miss-16                                               8.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/match-16               32.00 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/miss-16                8.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/match-16    32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/miss-16     8.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/match-16                                  147.0 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/miss-16                                   8.000 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/match-16                                           147.0 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/miss-16                                            73.00 ± ∞ ¹
+RegexPatterns/exclude_pts_reset_logs/match-16                                     32.00 ± ∞ ¹                                                                                 32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_pts_reset_logs/miss-16                                      8.000 ± ∞ ¹                                                                                 8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Content-exchange-service_noisy_logs/match-16                        32.00 ± ∞ ¹
+RegexPatterns/Content-exchange-service_noisy_logs/miss-16                         8.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/match-16                       32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/miss-16                        8.000 ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/match-16                                          32.00 ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/miss-16                                           8.000 ± ∞ ¹
+RegexPatterns/diners_credit_card/match-16                                         114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/diners_credit_card/miss-16                                          40.00 ± ∞ ¹    40.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/match-16              32.00 ± ∞ ¹
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/miss-16               8.000 ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/match-16                             32.00 ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/miss-16                              8.000 ± ∞ ¹
+RegexPatterns/last_name_tag/match-16                                              147.0 ± ∞ ¹
+RegexPatterns/last_name_tag/miss-16                                               56.00 ± ∞ ¹
+RegexPatterns/k8s_filter4/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter4/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/address_tags/match-16                                               235.0 ± ∞ ¹    235.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/address_tags/miss-16                                                72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_secret_key/match-16                                        113.0 ± ∞ ¹
+RegexPatterns/facebook_secret_key/miss-16                                         72.00 ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/match-16                               32.00 ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/miss-16                                8.000 ± ∞ ¹
+RegexPatterns/v6_flooding_logs/match-16                                           32.00 ± ∞ ¹
+RegexPatterns/v6_flooding_logs/miss-16                                            8.000 ± ∞ ¹
+RegexPatterns/feature_flag_init/match-16                                          32.00 ± ∞ ¹
+RegexPatterns/feature_flag_init/miss-16                                           8.000 ± ∞ ¹
+RegexPatterns/rendered_text_template/match-16                                     32.00 ± ∞ ¹
+RegexPatterns/rendered_text_template/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_not_found/match-16                    32.00 ± ∞ ¹                                           32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_service_not_found/miss-16                     8.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/platform-inventory-generator_flooding_logs/match-16                 32.00 ± ∞ ¹
+RegexPatterns/platform-inventory-generator_flooding_logs/miss-16                  8.000 ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/match-16                  32.00 ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/miss-16                   8.000 ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/match-16                            32.00 ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/miss-16                             8.000 ± ∞ ¹
+RegexPatterns/slack_token/match-16                                                97.00 ± ∞ ¹
+RegexPatterns/slack_token/miss-16                                                 89.00 ± ∞ ¹
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match-16                     179.0 ± ∞ ¹    180.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss-16                      56.00 ± ∞ ¹    56.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/match-16                                                  114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/miss-16                                                   40.00 ± ∞ ¹    40.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_user_email/match-16                                            81.00 ± ∞ ¹
+RegexPatterns/mask_user_email/miss-16                                             56.00 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/match-16                       177.0 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/miss-16                        72.00 ± ∞ ¹
+RegexPatterns/date_newline/match-16                                               8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/date_newline/miss-16                                                8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_no_endpoints_found/match-16                   32.00 ± ∞ ¹
+RegexPatterns/cannot_create_service_no_endpoints_found/miss-16                    8.000 ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/match-16                       32.00 ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/miss-16                        8.000 ± ∞ ¹
+RegexPatterns/google_gmail_oauth/match-16                                         113.0 ± ∞ ¹
+RegexPatterns/google_gmail_oauth/miss-16                                          104.0 ± ∞ ¹
+RegexPatterns/social_media_instagram_o_auth_2_0/match-16                          146.0 ± ∞ ¹    147.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/social_media_instagram_o_auth_2_0/miss-16                           72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_secret_access_key/match-16                                 114.0 ± ∞ ¹
+RegexPatterns/mask_aws_secret_access_key/miss-16                                  48.00 ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/match-16                                    32.00 ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/miss-16                                     8.000 ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/match-16                                   32.00 ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/miss-16                                    8.000 ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/match-16                        32.00 ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/miss-16                         8.000 ± ∞ ¹
+RegexPatterns/prn_tag/match-16                                                    146.0 ± ∞ ¹    146.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/prn_tag/miss-16                                                     73.00 ± ∞ ¹    73.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/match-16                                      114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/miss-16                                       40.00 ± ∞ ¹    40.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/match-16                          145.0 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/miss-16                           88.00 ± ∞ ¹
+RegexPatterns/exclude_health/match-16                                             32.00 ± ∞ ¹
+RegexPatterns/exclude_health/miss-16                                              8.000 ± ∞ ¹
+RegexPatterns/phone/match-16                                                      98.00 ± ∞ ¹    98.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/phone/miss-16                                                       40.00 ± ∞ ¹    40.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/generic_query_string_value/match-16                                 138.0 ± ∞ ¹
+RegexPatterns/generic_query_string_value/miss-16                                  40.00 ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/match-16         147.0 ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/miss-16          40.00 ± ∞ ¹
+RegexPatterns/email_address/match-16                                              81.00 ± ∞ ¹
+RegexPatterns/email_address/miss-16                                               72.00 ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/match-16                               32.00 ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/miss-16                                8.000 ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/match-16                            32.00 ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/miss-16                             8.000 ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/match-16                                     98.00 ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/miss-16                                      49.00 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/match-16                                       146.0 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/miss-16                                        72.00 ± ∞ ¹
+RegexPatterns/update-to-java17/match-16                                           32.00 ± ∞ ¹
+RegexPatterns/update-to-java17/miss-16                                            8.000 ± ∞ ¹
+RegexPatterns/github_tokens/match-16                                              98.00 ± ∞ ¹
+RegexPatterns/github_tokens/miss-16                                               41.00 ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/match-16              32.00 ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/miss-16               8.000 ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/match-16                                90.00 ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/miss-16                                 8.000 ± ∞ ¹
+RegexPatterns/skipping_service_no_endpoints_found/match-16                        32.00 ± ∞ ¹                                           32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/skipping_service_no_endpoints_found/miss-16                         8.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/match-16                            32.00 ± ∞ ¹                                           32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/miss-16                             8.000 ± ∞ ¹                                          32.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/match-16                     32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/miss-16                      8.000 ± ∞ ¹
+RegexPatterns/phone_tags/match-16                                                 194.0 ± ∞ ¹
+RegexPatterns/phone_tags/miss-16                                                  48.00 ± ∞ ¹
+RegexPatterns/mailto/match-16                                                     97.00 ± ∞ ¹
+RegexPatterns/mailto/miss-16                                                      56.00 ± ∞ ¹
+RegexPatterns/phone_lists/match-16                                                170.0 ± ∞ ¹
+RegexPatterns/phone_lists/miss-16                                                 72.00 ± ∞ ¹
+RegexPatterns/k8s_filter8/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter8/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/exclude_debug/match-16                                              32.00 ± ∞ ¹
+RegexPatterns/exclude_debug/miss-16                                               8.000 ± ∞ ¹
+RegexPatterns/missing_gcr_secret/match-16                                         32.00 ± ∞ ¹
+RegexPatterns/missing_gcr_secret/miss-16                                          8.000 ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/match-16                                   32.00 ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/miss-16                                    8.000 ± ∞ ¹
+RegexPatterns/social_security_number_xml/match-16                                 261.0 ± ∞ ¹    260.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/social_security_number_xml/miss-16                                  48.00 ± ∞ ¹    48.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/account_number/match-16                                             114.0 ± ∞ ¹
+RegexPatterns/account_number/miss-16                                              48.00 ± ∞ ¹
+RegexPatterns/exclude_datadog_tracer_logs/match-16                                32.00 ± ∞ ¹    32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_datadog_tracer_logs/miss-16                                 8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/match-16               98.00 ± ∞ ¹
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/miss-16                48.00 ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/match-16                              177.0 ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/miss-16                               136.0 ± ∞ ¹
+RegexPatterns/k8s_filter3/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter3/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/syncing_iptables_rules_complete/match-16                           32.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/syncing_iptables_rules_complete/miss-16                             8.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/update_hostname/match-16                                            65.00 ± ∞ ¹
+RegexPatterns/update_hostname/miss-16                                             8.000 ± ∞ ¹
+RegexPatterns/Scrub_session_id/match-16                                           32.00 ± ∞ ¹
+RegexPatterns/Scrub_session_id/miss-16                                            8.000 ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/match-16                                      32.00 ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/miss-16                                       8.000 ± ∞ ¹
+RegexPatterns/Telemetry/match-16                                                  32.00 ± ∞ ¹
+RegexPatterns/Telemetry/miss-16                                                   8.000 ± ∞ ¹
+RegexPatterns/mfa_token_android_hash/match-16                                     98.00 ± ∞ ¹    98.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token_android_hash/miss-16                                      48.00 ± ∞ ¹    48.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/remote_actions_NQL_error/match-16                                   32.00 ± ∞ ¹
+RegexPatterns/remote_actions_NQL_error/miss-16                                    8.000 ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/match-16                           32.00 ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/miss-16                            8.000 ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/match-16                        32.00 ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/miss-16                         8.000 ± ∞ ¹
+RegexPatterns/deprecate_started_get/match-16                                      32.00 ± ∞ ¹
+RegexPatterns/deprecate_started_get/miss-16                                       8.000 ± ∞ ¹
+RegexPatterns/galileo_account_number/match-16                                     178.0 ± ∞ ¹    105.0 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/galileo_account_number/miss-16                                      105.0 ± ∞ ¹    105.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/match-16                                        178.0 ± ∞ ¹    178.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/miss-16                                         104.0 ± ∞ ¹    104.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_transcript_insights_warning_multiline/match-16              32.00 ± ∞ ¹
+RegexPatterns/exclude_transcript_insights_warning_multiline/miss-16               8.000 ± ∞ ¹
+RegexPatterns/k8s_filter7/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter7/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/exclude_tracestate_character_warning/match-16                      32.000 ± ∞ ¹   32.000 ± ∞ ¹       ~ (p=1.000 n=1) ²    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/exclude_tracestate_character_warning/miss-16                        8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/user-device-aggregator_flooding_logs/match-16                       32.00 ± ∞ ¹
+RegexPatterns/user-device-aggregator_flooding_logs/miss-16                        8.000 ± ∞ ¹
+RegexPatterns/deprecate_started_post/match-16                                     32.00 ± ∞ ¹
+RegexPatterns/deprecate_started_post/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/match-16                   32.00 ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/miss-16                    8.000 ± ∞ ¹
+RegexPatterns/social_security_number_basic/match-16                               114.0 ± ∞ ¹
+RegexPatterns/social_security_number_basic/miss-16                                40.00 ± ∞ ¹
+RegexPatterns/mask_app_keys/match-16                                              187.0 ± ∞ ¹
+RegexPatterns/mask_app_keys/miss-16                                               73.00 ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/match-16                                32.00 ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/miss-16                                 8.000 ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/match-16                         177.0 ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/miss-16                          136.0 ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/match-16                                     32.00 ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/match-16          32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/miss-16           8.000 ± ∞ ¹
+RegexPatterns/deprecate_request_params/match-16                                   32.00 ± ∞ ¹
+RegexPatterns/deprecate_request_params/miss-16                                    8.000 ± ∞ ¹
+RegexPatterns/amex_credit_card/match-16                                           114.0 ± ∞ ¹
+RegexPatterns/amex_credit_card/miss-16                                            40.00 ± ∞ ¹
+RegexPatterns/facebook_oauth/match-16                                             113.0 ± ∞ ¹    113.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_oauth/miss-16                                              88.00 ± ∞ ¹    88.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/rails_20X_ok/match-16                                               32.00 ± ∞ ¹
+RegexPatterns/rails_20X_ok/miss-16                                                8.000 ± ∞ ¹
+RegexPatterns/JSON_serializing_error/match-16                                     32.00 ± ∞ ¹
+RegexPatterns/JSON_serializing_error/miss-16                                      8.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/match-16                     32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/miss-16                      8.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/match-16                32.00 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/miss-16                 8.000 ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/match-16                                      32.00 ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/miss-16                                       8.000 ± ∞ ¹
+RegexPatterns/exclude_healthcheck/match-16                                        32.00 ± ∞ ¹
+RegexPatterns/exclude_healthcheck/miss-16                                         8.000 ± ∞ ¹
+RegexPatterns/authorization_basic/match-16                                        114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_basic/miss-16                                         56.00 ± ∞ ¹    56.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/match-16                                       114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/miss-16                                        48.00 ± ∞ ¹    48.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/match-16                                     32.00 ± ∞ ¹                                           32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/miss-16                                      8.000 ± ∞ ¹                                           8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Bad_Open_telemetry_configuration/match-16                           32.00 ± ∞ ¹
+RegexPatterns/Bad_Open_telemetry_configuration/miss-16                            8.000 ± ∞ ¹
+RegexPatterns/ssn_basic/match-16                                                  154.0 ± ∞ ¹
+RegexPatterns/ssn_basic/miss-16                                                   40.00 ± ∞ ¹
+RegexPatterns/visa_mc_discover_jcb_credit_card/match-16                           147.0 ± ∞ ¹    147.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_discover_jcb_credit_card/miss-16                            48.00 ± ∞ ¹    48.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/match-16                                       114.0 ± ∞ ¹    114.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/miss-16                                        72.00 ± ∞ ¹    72.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_mfa_token/match-16                                           98.00 ± ∞ ¹
+RegexPatterns/twilio_mfa_token/miss-16                                            48.00 ± ∞ ¹
+RegexPatterns/exclude_g2s_publish_errors_logs/match-16                            32.00 ± ∞ ¹    32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_g2s_publish_errors_logs/miss-16                             8.000 ± ∞ ¹    8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter5/match-16                                                32.00 ± ∞ ¹
+RegexPatterns/k8s_filter5/miss-16                                                 8.000 ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/match-16                                  32.00 ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/miss-16                                   8.000 ± ∞ ¹
+RegexPatterns/google_oauth_access_token/match-16                                  147.0 ± ∞ ¹    147.0 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_oauth_access_token/miss-16                                   32.00 ± ∞ ¹    32.00 ± ∞ ¹       ~ (p=1.000 n=1) ²
+geomean                                                                           33.07          61.31        -0.83%               ⁴    13.45        -8.30%               ⁴   16.00        +0.00%               ⁴
+¹ need >= 6 samples for confidence interval at level 0.95
+² all samples are equal
+³ need >= 4 samples to detect a difference at alpha level 0.05
+⁴ benchmark set differs from baseline; geomeans may not be comparable
+
+                                                                               │ original.txt │               gpt.txt               │             mistral.txt             │              qwen.txt               │
+                                                                               │  allocs/op   │  allocs/op   vs base                │  allocs/op   vs base                │  allocs/op   vs base                │
+RegexPatterns/reset_password_token/match-16                                       5.000 ± ∞ ¹
+RegexPatterns/reset_password_token/miss-16                                        3.000 ± ∞ ¹
+RegexPatterns/Scrub_portal_token/match-16                                         2.000 ± ∞ ¹
+RegexPatterns/Scrub_portal_token/miss-16                                          1.000 ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/match-16                                  2.000 ± ∞ ¹
+RegexPatterns/Scrub_communication_10007/miss-16                                   1.000 ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/match-16                                     2.000 ± ∞ ¹
+RegexPatterns/Exclude_Kafka_patterns/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/aws_mws_key/match-16                                                5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/aws_mws_key/miss-16                                                 3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/okta_oauth_admin_penny/match-16                                     5.000 ± ∞ ¹
+RegexPatterns/okta_oauth_admin_penny/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/match-16                5.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path_for_chime_web_app/miss-16                 3.000 ± ∞ ¹
+RegexPatterns/no_info/match-16                                                    2.000 ± ∞ ¹   2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/no_info/miss-16                                                     1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Launch_Darkly_noisy_logs/match-16                                   2.000 ± ∞ ¹
+RegexPatterns/Launch_Darkly_noisy_logs/miss-16                                    1.000 ± ∞ ¹
+RegexPatterns/first_name_tag/match-16                                             5.000 ± ∞ ¹
+RegexPatterns/first_name_tag/miss-16                                              3.000 ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/match-16                                    8.000 ± ∞ ¹
+RegexPatterns/ach_batch_header_filter/miss-16                                     3.000 ± ∞ ¹
+RegexPatterns/facebook_client_id/match-16                                         5.000 ± ∞ ¹
+RegexPatterns/facebook_client_id/miss-16                                          3.000 ± ∞ ¹
+RegexPatterns/k8s_filter6/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter6/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/match-16             2.000 ± ∞ ¹
+RegexPatterns/ict-msteams-callevent-identifier_flooding_logs/miss-16              1.000 ± ∞ ¹
+RegexPatterns/RFC_5322_email/match-16                                             5.000 ± ∞ ¹
+RegexPatterns/RFC_5322_email/miss-16                                              3.000 ± ∞ ¹
+RegexPatterns/google_drive_oauth/match-16                                         5.000 ± ∞ ¹
+RegexPatterns/google_drive_oauth/miss-16                                          3.000 ± ∞ ¹
+RegexPatterns/large_integer_leaks/match-16                                        8.000 ± ∞ ¹
+RegexPatterns/large_integer_leaks/miss-16                                         3.000 ± ∞ ¹
+RegexPatterns/Scrub_finder_user/match-16                                          2.000 ± ∞ ¹
+RegexPatterns/Scrub_finder_user/miss-16                                           1.000 ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/match-16                    2.000 ± ∞ ¹
+RegexPatterns/filter_collector_identification_request/miss-16                     1.000 ± ∞ ¹
+RegexPatterns/Act_noisy_logs/match-16                                             2.000 ± ∞ ¹
+RegexPatterns/Act_noisy_logs/miss-16                                              1.000 ± ∞ ¹
+RegexPatterns/dob_tag/match-16                                                    5.000 ± ∞ ¹
+RegexPatterns/dob_tag/miss-16                                                     3.000 ± ∞ ¹
+RegexPatterns/vault_token/match-16                                                5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vault_token/miss-16                                                 3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter1/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter1/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/match-16                          2.000 ± ∞ ¹
+RegexPatterns/Getting_contents_for_the_filelogs/miss-16                           1.000 ± ∞ ¹
+RegexPatterns/exclude_metrics_listener/match-16                                   2.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_metrics_listener/miss-16                                    1.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/github/match-16                                                     5.000 ± ∞ ¹
+RegexPatterns/github/miss-16                                                      3.000 ± ∞ ¹
+RegexPatterns/twilio_api_key/match-16                                             5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_api_key/miss-16                                              3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/reset_phone_token/match-16                                          7.000 ± ∞ ¹   7.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/reset_phone_token/miss-16                                           3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/replace_host_key/match-16                                           5.000 ± ∞ ¹
+RegexPatterns/replace_host_key/miss-16                                            1.000 ± ∞ ¹
+RegexPatterns/k8s_filter2/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter2/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/aws_client_id/match-16                                              5.000 ± ∞ ¹
+RegexPatterns/aws_client_id/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/google_gmail_api_key/match-16                                       6.000 ± ∞ ¹   6.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_gmail_api_key/miss-16                                        3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_api_key/match-16                        5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_api_key/miss-16                         3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_api_keys/match-16                                              5.000 ± ∞ ¹
+RegexPatterns/mask_api_keys/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/match-16                  2.000 ± ∞ ¹
+RegexPatterns/exclude_Aggregation-service_flooding_logs/miss-16                   1.000 ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/match-16                                 2.000 ± ∞ ¹
+RegexPatterns/Collector_proxy_noisy_logs/miss-16                                  1.000 ± ∞ ¹
+RegexPatterns/exclude_sensitive_info/match-16                                     2.000 ± ∞ ¹   2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_sensitive_info/miss-16                                      1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_api_key/match-16                                             5.000 ± ∞ ¹
+RegexPatterns/google_api_key/miss-16                                              3.000 ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/match-16                           2.000 ± ∞ ¹
+RegexPatterns/exclude_word_timestamp_integrity/miss-16                            1.000 ± ∞ ¹
+RegexPatterns/processing_by/match-16                                              2.000 ± ∞ ¹
+RegexPatterns/processing_by/miss-16                                               1.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/match-16               2.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_port_not_found/miss-16                1.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/match-16    2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_custom-fields-value-updater-api/miss-16     1.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/match-16                                  5.000 ± ∞ ¹
+RegexPatterns/pay_anyone_claim_url_path/miss-16                                   1.000 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/match-16                                           5.000 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys/miss-16                                            3.000 ± ∞ ¹
+RegexPatterns/exclude_pts_reset_logs/match-16                                     2.000 ± ∞ ¹                                                                               2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_pts_reset_logs/miss-16                                      1.000 ± ∞ ¹                                                                               1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Content-exchange-service_noisy_logs/match-16                        2.000 ± ∞ ¹
+RegexPatterns/Content-exchange-service_noisy_logs/miss-16                         1.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/match-16                       2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_main_service/miss-16                        1.000 ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/match-16                                          2.000 ± ∞ ¹
+RegexPatterns/Dex_flooding_logs/miss-16                                           1.000 ± ∞ ¹
+RegexPatterns/diners_credit_card/match-16                                         5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/diners_credit_card/miss-16                                          3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/match-16              2.000 ± ∞ ¹
+RegexPatterns/exclude_nql_service_logs_reloading_configmaps/miss-16               1.000 ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/match-16                             2.000 ± ∞ ¹
+RegexPatterns/Content_has_no_min_mtp_version/miss-16                              1.000 ± ∞ ¹
+RegexPatterns/last_name_tag/match-16                                              5.000 ± ∞ ¹
+RegexPatterns/last_name_tag/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/k8s_filter4/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter4/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/address_tags/match-16                                               8.000 ± ∞ ¹   8.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/address_tags/miss-16                                                3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_secret_key/match-16                                        5.000 ± ∞ ¹
+RegexPatterns/facebook_secret_key/miss-16                                         3.000 ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/match-16                               2.000 ± ∞ ¹
+RegexPatterns/exclude_ignored_delete_event/miss-16                                1.000 ± ∞ ¹
+RegexPatterns/v6_flooding_logs/match-16                                           2.000 ± ∞ ¹
+RegexPatterns/v6_flooding_logs/miss-16                                            1.000 ± ∞ ¹
+RegexPatterns/feature_flag_init/match-16                                          2.000 ± ∞ ¹
+RegexPatterns/feature_flag_init/miss-16                                           1.000 ± ∞ ¹
+RegexPatterns/rendered_text_template/match-16                                     2.000 ± ∞ ¹
+RegexPatterns/rendered_text_template/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_service_not_found/match-16                    2.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_service_not_found/miss-16                     1.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/platform-inventory-generator_flooding_logs/match-16                 2.000 ± ∞ ¹
+RegexPatterns/platform-inventory-generator_flooding_logs/miss-16                  1.000 ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/match-16                  2.000 ± ∞ ¹
+RegexPatterns/Produce_trigger_tenant_id_alert_uuid_logs/miss-16                   1.000 ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/match-16                            2.000 ± ∞ ¹
+RegexPatterns/LocalLog_partition_LOG_DIR_logs/miss-16                             1.000 ± ∞ ¹
+RegexPatterns/slack_token/match-16                                                5.000 ± ∞ ¹
+RegexPatterns/slack_token/miss-16                                                 3.000 ± ∞ ¹
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/match-16                     5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cloud_google_cloud_platform_o_auth_2_0/miss-16                      3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/match-16                                                  5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token/miss-16                                                   3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_user_email/match-16                                            5.000 ± ∞ ¹
+RegexPatterns/mask_user_email/miss-16                                             3.000 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/match-16                       5.000 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_access_key/miss-16                        3.000 ± ∞ ¹
+RegexPatterns/date_newline/match-16                                               1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/date_newline/miss-16                                                1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/cannot_create_service_no_endpoints_found/match-16                   2.000 ± ∞ ¹
+RegexPatterns/cannot_create_service_no_endpoints_found/miss-16                    1.000 ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/match-16                       2.000 ± ∞ ¹
+RegexPatterns/KinesisStreamService_putRecords_logs/miss-16                        1.000 ± ∞ ¹
+RegexPatterns/google_gmail_oauth/match-16                                         5.000 ± ∞ ¹
+RegexPatterns/google_gmail_oauth/miss-16                                          3.000 ± ∞ ¹
+RegexPatterns/social_media_instagram_o_auth_2_0/match-16                          5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/social_media_instagram_o_auth_2_0/miss-16                           3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_secret_access_key/match-16                                 5.000 ± ∞ ¹
+RegexPatterns/mask_aws_secret_access_key/miss-16                                  3.000 ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/match-16                                    2.000 ± ∞ ¹
+RegexPatterns/Scrub_finderManagerImpl/miss-16                                     1.000 ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/match-16                                   2.000 ± ∞ ¹
+RegexPatterns/Clickhouse_flooding_logs/miss-16                                    1.000 ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/match-16                        2.000 ± ∞ ¹
+RegexPatterns/library-content-embedder_noisy_logs/miss-16                         1.000 ± ∞ ¹
+RegexPatterns/prn_tag/match-16                                                    5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/prn_tag/miss-16                                                     3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/match-16                                      5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_access_token/miss-16                                       3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/match-16                          5.000 ± ∞ ¹
+RegexPatterns/mask_aws_hadoop_s3_secret_dot_key/miss-16                           3.000 ± ∞ ¹
+RegexPatterns/exclude_health/match-16                                             2.000 ± ∞ ¹
+RegexPatterns/exclude_health/miss-16                                              1.000 ± ∞ ¹
+RegexPatterns/phone/match-16                                                      6.000 ± ∞ ¹   6.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/phone/miss-16                                                       3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/generic_query_string_value/match-16                                 7.000 ± ∞ ¹
+RegexPatterns/generic_query_string_value/miss-16                                  3.000 ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/match-16         5.000 ± ∞ ¹
+RegexPatterns/social_security_galileo_create_account_query_param/miss-16          3.000 ± ∞ ¹
+RegexPatterns/email_address/match-16                                              5.000 ± ∞ ¹
+RegexPatterns/email_address/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/match-16                               2.000 ± ∞ ¹
+RegexPatterns/exclude_transcript_data_logs/miss-16                                1.000 ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/match-16                            2.000 ± ∞ ¹
+RegexPatterns/UnifiedLog_partition_sparm_logs/miss-16                             1.000 ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/match-16                                     5.000 ± ∞ ¹
+RegexPatterns/mask_aws_access_key_id/miss-16                                      3.000 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/match-16                                       5.000 ± ∞ ¹
+RegexPatterns/mask_dd_api_keys_pub/miss-16                                        3.000 ± ∞ ¹
+RegexPatterns/update-to-java17/match-16                                           2.000 ± ∞ ¹
+RegexPatterns/update-to-java17/miss-16                                            1.000 ± ∞ ¹
+RegexPatterns/github_tokens/match-16                                              5.000 ± ∞ ¹
+RegexPatterns/github_tokens/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/match-16              2.000 ± ∞ ¹
+RegexPatterns/exclude_traces_export_connection_refused_logs/miss-16               1.000 ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/match-16                                6.000 ± ∞ ¹
+RegexPatterns/mask_reserved_word_hostname/miss-16                                 1.000 ± ∞ ¹
+RegexPatterns/skipping_service_no_endpoints_found/match-16                        2.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/skipping_service_no_endpoints_found/miss-16                         1.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/match-16                            2.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/vpa_skipping_object_due_to_mode/miss-16                             1.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/match-16                     2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_DD_trace_agent/miss-16                      1.000 ± ∞ ¹
+RegexPatterns/phone_tags/match-16                                                 8.000 ± ∞ ¹
+RegexPatterns/phone_tags/miss-16                                                  3.000 ± ∞ ¹
+RegexPatterns/mailto/match-16                                                     5.000 ± ∞ ¹
+RegexPatterns/mailto/miss-16                                                      3.000 ± ∞ ¹
+RegexPatterns/phone_lists/match-16                                                7.000 ± ∞ ¹
+RegexPatterns/phone_lists/miss-16                                                 3.000 ± ∞ ¹
+RegexPatterns/k8s_filter8/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter8/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/exclude_debug/match-16                                              2.000 ± ∞ ¹
+RegexPatterns/exclude_debug/miss-16                                               1.000 ± ∞ ¹
+RegexPatterns/missing_gcr_secret/match-16                                         2.000 ± ∞ ¹
+RegexPatterns/missing_gcr_secret/miss-16                                          1.000 ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/match-16                                   2.000 ± ∞ ¹
+RegexPatterns/dex-bin-aggregator_error/miss-16                                    1.000 ± ∞ ¹
+RegexPatterns/social_security_number_xml/match-16                                 7.000 ± ∞ ¹   7.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/social_security_number_xml/miss-16                                  3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/account_number/match-16                                             5.000 ± ∞ ¹
+RegexPatterns/account_number/miss-16                                              3.000 ± ∞ ¹
+RegexPatterns/exclude_datadog_tracer_logs/match-16                                2.000 ± ∞ ¹   2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_datadog_tracer_logs/miss-16                                 1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/match-16               5.000 ± ∞ ¹
+RegexPatterns/visa_mc_amex_diners_discover_jcb_credit_card/miss-16                3.000 ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/match-16                              5.000 ± ∞ ¹
+RegexPatterns/mask_aws_hadooping_secret_key/miss-16                               3.000 ± ∞ ¹
+RegexPatterns/k8s_filter3/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter3/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/syncing_iptables_rules_complete/match-16                            2.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/syncing_iptables_rules_complete/miss-16                             1.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/update_hostname/match-16                                            5.000 ± ∞ ¹
+RegexPatterns/update_hostname/miss-16                                             1.000 ± ∞ ¹
+RegexPatterns/Scrub_session_id/match-16                                           2.000 ± ∞ ¹
+RegexPatterns/Scrub_session_id/miss-16                                            1.000 ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/match-16                                      2.000 ± ∞ ¹
+RegexPatterns/Filer_DD_library_logs/miss-16                                       1.000 ± ∞ ¹
+RegexPatterns/Telemetry/match-16                                                  2.000 ± ∞ ¹
+RegexPatterns/Telemetry/miss-16                                                   1.000 ± ∞ ¹
+RegexPatterns/mfa_token_android_hash/match-16                                     5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mfa_token_android_hash/miss-16                                      3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/remote_actions_NQL_error/match-16                                   2.000 ± ∞ ¹
+RegexPatterns/remote_actions_NQL_error/miss-16                                    1.000 ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/match-16                           2.000 ± ∞ ¹
+RegexPatterns/Downstream_monitor_flooding_logs/miss-16                            1.000 ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/match-16                        2.000 ± ∞ ¹
+RegexPatterns/ProducerStateManager_partition_logs/miss-16                         1.000 ± ∞ ¹
+RegexPatterns/deprecate_started_get/match-16                                      2.000 ± ∞ ¹
+RegexPatterns/deprecate_started_get/miss-16                                       1.000 ± ∞ ¹
+RegexPatterns/galileo_account_number/match-16                                     5.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/galileo_account_number/miss-16                                      3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/match-16                                        7.000 ± ∞ ¹   7.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/mobile_device_token/miss-16                                         3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_transcript_insights_warning_multiline/match-16              2.000 ± ∞ ¹
+RegexPatterns/exclude_transcript_insights_warning_multiline/miss-16               1.000 ± ∞ ¹
+RegexPatterns/k8s_filter7/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter7/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/exclude_tracestate_character_warning/match-16                       2.000 ± ∞ ¹   2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ³
+RegexPatterns/exclude_tracestate_character_warning/miss-16                        1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/user-device-aggregator_flooding_logs/match-16                       2.000 ± ∞ ¹
+RegexPatterns/user-device-aggregator_flooding_logs/miss-16                        1.000 ± ∞ ¹
+RegexPatterns/deprecate_started_post/match-16                                     2.000 ± ∞ ¹
+RegexPatterns/deprecate_started_post/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/match-16                   2.000 ± ∞ ¹
+RegexPatterns/copla-enrichment-service-user_noisy_logs/miss-16                    1.000 ± ∞ ¹
+RegexPatterns/social_security_number_basic/match-16                               7.000 ± ∞ ¹
+RegexPatterns/social_security_number_basic/miss-16                                3.000 ± ∞ ¹
+RegexPatterns/mask_app_keys/match-16                                              7.000 ± ∞ ¹
+RegexPatterns/mask_app_keys/miss-16                                               3.000 ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/match-16                                2.000 ± ∞ ¹
+RegexPatterns/telegraf_unsupported_distro/miss-16                                 1.000 ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/match-16                         5.000 ± ∞ ¹
+RegexPatterns/mask_aws_flame_spark_io_secret_key/miss-16                          3.000 ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/match-16                                     2.000 ± ∞ ¹
+RegexPatterns/Istio_proxy_noisy_logs/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/match-16          2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_copla-enrichment-service_/miss-16           1.000 ± ∞ ¹
+RegexPatterns/deprecate_request_params/match-16                                   2.000 ± ∞ ¹
+RegexPatterns/deprecate_request_params/miss-16                                    1.000 ± ∞ ¹
+RegexPatterns/amex_credit_card/match-16                                           5.000 ± ∞ ¹
+RegexPatterns/amex_credit_card/miss-16                                            3.000 ± ∞ ¹
+RegexPatterns/facebook_oauth/match-16                                             5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/facebook_oauth/miss-16                                              3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/rails_20X_ok/match-16                                               2.000 ± ∞ ¹
+RegexPatterns/rails_20X_ok/miss-16                                                1.000 ± ∞ ¹
+RegexPatterns/JSON_serializing_error/match-16                                     2.000 ± ∞ ¹
+RegexPatterns/JSON_serializing_error/miss-16                                      1.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/match-16                     2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_master_service/miss-16                      1.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/match-16                2.000 ± ∞ ¹
+RegexPatterns/removed_noisy_logs_from_content-builtin-api/miss-16                 1.000 ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/match-16                                      2.000 ± ∞ ¹
+RegexPatterns/SLF4J_System_out_logs/miss-16                                       1.000 ± ∞ ¹
+RegexPatterns/exclude_healthcheck/match-16                                        2.000 ± ∞ ¹
+RegexPatterns/exclude_healthcheck/miss-16                                         1.000 ± ∞ ¹
+RegexPatterns/authorization_basic/match-16                                        5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_basic/miss-16                                         3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/match-16                                       5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/authorization_bearer/miss-16                                        3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/match-16                                     2.000 ± ∞ ¹                                         2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/syncing_iptables_rules/miss-16                                      1.000 ± ∞ ¹                                         1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/Bad_Open_telemetry_configuration/match-16                           2.000 ± ∞ ¹
+RegexPatterns/Bad_Open_telemetry_configuration/miss-16                            1.000 ± ∞ ¹
+RegexPatterns/ssn_basic/match-16                                                  7.000 ± ∞ ¹
+RegexPatterns/ssn_basic/miss-16                                                   3.000 ± ∞ ¹
+RegexPatterns/visa_mc_discover_jcb_credit_card/match-16                           5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/visa_mc_discover_jcb_credit_card/miss-16                            3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/match-16                                       5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_drive_api_key/miss-16                                        3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/twilio_mfa_token/match-16                                           5.000 ± ∞ ¹
+RegexPatterns/twilio_mfa_token/miss-16                                            3.000 ± ∞ ¹
+RegexPatterns/exclude_g2s_publish_errors_logs/match-16                            2.000 ± ∞ ¹   2.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/exclude_g2s_publish_errors_logs/miss-16                             1.000 ± ∞ ¹   1.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/k8s_filter5/match-16                                                2.000 ± ∞ ¹
+RegexPatterns/k8s_filter5/miss-16                                                 1.000 ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/match-16                                  2.000 ± ∞ ¹
+RegexPatterns/Filer_DD_agent_logs_-_UTC/miss-16                                   1.000 ± ∞ ¹
+RegexPatterns/google_oauth_access_token/match-16                                  5.000 ± ∞ ¹   5.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+RegexPatterns/google_oauth_access_token/miss-16                                   3.000 ± ∞ ¹   3.000 ± ∞ ¹       ~ (p=1.000 n=1) ²
+geomean                                                                           2.213         3.200        -0.85%               ⁴   1.297        -4.24%               ⁴   1.414        +0.00%               ⁴
+¹ need >= 6 samples for confidence interval at level 0.95
+² all samples are equal
+³ need >= 4 samples to detect a difference at alpha level 0.05
+⁴ benchmark set differs from baseline; geomeans may not be comparable

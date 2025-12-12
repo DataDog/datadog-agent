@@ -1,0 +1,6 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+BenchmarkRegexPatterns/exclude_pts_reset_logs/match-16                                              	 9662356	       124.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_pts_reset_logs/miss-16                                               	69093912	        17.31 ns/op	       8 B/op	       1 allocs/op

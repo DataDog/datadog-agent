@@ -1,0 +1,20 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+BenchmarkRegexPatterns/exclude_metrics_listener/match-16                             	 2772106	       433.4 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/exclude_metrics_listener/miss-16                              	23679030	        49.20 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/match-16                          	 3655557	       328.2 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/cannot_create_service_service_not_found/miss-16                           	30080872	        49.61 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/match-16                                                     	73191742	        16.38 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/date_newline/miss-16                                                      	74246894	        16.36 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/match-16                              	  367762	      3286 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/skipping_service_no_endpoints_found/miss-16                               	  333796	      3621 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/match-16                                  	  235418	      5127 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/vpa_skipping_object_due_to_mode/miss-16                                   	  203476	      5945 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/match-16                                  	  770160	      1573 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules_complete/miss-16                                   	  746094	      1588 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/match-16                             	 1000000	      1142 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/exclude_tracestate_character_warning/miss-16                              	 1211412	       988.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/match-16                                           	 5754218	       206.3 ns/op	      32 B/op	       2 allocs/op
+BenchmarkRegexPatterns/syncing_iptables_rules/miss-16                                            	68247897	        17.71 ns/op	       8 B/op	       1 allocs/op
