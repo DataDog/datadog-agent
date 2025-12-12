@@ -120,7 +120,7 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	lib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
 
-	cache := safenvml.NewDeviceCacheWithOptions(lib)
+	cache := safenvml.NewDeviceCache(safenvml.WithDeviceCacheLib(lib))
 	require.NoError(t, cache.Refresh())
 
 	devices, err := cache.AllPhysicalDevices()
