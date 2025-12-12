@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +32,7 @@ import "C"
 //
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
-	checkContext, err := getCheckContext()
+	checkContext, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Python check context: %v", err)
 		return nil
@@ -49,7 +50,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 	entityID := types.NewEntityID(prefix, eid)
 
-	tags, _ = checkContext.tagger.Tag(entityID, types.TagCardinality(cardinality))
+	tags, _ = checkContext.Tag(entityID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
-
-package python
+// Package aggregator provides an API for checks run through Cgo
+package aggregator
 
 import (
 	"unsafe"
@@ -17,22 +16,23 @@ import (
 )
 
 /*
-#include <datadog_agent_rtloader.h>
-#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
-#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"
+
+#include <stdbool.h>
+
+#include "rtloader_types.h"
 */
 import "C"
 
-// SubmitMetric is the method exposed to Python scripts to submit metrics
+// SubmitMetric is the method exposed to scripts to submit metrics
 //
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -45,7 +45,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_name := C.GoString(metricName)
 	_value := float64(value)
 	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
 	switch metricType {
@@ -66,15 +66,15 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	}
 }
 
-// SubmitServiceCheck is the method exposed to Python scripts to submit service checks
+// SubmitServiceCheck is the method exposed to scripts to submit service checks
 //
 //export SubmitServiceCheck
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -86,7 +86,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 
 	_name := C.GoString(scName)
 	_status := servicecheck.ServiceCheckStatus(status)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)
 
@@ -101,15 +101,15 @@ func eventParseString(value *C.char, fieldName string) string {
 	return C.GoString(value)
 }
 
-// SubmitEvent is the method exposed to Python scripts to submit events
+// SubmitEvent is the method exposed to scripts to submit events
 //
 //export SubmitEvent
 func SubmitEvent(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -124,7 +124,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		Text:           eventParseString(event.text, "msg_text"),
 		Priority:       metricsevent.Priority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
-		Tags:           cStringArrayToSlice(event.tags),
+		Tags:           CStringArrayToSlice(unsafe.Pointer(event.tags)),
 		AlertType:      metricsevent.AlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
@@ -134,14 +134,14 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	sender.Event(_event)
 }
 
-// SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
+// SubmitHistogramBucket is the method exposed to scripts to submit metrics
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -157,20 +157,20 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_upperBound := float64(upperBound)
 	_monotonic := (monotonic != 0)
 	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
 	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
-// SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+// SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
