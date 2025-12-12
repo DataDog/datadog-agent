@@ -484,6 +484,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.ping.timeout")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.use_deduplication")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetKnown("network_devices.autodiscovery.collect_vpn")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
