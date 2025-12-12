@@ -144,12 +144,6 @@ type MockScheduler struct {
 	mutex       sync.RWMutex
 }
 
-func (m *MockSecretResolver) trigger(handle, origin string) {
-	if m.callback != nil {
-		m.callback(handle, origin, nil, nil, nil)
-	}
-}
-
 // Schedule implements scheduler.Scheduler#Schedule.
 func (ms *MockScheduler) Schedule(configs []integration.Config) {
 	ms.mutex.Lock()
