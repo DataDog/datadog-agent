@@ -8,15 +8,17 @@
 package hardware
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/yusufpapurcu/wmi"
 )
 
 // Win32_ComputerSystem WMI class
 type Win32_ComputerSystem struct {
-	Manufacturer string
-	Model        string
+	Manufacturer    string
+	Model           string
+	SystemFamily    string
+	SystemSKUNumber string
 }
 
 // Win32_BIOS WMI class
@@ -33,9 +35,11 @@ func collect() (*SystemHardwareInfo, error) {
 	// Query Win32_ComputerSystem for manufacturer and model
 	var systemInfo SystemHardwareInfo
 	var cs []Win32_ComputerSystem
-	if err := wmi.Query("SELECT Manufacturer, Model FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
+	if err := wmi.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
 		systemInfo.Manufacturer = cs[0].Manufacturer
-		systemInfo.Model = cs[0].Model
+		systemInfo.ModelNumber = cs[0].Model
+		systemInfo.Name = cs[0].SystemFamily
+		systemInfo.Identifier = cs[0].SystemSKUNumber
 	}
 
 	var bios []Win32_BIOS
@@ -48,66 +52,33 @@ func collect() (*SystemHardwareInfo, error) {
 		if len(enclosure[0].ChassisTypes) > 0 {
 			// Convert int32 to uint16 for compatibility with DMTF spec
 			chassisType := uint16(enclosure[0].ChassisTypes[0])
-			systemInfo.EnclosureType = fmt.Sprintf("%d", chassisType)
-			systemInfo.EnclosureTypeName = getEnclosureTypeName(chassisType)
-			systemInfo.HostType = getHostType(chassisType)
+			systemInfo.ChassisType = getChassisTypeName(chassisType, cs[0].Model, cs[0].Manufacturer)
 		}
 	}
 
 	return &systemInfo, nil
 }
 
-func getEnclosureTypeName(chassisType uint16) string {
-	// Map chassis type numbers to names
-	// See: https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.6.0.pdf
-	names := map[uint16]string{
-		1:  "Other",
-		2:  "Unknown",
-		3:  "Desktop",
-		4:  "Low Profile Desktop",
-		5:  "Pizza Box",
-		6:  "Mini Tower",
-		7:  "Tower",
-		8:  "Portable",
-		9:  "Laptop",
-		10: "Notebook",
-		11: "Hand Held",
-		12: "Docking Station",
-		13: "All in One",
-		14: "Sub Notebook",
-		15: "Space-Saving",
-		16: "Lunch Box",
-		17: "Main Server Chassis",
-		18: "Expansion Chassis",
-		19: "SubChassis",
-		20: "Bus Expansion Chassis",
-		21: "Peripheral Chassis",
-		22: "RAID Chassis",
-		23: "Rack Mount Chassis",
-		24: "Sealed-Case PC",
-		25: "Multi-system Chassis",
-		30: "Tablet",
-		31: "Convertible",
-		32: "Detachable",
-	}
-	if name, ok := names[chassisType]; ok {
-		return name
-	}
-	return "Unknown"
-}
+func getChassisTypeName(chassisType uint16, model string, manufacturer string) string {
 
-func getHostType(chassisType uint16) string {
+	// Special cases for identifying Virtual Machines
+	// Hyper-V and Azure VMs have the model "Virtual Machine"
+	if strings.ToLower(model) == "virtual machine" {
+		return "Virtual Machine"
+	}
+
+	// AWS EC2 VMs have the manufacturer "Amazon EC2"
+	if strings.ToLower(manufacturer) == "amazon ec2" {
+		return "Virtual Machine"
+	}
+
 	// Categorize into broader types for monitoring purposes
 	switch chassisType {
 	case 3, 4, 5, 6, 7, 13, 15, 16, 24: // Desktop variants
-		return "desktop"
-	case 8, 9, 10, 11, 14, 30, 31, 32: // Portable/Mobile variants
-		return "laptop"
-	case 17, 23, 25: // Server variants
-		return "server"
-	case 12: // Docking Station
-		return "docking_station"
+		return "Desktop"
+	case 8, 9, 10, 11, 14: // Portable/Mobile variants
+		return "Laptop"
 	default:
-		return "unknown"
+		return "Other"
 	}
 }
