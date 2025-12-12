@@ -324,6 +324,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 func (r *secretResolver) setupRefreshInterval(rd *rand.Rand) *clock.Ticker {
 	if r.refreshInterval <= 0 {
 		log.Debug("Secrets refresh using no-op clock")
+		// We need to return an actual Ticker object with a channel, so that the select block
+		// below has something to query. However, we don't want to produce any actual ticks.
+		// This pattern basically builds a no-op clock by setting a huge time delay of 1 year
+		// and then calling Stop to prevent ticks from being produced.
 		noopClock := clock.NewMock()
 		neverTicker := noopClock.Ticker(time.Hour * 24 * 365)
 		neverTicker.Stop()
