@@ -2,7 +2,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -36,6 +36,35 @@ LINUX_LIBCRYPTO = "libcrypto.so"
 
 MACOS_LIBSSL = "libssl.dylib"
 MACOS_LIBCRYPTO = "libcrypto.dylib"
+
+# Common script to fix OPENSSLDIR, ENGINESDIR, MODULESDIR and other paths in binaries
+# Expects $LIBS to be set by caller to the list of libraries to patch
+# In case of OPENSSLDIR there is no additional slash between BUILD_TMPDIR and INSTALL_PREFIX,
+# but there is for ENGINESDIR and MODULESDIR.
+FIX_OPENSSL_PATHS = """
+    # Fix OpenSSL hardcoded paths in binaries
+    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
+    TARGET="$$INSTALL_PREFIX"
+
+    # OPENSSLDIR: /ssl"
+    OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL private dir: /ssl/private
+    OLD_PATH="$${SANDBOX}/ssl/private" NEW_PATH="$${TARGET}/ssl/private" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL certs dir: /ssl/certs
+    OLD_PATH="$${SANDBOX}/ssl/certs" NEW_PATH="$${TARGET}/ssl/certs" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL cert.pem: /ssl/cert.pem
+    OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
+    # ENGINESDIR: /lib/engines-3"
+    OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # MODULESDIR: /lib/ossl-modules"
+    OLD_PATH="$${SANDBOX}/lib/ossl-modules\\"" NEW_PATH="$${TARGET}/lib/ossl-modules\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+"""
 
 configure_make(
     name = "openssl",
@@ -71,6 +100,10 @@ configure_make(
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
+    }),
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "/opt/datadog-agent/embedded",
     }),
     env = select({
         "@platforms//os:macos": {
@@ -111,7 +144,7 @@ configure_make(
             WIN_LIBCRYPTO,
             "openssl.exe",
         ],
-        "//conditions:default": [],
+        "//conditions:default": ["openssl"],
     }),
     deps = select({
         "//conditions:default": [
@@ -123,6 +156,22 @@ configure_make(
     }),
     copts = ["-O2"],
     targets = ["depend", "", "install_sw", "install_ssldirs"],
+    # Fix install names, as openssl's build system might not get them right
+    postfix_script = select({
+        "@platforms//os:macos": """
+            # Fix install names
+            for lib in libcrypto.dylib libssl.dylib; do
+                install_name_tool -id @rpath/$$lib $$INSTALLDIR/lib/$$lib
+                for dep in $$(otool -L $$INSTALLDIR/lib/$$lib | grep 'sandbox.*execroot' | awk '{print $$1}'); do
+                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
+                done
+            done
+            LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
+        """ + FIX_OPENSSL_PATHS,
+        "//conditions:default": """
+            LIBS="$$INSTALLDIR/lib/libcrypto.so $$INSTALLDIR/lib/libssl.so"
+        """ + FIX_OPENSSL_PATHS,
+    }),
 )
 
 filegroup(
@@ -222,6 +271,25 @@ pkg_files(
     prefix = "lib",
 )
 
+filegroup(
+    name = "openssl_bin",
+    srcs = [":openssl"],
+    output_group = "openssl",
+)
+
+pkg_files(
+    name = "openssl_bin_file",
+    srcs = [":openssl_bin"],
+    prefix = "bin",
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
 pkg_install(
     name = "install",
     srcs = [
@@ -234,6 +302,7 @@ pkg_install(
             ":openssl_exe_file",
         ],
         "//conditions:default": [
+            ":openssl_bin_file",
             ":openssl_pkgconfig",
         ],
     }),
