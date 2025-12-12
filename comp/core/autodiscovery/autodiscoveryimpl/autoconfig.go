@@ -225,6 +225,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
 		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
+		// TODO: can still block if channel is full. look into using a go routine or something other than channel
 		ac.refreshEvent <- origin
 	})
 
