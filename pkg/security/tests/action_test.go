@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestActionKill(t *testing.T) {
@@ -931,4 +933,195 @@ func TestActionKillWithSignature(t *testing.T) {
 	// Cleanup second tail
 	tailCmd2.Process.Kill()
 	tailCmd2.Wait()
+}
+
+func TestActionKillContainerWithSignature(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	// 1. Start a Docker container first
+	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+	if _, err := dockerInstance.start(); err != nil {
+		t.Fatalf("failed to start docker: %v", err)
+	}
+	containerKilled := false
+	defer func() {
+		if !containerKilled {
+			dockerInstance.stop()
+		}
+	}()
+
+	// 2. Create a test file inside the container at a known path
+	testFilePath := "/tmp/test-container-kill-" + utils.RandString(8)
+	cmd := dockerInstance.Command("touch", []string{testFilePath}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create test file in container: %v", err)
+	}
+
+	// 3. Initialize the test module with the rule pointing to the correct path
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_exec_trigger",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"] && process.container.id != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var capturedSignature string
+	var tailCmd *exec.Cmd
+
+	// Run tail inside the container and wait for the rule to trigger
+	test.WaitSignal(t, func() error {
+		// Start tail -f on the test file inside the container (runs indefinitely)
+		tailCmd = dockerInstance.Command("tail", []string{"-f", testFilePath}, []string{})
+		return tailCmd.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_container_exec_trigger")
+		// Capture the signature from the event
+		capturedSignature = event.FieldHandlers.ResolveSignature(event)
+	})
+
+	// Verify we got a valid signature
+	if capturedSignature == "" {
+		t.Fatal("captured signature is empty")
+	}
+
+	// Create a new rule with kill action (scope container) that matches the captured signature
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_exec_trigger",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"] && process.container.id != "" && event.signature != "` + capturedSignature + `"`,
+		},
+		{
+			ID:         "test_kill_container_with_signature",
+			Expression: `exec.file.name == "tail" && exec.argv in ["` + testFilePath + `"] && process.container.id != "" && event.signature == "` + capturedSignature + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal:                    "SIGKILL",
+						Scope:                     "container",
+						DisableContainerDisarmer:  true,
+						DisableExecutableDisarmer: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Set the new policy and reload
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set new policy: %v", err)
+	}
+
+	// Reload the policy and wait for the kill rule to trigger
+	err = test.GetEventSent(t, func() error {
+		return test.reloadPolicies()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_kill_container_with_signature")
+
+		// Verify the kill action was performed with container scope
+		assert.Equal(t, 1, len(event.ActionReports), "expected at least one action report")
+		if len(event.ActionReports) == 1 {
+			report := event.ActionReports[0]
+			if killReport, ok := report.(*sprobe.KillActionReport); ok {
+				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
+				assert.Equal(t, "container", killReport.Scope, "unexpected scope")
+				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+			}
+		}
+		return true
+	}, 5*time.Second, "test_kill_container_with_signature")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the container was killed by checking if it's still running
+	err = retry.Do(func() error {
+		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
+		output, err := cmd.Output()
+		if err != nil {
+			// Container might not exist anymore, which is also fine
+			return nil
+		}
+		if strings.TrimSpace(string(output)) == "true" {
+			return errors.New("container still running")
+		}
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatal("container should have been killed but is still running")
+	}
+	containerKilled = true
+
+	// Wait for the tail command to finish to avoid zombie process
+	if tailCmd != nil && tailCmd.Process != nil {
+		tailCmd.Process.Kill()
+		tailCmd.Wait()
+	}
+
+	// Now start a new container and run tail - it should NOT be killed because it has a different signature
+	dockerInstance2, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	if err != nil {
+		t.Fatalf("failed to create second docker wrapper: %v", err)
+	}
+	if _, err := dockerInstance2.start(); err != nil {
+		t.Fatalf("failed to start second docker: %v", err)
+	}
+	defer dockerInstance2.stop()
+
+	// Create the same test file in the new container
+	cmd = dockerInstance2.Command("touch", []string{testFilePath}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create test file in second container: %v", err)
+	}
+
+	var tailCmd2 *exec.Cmd
+	test.WaitSignal(t, func() error {
+		tailCmd2 = dockerInstance2.Command("tail", []string{"-f", testFilePath}, []string{})
+		return tailCmd2.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		// Only test_container_exec_trigger should match because the signature is different
+		assertTriggeredRule(t, rule, "test_container_exec_trigger")
+	})
+
+	// Verify that the second container is still running (not killed due to different signature)
+	err = retry.Do(func() error {
+		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance2.containerID)
+		output, err := cmd.Output()
+		if err != nil {
+			return errors.New("failed to inspect container")
+		}
+		if strings.TrimSpace(string(output)) != "true" {
+			return errors.New("container not running")
+		}
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatal("second container should still be running (different signature)")
+	}
+
+	// Kill the second tail process and wait to avoid zombie
+	if tailCmd2 != nil && tailCmd2.Process != nil {
+		tailCmd2.Process.Kill()
+		tailCmd2.Wait()
+	}
 }
