@@ -72,8 +72,23 @@ type CliParams struct {
 	// OrderByScore indicates whether to order clusters by score instead of size.
 	OrderByScore bool
 
-	// AIProcessClusters indicates whether to process clusters with AI.
-	AIProcessClusters bool
+	// AIMark indicates whether to mark clusters with AI (identify important clusters).
+	AIMark bool
+
+	// AISmartPatterns indicates whether to generate smart patterns with AI (annotate pattern variables).
+	AISmartPatterns bool
+
+	// TokenizeUsingSpace indicates whether to use simple space-based tokenization.
+	TokenizeUsingSpace bool
+
+	// TokenDelimiters represents the delimiters used for tokenization.
+	TokenDelimiters string
+
+	// TokenDelimitersMerge indicates whether to merge delimiters with tokens.
+	TokenDelimitersMerge bool
+
+	// FirstOccurrences indicates whether to display first occurrences for each cluster.
+	FirstOccurrences bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -115,7 +130,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().IntVar(&cliParams.TopClusters, "top-clusters", 10, "Number of top clusters to display (default: 10)")
 	cmd.Flags().BoolVarP(&cliParams.HideOutput, "hide-output", "", false, "Hide filtered log lines output (only show summary statistics)")
 	cmd.Flags().BoolVarP(&cliParams.OrderByScore, "order-by-score", "", false, "Order clusters by score instead of size")
-	cmd.Flags().BoolVarP(&cliParams.AIProcessClusters, "ai-process-clusters", "", false, "Process clusters with AI for analysis")
+	cmd.Flags().BoolVar(&cliParams.AIMark, "ai-mark", false, "Use AI to mark important clusters (default: false)")
+	cmd.Flags().BoolVar(&cliParams.AISmartPatterns, "ai-smart-patterns", false, "Use AI to generate smart patterns with annotated variables (default: false)")
+	cmd.Flags().BoolVar(&cliParams.TokenizeUsingSpace, "tokenize-using-space", true, "Use simple space-based tokenization (default: true)")
+	cmd.Flags().StringVar(&cliParams.TokenDelimiters, "token-delimiters", "[](){},;.", "Delimiters used for tokenization (default: \"[](){},;.\")")
+	cmd.Flags().BoolVar(&cliParams.TokenDelimitersMerge, "token-delimiters-merge", false, "Merge delimiters with tokens instead of splitting on them (default: false)")
+	cmd.Flags().BoolVar(&cliParams.FirstOccurrences, "first-occurrences", false, "Display first occurrence for each cluster (default: false)")
 
 	return []*cobra.Command{cmd}
 }
@@ -223,10 +243,17 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 	if cliParams.ScoreThreshold != nil && cliParams.ProgressiveTraining {
 		lc.Warn("Score threshold is set and progressive training is enabled. The score is not accurate in this mode.")
 	}
-	if cliParams.ProgressiveTraining && cliParams.AIProcessClusters {
+	if cliParams.ProgressiveTraining && (cliParams.AIMark || cliParams.AISmartPatterns) {
 		lc.Warn("Progressive training is enabled and AI processing is enabled. The AI processing will not work in this mode.")
 	}
 	fmt.Println("--------------------------------")
+
+	// Configure tokenization based on CLI parameters
+	processor.SetTokenizationConfig(
+		cliParams.TokenizeUsingSpace,
+		cliParams.TokenDelimiters,
+		cliParams.TokenDelimitersMerge,
+	)
 
 	// Create drain processor
 	drainProcessor := processor.NewDrainProcessor("drain-command", &drain.Config{
@@ -249,57 +276,91 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 
 	// These clusters are important according to AI
 	aiMarkedClusters := make(map[int]bool)
+	// Pattern names
+	aiSmartPatterns := make(map[int]string)
 	if !cliParams.ProgressiveTraining {
 		// Train first
 		trainStart := time.Now()
 		for _, line := range lines {
 			tokens := processor.DrainTokenize(line)
-			drainProcessor.Train(tokens)
+			// drainProcessor.Train(tokens)
+			drainProcessor.MatchAndTrain(string(line), tokens, "log.txt")
 		}
 		trainDuration := time.Since(trainStart)
 		lc.Infof("[profile] Train duration: %s (%.0fK logs/s)", trainDuration, float64(len(lines))/trainDuration.Seconds()/1000)
 
-		if cliParams.AIProcessClusters {
-			clusterPrompt := strings.Builder{}
-			clusterPrompt.WriteString(`
-You will have multiple log patterns. Your goal is to determine which pattern we want to monitor. These patterns are logs that have warnings / errors / meaningful information to improve remediation time.
-We want to keep only the patterns that match these conditions.
-
-You should output only the pattern IDs separated by commas. No other text. You can reply nothing if no pattern matches these conditions.
----
-`)
+		if cliParams.AIMark || cliParams.AISmartPatterns {
 			aiClusters := drainProcessor.Clusters()
 			slices.SortFunc(aiClusters, func(a, b *drain.LogCluster) int {
 				return b.Size() - a.Size()
 			})
-			for i, cluster := range aiClusters {
-				clusterStr := cluster.String()
-				if len(clusterStr) > 160 {
-					clusterStr = clusterStr[:160] + "..."
-				}
-				clusterPrompt.WriteString(fmt.Sprintf("#%d: %s\n", cluster.ID(), clusterStr))
-				if i >= cliParams.TopClusters {
-					break
-				}
-			}
 
-			prompt := clusterPrompt.String()
-			aiCompletionStart := time.Now()
-			aiResponse, err := aiCompletion(prompt)
-			if err != nil {
-				return fmt.Errorf("failed to process clusters with AI: prompt=%s, error=%w", prompt, err)
-			}
-			aiCompletionDuration := time.Since(aiCompletionStart)
-			lc.Infof("[profile] AI completion duration: %s (%.0f clusters/s)", aiCompletionDuration, float64(len(aiClusters))/aiCompletionDuration.Seconds())
+			// --- Mark clusters ---
+			if cliParams.AIMark {
+				clusterPrompt := strings.Builder{}
+				clusterPrompt.WriteString(`
+You will have multiple log patterns. Your goal is to determine which pattern we want to monitor. These patterns are logs that have warnings / errors / meaningful information to improve remediation time.
+We want to keep only the patterns that match these conditions.
 
-			aiMarkedClusterIDs := strings.Split(aiResponse, ",")
-			lc.Infof("AI marked clusters: %v", aiMarkedClusterIDs)
-			for _, clusterID := range aiMarkedClusterIDs {
-				id, err := strconv.Atoi(clusterID)
+You should output only the pattern IDs separated by commas. No other text. You can reply nothing if no pattern matches these conditions.
+---`)
+				for i, cluster := range aiClusters {
+					clusterStr := cluster.String()
+					if len(clusterStr) > 160 {
+						clusterStr = clusterStr[:160] + "..."
+					}
+					clusterPrompt.WriteString(fmt.Sprintf("#%d: %s\n", cluster.ID(), clusterStr))
+					if i >= cliParams.TopClusters {
+						break
+					}
+				}
+
+				prompt := clusterPrompt.String()
+				aiCompletionStart := time.Now()
+				aiResponse, err := aiCompletion(prompt)
 				if err != nil {
-					return fmt.Errorf("failed to convert cluster ID to int: clusterID=%s, error=%w", clusterID, err)
+					return fmt.Errorf("failed to process clusters with AI: prompt=%s, error=%w", prompt, err)
 				}
-				aiMarkedClusters[id] = true
+				aiCompletionDuration := time.Since(aiCompletionStart)
+				lc.Infof("[profile] AI completion (mark clusters) duration: %s (%.0f clusters/s)", aiCompletionDuration, float64(len(aiClusters))/aiCompletionDuration.Seconds())
+
+				aiMarkedClusterIDs := strings.Split(aiResponse, ",")
+				lc.Infof("AI marked clusters: %v", aiMarkedClusterIDs)
+				for _, clusterID := range aiMarkedClusterIDs {
+					id, err := strconv.Atoi(clusterID)
+					if err != nil {
+						return fmt.Errorf("failed to convert cluster ID to int: clusterID=%s, error=%w", clusterID, err)
+					}
+					aiMarkedClusters[id] = true
+				}
+			}
+
+			// --- Smart patterns ---
+			if cliParams.AISmartPatterns {
+				smartPatternsPrompt := strings.Builder{}
+				smartPatternsPrompt.WriteString(`
+You will have multiple log patterns. Your goal is to annotate each pattern variable. The variables are the <*> tokens, you must replace them by their name. For example, Request <*> could be Request <http_status>.
+You will have the first log occurrence after the pattern to guide you.
+Each line is a pattern. You should output only the patterns in order with the new variables. No other text.
+---
+`)
+				for _, cluster := range aiClusters {
+					smartPatternsPrompt.WriteString(fmt.Sprintf("%s | First occurrence: %s\n", cluster.String(), drainProcessor.GetClusterInfo(cluster.ID()).FirstOccurrence))
+				}
+
+				prompt := smartPatternsPrompt.String()
+				aiCompletionStart := time.Now()
+				aiResponse, err := aiCompletion(prompt)
+				if err != nil {
+					return fmt.Errorf("failed to process smart patterns with AI: prompt=%s, error=%w", prompt, err)
+				}
+				aiCompletionDuration := time.Since(aiCompletionStart)
+				lc.Infof("[profile] AI completion (smart patterns) duration: %s (%.0f patterns/s)", aiCompletionDuration, float64(len(aiClusters))/aiCompletionDuration.Seconds())
+
+				aiSmartPatternsList := strings.Split(aiResponse, "\n")
+				for i, pattern := range aiSmartPatternsList {
+					aiSmartPatterns[aiClusters[i].ID()] = pattern
+				}
 			}
 		}
 	}
@@ -363,7 +424,7 @@ You should output only the pattern IDs separated by commas. No other text. You c
 		}
 
 		// If this cluster is marked as important, don't ignore it
-		if cliParams.AIProcessClusters {
+		if cliParams.AIMark {
 			_, isMarked := aiMarkedClusters[cluster.ID()]
 			toIgnore = toIgnore && !isMarked
 		}
@@ -412,7 +473,22 @@ You should output only the pattern IDs separated by commas. No other text. You c
 		if i >= cliParams.TopClusters {
 			break
 		}
-		fmt.Printf("Cluster %d (marked=%v): %s\n", i+1, aiMarkedClusters[cluster.ID()], cluster.String())
+		clusterStr := cluster.GetTemplate()
+		if cliParams.AISmartPatterns {
+			pattern, exists := aiSmartPatterns[cluster.ID()]
+			if exists {
+				clusterStr = pattern
+			}
+		}
+		marked := ""
+		if cliParams.AIMark {
+			marked = fmt.Sprintf(" (marked=%v)", aiMarkedClusters[cluster.ID()])
+		}
+		firstOcc := ""
+		if cliParams.FirstOccurrences {
+			firstOcc = fmt.Sprintf(" | First occurrence: %s", drainProcessor.GetClusterInfo(cluster.ID()).FirstOccurrence)
+		}
+		fmt.Printf("Cluster %d: size: %d %s: %s%s\n", i+1, cluster.Size(), marked, clusterStr, firstOcc)
 	}
 
 	fmt.Printf("Processed %d lines: filtered %f%%\n", len(lines), float64(filteredCount)/float64(len(lines))*100)

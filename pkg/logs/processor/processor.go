@@ -225,7 +225,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// Drain sampling
 		if useDrain {
-			_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent, msg.Origin.Service())
+			logContent := string(msg.GetContent())
+			_, toIgnore := p.drainProcessor.MatchAndTrain(logContent, msg.DrainTokenizedContent, p.getServiceName(msg))
 			// We have an outlier
 			if toIgnore {
 				// TODO: Fully remove...
@@ -357,4 +358,12 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		hname = "unknown"
 	}
 	return hname
+}
+
+// getServiceName returns the service name from the message origin
+func (p *Processor) getServiceName(msg *message.Message) string {
+	if msg.Origin != nil {
+		return msg.Origin.Service()
+	}
+	return ""
 }

@@ -27,14 +27,21 @@ const (
 	drainMaxLineLength        = 160
 )
 
+type ClusterInfo struct {
+	// Service of the logs that belong to this cluster
+	Service string
+	// First log occurrence of the cluster
+	FirstOccurrence string
+}
+
 type DrainProcessor struct {
 	drainProcessor        *drain.Drain
 	drainLastTimeReported time.Time
 	drainLastTimeUpdated  time.Time
 	drainNLogs            int64
 	id                    string
-	// Used only for telemetry, maps a cluster id to the service of logs that belong to this cluster
-	clusterToService map[int]string
+	// Used only for telemetry / tests, maps a cluster id to some infos
+	clusterInfo map[int]ClusterInfo
 }
 
 func NewDrainProcessor(instanceID string, config *drain.Config) *DrainProcessor {
@@ -48,7 +55,7 @@ func NewDrainProcessor(instanceID string, config *drain.Config) *DrainProcessor 
 		drainLastTimeUpdated:  time.Now(),
 		drainNLogs:            0,
 		id:                    instanceID,
-		clusterToService:      make(map[int]string),
+		clusterInfo:           make(map[int]ClusterInfo),
 	}
 }
 
@@ -60,7 +67,7 @@ func (d *DrainProcessor) Train(tokens []string) {
 	d.drainProcessor.TrainFromTokens(tokens)
 }
 
-func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.LogCluster, bool) {
+func (d *DrainProcessor) MatchAndTrain(log string, tokens []string, service string) (*drain.LogCluster, bool) {
 	start := time.Now()
 
 	metrics.TlmDrainProcessed.Inc("drain_id:" + d.id)
@@ -71,7 +78,13 @@ func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.
 	// TODO: Could be optimized
 	if cluster == nil {
 		cluster = d.drainProcessor.MatchFromTokens(tokens)
-		d.clusterToService[cluster.ID()] = service
+		// Only set first occurrence if it doesn't exist yet (preserve the true first occurrence)
+		if _, exists := d.clusterInfo[cluster.ID()]; !exists {
+			d.clusterInfo[cluster.ID()] = ClusterInfo{
+				Service:         service,
+				FirstOccurrence: log,
+			}
+		}
 	}
 
 	// Update if necessary
@@ -115,7 +128,7 @@ func (d *DrainProcessor) ShowClusters() {
 	})
 	nClusters := len(clusters)
 	for i, cluster := range clusters[:min(10, nClusters)] {
-		log.Infof("drain(%s): Cluster #%d (service: %s): %s", d.id, i+1, d.clusterToService[cluster.ID()], cluster.String())
+		log.Infof("drain(%s): Cluster #%d (service: %s): %s", d.id, i+1, d.clusterInfo[cluster.ID()].Service, cluster.String())
 	}
 }
 
@@ -144,7 +157,7 @@ func (d *DrainProcessor) ReportInfo() {
 	}
 	clusterByService := make(map[string]int)
 	for _, cluster := range clusters {
-		clusterByService[d.clusterToService[cluster.ID()]]++
+		clusterByService[d.clusterInfo[cluster.ID()].Service]++
 	}
 	for service, count := range clusterByService {
 		metrics.TlmDrainClustersByService.Set(float64(count), "service:"+service, "drain_id:"+d.id)
@@ -157,23 +170,38 @@ func (d *DrainProcessor) ReportInfo() {
 	metrics.TlmDrainMemoryUsage.Set(float64(mem), "drain_id:"+d.id)
 }
 
-const (
+var (
 	// Spaces are delimiters we want to remove
 	drainTokenSpaces = " \t\n\r"
 	// Delimiters are non spaces we want to use to split tokens but we want to keep them at the end of each token
 	// TODO: Keep points? Commas?
 	// drainTokenDelimiters = ":-._;/\\.,'\"`~*+=()[]{}&!@#$%^"
-	drainTokenDelimiters = "[](){},;."
+	drainTokenDelimiters      = "[](){},;."
+	drainTokenDelimitersMerge = false
+	// TODO
+	drainTokenizeUsingSpace = true
 )
+
+// SetTokenizationConfig sets the tokenization configuration for the drain processor.
+// This is primarily used by CLI commands to configure tokenization behavior.
+func SetTokenizationConfig(useSpace bool, delimiters string, mergeDelimiters bool) {
+	drainTokenizeUsingSpace = useSpace
+	drainTokenDelimiters = delimiters
+	drainTokenDelimitersMerge = mergeDelimiters
+}
 
 // TODO: Array of array of bytes?
 func DrainTokenize(msg []byte) []string {
+	if drainTokenizeUsingSpace {
+		return strings.Split(string(msg), " ")
+	}
+
 	tokens := make([]string, 0)
 	token := make([]byte, 0)
 	for _, char := range msg {
 		// Skip spaces
 		// TODO: Optimize by using []byte
-		if strings.ContainsRune(drainTokenSpaces, rune(char)) {
+		if strings.ContainsRune(drainTokenSpaces, rune(char)) || (!drainTokenDelimitersMerge && strings.ContainsRune(drainTokenDelimiters, rune(char))) {
 			if len(token) > 0 {
 				tokens = append(tokens, string(token))
 				token = make([]byte, 0)
@@ -183,7 +211,6 @@ func DrainTokenize(msg []byte) []string {
 
 		token = append(token, char)
 
-		// TODO: Merge delimiters?
 		// Delimiters
 		if strings.ContainsRune(drainTokenDelimiters, rune(char)) {
 			// Keep delimiters at the end of the token
@@ -202,4 +229,9 @@ func DrainTokenize(msg []byte) []string {
 
 func (d *DrainProcessor) Clusters() []*drain.LogCluster {
 	return d.drainProcessor.Clusters()
+}
+
+// GetClusterInfo returns the ClusterInfo for a given cluster ID.
+func (d *DrainProcessor) GetClusterInfo(clusterID int) ClusterInfo {
+	return d.clusterInfo[clusterID]
 }
