@@ -83,10 +83,10 @@ func (c *Config) Parse(data []byte) error {
 // DetectorConfig returns an OscillationConfig suitable for the detector
 func (c *Config) DetectorConfig() OscillationConfig {
 	return OscillationConfig{
-		WindowSize:          60,                                        // 60 samples = 60 seconds at 1Hz
-		MinZeroCrossings:    6,                                         // Minimum direction changes to flag
-		AmplitudeMultiplier: c.AmplitudeMultiplier,                     // From config
-		DecayFactor:         0.1,                                       // Exponential decay alpha
+		WindowSize:          60,                    // 60 samples = 60 seconds at 1Hz
+		MinZeroCrossings:    6,                     // Minimum direction changes to flag
+		AmplitudeMultiplier: c.AmplitudeMultiplier, // From config
+		DecayFactor:         0.1,                   // Exponential decay alpha
 		WarmupDuration:      time.Duration(c.WarmupSeconds) * time.Second,
 		SampleInterval:      time.Second, // 1Hz sampling
 	}

@@ -309,9 +309,9 @@ func TestRingBufferWraparound(t *testing.T) {
 	}
 
 	// Add more samples to wrap around
-	d.AddSample(50)  // Replaces 0
-	d.AddSample(60)  // Replaces 10
-	d.AddSample(70)  // Replaces 20
+	d.AddSample(50) // Replaces 0
+	d.AddSample(60) // Replaces 10
+	d.AddSample(70) // Replaces 20
 
 	// Buffer should now contain: 50, 60, 70, 30, 40 (logical order: 30, 40, 50, 60, 70)
 	amplitude := d.calculateAmplitude()
@@ -448,7 +448,7 @@ warmup_seconds: 10000
 		err := config.Parse([]byte(yaml))
 		require.NoError(t, err)
 
-		assert.Equal(t, 1800, config.WarmupSeconds)     // Max
+		assert.Equal(t, 1800, config.WarmupSeconds)       // Max
 		assert.Equal(t, 10.0, config.AmplitudeMultiplier) // Max
 	})
 }
