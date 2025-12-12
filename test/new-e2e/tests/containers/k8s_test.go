@@ -1502,19 +1502,12 @@ type scanResult struct {
 func (suite *k8sSuite) TestSBOM() {
 	scanMethods := []scanMethod{
 		{
-			mode: "default",
-			helmValues: `
-clusterAgent:
-  envDict:
-    DD_CSI_ENABLED: "true"
-`,
+			mode:       "default",
+			helmValues: ``,
 		},
 		{
 			mode: "mount",
 			helmValues: `
-clusterAgent:
-  envDict:
-    DD_CSI_ENABLED: "true"
 datadog:
   sbom:
     containerImage:
@@ -1524,9 +1517,6 @@ datadog:
 		{
 			mode: "overlayfs",
 			helmValues: `
-clusterAgent:
-  envDict:
-    DD_CSI_ENABLED: "true"
 datadog:
   sbom:
     containerImage:
