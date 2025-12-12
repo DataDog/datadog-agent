@@ -354,7 +354,9 @@ func Diagnose() []diagnose.Diagnosis {
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
 				RawError:    err.Error(),
 			}
-			diag = maybeTestWithPQDN(cfg, endpoints.Main, diag)
+			if cfg.GetBool("convert_dd_site_fqdn.enabled") {
+				diag = testConnectivityWithPQDN(cfg, endpoints.Main, diag)
+			}
 			diagnoses = append(diagnoses, diag)
 		}
 	}
@@ -363,11 +365,7 @@ func Diagnose() []diagnose.Diagnosis {
 }
 
 // Detect if the connection failed because of using a FQDN by trying with a PQDN
-func maybeTestWithPQDN(cfg model.Reader, endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
-	if cfg.Get("convert_dd_site_fqdn.enabled") == false {
-		return diag
-	}
-
+func testConnectivityWithPQDN(cfg model.Reader, endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
 	fqdn := endpoint.Host
 	if strings.HasSuffix(fqdn, ".") {
 		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", fqdn)
