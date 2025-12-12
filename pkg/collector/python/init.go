@@ -236,7 +236,6 @@ func init() {
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 	initOpenSSL()
-	initFIPS()
 }
 
 func expvarPythonInitErrors() interface{} {
