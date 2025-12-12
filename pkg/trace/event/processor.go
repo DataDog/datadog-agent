@@ -6,7 +6,6 @@
 package event
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -110,7 +109,6 @@ func (p *Processor) maxEPSSampleV1(traceID uint64, priority sampler.SamplingPrio
 
 type eventSampler interface {
 	Start()
-	Sample(event *pb.Span) (sampled bool, rate float64)
 	SampleV1(traceID uint64) (sampled bool, rate float64)
 	Stop()
 }

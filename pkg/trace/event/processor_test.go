@@ -230,12 +230,6 @@ func (s *MockEventSampler) Stop() {
 	s.StopCalls++
 }
 
-func (s *MockEventSampler) Sample(_ *pb.Span) (bool, float64) {
-	s.SampleCalls++
-
-	return rand.Float64() < s.Rate, s.Rate
-}
-
 func (s *MockEventSampler) SampleV1(_ uint64) (bool, float64) {
 	s.SampleCalls++
 
