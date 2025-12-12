@@ -132,7 +132,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().BoolVarP(&cliParams.OrderByScore, "order-by-score", "", false, "Order clusters by score instead of size")
 	cmd.Flags().BoolVar(&cliParams.AIMark, "ai-mark", false, "Use AI to mark important clusters (default: false)")
 	cmd.Flags().BoolVar(&cliParams.AISmartPatterns, "ai-smart-patterns", false, "Use AI to generate smart patterns with annotated variables (default: false)")
-	cmd.Flags().BoolVar(&cliParams.TokenizeUsingSpace, "tokenize-using-space", true, "Use simple space-based tokenization (default: true)")
+	cmd.Flags().BoolVar(&cliParams.TokenizeUsingSpace, "tokenize-using-space", false, "Use simple space-based tokenization (default: false)")
 	cmd.Flags().StringVar(&cliParams.TokenDelimiters, "token-delimiters", "[](){},;.", "Delimiters used for tokenization (default: \"[](){},;.\")")
 	cmd.Flags().BoolVar(&cliParams.TokenDelimitersMerge, "token-delimiters-merge", false, "Merge delimiters with tokens instead of splitting on them (default: false)")
 	cmd.Flags().BoolVar(&cliParams.FirstOccurrences, "first-occurrences", false, "Display first occurrence for each cluster (default: false)")
@@ -344,8 +344,19 @@ You will have the first log occurrence after the pattern to guide you.
 Each line is a pattern. You should output only the patterns in order with the new variables. No other text.
 ---
 `)
-				for _, cluster := range aiClusters {
-					smartPatternsPrompt.WriteString(fmt.Sprintf("%s | First occurrence: %s\n", cluster.String(), drainProcessor.GetClusterInfo(cluster.ID()).FirstOccurrence))
+				for i, cluster := range aiClusters {
+					template := cluster.GetTemplate()
+					if len(template) > 160 {
+						template = template[:160] + "..."
+					}
+					firstOcc := drainProcessor.GetClusterInfo(cluster.ID()).FirstOccurrence
+					if len(firstOcc) > 160 {
+						firstOcc = firstOcc[:160] + "..."
+					}
+					smartPatternsPrompt.WriteString(fmt.Sprintf("%s | First occurrence: %s\n", template, firstOcc))
+					if i >= cliParams.TopClusters {
+						break
+					}
 				}
 
 				prompt := smartPatternsPrompt.String()
