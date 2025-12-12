@@ -139,7 +139,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
 	// Test agent health on managed instances
 	suite.Run("Managed instance agent health", func() {
-		suite.TestAgentHealth(&TestAgentHealthArgs{
+		suite.AssertAgentHealth(&TestAgentHealthArgs{
 			CheckComponents: []string{"core", "metadata"},
 		})
 	})

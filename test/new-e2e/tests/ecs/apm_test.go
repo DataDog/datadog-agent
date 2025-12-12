@@ -205,7 +205,7 @@ func (suite *ecsAPMSuite) Test00UpAndRunning() {
 func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 	// Test that the APM agent is ready and receiving traces
 	suite.Run("APM agent readiness check", func() {
-		suite.TestAgentHealth(&TestAgentHealthArgs{
+		suite.AssertAgentHealth(&TestAgentHealthArgs{
 			CheckComponents: []string{"trace"},
 		})
 
@@ -224,7 +224,7 @@ func (suite *ecsAPMSuite) TestBasicTraceCollection() {
 	// Test basic trace collection and validation
 	suite.Run("Basic trace collection", func() {
 		// Use the existing tracegen app for basic trace validation
-		suite.TestAPMTrace(&TestAPMTraceArgs{
+		suite.AssertAPMTrace(&TestAPMTraceArgs{
 			Filter: TestAPMTraceFilterArgs{
 				ServiceName: "tracegen-test-service",
 			},
@@ -579,7 +579,7 @@ func (suite *ecsAPMSuite) TestDogtstatsdUDP() {
 func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
 	expectedTags := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "dogstatsd", true)
 
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{

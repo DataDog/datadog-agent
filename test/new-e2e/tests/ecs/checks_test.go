@@ -46,7 +46,7 @@ func (suite *ecsChecksSuite) SetupSuite() {
 func (suite *ecsChecksSuite) TestNginxECS() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:ec2$"},
@@ -82,7 +82,7 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 		},
 	})
 
-	suite.TestLog(&TestLogArgs{
+	suite.AssertLog(&TestLogArgs{
 		Filter: TestLogFilterArgs{
 			Service: "apps-nginx-server",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
@@ -121,7 +121,7 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 func (suite *ecsChecksSuite) TestRedisECS() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:ec2$"},
@@ -156,7 +156,7 @@ func (suite *ecsChecksSuite) TestRedisECS() {
 		},
 	})
 
-	suite.TestLog(&TestLogArgs{
+	suite.AssertLog(&TestLogArgs{
 		Filter: TestLogFilterArgs{
 			Service: "redis",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
@@ -195,7 +195,7 @@ func (suite *ecsChecksSuite) TestRedisECS() {
 func (suite *ecsChecksSuite) TestNginxFargate() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:fargate$"},
@@ -233,7 +233,7 @@ func (suite *ecsChecksSuite) TestNginxFargate() {
 func (suite *ecsChecksSuite) TestRedisFargate() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:fargate$"},
@@ -269,7 +269,7 @@ func (suite *ecsChecksSuite) TestRedisFargate() {
 
 func (suite *ecsChecksSuite) TestPrometheus() {
 	// Test Prometheus check
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "prometheus.prom_gauge",
 		},

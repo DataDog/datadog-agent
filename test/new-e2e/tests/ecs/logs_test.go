@@ -50,7 +50,7 @@ func (suite *ecsLogsSuite) SetupSuite() {
 func (suite *ecsLogsSuite) Test00AgentLogsReady() {
 	// Test that the log agent is ready and collecting logs
 	suite.Run("Log agent readiness check", func() {
-		suite.TestAgentHealth(&TestAgentHealthArgs{
+		suite.AssertAgentHealth(&TestAgentHealthArgs{
 			CheckComponents: []string{"logs"},
 		})
 

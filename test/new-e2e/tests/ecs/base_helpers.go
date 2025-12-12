@@ -110,7 +110,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *BaseSuite[Env]) TestMetric(args *TestMetricArgs) {
+func (suite *BaseSuite[Env]) AssertMetric(args *TestMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("metric   "+prettyMetricQuery, func() {
@@ -239,7 +239,7 @@ type TestLogExpectArgs struct {
 	Message string
 }
 
-func (suite *BaseSuite[Env]) TestLog(args *TestLogArgs) {
+func (suite *BaseSuite[Env]) AssertLog(args *TestLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("log   "+prettyLogQuery, func() {
@@ -368,7 +368,7 @@ type TestCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *BaseSuite[Env]) TestCheckRun(args *TestCheckRunArgs) {
+func (suite *BaseSuite[Env]) AssertCheckRun(args *TestCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
@@ -486,7 +486,7 @@ type TestEventExpectArgs struct {
 	AlertType event.AlertType
 }
 
-func (suite *BaseSuite[Env]) TestEvent(args *TestEventArgs) {
+func (suite *BaseSuite[Env]) AssertEvent(args *TestEventArgs) {
 	prettyEventQuery := fmt.Sprintf("%s{%s}", args.Filter.Source, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("event   "+prettyEventQuery, func() {
@@ -627,7 +627,7 @@ type TestAPMTraceExpectArgs struct {
 	ParentIDPresent bool
 }
 
-func (suite *BaseSuite[Env]) TestAPMTrace(args *TestAPMTraceArgs) {
+func (suite *BaseSuite[Env]) AssertAPMTrace(args *TestAPMTraceArgs) {
 	prettyTraceQuery := fmt.Sprintf("%s{%s}", args.Filter.ServiceName, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("trace   "+prettyTraceQuery, func() {
@@ -758,7 +758,7 @@ type TestLogPipelineExpectArgs struct {
 	TraceIDPresent bool
 }
 
-func (suite *BaseSuite[Env]) TestLogPipeline(args *TestLogPipelineArgs) {
+func (suite *BaseSuite[Env]) AssertLogPipeline(args *TestLogPipelineArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("logPipeline   "+prettyLogQuery, func() {
@@ -848,7 +848,7 @@ type TestAgentHealthArgs struct {
 	ExpectedVersion string
 }
 
-func (suite *BaseSuite[Env]) TestAgentHealth(args *TestAgentHealthArgs) {
+func (suite *BaseSuite[Env]) AssertAgentHealth(args *TestAgentHealthArgs) {
 	suite.Run("agentHealth", func() {
 		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			c := &myCollectT{
@@ -899,7 +899,7 @@ type TestResilienceScenarioArgs struct {
 	RecoveryTimeout time.Duration
 }
 
-func (suite *BaseSuite[Env]) TestResilienceScenario(args *TestResilienceScenarioArgs) {
+func (suite *BaseSuite[Env]) AssertResilienceScenario(args *TestResilienceScenarioArgs) {
 	suite.Run("resilience_"+args.ScenarioName, func() {
 		// Trigger the failure scenario
 		if args.TriggerFunc != nil {

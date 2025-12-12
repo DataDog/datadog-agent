@@ -49,7 +49,7 @@ func (suite *ecsPlatformSuite) SetupSuite() {
 }
 
 func (suite *ecsPlatformSuite) TestWindowsFargate() {
-	suite.TestCheckRun(&TestCheckRunArgs{
+	suite.AssertCheckRun(&TestCheckRunArgs{
 		Filter: TestCheckRunFilterArgs{
 			Name: "http.can_connect",
 			Tags: []string{
@@ -88,7 +88,7 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 	})
 
 	// Test container check
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
@@ -127,7 +127,7 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 
 func (suite *ecsPlatformSuite) TestCPU() {
 	// Test CPU metrics
-	suite.TestMetric(&TestMetricArgs{
+	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
