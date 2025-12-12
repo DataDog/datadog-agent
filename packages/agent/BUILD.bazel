@@ -7,17 +7,23 @@ package(default_visibility = ["//visibility:public"])
 
 string_flag(
     name = "flavor",
-    build_setting_default = "",
+    build_setting_default = "base",
+    # These values match omnibus.
     values = [
-        "",
+        "base",
         "fips",
         "heroku",
     ],
 )
 
-config_setting(
+alias(
     name = "default_flavor",
-    flag_values = {"@@//packages/agent:flavor": ""},
+    actual = ":base_flavor",
+)
+
+config_setting(
+    name = "base_flavor",
+    flag_values = {"@@//packages/agent:flavor": "base"},
 )
 
 config_setting(

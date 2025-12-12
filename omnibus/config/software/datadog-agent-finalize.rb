@@ -26,11 +26,8 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        if heroku_target?
-            command_on_repo_root "bazelisk run --//packages/agent:flavor=heroku -- //packages/install_dir:install --destdir=#{install_dir}"
-        else
-            command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}"
-        end
+        # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
+        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
         # Conf files
         if windows_target?
@@ -65,6 +62,7 @@ build do
             delete "#{install_dir}/embedded/lib/*.la"
         end
 
+        # TODO: Rather than move these, let's install them to the right place to start
         if linux_target?
             # Move configuration files
             mkdir "#{output_config_dir}/etc/datadog-agent"
