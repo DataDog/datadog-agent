@@ -205,8 +205,8 @@ func (e *ddExtension) Shutdown(ctx context.Context) error {
 	profiler.Stop()
 
 	// cleanup
-	os.Unsetenv("DD_PROFILING_AGENTLESS")
-	os.Unsetenv("DD_API_KEY")
+	_ = os.Unsetenv("DD_PROFILING_AGENTLESS")
+	_ = os.Unsetenv("DD_API_KEY")
 
 	if e.traceAgent != nil {
 		// stop server
