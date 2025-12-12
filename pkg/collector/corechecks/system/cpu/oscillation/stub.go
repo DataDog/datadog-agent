@@ -5,6 +5,7 @@
 
 //go:build !linux && !darwin
 
+// Package oscillation provides a stub implementation for unsupported platforms.
 package oscillation
 
 import (
