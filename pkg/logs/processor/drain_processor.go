@@ -75,7 +75,7 @@ func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.
 	}
 
 	// Update if necessary
-	if time.Since(d.drainLastTimeUpdated) < updateDrainInterval {
+	if time.Since(d.drainLastTimeUpdated) >= updateDrainInterval {
 		d.update()
 	}
 
