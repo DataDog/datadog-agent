@@ -221,10 +221,15 @@ func getBatteryInfo() (*batteryInfo, error) {
 			continue
 		}
 
-		info.designedCapacity = float64(bi.DesignedCapacity)
-		info.maximumCapacity = float64(bi.FullChargedCapacity)
-		info.maximumCapacityPct = math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100)
-		info.cycleCount = float64(bi.CycleCount)
+		designedCapacity := float64(bi.DesignedCapacity)
+		maximumCapacity := float64(bi.FullChargedCapacity)
+		maximumCapacityPct := math.Round((maximumCapacity / designedCapacity) * 100)
+		cycleCount := float64(bi.CycleCount)
+
+		info.designedCapacity = &designedCapacity
+		info.maximumCapacity = &maximumCapacity
+		info.maximumCapacityPct = &maximumCapacityPct
+		info.cycleCount = &cycleCount
 
 		if bs.Capacity == BATTERY_UNKNOWN_CAPACITY {
 			log.Debugf("Current charge percentage is unknown, metric not submitted")

@@ -21,13 +21,13 @@ import (
 
 // setupMocks is a test helper that mocks hasBatteryAvailableFunc and getBatteryInfoFunc
 // Returns a cleanup function that should be deferred
-func setupMocks(hasBattery bool, info batteryInfo) func() {
+func setupMocks(hasBattery bool, info *batteryInfo) func() {
 	originalHasBattery := hasBatteryAvailableFunc
 	hasBatteryAvailableFunc = func() (bool, error) {
 		return hasBattery, nil
 	}
 	originalGetBatteryInfo := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (batteryInfo, error) {
+	getBatteryInfoFunc = func() (*batteryInfo, error) {
 		return info, nil
 	}
 	return func() {
@@ -36,16 +36,21 @@ func setupMocks(hasBattery bool, info batteryInfo) func() {
 	}
 }
 
+// ptrFloat64 is a helper to create a pointer to a float64
+func ptrFloat64(v float64) *float64 {
+	return &v
+}
+
 // TestBatteryCheckWithMockedData tests the check with mocked battery info
 func TestBatteryCheckWithMockedData(t *testing.T) {
-	defer setupMocks(true, batteryInfo{
-		cycleCount:         150,
-		designedCapacity:   100000,
-		maximumCapacity:    95000,
-		maximumCapacityPct: 95.0,
-		currentCharge:      84.21,
-		voltage:            12450,
-		chargeRate:         -2500,
+	defer setupMocks(true, &batteryInfo{
+		cycleCount:         ptrFloat64(150),
+		designedCapacity:   ptrFloat64(100000),
+		maximumCapacity:    ptrFloat64(95000),
+		maximumCapacityPct: ptrFloat64(95.0),
+		currentChargePct:   ptrFloat64(84.21),
+		voltage:            ptrFloat64(12450),
+		chargeRate:         ptrFloat64(-2500),
 		powerState:         []string{"power_state:battery_discharging"},
 	})()
 
@@ -69,7 +74,7 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "system.battery.maximum_capacity", 95000.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.maximum_capacity_pct", 95.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.cycle_count", 150.0, "", []string(nil))
-	mockSender.AssertMetric(t, "Gauge", "system.battery.current_charge", 84.21, "", []string(nil))
+	mockSender.AssertMetric(t, "Gauge", "system.battery.current_charge_pct", 84.21, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.voltage", 12450.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.charge_rate", -2500.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1.0, "", []string{"power_state:battery_discharging"})
@@ -80,7 +85,7 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 
 // TestBatteryConfigure tests configuration
 func TestBatteryConfigure(t *testing.T) {
-	defer setupMocks(true, batteryInfo{})()
+	defer setupMocks(true, &batteryInfo{})()
 
 	batteryCheck := &Check{}
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -137,16 +142,23 @@ func TestBatteryMultipleRuns(t *testing.T) {
 
 	callCount := 0
 	originalFunc := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (batteryInfo, error) {
+	getBatteryInfoFunc = func() (*batteryInfo, error) {
 		callCount++
-		return batteryInfo{
-			cycleCount:         150,
-			designedCapacity:   100000,
-			maximumCapacity:    95000,
-			maximumCapacityPct: 95.0,
-			currentCharge:      85.0 - float64(callCount*5.0),
-			voltage:            12300 - float64(callCount*50),
-			chargeRate:         -2000 - float64(callCount*100),
+		cycleCount := 150.0
+		designedCapacity := 100000.0
+		maximumCapacity := 95000.0
+		maximumCapacityPct := 95.0
+		currentChargePct := 85.0 - float64(callCount*5.0)
+		voltage := 12300 - float64(callCount*50)
+		chargeRate := -2000 - float64(callCount*100)
+		return &batteryInfo{
+			cycleCount:         &cycleCount,
+			designedCapacity:   &designedCapacity,
+			maximumCapacity:    &maximumCapacity,
+			maximumCapacityPct: &maximumCapacityPct,
+			currentChargePct:   &currentChargePct,
+			voltage:            &voltage,
+			chargeRate:         &chargeRate,
 			powerState:         []string{"power_state:battery_discharging"},
 		}, nil
 	}
@@ -201,14 +213,14 @@ func TestBatteryHealthLevels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer setupMocks(true, batteryInfo{
-				cycleCount:         100,
-				designedCapacity:   tt.designedCapacity,
-				maximumCapacity:    tt.maximumCapacity,
-				maximumCapacityPct: tt.expectedHealth,
-				currentCharge:      50.0,
-				voltage:            12500,
-				chargeRate:         0,
+			defer setupMocks(true, &batteryInfo{
+				cycleCount:         ptrFloat64(100),
+				designedCapacity:   ptrFloat64(tt.designedCapacity),
+				maximumCapacity:    ptrFloat64(tt.maximumCapacity),
+				maximumCapacityPct: ptrFloat64(tt.expectedHealth),
+				currentChargePct:   ptrFloat64(50.0),
+				voltage:            ptrFloat64(12500),
+				chargeRate:         ptrFloat64(0),
 				powerState:         []string{"power_state:battery_power_on_line"},
 			})()
 
@@ -245,19 +257,25 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 	currentIndex := 0
 
 	originalFunc := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (batteryInfo, error) {
+	getBatteryInfoFunc = func() (*batteryInfo, error) {
 		charge := charges[currentIndex]
 		if currentIndex < len(charges)-1 {
 			currentIndex++
 		}
-		return batteryInfo{
-			cycleCount:         150,
-			designedCapacity:   50000,
-			maximumCapacity:    48000,
-			maximumCapacityPct: 96.0,
-			currentCharge:      charge,
-			voltage:            12500 - (charge * 5),
-			chargeRate:         -1500 - (charge * 2),
+		cycleCount := 150.0
+		designedCapacity := 50000.0
+		maximumCapacity := 48000.0
+		maximumCapacityPct := 96.0
+		voltage := 12500 - (charge * 5)
+		chargeRate := -1500 - (charge * 2)
+		return &batteryInfo{
+			cycleCount:         &cycleCount,
+			designedCapacity:   &designedCapacity,
+			maximumCapacity:    &maximumCapacity,
+			maximumCapacityPct: &maximumCapacityPct,
+			currentChargePct:   &charge,
+			voltage:            &voltage,
+			chargeRate:         &chargeRate,
 			powerState:         []string{"power_state:battery_discharging"},
 		}, nil
 	}
@@ -330,14 +348,14 @@ func TestBatteryPowerStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer setupMocks(true, batteryInfo{
-				cycleCount:         100,
-				designedCapacity:   50000,
-				maximumCapacity:    48000,
-				maximumCapacityPct: 96.0,
-				currentCharge:      75.0,
-				voltage:            12400,
-				chargeRate:         -1800,
+			defer setupMocks(true, &batteryInfo{
+				cycleCount:         ptrFloat64(100),
+				designedCapacity:   ptrFloat64(50000),
+				maximumCapacity:    ptrFloat64(48000),
+				maximumCapacityPct: ptrFloat64(96.0),
+				currentChargePct:   ptrFloat64(75.0),
+				voltage:            ptrFloat64(12400),
+				chargeRate:         ptrFloat64(-1800),
 				powerState:         tt.powerState,
 			})()
 

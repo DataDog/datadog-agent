@@ -4,15 +4,25 @@
 #include <stdbool.h>
 
 typedef struct {
-    int cycleCount;
-    int designCapacity;
-    int appleRawMaxCapacity;
-    int currentCapacity;
-    int voltage;           // mV
-    int instantAmperage;   // mA (negative = discharging, positive = charging)
-    bool isCharging;        // 1 if charging, 0 otherwise
-    bool externalConnected; // 1 if AC power connected, 0 otherwise
-    bool found;             // 1 if battery found, 0 otherwise
+    bool hasValue;
+    int value;
+} OptionalInt;
+
+typedef struct {
+    bool hasValue;
+    bool value;
+} OptionalBool;
+
+typedef struct {
+    bool found;
+    OptionalInt cycleCount;
+    OptionalInt designCapacity;
+    OptionalInt appleRawMaxCapacity;
+    OptionalInt currentCapacity;
+    OptionalInt voltage;
+    OptionalInt instantAmperage;
+    OptionalBool isCharging;
+    OptionalBool externalConnected;
 } BatteryInfo;
 
 BatteryInfo getBatteryInfo(void);

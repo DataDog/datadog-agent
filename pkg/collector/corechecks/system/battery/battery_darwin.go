@@ -15,41 +15,81 @@ package battery
 */
 import "C"
 
+// unwrapInt converts C.OptionalInt to *float64 (nil if not present)
+func unwrapInt(o C.OptionalInt) *float64 {
+	if !o.hasValue {
+		return nil
+	}
+	v := float64(o.value)
+	return &v
+}
+
+// unwrapBool converts C.OptionalBool to *bool (nil if not present)
+func unwrapBool(o C.OptionalBool) *bool {
+	if !o.hasValue {
+		return nil
+	}
+	v := bool(o.value)
+	return &v
+}
+
 func hasBatteryAvailable() (bool, error) {
 	cInfo := C.getBatteryInfo()
 	return bool(cInfo.found), nil
 }
 
 // getBatteryInfo retrieves battery information from IOKit
-func getBatteryInfo() (batteryInfo, error) {
+func getBatteryInfo() (*batteryInfo, error) {
 	cInfo := C.getBatteryInfo()
 
-	designCapacity := float64(cInfo.designCapacity)           // mAh
-	appleRawMaxCapacity := float64(cInfo.appleRawMaxCapacity) // mAh
-	voltage := float64(cInfo.voltage)                         // mV
-	instantAmperage := float64(cInfo.instantAmperage)         // mA
+	info := &batteryInfo{
+		powerState: getPowerStateTags(cInfo.isCharging, cInfo.externalConnected),
+	}
 
-	return batteryInfo{
-		cycleCount:         float64(cInfo.cycleCount),
-		designedCapacity:   designCapacity * voltage / 1000.0,                    // mWh
-		maximumCapacity:    appleRawMaxCapacity * voltage / 1000.0,               // mWh
-		maximumCapacityPct: min(appleRawMaxCapacity/designCapacity*100.0, 100.0), // percentage capped at 100
-		currentCharge:      float64(cInfo.currentCapacity),                       // percentage
-		voltage:            voltage,                                              // mV
-		chargeRate:         instantAmperage * voltage / 1000.0,                   // mW
-		powerState:         getPowerStateTags(bool(cInfo.isCharging), bool(cInfo.externalConnected)),
-	}, nil
+	designCapacity := unwrapInt(cInfo.designCapacity)
+	appleRawMaxCapacity := unwrapInt(cInfo.appleRawMaxCapacity)
+	voltage := unwrapInt(cInfo.voltage)
+
+	info.cycleCount = unwrapInt(cInfo.cycleCount)
+	info.currentChargePct = unwrapInt(cInfo.currentCapacity)
+	info.voltage = voltage
+
+	// Calculate derived metrics if we have the required values
+	if designCapacity != nil && appleRawMaxCapacity != nil {
+		maxCapPct := min(*appleRawMaxCapacity / *designCapacity * 100.0, 100.0)
+		info.maximumCapacityPct = &maxCapPct
+
+		if voltage != nil {
+			// mAh * mV / 1000 = mWh
+			designedCap := *designCapacity * *voltage / 1000.0
+			maxCap := *appleRawMaxCapacity * *voltage / 1000.0
+			info.designedCapacity = &designedCap
+			info.maximumCapacity = &maxCap
+
+			if instantAmperage := unwrapInt(cInfo.instantAmperage); instantAmperage != nil {
+				chargeRate := *instantAmperage * *voltage / 1000.0
+				info.chargeRate = &chargeRate
+			}
+		}
+	}
+
+	return info, nil
 }
 
-func getPowerStateTags(isCharging, externalConnected bool) []string {
+func getPowerStateTags(isCharging, externalConnected C.OptionalBool) []string {
 	powerStateTags := []string{}
-	if isCharging {
-		powerStateTags = append(powerStateTags, "power_state:battery_charging")
-	} else {
-		powerStateTags = append(powerStateTags, "power_state:battery_discharging")
+
+	if charging := unwrapBool(isCharging); charging != nil {
+		if *charging {
+			powerStateTags = append(powerStateTags, "power_state:battery_charging")
+		} else {
+			powerStateTags = append(powerStateTags, "power_state:battery_discharging")
+		}
 	}
-	if externalConnected {
+
+	if connected := unwrapBool(externalConnected); connected != nil && *connected {
 		powerStateTags = append(powerStateTags, "power_state:battery_power_on_line")
 	}
+
 	return powerStateTags
 }

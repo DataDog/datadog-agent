@@ -30,11 +30,12 @@ var getBatteryInfoFunc = getBatteryInfo
 var hasBatteryAvailableFunc = hasBatteryAvailable
 
 // batteryInfo contains normalized battery information across platforms
+// All fields are pointers to indicate optional/unavailable values
 type batteryInfo struct {
-	cycleCount         float64
-	designedCapacity   float64  // mWh
-	maximumCapacity    float64  // mWh
-	maximumCapacityPct float64  // percentage (0-100)
+	cycleCount         *float64 // battery cycle count
+	designedCapacity   *float64 // mWh
+	maximumCapacity    *float64 // mWh
+	maximumCapacityPct *float64 // percentage (0-100)
 	currentChargePct   *float64 // percentage (0-100)
 	voltage            *float64 // mV
 	chargeRate         *float64 // mW (positive = charging, negative = discharging)
@@ -89,10 +90,18 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	sender.Gauge("system.battery.designed_capacity", info.designedCapacity, "", nil)
-	sender.Gauge("system.battery.maximum_capacity", info.maximumCapacity, "", nil)
-	sender.Gauge("system.battery.maximum_capacity_pct", info.maximumCapacityPct, "", nil)
-	sender.Gauge("system.battery.cycle_count", info.cycleCount, "", nil)
+	if info.designedCapacity != nil {
+		sender.Gauge("system.battery.designed_capacity", *info.designedCapacity, "", nil)
+	}
+	if info.maximumCapacity != nil {
+		sender.Gauge("system.battery.maximum_capacity", *info.maximumCapacity, "", nil)
+	}
+	if info.maximumCapacityPct != nil {
+		sender.Gauge("system.battery.maximum_capacity_pct", *info.maximumCapacityPct, "", nil)
+	}
+	if info.cycleCount != nil {
+		sender.Gauge("system.battery.cycle_count", *info.cycleCount, "", nil)
+	}
 	if info.currentChargePct != nil {
 		sender.Gauge("system.battery.current_charge_pct", *info.currentChargePct, "", nil)
 	}

@@ -34,14 +34,31 @@ BatteryInfo getBatteryInfo(void) {
         }
 
         info.found = true;
-        info.cycleCount = [props[@"CycleCount"] intValue];
-        info.designCapacity = [props[@"DesignCapacity"] intValue];
-        info.appleRawMaxCapacity = [props[@"AppleRawMaxCapacity"] intValue];
-        info.currentCapacity = [props[@"CurrentCapacity"] intValue];
-        info.voltage = [props[@"Voltage"] intValue];
-        info.instantAmperage = [props[@"InstantAmperage"] intValue];
-        info.isCharging = [props[@"IsCharging"] boolValue];
-        info.externalConnected = [props[@"ExternalConnected"] boolValue];
+
+        if (props[@"DesignCapacity"] != nil) {
+            info.designCapacity = (OptionalInt){true, [props[@"DesignCapacity"] intValue]};
+        }
+        if (props[@"AppleRawMaxCapacity"] != nil) {
+            info.appleRawMaxCapacity = (OptionalInt){true, [props[@"AppleRawMaxCapacity"] intValue]};
+        }
+        if (props[@"CycleCount"] != nil) {
+            info.cycleCount = (OptionalInt){true, [props[@"CycleCount"] intValue]};
+        }
+        if (props[@"CurrentCapacity"] != nil) {
+            info.currentCapacity = (OptionalInt){true, [props[@"CurrentCapacity"] intValue]};
+        }
+        if (props[@"Voltage"] != nil) {
+            info.voltage = (OptionalInt){true, [props[@"Voltage"] intValue]};
+        }
+        if (props[@"InstantAmperage"] != nil) {
+            info.instantAmperage = (OptionalInt){true, [props[@"InstantAmperage"] intValue]};
+        }
+        if (props[@"IsCharging"] != nil) {
+            info.isCharging = (OptionalBool){true, [props[@"IsCharging"] boolValue]};
+        }
+        if (props[@"ExternalConnected"] != nil) {
+            info.externalConnected = (OptionalBool){true, [props[@"ExternalConnected"] boolValue]};
+        }
 
         return info;
     }
