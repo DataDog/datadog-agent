@@ -18,6 +18,7 @@ import (
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	resourcesEcs "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
@@ -95,6 +96,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		}
 	} else {
 		env.FakeIntake = nil
+	}
+
+	// Wait for container instances to be ready before deploying EC2 workloads
+	// This prevents services from timing out while waiting for instances to register
+	if clusterParams.LinuxNodeGroup || clusterParams.LinuxARMNodeGroup || clusterParams.LinuxBottleRocketNodeGroup || clusterParams.WindowsNodeGroup {
+		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
+		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 1)
 	}
 
 	// Testing workload
