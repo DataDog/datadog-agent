@@ -6,12 +6,12 @@
 //go:build unix
 
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate event_deep_copy -tags unix -types-file model.go -output event_deep_copy_unix.go
 
 // Package model holds model related files
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -153,7 +153,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
 		*e = eventZero
@@ -190,8 +190,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 }
 
 // Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -395,8 +397,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+		String:  pc.Comm,
+	}
 }
 
 // ParentScope returns the parent entity scope

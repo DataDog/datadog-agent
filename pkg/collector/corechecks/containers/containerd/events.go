@@ -44,11 +44,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		var tags []string
-		if len(e.Extra) > 0 {
-			for k, v := range e.Extra {
-				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-			}
+		tags := make([]string, 0, len(e.Extra))
+		for k, v := range e.Extra {
+			tags = append(tags, k+":"+v)
 		}
 
 		alertType := event.AlertTypeInfo
