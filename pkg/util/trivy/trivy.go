@@ -13,22 +13,17 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"math"
 	"runtime"
 	"slices"
 	"sync"
-	"syscall"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
-	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
@@ -42,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	uwalker "github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
+	"github.com/DataDog/ddtrivy"
 )
 
 const (
@@ -91,83 +86,22 @@ var trivyDefaultSkipDirs = []string{
 	"**/.cargo/git/**",
 }
 
-func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
+func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 	parallel := 1
-	if opts.Fast {
+	if scanOptions.Fast {
 		parallel = runtime.NumCPU()
 	}
 
-	option := artifact.Option{
-		Offline:           true,
-		OfflineJar:        true,
-		NoProgress:        true,
-		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
-		Parallel:          parallel,
-		SBOMSources:       []string{},
-		DisabledHandlers:  DefaultDisabledHandlers(),
-		FileChecksumJar:   true,
-		WalkerOption: walker.Option{
-			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
-					return nil
-				}
-				if errors.Is(err, syscall.ESRCH) {
-					// ignore "no such process" errors when walking /proc/<pid>
-					return nil
-				}
-				return err
-			},
-		},
+	var artifactOption artifact.Option
+	if looselyCompareAnalyzers(scanOptions.Analyzers, []string{OSAnalyzers}) {
+		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
+	} else {
+		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
 	}
 
-	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
+	artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 
-	if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers}) {
-		option.WalkerOption.OnlyDirs = []string{
-			"/etc/*",
-			"/lib/apk/db/*",
-			"/usr/lib/*",
-			"/usr/lib/sysimage/rpm/*",
-			"/var/lib/dpkg/**",
-			"/var/lib/rpm/*",
-			"/usr/share/rpm/*",
-			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
-			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
-			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
-			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
-		}
-		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
-	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
-		option.WalkerOption.SkipDirs = append(
-			option.WalkerOption.SkipDirs,
-			"/bin/**",
-			"/boot/**",
-			"/dev/**",
-			"/media/**",
-			"/mnt/**",
-			"/proc/**",
-			"/run/**",
-			"/sbin/**",
-			"/sys/**",
-			"/sysroot/**",
-			"/tmp/**",
-			"/usr/bin/**",
-			"/usr/sbin/**",
-			"/var/cache/**",
-			"/var/lib/containerd/**",
-			"/var/lib/containers/**",
-			"/var/lib/docker/**",
-			"/var/lib/kubelet/pods/**",
-			"/var/lib/kubelet/plugins/**/globalmount/**",
-			"/var/lib/libvirt/**",
-			"/var/lib/snapd/**",
-			"/var/log/**",
-			"/var/run/**",
-			"/var/tmp/**",
-		)
-	}
-
-	return option
+	return artifactOption
 }
 
 // DefaultDisabledCollectors returns default disabled collectors
@@ -323,20 +257,14 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(path, cache, uwalker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	artifactOption := getDefaultArtifactOption(scanOptions)
+
+	report, err := ddtrivy.ScanRootFS(ctx, artifactOption, cache, path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
+		return nil, fmt.Errorf("unable to scan rootfs, err: %w", err)
 	}
 
-	wrapper := &artifactWithType{
-		inner:     fsArtifact,
-		forceType: artifact.TypeContainerImage,
-	}
-	if removeLayers {
-		wrapper.forceType = artifact.TypeFilesystem
-	}
-
-	return c.scan(ctx, wrapper, applier.NewApplier(cache))
+	return report, nil
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
