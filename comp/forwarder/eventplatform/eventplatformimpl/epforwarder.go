@@ -375,7 +375,8 @@ func testConnectivityWithPQDN(cfg model.Reader, endpoint config.Endpoint, diag d
 		_, err := logshttp.CheckConnectivityDiagnose(endpoint, cfg)
 		if err == nil {
 			diag.Remediation = fmt.Sprintf(
-				"The connection to %s failed. It is a fully qualified domain name (FQDN), note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", fqdn)
+				"The connection to the fully qualified domain name (FQDN) %q failed, but the connection to %q (without trailing dot) succeeded. Update your firewall and/or proxy configuration to accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false in the agent configuration.",
+				fqdn, endpoint.Host)
 		}
 	}
 	return diag
