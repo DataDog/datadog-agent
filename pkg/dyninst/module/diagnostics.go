@@ -9,6 +9,7 @@ package module
 
 import (
 	"cmp"
+	"slices"
 	"sync"
 
 	"github.com/google/btree"
@@ -110,6 +111,15 @@ func (m *diagnosticsManager) enqueue(
 	return true
 }
 
+// retain the diagnostics for the given runtime ID for the given probes. All
+// other diagnostic tracking for the runtime ID for other probes are removed.
+func (m *diagnosticsManager) retain(runtimeID procRuntimeID, probes []ir.ProbeDefinition) {
+	m.received.retain(runtimeID.runtimeID, probes)
+	m.installed.retain(runtimeID.runtimeID, probes)
+	m.emitted.retain(runtimeID.runtimeID, probes)
+	m.errors.retain(runtimeID.runtimeID, probes)
+}
+
 func (m *diagnosticsManager) reportReceived(runtimeID procRuntimeID, probe ir.ProbeIDer) {
 	m.enqueue(m.received, runtimeID, probe, uploader.StatusReceived, nil)
 }
@@ -141,6 +151,7 @@ func (m *diagnosticsManager) remove(runtimeID string) {
 func (e *diagnosticTracker) removeByRuntimeID(runtimeID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	defer e.executeRemoveBufLocked()
 
 	key := diagnosticKey{runtimeID: runtimeID}
 	e.mu.btree.AscendGreaterOrEqual(
@@ -152,11 +163,6 @@ func (e *diagnosticTracker) removeByRuntimeID(runtimeID string) {
 			return false
 		},
 	)
-	for _, item := range e.mu.removeBuf {
-		e.mu.btree.Delete(item)
-	}
-	clear(e.mu.removeBuf)
-	e.mu.removeBuf = e.mu.removeBuf[:0]
 }
 
 type diagnosticItem struct {
@@ -178,4 +184,55 @@ func cmpDiagnosticKey(a, b diagnosticKey) int {
 
 func (di diagnosticItem) less(other diagnosticItem) bool {
 	return cmpDiagnosticKey(di.key, other.key) < 0
+}
+
+// Retain retains the probes for the given runtime ID. All other probes for the
+// runtime ID are removed.
+func (e *diagnosticTracker) retain(runtimeID string, probes []ir.ProbeDefinition) {
+	slices.SortFunc(probes, ir.CompareProbeIDs)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	defer e.executeRemoveBufLocked()
+
+	key := diagnosticKey{runtimeID: runtimeID}
+	probeIdx := 0
+	e.mu.btree.AscendGreaterOrEqual(diagnosticItem{key: key}, func(
+		item diagnosticItem,
+	) bool {
+		if item.key.runtimeID != runtimeID {
+			return false
+		}
+
+		// Advance through probes to find a match for this btree item.
+		// Both are sorted by (ID ascending, version descending).
+		for probeIdx < len(probes) {
+			p := probes[probeIdx]
+			c := cmp.Or(
+				cmp.Compare(p.GetID(), item.key.probeID),
+				cmp.Compare(item.version, p.GetVersion()),
+			)
+			if c > 0 { // next probe is greater, no match possible for this item
+				break
+			}
+			probeIdx++
+			if c == 0 {
+				return true
+			}
+		}
+
+		// No match found for this item, add to remove buffer.
+		e.mu.removeBuf = append(e.mu.removeBuf, item)
+		return true
+	})
+}
+
+func (e *diagnosticTracker) executeRemoveBufLocked() {
+	for _, item := range e.mu.removeBuf {
+		e.mu.btree.Delete(item)
+	}
+	clear(e.mu.removeBuf)
+	e.mu.removeBuf = e.mu.removeBuf[:0]
+	if cap(e.mu.removeBuf) > 128 {
+		e.mu.removeBuf = nil
+	}
 }

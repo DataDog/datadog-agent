@@ -326,6 +326,7 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				Info:   update.Info,
 				Probes: update.Probes,
 			})
+			m.diagnostics.retain(runtimeID, update.Probes)
 			for _, probe := range update.Probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
