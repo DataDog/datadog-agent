@@ -13,22 +13,17 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"math"
 	"runtime"
 	"slices"
 	"sync"
-	"syscall"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
-	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
@@ -42,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	uwalker "github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
+	"github.com/DataDog/ddtrivy"
 )
 
 const (
@@ -81,93 +76,22 @@ type Collector struct {
 
 var globalCollector *Collector
 
-var trivyDefaultSkipDirs = []string{
-	// already included in Trivy's defaultSkipDirs
-	// "**/.git",
-	// "proc",
-	// "sys",
-	// "dev",
-
-	"**/.cargo/git/**",
-}
-
-func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
+func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 	parallel := 1
-	if opts.Fast {
+	if scanOptions.Fast {
 		parallel = runtime.NumCPU()
 	}
 
-	option := artifact.Option{
-		Offline:           true,
-		OfflineJar:        true,
-		NoProgress:        true,
-		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
-		Parallel:          parallel,
-		SBOMSources:       []string{},
-		DisabledHandlers:  DefaultDisabledHandlers(),
-		FileChecksumJar:   true,
-		WalkerOption: walker.Option{
-			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
-					return nil
-				}
-				if errors.Is(err, syscall.ESRCH) {
-					// ignore "no such process" errors when walking /proc/<pid>
-					return nil
-				}
-				return err
-			},
-		},
+	var artifactOption artifact.Option
+	if looselyCompareAnalyzers(scanOptions.Analyzers, []string{OSAnalyzers}) {
+		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
+	} else {
+		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
 	}
 
-	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
+	artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 
-	if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers}) {
-		option.WalkerOption.OnlyDirs = []string{
-			"/etc/*",
-			"/lib/apk/db/*",
-			"/usr/lib/*",
-			"/usr/lib/sysimage/rpm/*",
-			"/var/lib/dpkg/**",
-			"/var/lib/rpm/*",
-			"/usr/share/rpm/*",
-			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
-			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
-			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
-			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
-		}
-		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
-	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
-		option.WalkerOption.SkipDirs = append(
-			option.WalkerOption.SkipDirs,
-			"/bin/**",
-			"/boot/**",
-			"/dev/**",
-			"/media/**",
-			"/mnt/**",
-			"/proc/**",
-			"/run/**",
-			"/sbin/**",
-			"/sys/**",
-			"/sysroot/**",
-			"/tmp/**",
-			"/usr/bin/**",
-			"/usr/sbin/**",
-			"/var/cache/**",
-			"/var/lib/containerd/**",
-			"/var/lib/containers/**",
-			"/var/lib/docker/**",
-			"/var/lib/kubelet/pods/**",
-			"/var/lib/kubelet/plugins/**/globalmount/**",
-			"/var/lib/libvirt/**",
-			"/var/lib/snapd/**",
-			"/var/log/**",
-			"/var/run/**",
-			"/var/tmp/**",
-		)
-	}
-
-	return option
+	return artifactOption
 }
 
 // DefaultDisabledCollectors returns default disabled collectors
@@ -302,41 +226,24 @@ func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	return c.persistentCache, c.persistentCacheErr
 }
 
-type artifactWithType struct {
-	inner     artifact.Artifact
-	forceType artifact.Type
-}
-
-func (fa *artifactWithType) Inspect(ctx context.Context) (artifact.Reference, error) {
-	ref, err := fa.inner.Inspect(ctx)
-	ref.Type = fa.forceType
-	return ref, err
-}
-
-func (fa *artifactWithType) Clean(ref artifact.Reference) error {
-	return fa.inner.Clean(ref)
-}
-
 // ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(path, cache, uwalker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
-	}
+	artifactOption := getDefaultArtifactOption(scanOptions)
 
-	wrapper := &artifactWithType{
-		inner:     fsArtifact,
-		forceType: artifact.TypeContainerImage,
-	}
+	artifactType := artifact.TypeContainerImage
 	if removeLayers {
-		wrapper.forceType = artifact.TypeFilesystem
+		artifactType = artifact.TypeFilesystem
+	}
+	report, err := ddtrivy.ScanRootFS(ctx, artifactOption, cache, path, artifactType)
+	if err != nil {
+		return nil, fmt.Errorf("unable to scan rootfs, err: %w", err)
 	}
 
-	return c.scan(ctx, wrapper, applier.NewApplier(cache))
+	return report, nil
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
