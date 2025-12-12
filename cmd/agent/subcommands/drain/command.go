@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -250,10 +251,13 @@ func runDrain(lc log.Component, _ config.Component, cliParams *CliParams) error 
 	aiMarkedClusters := make(map[int]bool)
 	if !cliParams.ProgressiveTraining {
 		// Train first
+		trainStart := time.Now()
 		for _, line := range lines {
 			tokens := processor.DrainTokenize(line)
 			drainProcessor.Train(tokens)
 		}
+		trainDuration := time.Since(trainStart)
+		lc.Infof("[profile] Train duration: %s (%.0fK logs/s)", trainDuration, float64(len(lines))/trainDuration.Seconds()/1000)
 
 		if cliParams.AIProcessClusters {
 			clusterPrompt := strings.Builder{}
@@ -280,10 +284,13 @@ You should output only the pattern IDs separated by commas. No other text. You c
 			}
 
 			prompt := clusterPrompt.String()
+			aiCompletionStart := time.Now()
 			aiResponse, err := aiCompletion(prompt)
 			if err != nil {
 				return fmt.Errorf("failed to process clusters with AI: prompt=%s, error=%w", prompt, err)
 			}
+			aiCompletionDuration := time.Since(aiCompletionStart)
+			lc.Infof("[profile] AI completion duration: %s (%.0f clusters/s)", aiCompletionDuration, float64(len(aiClusters))/aiCompletionDuration.Seconds())
 
 			aiMarkedClusterIDs := strings.Split(aiResponse, ",")
 			lc.Infof("AI marked clusters: %v", aiMarkedClusterIDs)
@@ -399,6 +406,7 @@ You should output only the pattern IDs separated by commas. No other text. You c
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
 		return b.Size() - a.Size()
 	})
+	fmt.Printf("%d total clusters\n", len(clusters))
 	fmt.Printf("Top %d clusters:\n", cliParams.TopClusters)
 	for i, cluster := range clusters {
 		if i >= cliParams.TopClusters {
