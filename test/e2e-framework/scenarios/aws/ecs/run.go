@@ -102,7 +102,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	// This prevents services from timing out while waiting for instances to register
 	if clusterParams.LinuxNodeGroup || clusterParams.LinuxARMNodeGroup || clusterParams.LinuxBottleRocketNodeGroup || clusterParams.WindowsNodeGroup {
 		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
-		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 1)
+		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 2)
 	}
 
 	// Testing workload

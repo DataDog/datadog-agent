@@ -105,7 +105,7 @@ func newNodeGroup(e aws.Environment, ngName string, ami, instanceType, userData 
 		return pulumi.StringOutput{}, err
 	}
 
-	asg, err := ec2.NewAutoscalingGroup(e, ngName, lt.ID(), lt.LatestVersion, 1, 1, 2)
+	asg, err := ec2.NewAutoscalingGroup(e, ngName, lt.ID(), lt.LatestVersion, 2, 2, 4)
 	if err != nil {
 		return pulumi.StringOutput{}, err
 	}
