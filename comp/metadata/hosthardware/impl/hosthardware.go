@@ -31,12 +31,12 @@ import (
 const flareFileName = "hosthardware.json"
 
 type hostHardwareMetadata struct {
-	Manufacturer      string `json:"manufacturer"`
-	Model             string `json:"model"`
-	SerialNumber      string `json:"serial_number"`
-	EnclosureType     string `json:"enclosure_type"`
-	EnclosureTypeName string `json:"enclosure_type_name"`
-	HostType          string `json:"host_type"`
+	Manufacturer string `json:"manufacturer"`
+	ModelNumber  string `json:"model_number"`
+	SerialNumber string `json:"serial_number"`
+	Name         string `json:"name"`
+	ChassisType  string `json:"chassis_type"`
+	Identifier   string `json:"identifier"`
 }
 
 type hostHardware struct {
@@ -115,14 +115,15 @@ func (hh *hostHardware) fillData() {
 	hardwareInfo, err := hardware.Collect()
 	if err != nil {
 		hh.log.Errorf("Failed to collect hardware information: %v", err)
+		hh.data = &hostHardwareMetadata{}
 		return
 	}
 	hh.data.Manufacturer = hardwareInfo.Manufacturer
-	hh.data.Model = hardwareInfo.Model
+	hh.data.ModelNumber = hardwareInfo.ModelNumber
 	hh.data.SerialNumber = hardwareInfo.SerialNumber
-	hh.data.EnclosureType = hardwareInfo.EnclosureType
-	hh.data.EnclosureTypeName = hardwareInfo.EnclosureTypeName
-	hh.data.HostType = hardwareInfo.HostType
+	hh.data.Name = hardwareInfo.Name
+	hh.data.ChassisType = hardwareInfo.ChassisType
+	hh.data.Identifier = hardwareInfo.Identifier
 }
 
 func (hh *hostHardware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {

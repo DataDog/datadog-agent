@@ -12,11 +12,11 @@ package hardware
 // SystemHardwareInfo represents the hardware information of the host system
 type SystemHardwareInfo struct {
 	Manufacturer      string
-	Model             string
+	ModelNumber       string
 	SerialNumber      string
-	EnclosureType     string
-	EnclosureTypeName string
-	HostType          string
+	Name              string
+	ChassisType       string
+	Identifier        string
 }
 
 // Collect gathers hardware information from the system
