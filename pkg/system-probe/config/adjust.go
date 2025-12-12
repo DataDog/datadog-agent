@@ -21,7 +21,7 @@ var adjustMtx sync.Mutex
 func Adjust(cfg model.Config) {
 	adjustMtx.Lock()
 	defer adjustMtx.Unlock()
-	if cfg.GetBool(spNS("adjusted")) {
+	if k := spNS("adjusted"); cfg.GetBool(k) && cfg.GetSource(k) == model.SourceAgentRuntime {
 		return
 	}
 
