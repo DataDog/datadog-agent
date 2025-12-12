@@ -102,33 +102,29 @@ func (c *TestClient) SetConfig(confPath string, key string, value string) error 
 		return err
 	}
 
-	// Convert the entire structure to use map[string]any for consistency
+	// Normalize the map and then recurse through it, creating the necessary structure before
+	// inserting the value at the intended depth.
 	confYaml = normalizeMap(confYaml).(map[string]any)
 
 	keyList := strings.Split(key, ".")
 
-	// Navigate to the deepest nested map, creating maps as needed
 	current := confYaml
 	for i := 0; i < len(keyList)-1; i++ {
 		k := keyList[i]
 		if current[k] == nil {
-			// Create a new map if the key doesn't exist
 			current[k] = map[string]any{}
 			current = current[k].(map[string]any)
 		} else {
-			// Navigate to the existing nested map
 			switch v := current[k].(type) {
 			case map[string]any:
 				current = v
 			default:
-				// If the existing value is not a map, replace it with a new map
 				current[k] = map[string]any{}
 				current = current[k].(map[string]any)
 			}
 		}
 	}
 
-	// Set the final value
 	current[keyList[len(keyList)-1]] = value
 
 	confUpdated, err := yaml.Marshal(confYaml)

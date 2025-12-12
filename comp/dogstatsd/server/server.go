@@ -208,11 +208,9 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
-	dsdConfig := dsdconfig.NewConfig(deps.Config)
 
-	// EnabledInternal is what we care about because we need to know if _we_ should be handling
-	// DSD specifically in the Core Agent.
-	if dsdConfig.EnabledInternal() {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+	if s.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,

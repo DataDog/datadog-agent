@@ -9,16 +9,18 @@ import (
 	"encoding/json"
 	"net/http"
 
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
-	s.log.Info("Got a request for DogStatsD statistics.")
+	s.log.Info("Got a request for the Dogstatsd stats.")
 
-	if !s.Started {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+	if !dsdConfig.EnabledInternal() {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
-			"error":      "DogStatsD not enabled in the Core Agent.",
+			"error":      "Dogstatsd not enabled in the Agent configuration",
 			"error_type": "no server",
 		})
 		w.WriteHeader(400)
@@ -29,7 +31,7 @@ func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 	if !s.config.GetBool("dogstatsd_metrics_stats_enable") {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
-			"error":      "DogStatsD metrics stats not enabled in the Agent configuration",
+			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
 			"error_type": "not enabled",
 		})
 		w.WriteHeader(400)
@@ -48,7 +50,7 @@ func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 
 	jsonStats, err := s.Debug.GetJSONDebugStats()
 	if err != nil {
-		httputils.SetJSONError(w, s.log.Errorf("Error getting marshalled DogStatsD stats: %s", err), 500)
+		httputils.SetJSONError(w, s.log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
 	}
 

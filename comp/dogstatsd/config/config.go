@@ -42,11 +42,11 @@ func (c *Config) Enabled() bool {
 // EnabledInternal returns true if DogStatsD is enabled internally
 func (c *Config) EnabledInternal() bool {
 	// We only enable DSD internally if it's enabled in a baseline fashion _and_ the data plane is not handling it.
-	return c.Enabled() && !c.EnabledDataPlane()
+	return c.Enabled() && !c.enabledDataPlane()
 }
 
-// EnabledDataPlane returns true if DogStatsD is enabled via Agent Data Plane
-func (c *Config) EnabledDataPlane() bool {
+// enabledDataPlane returns true if DogStatsD is enabled via Agent Data Plane
+func (c *Config) enabledDataPlane() bool {
 	// `DD_ADP_ENABLED` is a deprecated environment variable for signaling that Agent Data Plane is running _and_ that
 	// it's handling DogStatsD traffic.
 	//
