@@ -1,0 +1,79 @@
+diff -u -r rules_foreign_cc-0.15.1-original/foreign_cc/configure.bzl rules_foreign_cc-0.15.1/foreign_cc/configure.bzl
+--- rules_foreign_cc-0.15.1-original/foreign_cc/configure.bzl	2025-12-12 11:44:14.749008595 +0100
++++ rules_foreign_cc-0.15.1/foreign_cc/configure.bzl	2025-12-12 12:52:22.160035695 +0100
+@@ -113,6 +113,7 @@
+         env_vars = user_env,
+         configure_in_place = ctx.attr.configure_in_place,
+         prefix_flag = ctx.attr.prefix_flag,
++        install_prefix_is_absolute = ctx.attr.install_prefix_is_absolute,
+         autoconf = ctx.attr.autoconf,
+         autoconf_options = ctx.attr.autoconf_options,
+         autoreconf = ctx.attr.autoreconf,
+@@ -234,6 +235,10 @@
+             mandatory = False,
+             default = "--prefix=",
+         ),
++        "install_prefix_is_absolute": attr.bool(
++            doc = "Set to True if install_prefix is an absolute path. Uses DESTDIR for staged installation.",
++            default = False,
++        ),
+         "shared_ldflags_vars": attr.string_list(
+             doc = (
+                 "A list of variable names use as LDFLAGS for shared libraries. These variables " +
+diff -u -r rules_foreign_cc-0.15.1-original/foreign_cc/private/configure_script.bzl rules_foreign_cc-0.15.1/foreign_cc/private/configure_script.bzl
+--- rules_foreign_cc-0.15.1-original/foreign_cc/private/configure_script.bzl	2025-12-12 11:44:14.749168690 +0100
++++ rules_foreign_cc-0.15.1/foreign_cc/private/configure_script.bzl	2025-12-12 13:29:51.013465849 +0100
+@@ -16,6 +16,7 @@
+         env_vars,
+         configure_in_place,
+         prefix_flag,
++        install_prefix_is_absolute,
+         autoconf,
+         autoconf_options,
+         autoreconf,
+@@ -73,14 +74,23 @@
+             options = " ".join(autoreconf_options),
+         ).lstrip())
+
+-    script.append("##mkdirs## $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$")
++    if install_prefix_is_absolute:
++        script.append("STAGED_INSTALL_PREFIX=\"${INSTALL_PREFIX//:/_}\"; export STAGED_INSTALL_PREFIX")
++        script.append("##mkdirs## $$BUILD_TMPDIR$$/$$STAGED_INSTALL_PREFIX$$")
++    else:
++        script.append("##mkdirs## $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$")
+
+     make_commands = []
+-    script.append("{env_vars} {prefix}\"{configure}\" {prefix_flag}$$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$ {user_options}".format(
++    prefix_path = "\"$$INSTALL_PREFIX$$\"" if install_prefix_is_absolute else "$$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"
++    script.append("{env_vars} {prefix}\"{configure}\" {prefix_flag}{prefix_path} {user_options}".format(
+         env_vars = get_make_env_vars(workspace_name, tools, flags, env_vars, deps, inputs, is_msvc, make_commands),
+         prefix = configure_prefix,
+         configure = configure_path,
+         prefix_flag = prefix_flag,
++        prefix_path = prefix_path,
+         user_options = " ".join(user_options),
+     ))
+
+@@ -88,9 +94,11 @@
+ 
+     make_commands = []
+     for target in make_targets:
+-        make_commands.append("{prefix}{make} {make_vars} {target} {args}".format(
++        destdir = "DESTDIR=$$BUILD_TMPDIR$$/ " if install_prefix_is_absolute and ("install" in target or "uninstall" in target) else ""
++        make_commands.append("{prefix}{make} {destdir}{make_vars} {target} {args}".format(
+             prefix = make_prefix,
+             make = make_path,
++            destdir = destdir,
+             make_vars = ldflags_make_vars,
+             args = make_args,
+             target = target,
+@@ -98,7 +108,8 @@
+ 
+     script.extend(make_commands)
+     script.append("##disable_tracing##")
+-    script.append("##copy_dir_contents_to_dir## $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$ $$INSTALLDIR$$\n")
++    copy_source = "$$BUILD_TMPDIR$$/$$STAGED_INSTALL_PREFIX$$" if install_prefix_is_absolute else "$$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"
++    script.append("##copy_dir_contents_to_dir## {} $$INSTALLDIR$$\n".format(copy_source))
+ 
+     return script
+ 
