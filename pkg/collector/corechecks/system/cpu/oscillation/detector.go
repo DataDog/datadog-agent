@@ -39,7 +39,6 @@ type OscillationDetector struct {
 
 	// Baseline tracking with exponential decay
 	baselineVariance float64
-	baselineMean     float64
 
 	// Configuration
 	config OscillationConfig

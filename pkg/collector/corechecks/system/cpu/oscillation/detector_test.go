@@ -8,7 +8,6 @@
 package oscillation
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -545,8 +544,4 @@ func TestNoAllocationsInHotPath(t *testing.T) {
 	}
 
 	assert.Equal(t, initialSamples, len(d.samples), "Sample buffer should not grow")
-}
-
-func almostEqual(a, b, tolerance float64) bool {
-	return math.Abs(a-b) <= tolerance
 }
