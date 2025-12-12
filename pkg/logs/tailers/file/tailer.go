@@ -430,10 +430,9 @@ func (t *Tailer) forwardMessages() {
 		// normal case.
 
 		outputChan := t.outputChan
+		msg.DrainTokenizedContent = processor.DrainTokenize(output.GetContent())
 		if processor.UseDrainMultiThreaded {
-			tokenized := processor.DrainTokenize(output.GetContent())
-			outputChan = t.pipelineProvider.NextPipelineChanByTokenLength(len(tokenized))
-			msg.DrainTokenizedContent = tokenized
+			outputChan = t.pipelineProvider.NextPipelineChanByTokenLength(len(msg.DrainTokenizedContent))
 		}
 		select {
 		// TODO A: Verif if we can do that

@@ -22,6 +22,9 @@ var (
 	// TlmDrainClustersByService is the total number of drain clusters by service
 	TlmDrainClustersByService = telemetry.NewGauge("logs", "drain_clusters_by_service",
 		nil, "Total number of drain clusters by service")
+	// TlmDrainMemoryUsage is the total memory usage of drain clusters
+	TlmDrainMemoryUsage = telemetry.NewGauge("logs", "drain_memory_usage",
+		nil, "Total memory usage of drain clusters")
 	// TODO: Remove
 	// TlmDrainClustersRatio is the total number of drain clusters relative to the total number of logs
 	TlmDrainClustersRatio = telemetry.NewGauge("logs", "drain_clusters_ratio",

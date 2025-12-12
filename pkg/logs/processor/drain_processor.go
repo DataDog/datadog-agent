@@ -67,10 +67,12 @@ func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.
 	d.drainNLogs++
 
 	cluster := d.drainProcessor.MatchFromTokens(tokens)
+	d.drainProcessor.TrainFromTokens(tokens)
+	// TODO: Could be optimized
 	if cluster == nil {
+		cluster = d.drainProcessor.MatchFromTokens(tokens)
 		d.clusterToService[cluster.ID()] = service
 	}
-	d.drainProcessor.TrainFromTokens(tokens)
 
 	// Update if necessary
 	if time.Since(d.drainLastTimeUpdated) < updateDrainInterval {
@@ -121,9 +123,10 @@ func (d *DrainProcessor) ShowClusters() {
 func (d *DrainProcessor) ReportInfo() {
 	d.drainLastTimeReported = time.Now()
 
+	mem := d.drainProcessor.MemoryUsage()
 	clusters := d.drainProcessor.Clusters()
 	drainClustersRatio := float64(len(clusters)) / float64(d.drainNLogs)
-	log.Infof("drain(%s): %d clusters from %d logs (%f%%)", d.id, len(clusters), d.drainNLogs, drainClustersRatio*100)
+	log.Infof("drain(%s): %d clusters from %d logs (%f%%) - Memory: %dkB", d.id, len(clusters), d.drainNLogs, drainClustersRatio*100, (mem+1023)/1024)
 	d.ShowClusters()
 
 	maxSize := 0
@@ -151,6 +154,7 @@ func (d *DrainProcessor) ReportInfo() {
 	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
 	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize) / float64(d.drainNLogs))
+	metrics.TlmDrainMemoryUsage.Set(float64(mem))
 }
 
 const (
