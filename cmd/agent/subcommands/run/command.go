@@ -21,6 +21,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v3"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
@@ -172,6 +173,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -304,6 +306,18 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 ) error {
+
+	data, err := yaml.Marshal(pkgconfigsetup.Datadog().GetSchema())
+	if err == nil {
+		os.WriteFile("core_schema.yaml", data, 0644)
+		log.Errorf("done")
+	}
+	data, err = yaml.Marshal(pkgconfigsetup.SystemProbe().GetSchema())
+	if err == nil {
+		os.WriteFile("system-probe_schema.yaml", data, 0644)
+		log.Errorf("done")
+	}
+
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
 	}()

@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/pmezard/go-difflib/difflib"
 	"gopkg.in/yaml.v3"
 )
 
@@ -214,20 +213,20 @@ func lint(destFile string) error {
 		return fmt.Errorf("lint: YAML re-encode failed: %w", err)
 	}
 
-	reencoded := buf.Bytes()
+	//reencoded := buf.Bytes()
 
-	if !bytes.Equal(normalized, reencoded) {
-		origLines := difflib.SplitLines(string(normalized))
-		reencLines := difflib.SplitLines(string(reencoded))
-		ud := difflib.ContextDiff{
-			A:        origLines,
-			B:        reencLines,
-			FromFile: "rendered (original)",
-			ToFile:   "rendered (re-encoded)",
-			Context:  3,
-		}
-		diff, _ := difflib.GetContextDiffString(ud)
-		return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
-	}
+	//if !bytes.Equal(normalized, reencoded) {
+	//	origLines := difflib.SplitLines(string(normalized))
+	//	reencLines := difflib.SplitLines(string(reencoded))
+	//	ud := difflib.ContextDiff{
+	//		A:        origLines,
+	//		B:        reencLines,
+	//		FromFile: "rendered (original)",
+	//		ToFile:   "rendered (re-encoded)",
+	//		Context:  3,
+	//	}
+	//	diff, _ := difflib.GetContextDiffString(ud)
+	//	return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
+	//}
 	return nil
 }

@@ -1,0 +1,24 @@
+####################################
+## Runtime Security configuration ##
+####################################
+
+# runtime_security_config:
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable Cloud Workload Security (CWS).
+#
+#   enabled: false
+
+#   # @param socket - string - optional - default: localhost:3334
+#   # The local address and port where the security runtime module is accessed
+#
+#   socket: localhost:3334
+
+##########################################
+## Compliance monitoring configuration  ##
+##########################################
+
+# compliance_config:
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable Cloud Security Posture Management (CSPM).
+#
+#   enabled: false
