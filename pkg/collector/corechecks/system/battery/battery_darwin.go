@@ -41,7 +41,11 @@ func hasBatteryAvailable() (bool, error) {
 // getBatteryInfo retrieves battery information from IOKit
 func getBatteryInfo() (*batteryInfo, error) {
 	cInfo := C.getBatteryInfo()
+	return convertCBatteryInfo(cInfo), nil
+}
 
+// convertCBatteryInfo converts a C.BatteryInfo struct to a Go batteryInfo struct
+func convertCBatteryInfo(cInfo C.BatteryInfo) *batteryInfo {
 	info := &batteryInfo{
 		powerState: getPowerStateTags(cInfo.isCharging, cInfo.externalConnected),
 	}
@@ -73,7 +77,7 @@ func getBatteryInfo() (*batteryInfo, error) {
 		}
 	}
 
-	return info, nil
+	return info
 }
 
 func getPowerStateTags(isCharging, externalConnected C.OptionalBool) []string {

@@ -30,7 +30,7 @@ var getBatteryInfoFunc = getBatteryInfo
 var hasBatteryAvailableFunc = hasBatteryAvailable
 
 // batteryInfo contains normalized battery information across platforms
-// All fields are pointers to indicate optional/unavailable values
+// Ale pointers to indicate optional/unavailable values
 type batteryInfo struct {
 	cycleCount         *float64 // battery cycle count
 	designedCapacity   *float64 // mWh
