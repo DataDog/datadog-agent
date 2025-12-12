@@ -236,7 +236,7 @@ func hasBatteryAvailable() (bool, error) {
 
 		interfaceDetailData, err := getDeviceInterfaceDetailData(hdev, ifData)
 		if err != nil {
-			log.Errorf("error getting device interface detail data: %w", err)
+			log.Errorf("error getting device interface detail data: %v", err)
 			continue
 		}
 
