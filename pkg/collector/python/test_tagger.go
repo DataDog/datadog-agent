@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -46,7 +47,7 @@ func testTags(t *testing.T) {
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	id := C.CString("container_id://test")
@@ -70,7 +71,7 @@ func testTagsNull(t *testing.T) {
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", nil, nil, nil, nil)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	id := C.CString("container_id://test")
@@ -86,7 +87,7 @@ func testTagsEmpty(t *testing.T) {
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{}, nil, nil, nil)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	id := C.CString("container_id://test")

@@ -108,6 +108,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	cfg.BindEnvAndSetDefault("disable_file_logging", false)
 	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
+	cfg.BindEnvAndSetDefault("log_use_slog", false)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
