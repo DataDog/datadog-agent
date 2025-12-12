@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
-
-package python
+package aggregator
 
 import (
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 var stringsSink []string
@@ -26,7 +25,8 @@ func Benchmark_cStringArrayToSlice(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		stringsSink = cStringArrayToSlice(cArray)
+
+	for b.Loop() {
+		stringsSink = CStringArrayToSlice(unsafe.Pointer(cArray))
 	}
 }

@@ -254,7 +254,7 @@ func chown(ctx context.Context, path string, username string, group string) (err
 
 func filesInDir(dir string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("error walking path: %w", err)
 		}
