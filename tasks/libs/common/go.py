@@ -62,7 +62,11 @@ def download_go_dependencies(
                 return
             if attempt < max_retry - 1:
                 wait = 10 ** (attempt + 1)
-                print(f"  [{attempt + 1}/{max_retry}] Failed `{cmd}` in {path}, retrying in {wait}s")
+                error_preview = (result.stderr or result.stdout or "no output")[:500]
+                print(
+                    f"  [{attempt + 1}/{max_retry}] Failed `{cmd}` in {path} (exit code {result.returncode}), retrying in {wait}s\n"
+                    f"    Error: {error_preview}"
+                )
                 sleep(wait)
         error_output = result.stderr or result.stdout if result else "unknown error"
         raise Exit(f"go mod failed for {path}: {error_output}", code=1)

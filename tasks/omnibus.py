@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -639,8 +640,32 @@ def docker_build(
     for d in [omnibus_dir, omnibus_state_dir, git_cache_subdir, opt_subdir, gems_dir, go_mod_dir, go_build_dir]:
         os.makedirs(d, exist_ok=True)
 
-    # Get current working directory (repo root)
-    repo_root = os.getcwd()
+    # REPO ISOLATION: Copy repo to temp directory so the build can't modify the working tree.
+    # This also solves git worktree issues (worktrees use absolute paths that don't exist in Docker).
+    #
+    # We use `git ls-files` to respect .gitignore, keeping the copy small (~34MB vs full repo).
+    # The version cache is pre-generated since git won't be available in the copy.
+    from tasks.libs.releasing.version import create_version_json
+
+    print("Pre-generating version cache (git won't be available in container)...")
+    create_version_json(ctx)
+
+    print("Creating isolated repo copy (respecting .gitignore)...")
+    temp_repo = tempfile.mkdtemp(prefix='agent-build-repo-')
+
+    # Use git ls-files to get all tracked + untracked non-ignored files, then tar/untar
+    # -c = cached (tracked), -o = others (untracked), --exclude-standard = respect .gitignore
+    # -z = null-terminated for safe handling of special characters
+    #
+    # We pipe through tar for speed (~2s for 18k files vs ~30s+ for Python file-by-file).
+    # The tar command uses POSIX options that work on both GNU and BSD tar.
+    ctx.run(
+        f"git ls-files -coz --exclude-standard | tar -c --null -T - | tar -xC {temp_repo}",
+        hide=True,
+    )
+
+    file_count = ctx.run("git ls-files -co --exclude-standard | wc -l", hide=True).stdout.strip()
+    print(f"Copied {file_count} files to {temp_repo}")
 
     # Build environment variables
     env_args = [
@@ -657,13 +682,15 @@ def docker_build(
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
+    # The temp repo copy is mounted (writable, since Go needs to update go.work.sum etc)
+    container_repo_path = "/go/src/github.com/DataDog/datadog-agent"
     volume_args = [
         f"-v {omnibus_dir}:/omnibus",
         f"-v {omnibus_state_dir}:/omnibus-state",
         f"-v {gems_dir}:/gems",
         f"-v {go_mod_dir}:/go/pkg/mod",
         f"-v {go_build_dir}:/root/.cache/go-build",
-        f"-v {repo_root}:/go/src/github.com/DataDog/datadog-agent",
+        f"-v {temp_repo}:{container_repo_path}",
     ]
 
     # Build the docker command
@@ -681,11 +708,7 @@ def docker_build(
         '"'
     )
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm " f"{env_str} {vol_str} " f"-w {container_repo_path} " f"{build_image} " f"{build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -694,8 +717,13 @@ def docker_build(
     print(f"Workers: {workers}")
     print()
 
-    # Run the omnibus build
-    ctx.run(docker_cmd)
+    # Run the omnibus build, ensuring temp repo cleanup happens even on failure
+    try:
+        ctx.run(docker_cmd)
+    finally:
+        # Clean up the temporary repo copy
+        print(f"Cleaning up temp repo: {temp_repo}")
+        shutil.rmtree(temp_repo, ignore_errors=True)
 
     # Build Docker image from the tarball
     print("\n" + "=" * 60)
