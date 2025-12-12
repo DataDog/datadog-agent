@@ -662,6 +662,9 @@ def docker_build(
     ]:
         os.makedirs(d, exist_ok=True)
 
+    # Auto-cleanup old packages to prevent disk bloat
+    _cleanup_old_packages(os.path.join(omnibus_dir, "pkg"))
+
     # Get current working directory (repo root)
     repo_root = os.getcwd()
 
@@ -828,6 +831,40 @@ def docker_build(
     print(f"  docker run --rm -it {tag} /bin/bash")
     print("\nInspect the image:")
     print(f"  docker run --rm {tag} ls -la /opt/datadog-agent/bin/agent/")
+
+
+def _cleanup_old_packages(pkg_dir: str, keep: int = 2) -> None:
+    """Auto-cleanup old packages, keeping the most recent N per architecture."""
+    if not os.path.exists(pkg_dir):
+        return
+
+    # Pattern: datadog-agent[-dbg]-VERSION-ARCH.tar[.xz]
+    pattern = re.compile(r'^(datadog-agent(?:-dbg)?)-[\d.]+-devel\.git\.\d+\.[a-f0-9]+-\d+-(arm64|amd64)\.(tar(?:\.xz)?)$')
+
+    # Group by (type, arch, ext)
+    groups: dict[tuple[str, str, str], list[tuple[str, float]]] = defaultdict(list)
+    for f in os.listdir(pkg_dir):
+        m = pattern.match(f)
+        if m:
+            groups[(m[1], m[2], m[3])].append((os.path.join(pkg_dir, f), os.path.getmtime(os.path.join(pkg_dir, f))))
+
+    # Remove old files (keep newest N per group)
+    removed = 0
+    for files in groups.values():
+        for filepath, _ in sorted(files, key=lambda x: x[1], reverse=True)[keep:]:
+            try:
+                os.remove(filepath)
+                removed += 1
+                # Also remove metadata
+                meta = filepath + ".metadata.json"
+                if os.path.exists(meta):
+                    os.remove(meta)
+                    removed += 1
+            except OSError:
+                pass
+
+    if removed:
+        print(f"Auto-cleaned {removed} old package files (keeping last {keep} per type)")
 
 
 def _pipeline_id_of_package(package: DebPackageInfo) -> int:
