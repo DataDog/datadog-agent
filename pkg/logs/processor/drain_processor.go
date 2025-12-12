@@ -63,7 +63,7 @@ func (d *DrainProcessor) Train(tokens []string) {
 func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.LogCluster, bool) {
 	start := time.Now()
 
-	metrics.TlmDrainProcessed.Inc()
+	metrics.TlmDrainProcessed.Inc("drain_id:" + d.id)
 	d.drainNLogs++
 
 	cluster := d.drainProcessor.MatchFromTokens(tokens)
@@ -86,11 +86,11 @@ func (d *DrainProcessor) MatchAndTrain(tokens []string, service string) (*drain.
 
 	toIgnore := cluster != nil && cluster.Size() >= drainClusterSizeThreshold
 	if toIgnore {
-		metrics.TlmDrainIgnored.Inc()
+		metrics.TlmDrainIgnored.Inc("drain_id:" + d.id)
 	}
 
 	totalTimeDrainProcessing := time.Since(start).Nanoseconds()
-	metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing))
+	metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing), "drain_id:"+d.id)
 
 	return cluster, toIgnore
 }
@@ -137,7 +137,7 @@ func (d *DrainProcessor) ReportInfo() {
 	}
 	nClustersAboveThreshold := 0
 	for _, cluster := range clusters {
-		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size()) / float64(maxSize) * 100)
+		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size())/float64(maxSize)*100, "drain_id:"+d.id)
 		if cluster.Size() >= drainClusterSizeThreshold {
 			nClustersAboveThreshold++
 		}
@@ -147,14 +147,14 @@ func (d *DrainProcessor) ReportInfo() {
 		clusterByService[d.clusterToService[cluster.ID()]]++
 	}
 	for service, count := range clusterByService {
-		metrics.TlmDrainClustersByService.Set(float64(count), "service", service)
+		metrics.TlmDrainClustersByService.Set(float64(count), "service:"+service, "drain_id:"+d.id)
 	}
-	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold))
-	metrics.TlmDrainClusters.Set(float64(len(clusters)))
-	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
-	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
-	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize) / float64(d.drainNLogs))
-	metrics.TlmDrainMemoryUsage.Set(float64(mem))
+	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold), "drain_id:"+d.id)
+	metrics.TlmDrainClusters.Set(float64(len(clusters)), "drain_id:"+d.id)
+	metrics.TlmDrainClustersRatio.Set(drainClustersRatio, "drain_id:"+d.id)
+	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize), "drain_id:"+d.id)
+	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize)/float64(d.drainNLogs), "drain_id:"+d.id)
+	metrics.TlmDrainMemoryUsage.Set(float64(mem), "drain_id:"+d.id)
 }
 
 const (
