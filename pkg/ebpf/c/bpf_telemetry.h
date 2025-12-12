@@ -179,11 +179,18 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     })
 
 // params 7 and 8 do not use the stack in arm64, so we can just use the normal read macros
-#define PT_REGS_USER_PARM7_WITH_TELEMETRY(x, ret) PT_REGS_USER_STACK_PARM7(x, 1, ret)
-#define PT_REGS_USER_PARM8_WITH_TELEMETRY(x, ret) PT_REGS_USER_STACK_PARM8(x, 2, ret)
+#define PT_REGS_USER_PARM7_WITH_TELEMETRY(x, ret) PT_REGS_USER_PARM7(x, ret)
+#define PT_REGS_USER_PARM8_WITH_TELEMETRY(x, ret) PT_REGS_USER_PARM8(x, ret)
 
 #define PT_REGS_USER_PARM9_WITH_TELEMETRY(x, ret) PT_REGS_USER_STACK_PARM(__PT_REGS_CAST(x), 0, ret)
 #define PT_REGS_USER_PARM10_WITH_TELEMETRY(x, ret) PT_REGS_USER_STACK_PARM(__PT_REGS_CAST(x), 1, ret)
+
+#else
+
+#define PT_REGS_USER_PARM7_WITH_TELEMETRY(x, ret) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
+#define PT_REGS_USER_PARM8_WITH_TELEMETRY(x, ret) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
+#define PT_REGS_USER_PARM9_WITH_TELEMETRY(x, ret) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
+#define PT_REGS_USER_PARM10_WITH_TELEMETRY(x, ret) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 
 #endif
 
