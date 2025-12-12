@@ -340,20 +340,16 @@ func spansEqual(s1 *pb.Span, s2 *idx.InternalSpan) bool {
 			return false
 		}
 	}
-	// TODO: check attrs
-	// for k := range s1.Meta {
-	// 	if _, ok := s2.Meta[k]; !ok {
-	// 		return false
-	// 	}
-	// }
-	// for k := range s1.Metrics {
-	// 	if _, ok := s2.Metrics[k]; !ok {
-	// 		return false
-	// 	}
-	// }
-	// if len(s1.SpanEvents) != len(s2.SpanEvents) {
-	// 	return false
-	// }
+	for k := range s1.Meta {
+		if s2Val, ok := s2.GetAttributeAsString(k); !ok || s2Val != s1.Meta[k] {
+			return false
+		}
+	}
+	for k := range s1.Metrics {
+		if s2Val, ok := s2.GetAttributeAsFloat64(k); !ok || s2Val != s1.Metrics[k] {
+			return false
+		}
+	}
 	for i, se := range s1.SpanEvents {
 		if se.Name != s2.Events()[i].Name() ||
 			se.TimeUnixNano != s2.Events()[i].Time() {

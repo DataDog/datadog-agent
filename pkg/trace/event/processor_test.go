@@ -87,22 +87,55 @@ func TestProcessor(t *testing.T) {
 			testSampler := &MockEventSampler{Rate: test.samplerRate}
 			p := newProcessor(extractors, testSampler)
 
-			testSpans := createNTestSpans(10000, "test", "test")
-			numSpans := len(testSpans)
-			testChunk := testutil.TraceChunkWithSpans(testSpans)
-			root := testSpans[0]
-			sampler.SetPreSampleRate(root, testPreSampleRate)
-			sampler.SetClientRate(root, testClientSampleRate)
-			testChunk.Priority = int32(test.priority)
-			testChunk.DroppedTrace = test.droppedTrace
+			numSpans := 10000
+			var totalEvents, totalExtracted int64
+			var allEvents []*idx.InternalSpan
+			var allSpans []*idx.InternalSpan
+			var lastChunk *idx.InternalTraceChunk
 
 			p.Start()
-			pt := &traceutil.ProcessedTrace{
-				TraceChunk: testChunk,
-				Root:       root,
+			// Process each span in its own chunk for per-span sampling (matching old behavior)
+			for i := 0; i < numSpans; i++ {
+				strings := idx.NewStringTable()
+				span := idx.NewInternalSpan(strings, &idx.Span{
+					SpanID:     rand.Uint64(),
+					ServiceRef: strings.Add("test"),
+					NameRef:    strings.Add("test"),
+					Attributes: make(map[uint32]*idx.AnyValue),
+				})
+				// Set rates on all spans since each span is its own root
+				sampler.SetPreSampleRateV1(span, testPreSampleRate)
+				sampler.SetClientRateV1(span, testClientSampleRate)
+				chunk := idx.NewInternalTraceChunk(
+					strings,
+					int32(test.priority),
+					"",
+					make(map[uint32]*idx.AnyValue),
+					[]*idx.InternalSpan{span},
+					test.droppedTrace,
+					make([]byte, 16),
+					0,
+				)
+				chunk.SetLegacyTraceID(testutil.RandomSpanTraceID())
+				lastChunk = chunk
+				allSpans = append(allSpans, span)
+
+				pt := &traceutil.ProcessedTraceV1{
+					TraceChunk: chunk,
+					Root:       span,
+				}
+				numEventsResult, numExtractedResult, eventsResult := p.ProcessV1(pt)
+				totalEvents += numEventsResult
+				totalExtracted += numExtractedResult
+				allEvents = append(allEvents, eventsResult...)
 			}
-			numEvents, numExtracted, events := p.Process(pt)
 			p.Stop()
+
+			numEvents := totalEvents
+			numExtracted := totalExtracted
+			events := allEvents
+			testChunk := lastChunk
+			_ = testChunk // Used for priority check
 
 			expectedExtracted := float64(numSpans) * test.expectedExtractedPct
 			assert.InDelta(expectedExtracted, numExtracted, expectedExtracted*test.deltaPct)
@@ -120,24 +153,36 @@ func TestProcessor(t *testing.T) {
 			assert.EqualValues(expectedSampleCalls, testSampler.SampleCalls)
 
 			if !test.droppedTrace {
-				events = testChunk.Spans // If we aren't going to drop the trace we need to look at the whole list of spans
-				assert.EqualValues(numSpans, len(testChunk.Spans))
+				// For non-dropped traces, check all spans for analyzed events
+				events = allSpans
+				assert.EqualValues(numSpans, len(allSpans))
 			} else {
 				assert.EqualValues(numEvents, len(events))
 			}
 
 			for _, event := range events {
-				if !sampler.IsAnalyzedSpan(event) {
+				if !sampler.IsAnalyzedSpanV1(event) {
 					continue
 				}
 
 				numEvents--
-				assert.EqualValues(test.expectedExtractedPct, sampler.GetEventExtractionRate(event))
-				assert.EqualValues(test.expectedSampledPct, sampler.GetMaxEPSRate(event))
-				assert.EqualValues(testClientSampleRate, sampler.GetClientRate(event))
-				assert.EqualValues(testPreSampleRate, sampler.GetPreSampleRate(event))
+				// Default to 1.0 if attribute not found (bandwidth optimization)
+				extractionRate, ok := event.GetAttributeAsFloat64(sampler.KeySamplingRateEventExtraction)
+				if !ok {
+					extractionRate = 1.0
+				}
+				assert.EqualValues(test.expectedExtractedPct, extractionRate)
+				maxEPSRate, ok := event.GetAttributeAsFloat64(sampler.KeySamplingRateMaxEPSSampler)
+				if !ok {
+					maxEPSRate = 1.0
+				}
+				assert.EqualValues(test.expectedSampledPct, maxEPSRate)
+				clientRate := sampler.GetClientRateV1(event)
+				assert.EqualValues(testClientSampleRate, clientRate)
+				preSampleRate := sampler.GetPreSampleRateV1(event)
+				assert.EqualValues(testPreSampleRate, preSampleRate)
 
-				priority, ok := sampler.GetSamplingPriority(testChunk)
+				priority, ok := sampler.GetSamplingPriorityV1(testChunk)
 				if !ok {
 					priority = sampler.PriorityNone
 				}

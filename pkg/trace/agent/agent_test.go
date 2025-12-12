@@ -2840,7 +2840,6 @@ func testEventProcessorFromConf(t *testing.T, conf *config.AgentConfig, testCase
 // second). These spans will all have the provided service and operation names and be set as extractable/sampled
 // based on the associated rate/%. This traffic generation will run for the specified `duration`.
 func generateTraffic(processor *event.Processor, serviceName string, operationName string, extractionRate float64,
-
 	duration time.Duration, intakeSPS float64, priority sampler.SamplingPriority) float64 {
 	tickerInterval := 100 * time.Millisecond
 	totalSampled := 0
@@ -2851,28 +2850,35 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 	spansPerTick := int(math.Round(intakeSPS / numTicksInSecond))
 
 Loop:
-
 	for {
-		spans := make([]*pb.Span, spansPerTick)
-		for i := range spans {
-			span := testutil.RandomSpan()
-			span.Service = serviceName
-			span.Name = operationName
+		// Process each span in its own chunk for per-span sampling (matching old behavior)
+		for i := 0; i < spansPerTick; i++ {
+			strings := idx.NewStringTable()
+			span := testutil.GenerateSpanV1(strings, &testutil.SpanConfig{})
+			span.SetService(serviceName)
+			span.SetName(operationName)
 			if extractionRate >= 0 {
-				span.Metrics[sampler.KeySamplingRateEventExtraction] = extractionRate
+				span.SetFloat64Attribute(sampler.KeySamplingRateEventExtraction, extractionRate)
 			}
-			traceutil.SetTopLevel(span, true)
-			spans[i] = span
+			span.SetFloat64Attribute("_top_level", 1)
+			chunk := idx.NewInternalTraceChunk(
+				strings,
+				int32(priority),
+				"",
+				make(map[uint32]*idx.AnyValue),
+				[]*idx.InternalSpan{span},
+				false,
+				make([]byte, 16),
+				0,
+			)
+			chunk.SetLegacyTraceID(testutil.RandomSpanTraceID())
+			pt := &traceutil.ProcessedTraceV1{
+				TraceChunk: chunk,
+				Root:       span,
+			}
+			numEvents, _, _ := processor.ProcessV1(pt)
+			totalSampled += int(numEvents)
 		}
-		root := spans[0]
-		chunk := testutil.TraceChunkWithSpans(spans)
-		chunk.Priority = int32(priority)
-		pt := &traceutil.ProcessedTrace{
-			TraceChunk: chunk,
-			Root:       root,
-		}
-		_, numEvents, _ := processor.Process(pt)
-		totalSampled += int(numEvents)
 
 		<-eventTicker.C
 		select {
