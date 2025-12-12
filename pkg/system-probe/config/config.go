@@ -184,6 +184,15 @@ func load() (*types.Config, error) {
 		}
 	}
 
+	// Enable discovery by default if system-probe has any modules enabled,
+	// unless the user has explicitly configured the discovery.enabled config
+	// key.
+	if len(c.EnabledModules) > 0 &&
+		!c.ModuleIsEnabled(DiscoveryModule) &&
+		applyDefault(cfg, discoveryNS("enabled"), true) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
+	}
+
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
