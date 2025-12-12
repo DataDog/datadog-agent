@@ -22,7 +22,6 @@ license_file "COPYING"
 skip_transitive_dependency_licensing true
 
 dependency "config_guess"
-dependency "zstd"
 dependency "libsqlite3"
 
 ship_source_offer true
