@@ -56,9 +56,6 @@ type configManager interface {
 	// getConfigByDigest returns the raw config paired with the resolved
 	// configs currently scheduled for the given origin digest.
 	getConfigByDigest(origin string) (integration.Config, []integration.Config, bool)
-
-	// removeActiveConfig removes the raw config digest from the active map so it can be reprocessed.
-	removeActiveConfig(digest string)
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -336,13 +333,6 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 		res[k] = v.svc
 	}
 	return res
-}
-
-func (cm *reconcilingConfigManager) removeActiveConfig(digest string) {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-	delete(cm.activeConfigs, digest)
-	delete(cm.scheduledConfigsOriginals, digest)
 }
 
 // reconcileService calculates the current set of resolved templates for the
