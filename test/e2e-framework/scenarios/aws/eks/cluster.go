@@ -6,6 +6,14 @@
 package eks
 
 import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	localEks "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/eks"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
@@ -17,13 +25,6 @@ import (
 	v1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/samber/lo"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	localEks "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/eks"
 )
 
 func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Cluster, error) {
@@ -31,7 +32,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Printf("params: %+v\n", params)
 	return components.NewComponent(&e, name, func(comp *kubecomp.Cluster) error {
 		// Create Cluster SG
 		prefixLists := make([]string, 0, len(e.EKSAllowedInboundManagedPrefixListNames()))
@@ -46,7 +47,6 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 				prefixLists = append(prefixLists, pl.Id)
 			}
 		}
-
 		clusterSG, err := ec2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-sg"), &ec2.SecurityGroupArgs{
 			NamePrefix:  e.CommonNamer().DisplayName(255, pulumi.String("eks-sg")),
 			Description: pulumi.StringPtr("EKS Cluster sg for stack: " + e.Ctx().Stack()),

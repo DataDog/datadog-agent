@@ -957,10 +957,18 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 	return v
 }
 
+// ScopeHashKey is the key used to identify a variable scope
+// it currently contains an integer and a string to cover most common use cases
+// the goal of this is to prevent the need to allocate a string for each `Hash()` call
+type ScopeHashKey struct {
+	Integer uint32
+	String  string
+}
+
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
-	Hash() string
+	Hash() ScopeHashKey
 	ParentScope() (VariableScope, bool)
 }
 
@@ -1059,6 +1067,11 @@ func (v *Variables) CleanupExpiredVariables() {
 	}
 }
 
+// GetScopedVariables returns nothing for global variables
+func (v *Variables) GetScopedVariables(_ string) map[ScopeHashKey]Variable {
+	return nil
+}
+
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
 type MutableSECLVariable interface {
 	Variable
@@ -1070,19 +1083,24 @@ type MutableSECLVariable interface {
 type ScopedVariables struct {
 	scoperName     string
 	scoper         Scoper
-	vars           map[string]map[string]MutableSECLVariable
+	varsLock       sync.RWMutex
+	vars           map[ScopeHashKey]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
-	expirables     map[string][]expirableVariable
+	expirables     map[ScopeHashKey][]expirableVariable
 }
 
 // Len returns the length of the variable map
 func (v *ScopedVariables) Len() int {
+	v.varsLock.RLock()
+	defer v.varsLock.RUnlock()
 	return len(v.vars)
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
+		v.varsLock.RLock()
+		defer v.varsLock.RUnlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
@@ -1102,6 +1120,8 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 	}
 
 	setVariable := func(ctx *Context, value any) error {
+		v.varsLock.Lock()
+		defer v.varsLock.Unlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
@@ -1217,11 +1237,28 @@ func (v *ScopedVariables) CleanupExpiredVariables() {
 }
 
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key string) {
+func (v *ScopedVariables) ReleaseVariable(key ScopeHashKey) {
+	v.varsLock.Lock()
 	delete(v.vars, key)
+	v.varsLock.Unlock()
 	v.expirablesLock.Lock()
 	delete(v.expirables, key)
 	v.expirablesLock.Unlock()
+}
+
+// GetScopedVariables returns all scoped variables that match the given name
+func (v *ScopedVariables) GetScopedVariables(name string) map[ScopeHashKey]Variable {
+	variables := make(map[ScopeHashKey]Variable)
+	v.varsLock.RLock()
+	defer v.varsLock.RUnlock()
+	for key, vars := range v.vars {
+		for varName, variable := range vars {
+			if varName == name {
+				variables[key] = variable
+			}
+		}
+	}
+	return variables
 }
 
 // NewScopedVariables returns a new set of scope variables
@@ -1229,7 +1266,7 @@ func NewScopedVariables(scoperName string, scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoperName: scoperName,
 		scoper:     scoper,
-		vars:       make(map[string]map[string]MutableSECLVariable),
-		expirables: make(map[string][]expirableVariable),
+		vars:       make(map[ScopeHashKey]map[string]MutableSECLVariable),
+		expirables: make(map[ScopeHashKey][]expirableVariable),
 	}
 }

@@ -54,7 +54,12 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, 
 
 // getProfileForSysObjectID return a profile for a sys object id
 func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (*ProfileConfig, error) {
-	tmpSysOidToProfile := map[string]*ProfileConfig{}
+	type profileWithKey struct {
+		nameKey       string
+		profileConfig *ProfileConfig
+	}
+
+	tmpSysOidToProfile := map[string]profileWithKey{}
 	var matchedOIDs []string
 
 	for profileName, profConfig := range profiles {
@@ -68,15 +73,18 @@ func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (*P
 				continue
 			}
 			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				if profiles[prevMatchedProfile.Definition.Name].IsUserProfile && !profConfig.IsUserProfile {
+				if profiles[prevMatchedProfile.nameKey].IsUserProfile && !profConfig.IsUserProfile {
 					continue
 				}
-				if profiles[prevMatchedProfile.Definition.Name].IsUserProfile == profConfig.IsUserProfile {
+				if profiles[prevMatchedProfile.nameKey].IsUserProfile == profConfig.IsUserProfile {
 					return nil, fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profileName, oidPattern,
-						prevMatchedProfile.Definition.Name)
+						prevMatchedProfile.nameKey)
 				}
 			}
-			tmpSysOidToProfile[oidPattern] = &profConfig
+			tmpSysOidToProfile[oidPattern] = profileWithKey{
+				nameKey:       profileName,
+				profileConfig: &profConfig,
+			}
 			matchedOIDs = append(matchedOIDs, oidPattern)
 		}
 	}
@@ -88,5 +96,5 @@ func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (*P
 		return nil, fmt.Errorf("failed to get most specific profile for sysObjectID %q, for matched oids %v: %w",
 			sysObjectID, matchedOIDs, err)
 	}
-	return tmpSysOidToProfile[oid], nil
+	return tmpSysOidToProfile[oid].profileConfig, nil
 }

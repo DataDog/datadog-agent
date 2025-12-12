@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -132,7 +133,7 @@ func (c *DCAClient) init() error {
 	}
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
-	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+authToken)
 	podIP := pkgconfigsetup.Datadog().GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
@@ -384,7 +385,7 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
 
-	base := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	base := "api/v1/annotations/node/" + nodeName
 	path, err := buildQueryList(base, "filter", filter)
 	if err != nil {
 		return result, err
@@ -484,13 +485,18 @@ func buildQueryList(path string, key string, list []string) (string, error) {
 
 	encodedKey := url.QueryEscape(key)
 
+	var builder strings.Builder
+	builder.WriteString(path)
 	for i, val := range list {
 		encodedVal := url.QueryEscape(val)
 		if i == 0 {
-			path = path + fmt.Sprintf("?%s=%s", encodedKey, encodedVal) // first parameter starts with a ?
+			builder.WriteString("?") // first parameter starts with a ?
 		} else {
-			path = path + fmt.Sprintf("&%s=%s", encodedKey, encodedVal) // the rest start with &
+			builder.WriteString("&") // the rest start with &
 		}
+		builder.WriteString(encodedKey)
+		builder.WriteString("=")
+		builder.WriteString(encodedVal)
 	}
-	return path, nil
+	return builder.String(), nil
 }

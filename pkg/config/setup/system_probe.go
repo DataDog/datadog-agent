@@ -84,8 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -350,6 +348,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
 
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "max_containers_tracked"), 1024)
+
 	cfg.BindEnvAndSetDefault(join(compNS, "enabled"), false)
 
 	// enable/disable use of root net namespace
@@ -405,6 +406,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
+
+	cfg.BindEnvAndSetDefault(join(netNS, "direct_send"), false)
 }
 
 func join(pieces ...string) string {

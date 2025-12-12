@@ -35,9 +35,9 @@ func isTextFile(file *os.File) bool {
 	return utf8.Valid(buf)
 }
 
-func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
+func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.File, error) {
 	if path == "" {
-		return nil, fmt.Errorf("empty file path provided")
+		return nil, errors.New("empty file path provided")
 	}
 
 	if !filepath.IsAbs(path) {
@@ -49,6 +49,12 @@ func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve path: %v", err)
+	}
+
+	// Callback for tests to change the filesystem after we called EvalSymlinks,
+	// in order to simulate a TOCTOU attack.
+	if toctou != nil {
+		toctou()
 	}
 
 	if !strings.HasSuffix(allowedPrefix, "/") {
@@ -78,16 +84,16 @@ func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
 		// (expanding symlinks, but protecting against symlink attacks).
 		file, err = os.OpenInRoot(allowedPrefix, relativePath)
 	} else {
-		err = fmt.Errorf("non-log file not allowed")
+		err = errors.New("non-log file not allowed")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %v", path, err)
+		return nil, fmt.Errorf("failed to open file %s: %w", path, err)
 	}
 
 	fi, err := file.Stat()
 	if err != nil {
 		file.Close()
-		return nil, fmt.Errorf("failed to stat file %s: %v", path, err)
+		return nil, fmt.Errorf("failed to stat file %s: %w", path, err)
 	}
 
 	if !fi.Mode().IsRegular() {
@@ -104,5 +110,5 @@ func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
 }
 
 func validateAndOpen(path string) (*os.File, error) {
-	return validateAndOpenWithPrefix(path, "/var/log/")
+	return validateAndOpenWithPrefix(path, "/var/log/", nil)
 }

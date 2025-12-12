@@ -18,6 +18,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,10 +34,10 @@ func TestLeafNodeCanHaveComplexMapValue(t *testing.T) {
 	nodeTreeConfig, ok := cfg.(NodeTreeConfig)
 	require.Equal(t, ok, true)
 	// Assert that the key is a leaf node, since it was directly added by BindEnvAndSetDefault
-	n, err := nodeTreeConfig.GetNode("kubernetes_node_annotations_as_tags")
+	node, err := nodeTreeConfig.GetNode("kubernetes_node_annotations_as_tags")
 	require.NoError(t, err)
-	_, ok = n.(LeafNode)
-	require.Equal(t, ok, true)
+	require.True(t, node.IsLeafNode())
+	require.Equal(t, map[string]string{"cluster.k8s.io/machine": "kube_machine"}, node.Get())
 }
 
 // Test that default, file, and env layers can build, get merged, and retrieve settings
@@ -332,7 +333,8 @@ func TestAllSettingsBySource(t *testing.T) {
 			},
 			"x": 123,
 		},
-		model.SourceUnknown: map[string]interface{}{},
+		model.SourceUnknown:   map[string]interface{}{},
+		model.SourceInfraMode: map[string]interface{}{},
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
@@ -494,6 +496,25 @@ logs_config:
 	assert.True(t, cfg.HasSection("logs_config"))
 	assert.False(t, cfg.HasSection("apm_config"))
 	assert.True(t, cfg.HasSection("runtime_security_config"))
+}
+
+func TestMapGetChildNotFound(t *testing.T) {
+	m := map[string]interface{}{"a": "apple", "b": "banana"}
+	n, err := newNodeTree(m, model.SourceDefault)
+	assert.NoError(t, err)
+
+	val, err := n.GetChild("a")
+	assert.NoError(t, err)
+	str, err := cast.ToStringE(val.Get())
+	assert.NoError(t, err)
+	assert.Equal(t, str, "apple")
+
+	_, err = n.GetChild("c")
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "not found")
+
+	assert.True(t, n.IsInnerNode())
+	assert.Equal(t, n.ChildrenKeys(), []string{"a", "b"})
 }
 
 func TestStringifyLayers(t *testing.T) {
@@ -1522,10 +1543,10 @@ func TestEnvVarTransformers(t *testing.T) {
 
 	cfg.BuildSchema()
 
-	var nums []float64 = cfg.GetFloat64Slice("list_of_nums")
+	var nums = cfg.GetFloat64Slice("list_of_nums")
 	assert.Equal(t, []float64{34, 67.5, 901.125}, nums)
 
-	var fruits []string = cfg.GetStringSlice("list_of_fruit")
+	var fruits = cfg.GetStringSlice("list_of_fruit")
 	assert.Equal(t, []string{"apple", "banana", "cherry"}, fruits)
 
 	tagsValue := cfg.Get("tag_set")
@@ -1533,18 +1554,8 @@ func TestEnvVarTransformers(t *testing.T) {
 	assert.Equal(t, true, converted)
 	assert.Equal(t, []map[string]string{{"cat": "meow"}, {"dog": "bark"}}, tags)
 
-	var kvs map[string]interface{} = cfg.GetStringMap("list_keypairs")
+	var kvs = cfg.GetStringMap("list_keypairs")
 	assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": 3}, kvs)
-}
-
-func TestUnmarshalKeyIsDeprecated(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", []string{"a", "b"})
-	cfg.BuildSchema()
-
-	var texts []string
-	err := cfg.UnmarshalKey("a", &texts)
-	assert.Error(t, err)
 }
 
 func TestSetConfigFile(t *testing.T) {

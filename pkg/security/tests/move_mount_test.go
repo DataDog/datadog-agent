@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func GetMountID(fd int) (uint64, error) {
 	}
 
 	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, fmt.Errorf("statx: kernel didn't fill STATX_MNT_ID")
+		return 0, errors.New("statx: kernel didn't fill STATX_MNT_ID")
 	}
 
 	return stx.Mnt_id, nil
@@ -106,9 +107,10 @@ func TestMoveMount(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			assert.Equal(t, err, nil)
 			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
 
@@ -253,7 +255,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("moved-attached-recursive-no-propagation", func(_ *testing.T) {
+	t.Run("moved-attached-recursive-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(te.fsmountfd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err == nil {
@@ -267,12 +269,13 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			assert.Equal(t, err, nil, "Error resolving mount")
 			assert.Equal(t, len(mount.Children), 2, "Wrong number of child mounts")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 
 			for _, childMountID := range mount.Children {
-				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0, 0, "")
+				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0)
 				assert.Equal(t, err, nil, "Error resolving child mount")
 				assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
 			}
@@ -304,7 +307,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
+	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
 		allMounts := map[uint32]uint32{}
 
 		te, err := newTestEnvironment(false, t.TempDir())
@@ -342,17 +345,17 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			if event.GetType() != "move_mount" && event.Mount.FSType != "tmpfs" {
 				return false
 			}
-
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 			allMounts[event.Mount.MountID]++
-			return len(allMounts) == 3
+			return false
 		}, 5*time.Second, model.FileMoveMountEventType)
 
-		assert.Equal(t, 3, len(allMounts), "Not all mount events were obtained")
+		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
-			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0, 0, "")
-			if len(path) == 0 {
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+			if len(path) == 0 || !strings.Contains(path, "tmp1") || !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue

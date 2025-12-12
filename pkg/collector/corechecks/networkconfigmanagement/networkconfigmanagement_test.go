@@ -9,6 +9,7 @@ package networkconfigmanagement
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"testing"
@@ -300,7 +301,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
-	connectionError := fmt.Errorf("connection refused")
+	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
 
@@ -311,18 +312,19 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection refused")
 }
 
-func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
+func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	check := createTestCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
+	t.Cleanup(profile.ResetProfilesPath)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
-		ConfigError: fmt.Errorf("command execution failed"),
+		ConfigError: errors.New("command execution failed"),
 	}
 	check.remoteClient = mockClient
 
@@ -330,7 +332,7 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 	err = check.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "command execution failed")
+	assert.Contains(t, err.Error(), "unable to find matching profile for device 10.0.0.1")
 	assert.True(t, mockClient.Closed, "Remote client should be closed even on failure")
 }
 
@@ -433,7 +435,7 @@ func getRunningScrubber() *scrubber.Scrubber {
 	sc := scrubber.New()
 	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+		Repl:  []byte("$1 " + "<redacted secret>"),
 	})
 	return sc
 }

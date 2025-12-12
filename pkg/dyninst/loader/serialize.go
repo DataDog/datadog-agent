@@ -11,6 +11,7 @@ package loader
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -110,7 +111,7 @@ func serializeProgram(
 	var ok bool
 	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[compiler.ChasePointers{}]
 	if !ok {
-		return nil, fmt.Errorf("serialized program is missing ChasePointers function")
+		return nil, errors.New("serialized program is missing ChasePointers function")
 	}
 
 	slices.SortFunc(program.Types, func(a, b ir.Type) int {
