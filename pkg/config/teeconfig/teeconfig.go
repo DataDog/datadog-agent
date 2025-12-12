@@ -36,6 +36,10 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 	return &teeConfig{baseline: baseline, compare: compare}
 }
 
+func (t *teeConfig) GetSchema() map[string]interface{} {
+	return t.baseline.GetSchema()
+}
+
 // RevertFinishedBackToBuilder returns an interface that can build more on the
 // current config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!

@@ -130,6 +130,8 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
+	GetSchema() map[string]interface{}
+
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool

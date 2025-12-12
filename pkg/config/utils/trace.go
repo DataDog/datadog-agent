@@ -18,7 +18,7 @@ func GetTraceAgentDefaultEnv(c pkgconfigmodel.Reader) string {
 	if c.IsSet("apm_config.env") {
 		defaultEnv = c.GetString("apm_config.env")
 		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if c.IsSet("env") {
+	} else if c.IsConfigured("env") {
 		defaultEnv = c.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
 	} else {

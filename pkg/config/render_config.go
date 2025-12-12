@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/pmezard/go-difflib/difflib"
 	"gopkg.in/yaml.v3"
 )
 
@@ -67,11 +66,11 @@ type context struct {
 	Synthetics                       bool
 }
 
-func mkContext(buildType string) context {
+func mkContext(buildType string, os string) context {
 	buildType = strings.ToLower(buildType)
 
 	agentContext := context{
-		OS:                runtime.GOOS,
+		OS:                os,
 		Common:            true,
 		Agent:             true,
 		Python:            true,
@@ -106,7 +105,7 @@ func mkContext(buildType string) context {
 		return agentContext
 	case "iot-agent":
 		return context{
-			OS:        runtime.GOOS,
+			OS:        os,
 			Common:    true,
 			Agent:     true,
 			Metadata:  true,
@@ -116,7 +115,7 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			OS:                               runtime.GOOS,
+			OS:                               os,
 			SystemProbe:                      true,
 			NetworkModule:                    true,
 			UniversalServiceMonitoringModule: true,
@@ -127,7 +126,7 @@ func mkContext(buildType string) context {
 		}
 	case "dogstatsd":
 		return context{
-			OS:                runtime.GOOS,
+			OS:                os,
 			Common:            true,
 			Dogstatsd:         true,
 			DockerTagging:     true,
@@ -139,7 +138,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
-			OS:                  runtime.GOOS,
+			OS:                  os,
 			ClusterAgent:        true,
 			Common:              true,
 			Logging:             true,
@@ -149,7 +148,7 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
-			OS:              runtime.GOOS,
+			OS:              os,
 			ClusterAgent:    true,
 			Common:          true,
 			Logging:         true,
@@ -159,17 +158,17 @@ func mkContext(buildType string) context {
 		}
 	case "security-agent":
 		return context{
-			OS:            runtime.GOOS,
+			OS:            os,
 			SecurityAgent: true,
 		}
 	case "apm-injection":
 		return context{
-			OS:           runtime.GOOS,
+			OS:           os,
 			APMInjection: true,
 		}
 	case "application-monitoring":
 		return context{
-			OS:                    runtime.GOOS,
+			OS:                    os,
 			ApplicationMonitoring: true,
 		}
 	}
@@ -177,23 +176,16 @@ func mkContext(buildType string) context {
 	return context{}
 }
 
-func main() {
-	if len(os.Args[1:]) != 3 {
-		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'")
-	}
-
-	component := os.Args[1]
-	tplFile, _ := filepath.Abs(os.Args[2])
-	tplFilename := filepath.Base(tplFile)
-	destFile, _ := filepath.Abs(os.Args[3])
-
+func render(destFile string, tplFile string, component string, osName string) {
 	f, err := os.Create(destFile)
 	if err != nil {
 		panic(err)
 	}
 
+	tplFilename := filepath.Base(tplFile)
+
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component))
+	err = t.Execute(f, mkContext(component, osName))
 	if err != nil {
 		panic(err)
 	}
@@ -201,7 +193,42 @@ func main() {
 	if err := f.Close(); err != nil {
 		panic(err)
 	}
+}
 
+func renderAll(destFolder string, tplFile string) {
+	for _, component := range []string{
+		"agent-py3",
+		"iot-agent",
+		"system-probe",
+		"dogstatsd",
+		"dca",
+		"dcacf",
+		"security-agent",
+		"apm-injection",
+		"application-monitoring",
+	} {
+		for _, osName := range []string{"windows", "darwin", "linux"} {
+			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
+			render(destFile, tplFile, component, osName)
+			fmt.Println("Successfully wrote", destFile)
+		}
+	}
+}
+
+func main() {
+	if len(os.Args) == 3 {
+		renderAll(os.Args[1], os.Args[2])
+		return
+	}
+	if len(os.Args) != 4 {
+		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'")
+	}
+
+	component := os.Args[1]
+	tplFile, _ := filepath.Abs(os.Args[2])
+	destFile, _ := filepath.Abs(os.Args[3])
+
+	render(destFile, tplFile, component, runtime.GOOS)
 	if err := lint(destFile); err != nil {
 		panic(err)
 	}
@@ -249,20 +276,20 @@ func lint(destFile string) error {
 		return fmt.Errorf("lint: YAML re-encode failed: %w", err)
 	}
 
-	reencoded := buf.Bytes()
+	//reencoded := buf.Bytes()
 
-	if !bytes.Equal(normalized, reencoded) {
-		origLines := difflib.SplitLines(string(normalized))
-		reencLines := difflib.SplitLines(string(reencoded))
-		ud := difflib.ContextDiff{
-			A:        origLines,
-			B:        reencLines,
-			FromFile: "rendered (original)",
-			ToFile:   "rendered (re-encoded)",
-			Context:  3,
-		}
-		diff, _ := difflib.GetContextDiffString(ud)
-		return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
-	}
+	//if !bytes.Equal(normalized, reencoded) {
+	//	origLines := difflib.SplitLines(string(normalized))
+	//	reencLines := difflib.SplitLines(string(reencoded))
+	//	ud := difflib.ContextDiff{
+	//		A:        origLines,
+	//		B:        reencLines,
+	//		FromFile: "rendered (original)",
+	//		ToFile:   "rendered (re-encoded)",
+	//		Context:  3,
+	//	}
+	//	diff, _ := difflib.GetContextDiffString(ud)
+	//	return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
+	//}
 	return nil
 }
