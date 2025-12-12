@@ -2,6 +2,7 @@ lading:
   version: 0.30.0
 
 target:
+  ddprof_replicas: 5
 
 # Link templates for reports.
 #
