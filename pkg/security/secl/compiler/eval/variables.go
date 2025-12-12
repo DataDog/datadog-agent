@@ -957,10 +957,18 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 	return v
 }
 
+// ScopeHashKey is the key used to identify a variable scope
+// it currently contains an integer and a string to cover most common use cases
+// the goal of this is to prevent the need to allocate a string for each `Hash()` call
+type ScopeHashKey struct {
+	Integer uint32
+	String  string
+}
+
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
-	Hash() string
+	Hash() ScopeHashKey
 	ParentScope() (VariableScope, bool)
 }
 
@@ -1060,7 +1068,7 @@ func (v *Variables) CleanupExpiredVariables() {
 }
 
 // GetScopedVariables returns nothing for global variables
-func (v *Variables) GetScopedVariables(_ string) map[string]Variable {
+func (v *Variables) GetScopedVariables(_ string) map[ScopeHashKey]Variable {
 	return nil
 }
 
@@ -1076,9 +1084,9 @@ type ScopedVariables struct {
 	scoperName     string
 	scoper         Scoper
 	varsLock       sync.RWMutex
-	vars           map[string]map[string]MutableSECLVariable
+	vars           map[ScopeHashKey]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
-	expirables     map[string][]expirableVariable
+	expirables     map[ScopeHashKey][]expirableVariable
 }
 
 // Len returns the length of the variable map
@@ -1229,7 +1237,7 @@ func (v *ScopedVariables) CleanupExpiredVariables() {
 }
 
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key string) {
+func (v *ScopedVariables) ReleaseVariable(key ScopeHashKey) {
 	v.varsLock.Lock()
 	delete(v.vars, key)
 	v.varsLock.Unlock()
@@ -1239,8 +1247,8 @@ func (v *ScopedVariables) ReleaseVariable(key string) {
 }
 
 // GetScopedVariables returns all scoped variables that match the given name
-func (v *ScopedVariables) GetScopedVariables(name string) map[string]Variable {
-	variables := make(map[string]Variable)
+func (v *ScopedVariables) GetScopedVariables(name string) map[ScopeHashKey]Variable {
+	variables := make(map[ScopeHashKey]Variable)
 	v.varsLock.RLock()
 	defer v.varsLock.RUnlock()
 	for key, vars := range v.vars {
@@ -1258,7 +1266,7 @@ func NewScopedVariables(scoperName string, scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoperName: scoperName,
 		scoper:     scoper,
-		vars:       make(map[string]map[string]MutableSECLVariable),
-		expirables: make(map[string][]expirableVariable),
+		vars:       make(map[ScopeHashKey]map[string]MutableSECLVariable),
+		expirables: make(map[ScopeHashKey][]expirableVariable),
 	}
 }
