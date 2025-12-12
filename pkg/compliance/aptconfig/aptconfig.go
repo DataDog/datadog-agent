@@ -59,8 +59,8 @@ func LoadConfiguration(_ context.Context, hostroot string) (types.ResourceType, 
 	systemdConfDir := filepath.Join(hostroot, systemdConfDir)
 	systemdTimersConfs := make(map[string]interface{})
 	var systemdConfFiles []string
-	_ = filepath.Walk(systemdConfDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	_ = filepath.WalkDir(systemdConfDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
 			return err
 		}
 		base := filepath.Base(path)

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
@@ -108,28 +110,24 @@ func (fc *FilterConfig) GetCELRulesForProduct(product workloadfilter.Product, re
 	return ""
 }
 
-// GetLegacyContainerInclude returns the appropriate container include list with fallback to AC include
-func (fc *FilterConfig) GetLegacyContainerInclude() []string {
-	if len(fc.ContainerInclude) > 0 {
-		return fc.ContainerInclude
-	}
-	return fc.ACInclude
-}
-
-// GetLegacyContainerExclude returns the appropriate container exclude list with fallback to AC exclude
-func (fc *FilterConfig) GetLegacyContainerExclude() []string {
-	if len(fc.ContainerExclude) > 0 {
-		return fc.ContainerExclude
-	}
-	return fc.ACExclude
-}
-
 // loadCELConfig loads CEL workload exclude configuration
 func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig, structure.EnableStringUnmarshal)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
+	if err == nil {
+		return celConfig, nil
+	}
+
+	// Fallback: try to get raw value and unmarshal manually
+	rawValue := cfg.GetString("cel_workload_exclude")
+	if rawValue == "" {
+		return nil, nil
+	}
+
+	// handles both yaml and json input
+	err = yaml.Unmarshal([]byte(rawValue), &celConfig)
 	if err == nil {
 		return celConfig, nil
 	}
@@ -137,7 +135,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	return nil, err
 }
 
-// String returns a simple string representation of the FilterConfig
+// String returns a string representation of the FilterConfig
 func (fc *FilterConfig) String() (string, error) {
 	filterConfigJSON, err := json.Marshal(fc)
 	if err != nil {
