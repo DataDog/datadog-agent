@@ -254,6 +254,10 @@ func ecsFakeintakeAdditionalEndpointsEnv(fakeintake *fakeintake.Fakeintake) []ec
 			Value: pulumi.StringPtr("true"),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_APM_DD_URL"),
+			Value: fakeintake.URL.ToStringOutput(),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
 			Value: fakeintake.URL.ToStringOutput(),
 		},
