@@ -37,6 +37,7 @@ func TestEKSSuite(t *testing.T) {
 				sceneks.WithDeployTestWorkload(),
 				sceneks.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithClusterAgentLanguageDetectionPatcherShortBackoff(),
 					kubernetesagentparams.WithHelmValues(helmValues),
 				),
 				sceneks.WithDeployArgoRollout(),

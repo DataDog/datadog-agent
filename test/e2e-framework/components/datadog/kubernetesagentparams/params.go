@@ -200,6 +200,17 @@ func WithDualShipping() func(*Params) error {
 	}
 }
 
+// WithClusterAgentLanguageDetectionPatcherShortBackoff configures shortened backoff for the cluster agent's
+// language detection patcher to avoid test timeouts in E2E tests.
+func WithClusterAgentLanguageDetectionPatcherShortBackoff() func(*Params) error {
+	return WithHelmValues(`
+clusterAgent:
+  envDict:
+    DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
+    DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_MAX_BACKOFF: "1m"
+`)
+}
+
 func WithOTelAgent() func(*Params) error {
 	return func(p *Params) error {
 		p.OTelAgent = true
