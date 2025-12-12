@@ -143,7 +143,11 @@ build do
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
   if linux_target? and !heroku_target?
-      move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+  elsif windows_target?
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   if linux_target?
@@ -305,6 +309,7 @@ build do
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
+        "#{install_dir}/embedded/bin/installer",
       ]
 
       symbol = "_Cfunc_go_openssl"
