@@ -1,0 +1,52 @@
+name = "Agent CI"
+
+[pipeline]
+type = "static"
+path = ".gitlab/pipeline.yml"
+
+[[triggers]]
+changes = [
+  ".dda/**/*",
+  ".github/**/*",
+  ".gitlab/**/*",
+  "bazel/**/*",
+  "chocolatey/**/*",
+  "cmd/**/*",
+  "comp/**/*",
+  "compliance/**/*",
+  "deps/**/*",
+  "Dockerfiles/**/*",
+  "internal/**/*",
+  "omnibus/**/*",
+  "packages/**/*",
+  "pkg/**/*",
+  "rtloader/**/*",
+  "tasks/**/*",
+  "test/**/*",
+  "third_party/**/*",
+  "tools/**/*",
+  ".bazelignore",
+  ".bazelrc",
+  ".bazelversion",
+  ".clang-format",
+  ".custom-gcl.yml",
+  ".go-version",
+  ".golangci.yml",
+  ".mockery.yaml",
+  ".pre-commit-config.yaml",
+  ".protoc-version",
+  ".python-version",
+  ".wwhrd.yml",
+  "BUILD.bazel",
+  "datadog-agent.map",
+  "generate_tools.go",
+  "go.mod",
+  "go.sum",
+  "go.work",
+  "MODULE.bazel",
+  "MODULE.bazel.lock",
+  "modules.yml",
+  "pyproject.toml",
+  "release.json",
+  "static-analysis.datadog.yml",
+]

@@ -522,7 +522,7 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         'arch': "Target architecture: 'arm64' or 'amd64' (default: auto-detect from host)",
         'cache-dir': "Base directory for caches (default: ~/.omnibus-docker-cache)",
         'workers': "Number of parallel workers for compression and builds (default: 8)",
-        'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
+        'build-image': "Docker build image to use (default: uses version from .gitlab/pipeline.yml)",
         'tag': "Tag for the built Docker image (default: localhost/datadog-agent:local)",
     }
 )
@@ -584,7 +584,7 @@ def docker_build(
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
 
-    # Resolve build image using version from .gitlab-ci.yml if not specified
+    # Resolve build image using version from .gitlab/pipeline.yml if not specified
     if build_image is None:
         from tasks.buildimages import get_tag
 

@@ -22,11 +22,9 @@ def variable_replacements():
 
 @cache
 def get_dda_version():
-    # TODO: uncomment when the build images get updated
-    # gitlab_config = Path(".gitlab-ci.yml").read_text(encoding="utf-8")
-    # build_image_ref = re.search(r"^\s*CI_IMAGE_LINUX: v[^-]+-(.+)$", gitlab_config, flags=re.MULTILINE).group(1)
-    # version_url = f"https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/{build_image_ref}/dda.env"
-    version_url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dda.env"
+    gitlab_config = Path("ci/templates/vars/global.yml").read_text(encoding="utf-8")
+    build_image_ref = re.search(r"^\s*CI_IMAGE_LINUX: v[^-]+-(.+)$", gitlab_config, flags=re.MULTILINE).group(1)
+    version_url = f"https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/{build_image_ref}/dda.env"
     response = httpx.get(version_url)
     response.raise_for_status()
     return re.search(r"DDA_VERSION=v(.*)", response.text).group(1)

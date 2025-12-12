@@ -1,0 +1,57 @@
+agent:
+  extends: .unit:static:trigger
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    UNIT_ID: agent
+    UNIT_DISPLAY_NAME: Agent CI
+  trigger:
+    include:
+    - local: .gitlab/pipeline.yml
+    strategy: depend
+  rules:
+  - if: $RUN_UNITS =~ /(^|,)(agent|all)(,|$)/
+  - changes:
+    - .bazelignore
+    - .bazelrc
+    - .bazelversion
+    - .clang-format
+    - .custom-gcl.yml
+    - .dda/**/*
+    - .github/**/*
+    - .gitlab/**/*
+    - .go-version
+    - .golangci.yml
+    - .mockery.yaml
+    - .pre-commit-config.yaml
+    - .protoc-version
+    - .python-version
+    - .wwhrd.yml
+    - BUILD.bazel
+    - Dockerfiles/**/*
+    - MODULE.bazel
+    - MODULE.bazel.lock
+    - bazel/**/*
+    - chocolatey/**/*
+    - cmd/**/*
+    - comp/**/*
+    - compliance/**/*
+    - datadog-agent.map
+    - deps/**/*
+    - generate_tools.go
+    - go.mod
+    - go.sum
+    - go.work
+    - internal/**/*
+    - modules.yml
+    - omnibus/**/*
+    - packages/**/*
+    - pkg/**/*
+    - pyproject.toml
+    - release.json
+    - rtloader/**/*
+    - static-analysis.datadog.yml
+    - tasks/**/*
+    - test/**/*
+    - third_party/**/*
+    - tools/**/*
+    - ci/units/agent.toml

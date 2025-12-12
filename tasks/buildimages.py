@@ -27,10 +27,10 @@ def update(
     generate_windows_images = 'win' in images.casefold() or windows
     if list_images:
         print("List of available images:")
-        modified = update_gitlab_config(".gitlab-ci.yml", "", update=False)
+        modified = update_gitlab_config(".gitlab/pipeline.yml", "", update=False)
     else:
         print("Updating images:")
-        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test, windows=generate_windows_images)
+        modified = update_gitlab_config(".gitlab/pipeline.yml", tag, images, test=test, windows=generate_windows_images)
     print(f"  {', '.join(modified)}")
     if not generate_windows_images:
         print(
@@ -101,9 +101,9 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
     },
     autoprint=True,
 )
-def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
+def get_tag(_, file_path=".gitlab/pipeline.yml", image_type=None):
     """
-    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab/pipeline.yml")
     """
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(file_path) as gl:
