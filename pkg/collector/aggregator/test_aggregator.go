@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python && test
+//go:build test
 
-package python
+package aggregator
 
 import (
 	"testing"
@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// #include <datadog_agent_rtloader.h>
+/*
+#include "rtloader_types.h"
+*/
 import "C"
 
 func testSubmitMetric(t *testing.T) {
@@ -31,7 +33,7 @@ func testSubmitMetric(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -109,7 +111,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -131,7 +133,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -153,7 +155,7 @@ func testSubmitServiceCheck(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -174,7 +176,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -195,7 +197,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -216,7 +218,7 @@ func testSubmitEvent(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -255,7 +257,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -281,7 +283,7 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 	defer release()
 
 	sender.SetupAcceptAll()
@@ -295,9 +297,10 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 	sender.AssertEventPlatformEvent(t, []byte("raw-event"), "dbm-sample")
 }
 
-func scopeInitCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore workloadfilter.Component) func() {
+// ScopeInitCheckContext releases and initializes a check context
+func ScopeInitCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore workloadfilter.Component) func() {
 	// Ensure the check context is released before initializing a new one
 	releaseCheckContext()
-	initializeCheckContext(senderManager, logReceiver, taggerComp, filterStore)
+	InitializeCheckContext(senderManager, logReceiver, taggerComp, filterStore)
 	return releaseCheckContext
 }
