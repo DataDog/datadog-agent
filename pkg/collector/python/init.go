@@ -235,6 +235,7 @@ func init() {
 
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
+	initOpenSSL()
 	initFIPS()
 }
 
@@ -496,28 +497,22 @@ func initPymemTelemetry(d time.Duration) {
 	}()
 }
 
-func initFIPS() {
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("could not check FIPS mode: %v", err)
-		return
-	}
+func initOpenSSL() {
 	resolvePythonHome()
 	if PythonHome == "" {
 		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
 		return
 	}
-	if fipsEnabled {
-		err := enableFIPS(PythonHome)
-		if err != nil {
-			log.Warnf("could not initialize FIPS mode: %v", err)
-		}
+	err := configureOpenSSL(PythonHome)
+	if err != nil {
+		log.Warnf("could not initialize FIPS mode: %v", err)
 	}
 }
 
 // enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
-func enableFIPS(embeddedPath string) error {
+func configureOpenSSL(embeddedPath string) error {
 	envVars := map[string][]string{
+		"SSL_CERT_DIR":    {embeddedPath, "ssl"},
 		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
 		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
 	}
