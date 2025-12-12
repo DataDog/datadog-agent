@@ -264,7 +264,12 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
+	for _, service := range []string{
+		installerUnit, agentUnit, agentUnitXP, traceUnit, traceUnitXP,
+		processUnit, processUnitXP, probeUnit, probeUnitXP,
+		securityUnit, securityUnitXP, ddotUnit, ddotUnitXP,
+		dataPlaneUnit, dataPlaneUnitXP,
+	} {
 		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
 	}
 
@@ -272,8 +277,16 @@ func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent datadog-apm-inject datadog-apm-library-python || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent datadog-apm-inject datadog-apm-library-python || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent datadog-apm-inject datadog-apm-library-python")
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
+	// When above purge sequence doesn't fully clean up, next install may skip hooks due to "already installed" checks.
+	// The following workaround is therefore meant to identify these cases, while reducing test flakiness:
+	leftovers := s.Env().RemoteHost.MustExecute("[ -d /opt/datadog-packages ] && sudo find /opt/datadog-packages -maxdepth 1 -depth -print -exec rm -fr {} + || true")
+	if leftovers != "" {
+		s.T().Logf("WARNING: Purge sequence left packages behind:\n%s", leftovers)
+	}
+	// Clean up /etc/ld.so.preload to prevent ld.so errors when packages are gone but preload config remains
+	s.Env().RemoteHost.Execute("sudo rm -f /etc/ld.so.preload")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.
