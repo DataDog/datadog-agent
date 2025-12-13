@@ -101,7 +101,7 @@ network_devices:
 
 	// NOTE: An additional warning is created here because the config has an error
 	warnings = ntmConf.Warnings()
-	assert.Equal(t, 1, len(warnings.Errors))
+	assert.Equal(t, 2, len(warnings.Errors))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`

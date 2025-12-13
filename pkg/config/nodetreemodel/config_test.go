@@ -278,9 +278,9 @@ func TestAllSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)         // "a"   @ file
 	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
-	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (undefined)
+	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
+	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
+	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
@@ -306,9 +306,9 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 	cfg.SetDefault("a", 0)         // "a"   @ file
 	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
-	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (undefined)
+	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
+	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
+	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
@@ -451,9 +451,9 @@ func TestAllKeysLowercased(t *testing.T) {
 	cfg.SetDefault("a", 0)         // "a"   @ file
 	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // testing behavior
-	cfg.BindEnv("f.g", "TEST_F_G") // "f.g" @ env-var (not defined)
-	cfg.BindEnv("f.h", "TEST_F_H") // "f.h" @ env-var (env var defined)
+	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
+	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (not defined)
+	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (env var defined)
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
