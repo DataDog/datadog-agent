@@ -10,13 +10,13 @@ build do
     etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
     if debian_target?
+      # Note: we are duplicating output_config_dir to destdir because the bazel wrapper is stripping it.
+      # We set the flag explicitly to make it clear.
+      command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/debian/etc:install --destdir=/"
+
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
 
-      erb source: "upstart_debian.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,
@@ -70,6 +70,7 @@ build do
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      project.extra_package_file '/etc/init/datadog-agent.conf'
       erb source: "upstart_redhat.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,
@@ -91,7 +92,6 @@ build do
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
-    project.extra_package_file '/etc/init/datadog-agent.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'

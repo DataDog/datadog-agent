@@ -585,6 +585,11 @@ workflow:
 .if_windows_installer_changes: &if_windows_installer_changes
   changes:
     paths:
+      - omnibus/config/software/init-scripts-agent.rb
+    compare_to: $COMPARE_TO_BRANCH
+    when: never
+  changes:
+    paths:
       - tools/windows/DatadogAgentInstaller/**/*
       - .gitlab/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
