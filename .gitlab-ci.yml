@@ -585,6 +585,27 @@ workflow:
 .if_windows_installer_changes: &if_windows_installer_changes
   changes:
     paths:
+      - omnibus/config/software/acl.rb
+      - omnibus/config/software/attr.rb
+      - omnibus/config/software/dbus.rb
+      - omnibus/config/software/libacl.rb
+      - omnibus/config/software/libgcrypt.rb
+      - omnibus/config/software/libselinux.rb
+      - omnibus/config/software/libsepol.rb
+      - omnibus/config/software/libxml2.rb
+      - omnibus/config/software/libxslt.rb
+      - omnibus/config/software/lua.rb
+      - omnibus/config/software/openscap.rb
+      - omnibus/config/software/pcre2.rb
+      - omnibus/config/software/popt.rb
+      - omnibus/config/software/rpm.rb
+      - omnibus/config/software/util-linux.rb
+      - omnibus/config/software/xmlsec.rb
+      - omnibus/config/software/zstd.rb
+    compare_to: $COMPARE_TO_BRANCH
+    when: never
+  changes:
+    paths:
       - tools/windows/DatadogAgentInstaller/**/*
       - .gitlab/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
