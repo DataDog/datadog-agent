@@ -13,7 +13,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -28,20 +27,12 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.CGroupContext, pids ...uint32) *CacheEntry {
+func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pids ...uint32) *CacheEntry {
 	newCGroup := CacheEntry{
-		Deleted: atomic.NewBool(false),
-		ContainerContext: model.ContainerContext{
-			ContainerID: containerID,
-		},
-		CGroupContext: model.CGroupContext{
-			Releasable: &model.Releasable{},
-		},
-		PIDs: make(map[uint32]bool, 10),
-	}
-
-	if cgroupContext != nil {
-		newCGroup.CGroupContext = *cgroupContext
+		Deleted:          atomic.NewBool(false),
+		ContainerContext: containerContext,
+		CGroupContext:    cgroupContext,
+		PIDs:             make(map[uint32]bool, 10),
 	}
 
 	for _, pid := range pids {
