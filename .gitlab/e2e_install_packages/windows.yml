@@ -7,6 +7,9 @@
   extends:
     - .new_e2e_template
   before_script:
+    # Check if only we are only changing linux specific omnibus files.
+    # (jobs using .on_e2e_or_windows_installer_changes need this check)
+    - !reference [.check_linux_only_omnibus_files]
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
@@ -156,6 +159,7 @@ new-e2e-windows-ddot-package-a7-x86_64:
   before_script:
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
+    - !reference [.check_linux_only_omnibus_files]
     - !reference [.new_e2e_template, before_script]
   rules:
     - !reference [.on_deploy]
