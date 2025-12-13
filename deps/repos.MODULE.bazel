@@ -54,12 +54,13 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
-bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 single_version_override(
     module_name = "rules_foreign_cc",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
+        "//bazel/patches:rules_foreign_cc/0001-add-destdir-support-for-absolute-prefix.patch",
     ],
 )
 
