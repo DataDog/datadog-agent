@@ -2,13 +2,15 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
+dd_http_archive = use_repo_rule("//deps:dd_http.bzl", "dd_http_archive")
+
 # Defies a "liblua" target for the lib
 bazel_dep(name = "lua", version = "5.4.6")
 
 # Defines a "sqlite3" target for the lib
 bazel_dep(name = "sqlite3", version = "3.46.1")
 
-http_archive(
+dd_http_archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
     files = {
@@ -18,12 +20,6 @@ http_archive(
         "config.lzma-osx-x86_64.h": "//deps/xz:config.lzma-osx-x86_64.h",
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
-    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
-    strip_prefix = "xz-5.8.1",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/xz-5.8.1.tar.gz",
-        "https://tukaani.org/xz/xz-5.8.1.tar.gz",
-    ],
 )
 
 http_archive(
