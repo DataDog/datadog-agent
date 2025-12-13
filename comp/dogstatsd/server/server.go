@@ -109,6 +109,7 @@ type cachedOriginCounter struct {
 type localFilterListConfig struct {
 	metricNames []string
 	matchPrefix bool
+	tags        map[string][]string
 }
 
 // Server represent a Dogstatsd server
@@ -545,8 +546,8 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 // SetFilterList updates the metric names filter on all running worker.
-func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
-	s.log.Debugf("SetFilterList with %d metrics", len(metricNames))
+func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[string][]string) {
+	s.log.Debugf("SetFilterList with %d metrics, %d metrics with tags", len(metricNames), len(tags))
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
@@ -554,7 +555,7 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := s.createHistogramsFilterList(metricNames)
-	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
+	matcher := utilstrings.NewMatcher(metricNames, matchPrefix, tags)
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
@@ -562,7 +563,7 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 	}
 
 	// send the histogram filterlist used right before flushing to the serializer
-	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix, tags)
 
 	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
 }
@@ -638,9 +639,12 @@ func (s *server) handleMessages() {
 		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
 
+	tagFilterList := s.config.GetStringMapStringSlice("tag_filterlist")
+
 	s.localFilterListConfig = localFilterListConfig{
 		metricNames: filterlist,
 		matchPrefix: filterlistPrefix,
+		tags:        tagFilterList,
 	}
 	s.restoreFilterListFromLocalConfig()
 }
@@ -654,6 +658,7 @@ func (s *server) restoreFilterListFromLocalConfig() {
 	s.SetFilterList(
 		s.localFilterListConfig.metricNames,
 		s.localFilterListConfig.matchPrefix,
+		s.localFilterListConfig.tags,
 	)
 }
 

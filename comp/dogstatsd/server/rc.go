@@ -98,7 +98,10 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		// apply this new blocklist to all the running workers
 		s.tlmFilterListUpdates.Inc()
 		s.tlmFilterListSize.Set(float64(len(metricNames)))
-		s.SetFilterList(metricNames, false)
+
+		// TODO This should come from RC too.
+		tagFilterList := s.config.GetStringMapStringSlice("tag_filterlist")
+		s.SetFilterList(metricNames, false, tagFilterList)
 	} else {
 		// special case: if the metric names list is empty, fallback to local
 		s.config.UnsetForSource("metric_filterlist", model.SourceRC)

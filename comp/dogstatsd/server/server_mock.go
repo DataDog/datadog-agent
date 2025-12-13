@@ -60,7 +60,7 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) SetFilterList(v []string, _ bool) {
+func (s *serverMock) SetFilterList(v []string, _ bool, _ map[string][]string) {
 	s.filterlist = v
 }
 
