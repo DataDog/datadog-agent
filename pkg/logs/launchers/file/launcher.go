@@ -495,18 +495,19 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      channel,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoderInstance,
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: monitor,
-		Registry:        s.registry,
-		Fingerprint:     fingerprint,
-		Fingerprinter:   s.fingerprinter,
-		Rotated:         true,
-		FileOpener:      s.fileOpener,
+		OutputChan:       channel,
+		File:             file,
+		SleepDuration:    s.tailerSleepDuration,
+		Decoder:          decoderInstance,
+		Info:             tailerInfo,
+		TagAdder:         s.tagger,
+		CapacityMonitor:  monitor,
+		Registry:         s.registry,
+		Fingerprint:      fingerprint,
+		Fingerprinter:    s.fingerprinter,
+		Rotated:          true,
+		FileOpener:       s.fileOpener,
+		PipelineProvider: s.pipelineProvider,
 	}
 
 	if fingerprint != nil {
@@ -624,17 +625,18 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: capacityMonitor,
-		Registry:        s.registry,
-		Fingerprint:     fingerprint,
-		Fingerprinter:   s.fingerprinter,
-		FileOpener:      s.fileOpener,
+		OutputChan:       outputChan,
+		File:             file,
+		SleepDuration:    s.tailerSleepDuration,
+		Decoder:          decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:             tailerInfo,
+		TagAdder:         s.tagger,
+		CapacityMonitor:  capacityMonitor,
+		Registry:         s.registry,
+		Fingerprint:      fingerprint,
+		Fingerprinter:    s.fingerprinter,
+		FileOpener:       s.fileOpener,
+		PipelineProvider: s.pipelineProvider,
 	}
 
 	if fingerprint != nil {
@@ -656,7 +658,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	} else {
 		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
 	}
-	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
+	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry, s.pipelineProvider)
 	addFingerprintConfigToTailerInfo(newTailer)
 
 	return newTailer

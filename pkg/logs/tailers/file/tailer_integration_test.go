@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
@@ -67,14 +68,15 @@ func (suite *TailerIntegrationTestSuite) createTailerWithEncoding(encoding strin
 	info := status.NewInfoRegistry()
 
 	options := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-		FileOpener:      opener.NewFileOpener(),
+		OutputChan:       suite.outputChan,
+		File:             NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration:    sleepDuration,
+		Decoder:          decoder.NewDecoderFromSource(suite.source, info),
+		Info:             info,
+		CapacityMonitor:  metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:         auditor.NewMockRegistry(),
+		FileOpener:       opener.NewFileOpener(),
+		PipelineProvider: pipeline.NewMockProvider(),
 	}
 
 	tailer := NewTailer(options)

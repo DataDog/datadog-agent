@@ -124,8 +124,9 @@ type MessageContent struct { //nolint:revive
 	// unstructured content
 	content []byte
 	// structured content
-	structuredContent StructuredContent
-	State             MessageContentState
+	structuredContent     StructuredContent
+	State                 MessageContentState
+	DrainTokenizedContent []string
 }
 
 // MessageContentState is used to represent the MessageContent state.

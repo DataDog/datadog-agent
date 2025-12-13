@@ -326,3 +326,31 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+# TODO A: Remove me
+# Just to test
+@task
+def write_logs(ctx, file: str = '/tmp/dd_invoke.log'):
+    logs = [
+        'This is my first log',
+        'This is my second log',
+        'Hello world',
+        'This is my third log',
+        'This is my fourth log',
+        'Thread 4567 is going brrrr',
+        'This is my sixth log',
+        'RuntimeException',
+        'This is my eighth log',
+        'This is my ninth log',
+        'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+    ]
+    import datetime
+    import random
+    import time
+
+    with open(file, 'a') as f:
+        for log in logs:
+            timestamp = datetime.datetime.now().isoformat()
+            f.write(f'[{timestamp}] INFO {log}\n')
+            time.sleep(random.uniform(0.01, 0.1))

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -59,13 +60,14 @@ func (suite *FingerprintTestSuite) createTailer() *Tailer {
 
 	info := status.NewInfoRegistry()
 	tailerOptions := &TailerOptions{
-		OutputChan:      make(chan *message.Message, 10),
-		File:            NewFile(suite.testPath, source.UnderlyingSource(), false),
-		SleepDuration:   10 * time.Millisecond,
-		Decoder:         decoder.NewDecoderFromSource(source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		FileOpener:      opener.NewFileOpener(),
+		OutputChan:       make(chan *message.Message, 10),
+		File:             NewFile(suite.testPath, source.UnderlyingSource(), false),
+		SleepDuration:    10 * time.Millisecond,
+		Decoder:          decoder.NewDecoderFromSource(source, info),
+		Info:             info,
+		CapacityMonitor:  metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		FileOpener:       opener.NewFileOpener(),
+		PipelineProvider: pipeline.NewMockProvider(),
 	}
 
 	tailer := NewTailer(tailerOptions)

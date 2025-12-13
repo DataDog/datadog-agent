@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -50,6 +51,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	drainProcessor            *DrainProcessor
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -57,10 +59,23 @@ type Processor struct {
 	instanceID      string
 }
 
+const (
+	// /!\ Warning: this doesn't pass the SMP gates for the moment
+	UseDrainMultiThreaded = false
+)
+
+var singleThreadDrainProcessor = NewDrainProcessor("0", nil)
+var singleThreadDrainProcessorMutex = sync.Mutex{}
+
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+
+	drainProcessor := singleThreadDrainProcessor
+	if UseDrainMultiThreaded {
+		NewDrainProcessor(instanceID, nil)
+	}
 
 	p := &Processor{
 		config:                    config,
@@ -75,6 +90,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		drainProcessor:            drainProcessor,
 	}
 
 	// Initialize cached failover config
@@ -175,6 +191,20 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	useDrain := true
+	if msg.DrainTokenizedContent == nil {
+		useDrain = false
+	}
+	if useDrain && !UseDrainMultiThreaded {
+		if useDrain = singleThreadDrainProcessorMutex.TryLock(); useDrain {
+			defer singleThreadDrainProcessorMutex.Unlock()
+		}
+	}
+	if useDrain {
+		msg.ProcessingTags = append(msg.ProcessingTags, "drain_processed:true")
+	}
+
+	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
@@ -192,6 +222,17 @@ func (p *Processor) processMessage(msg *message.Message) {
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
+
+		// Drain sampling
+		if useDrain {
+			logContent := string(msg.GetContent())
+			_, toIgnore := p.drainProcessor.MatchAndTrain(logContent, msg.DrainTokenizedContent, p.getServiceName(msg))
+			// We have an outlier
+			if toIgnore {
+				// TODO: Fully remove...
+				msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
+			}
+		}
 
 		// render the message
 		rendered, err := msg.Render()
@@ -217,6 +258,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
+	}
+
+	// Drain metrics
+	if useDrain {
+		processTime := time.Since(logStart)
+		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
 	}
 }
 
@@ -311,4 +358,12 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		hname = "unknown"
 	}
 	return hname
+}
+
+// getServiceName returns the service name from the message origin
+func (p *Processor) getServiceName(msg *message.Message) string {
+	if msg.Origin != nil {
+		return msg.Origin.Service()
+	}
+	return ""
 }
