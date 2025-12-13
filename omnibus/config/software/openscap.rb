@@ -15,6 +15,7 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
+# Next step, fold the migrated steps into pkg_install ones in the build_block
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
