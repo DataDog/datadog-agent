@@ -1,5 +1,7 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -7,7 +9,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
-    name = "all",
+    name = "all_src",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
@@ -80,14 +82,17 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    lib_source = ":all",
+    lib_source = ":all_src",
     out_include_dir = "include",
     out_static_libs = select({
         "@platforms//os:windows": [
             "libssl.dll.a",
             "libcrypto.dll.a",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            "libssl.a",
+            "libcrypto.a",
+        ],
     }),
     out_shared_libs = select({
         "@platforms//os:linux": [
@@ -138,6 +143,35 @@ configure_make(
         ]),
         "//conditions:default": ""
     }),
+)
+
+filegroup(
+    name = "libcrypto_static",
+    srcs = [":openssl"],
+    output_group = select({
+        "@platforms//os:windows": "libcrypto.dll.a",
+        "//conditions:default": "libcrypto.a",
+    }),
+)
+
+"""
+cc_shared_library(
+    name = "libcrypto_shared",
+    deps = [":libcrypto_static"],
+    shared_lib_name = "libcryptoX.so",
+    #dynamic_deps = [
+    #    "@nghttp2//:nghttp2_shared",
+    #    "@zlib//:z",
+    #],
+    visibility = ["//visibility:public"],
+)
+"""
+
+cc_import(
+    name = "lcs",
+    hdrs = [],
+    static_library = "libcrypto.a",
+    shared_library = "libcrypto.so",
 )
 
 filegroup(
