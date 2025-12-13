@@ -9,7 +9,7 @@ package payloadmodifierimpl
 import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlesstags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
@@ -53,7 +53,7 @@ func NewComponent(deps Dependencies) Provides {
 }
 
 // Modify modifies the given TracerPayload, no-op if not enabled
-func (c *component) Modify(payload *pb.TracerPayload) {
+func (c *component) Modify(payload *idx.InternalTracerPayload) {
 	if c.modifier != nil {
 		c.modifier.Modify(payload)
 	}
