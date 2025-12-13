@@ -1,0 +1,73 @@
+# Datadog Trace Agent (APM) - Process Manager Configuration
+# Equivalent to the systemd datadog-agent-trace.service unit
+#
+# This configuration is used by dd-procmgrd to supervise the Datadog Trace Agent process.
+# Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-trace.yaml
+# The process name is derived from the filename (datadog-agent-trace)
+#
+# Note: dd-procmgrd must run as root to handle user switching, runtime directories,
+# and capabilities for child processes.
+#
+# Socket Activation:
+# Instead of using trace-loader (systemd socket activation shim), we use the process
+# manager's native socket activation. The process manager pre-creates the listening
+# socket and passes it to trace-agent via LISTEN_FDS when a connection arrives.
+
+description: Datadog Trace Agent (APM)
+command: /opt/datadog-agent/embedded/bin/trace-agent
+args:
+  - --config
+  - /etc/datadog-agent/datadog.yaml
+# Note: --pidfile removed to avoid race condition with socket activation
+# The process manager tracks PIDs internally
+process_type: simple
+auto_start: false  # Socket activation starts this on-demand
+
+# User to run as (systemd User=dd-agent)
+# dd-procmgrd must run as root to switch to this user
+user: dd-agent
+
+# Restart policy - socket re-activation handles restarts
+restart: never
+
+# Start limits (systemd StartLimitInterval=10, StartLimitBurst=5)
+# Protects against crash loops during socket activation
+start_limit_interval_sec: 10
+start_limit_burst: 5
+
+# Environment file (systemd EnvironmentFile=-)
+# Prefix with '-' to ignore if file doesn't exist
+environment_file: -/etc/datadog-agent/environment
+
+# Environment variables (systemd Environment=)
+env:
+  DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
+
+# Ambient capabilities (systemd AmbientCapabilities=)
+# Allows binding to privileged ports (< 1024) when running as non-root
+ambient_capabilities:
+  - CAP_NET_BIND_SERVICE
+
+# Ordering (systemd After=)
+# This process starts after the main agent
+after:
+  - datadog-agent
+  - datadog-agent-exp
+
+# Binding (systemd BindsTo=)
+# This process is bound to the main agent - stops when main agent stops
+binds_to:
+  - datadog-agent
+
+# Mutual exclusion (systemd Conflicts=)
+# Only one variant can run at a time - stable OR experimental
+conflicts:
+  - datadog-agent-exp
+  - datadog-agent-trace-exp
+
+# Output handling
+stdout: inherit
+stderr: inherit
+
+# Socket activation is defined in datadog-agent-trace.socket.yaml
+

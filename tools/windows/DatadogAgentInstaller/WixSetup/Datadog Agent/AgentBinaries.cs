@@ -17,6 +17,9 @@ namespace WixSetup.Datadog_Agent
         public string SecurityAgent => $@"{_binSource}\security-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\libdatadog-agent-three.dll";
         public string DatadogInterop => $@"{_binSource}\libdatadog-interop.dll";
+        // Process Manager daemon and CLI
+        public string ProcessManagerDaemon => $@"{_binSource}\dd-procmgrd.exe";
+        public string ProcessManagerCli => $@"{_binSource}\dd-procmgr.exe";
 
         public AgentBinaries(string binSource, string installerSource)
         {
