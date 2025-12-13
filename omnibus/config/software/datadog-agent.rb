@@ -72,10 +72,16 @@ build do
       end
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
     else
       msgoroot = "/usr/local/msgo"
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
     end
   end
 
@@ -306,7 +312,7 @@ build do
         "#{install_dir}/embedded/bin/installer",
       ]
 
-      symbol = "_Cfunc_go_openssl"
+      symbol = "_Cfunc__mkcgo_OPENSSL"
       check_block = Proc.new { |binary, symbols|
         count = symbols.scan(symbol).count
         if count > 0
