@@ -27,7 +27,7 @@ func NewConfig(name string) model.BuildableConfig {
 	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
-	if envvar == "enable" {
+	if envvar == "enable" || envvar == "" {
 		return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
 		viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
