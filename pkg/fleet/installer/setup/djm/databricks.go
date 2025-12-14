@@ -213,8 +213,9 @@ func setupCommonHostTags(s *common.Setup) {
 	if isJobCluster == "TRUE" && ok {
 		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
 	} else {
-		clusterID, _ := os.LookupEnv("DB_CLUSTER_ID")
-		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
+		if clusterID, ok := os.LookupEnv("DB_CLUSTER_ID"); ok {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
+		}
 	}
 
 	addCustomHostTags(s)
