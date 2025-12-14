@@ -663,6 +663,7 @@ namespace WixSetup.Datadog_Agent
             if (_agentFlavor.FlavorName != Constants.FipsFlavor)
             {
                 targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.DdCompilePolicy));
             }
 
             return targetBinFolder;
