@@ -161,6 +161,13 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
+func prefixWithWorkspace(normalizedWorkspace, value string) string {
+	if normalizedWorkspace != "" {
+		return normalizedWorkspace + "-" + value
+	}
+	return value
+}
+
 func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
@@ -177,13 +184,15 @@ func setupCommonHostTags(s *common.Setup) {
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
 
+	// for legacy reasons, we keep databricks_workspace un-normalized and normalized in workspace
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
-	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
-		v = strings.ToLower(v)
-		v = strings.Trim(v, "\"'")
-		return workspaceNameRegex.ReplaceAllString(v, "_")
-	})
-	// No need to normalize workspace url:  metrics tags normalization allows the :/-, usually found in such url
+	var normalizedWorkspace string
+	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
+		normalizedWorkspace = strings.ToLower(workspace)
+		normalizedWorkspace = strings.Trim(normalizedWorkspace, "\"'")
+		normalizedWorkspace = workspaceNameRegex.ReplaceAllString(normalizedWorkspace, "_")
+		setClearHostTag(s, "workspace", normalizedWorkspace)
+	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -195,16 +204,17 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
-		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, jobID))
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	// Set databricks_cluster resource tag based on whether we're on a job cluster
 	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
 	if isJobCluster == "TRUE" && ok {
-		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
 	} else {
-		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+		clusterID, _ := os.LookupEnv("DB_CLUSTER_ID")
+		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
 	}
 
 	addCustomHostTags(s)
