@@ -1376,7 +1376,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
-		resolveTargetProcessContext(event, p, newEntryCb)
+		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1749,15 +1749,15 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 	return true
 }
 
-func resolveTargetProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) {
+func resolveTargetProcessContext(pid uint32, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
-	if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
+	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
+		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
 	}
 	if pce == nil {
-		pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
 	}
-	event.Signal.Target = &pce.ProcessContext
+	return &pce.ProcessContext
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
