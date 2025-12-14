@@ -49,7 +49,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
 				"workspace_url:https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 		},
@@ -57,14 +57,18 @@ func TestSetupCommonHostTags(t *testing.T) {
 			name: "with job, run ids but not job cluster",
 			env: map[string]string{
 				"DB_CLUSTER_NAME": "job-123-run-456",
+				"DB_CLUSTER_ID":   "cluster123",
 			},
 			wantTags: []string{
 				"data_workload_monitoring_trial:true",
 				"databricks_cluster_name:job-123-run-456",
 				"cluster_name:job-123-run-456",
+				"databricks_cluster_id:cluster123",
+				"cluster_id:cluster123",
 				"jobid:123",
 				"runid:456",
 				"dd.internal.resource:databricks_job:123",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -114,7 +118,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
 			},
 		},
 		{
@@ -140,7 +144,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
 			},
 		},
 		{
