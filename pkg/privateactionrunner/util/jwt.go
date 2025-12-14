@@ -8,8 +8,10 @@ package util
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
@@ -78,4 +80,28 @@ func GeneratePARJWT(orgId int64, runnerId string, privateKey *ecdsa.PrivateKey, 
 	}
 
 	return signed, nil
+}
+
+// JWKToPEM converts a JWK public key to PEM format
+func JWKToPEM(pubJWK *jose.JSONWebKey) (string, error) {
+	if !pubJWK.IsPublic() {
+		return "", errors.New("error converting JWK to PEM: the key is not public")
+	}
+
+	pk, ok := pubJWK.Key.(*ecdsa.PublicKey)
+	if !ok {
+		return "", errors.New("error converting JWK to PEM: wrong underlying key type")
+	}
+
+	x509EncodedPub, err := x509.MarshalPKIXPublicKey(pk)
+	if err != nil {
+		return "", errors.New("error converting JWK to PEM: failed to marshal public key")
+	}
+
+	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
+	if pemEncodedPub == nil {
+		return "", errors.New("error converting JWK to PEM: failed to encode public key to PEM format")
+	}
+
+	return string(pemEncodedPub), nil
 }

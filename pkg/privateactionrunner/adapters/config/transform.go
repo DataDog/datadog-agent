@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -63,6 +64,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse URN: %w", err)
 	}
 
+	actionsAllowlist := prepareAllowList(config.GetStringSlice("privateactionrunner.actions_allowlist"))
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -82,7 +85,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
-		ActionsAllowlist:          make(map[string]sets.Set[string]),
+		ActionsAllowlist:          actionsAllowlist,
 		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
 		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
@@ -93,6 +96,18 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
+}
+
+func prepareAllowList(fqns []string) map[string]sets.Set[string] {
+	allowList := make(map[string]sets.Set[string])
+	for _, fqn := range fqns {
+		bundleId, action := actions.SplitFQN(fqn)
+		if allowList[bundleId] == nil {
+			allowList[bundleId] = sets.New[string]()
+		}
+		allowList[bundleId].Insert(action)
+	}
+	return allowList
 }
 
 // parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
