@@ -132,17 +132,39 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         return false;
     }
 
-    // The header name is new and inserted in the dynamic table - we skip the new value.
+    // The header name is new (literal key with literal value)
+    // Try to detect and remap :path, :method, :status to their static table indices
     if (index == 0) {
+        char b[2];
+        pktbuf_load_bytes_from_current_offset(pkt, b, 2);
+
+        // Check only first 2 bytes to minimize instructions
+        // Plain: ':p'(5801)=:path, ':m'(5809)=:method, ':s'(5815)=:status
+        // Huff: 0xb958=:path, 0xb94e=:method, 0xb94a=:status
+        if (b[0] == 58) { // Plain string (':'=58)
+            if (b[1] == 112 && str_len == 5) index = 4; // :path
+            else if (b[1] == 109 && str_len == 7) index = 2; // :method
+            else if (b[1] == 115 && str_len == 7) index = 8; // :status
+        } else if (b[0] == (char)0xb9 && is_huffman_encoded) { // Huffman
+            if (b[1] == (char)0x58 && str_len == 4) index = 4; // :path
+            else if (b[1] == (char)0x4e && str_len == 5) index = 2; // :method
+            else if (b[1] == (char)0x4a && str_len == 5) index = 8; // :status
+        }
+
         pktbuf_advance(pkt, str_len);
+
+        if (index == 0) {
+            str_len = 0;
+            if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+                return false;
+            }
+            goto end;
+        }
+
         str_len = 0;
-        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-        // At this point the huffman code is not interesting due to the fact that we already read the string length,
-        // We are reading the current size in order to skip it.
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
-        goto end;
     }
 
     // Path headers in HTTP2 that are not "/" or "/index.html"  are represented

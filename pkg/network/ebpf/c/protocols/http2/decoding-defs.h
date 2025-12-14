@@ -233,6 +233,7 @@ typedef struct {
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // continuation_frames                  Count of occurrences where a frame of type CONTINUATION was found.
+// literal_key_headers                  Count of literal key headers detected and remapped (:path, :method, :status).
 // path_size_bucket                     Count of path sizes and divided into buckets.
 typedef struct {
     __u64 request_seen;
@@ -243,6 +244,7 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 continuation_frames;
+    __u64 literal_key_headers;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
 } http2_telemetry_t;
 

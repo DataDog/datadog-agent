@@ -1116,7 +1116,40 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						bytes(),
 				}
 			},
-			expectedEndpoints: nil,
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate path sent by value 2 (:path)",
+			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
+			// sent by value (:path).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// pathHeaderField is created with a key that sent by value (:path) and
+				// the value (of the path) is /aaa.
+
+				pathHeaderField := []byte{0x40, 0x05, 0x3a, 0x70, 0x61, 0x74, 0x68, 0x04, 0x2f, 0x61, 0x61, 0x61}
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "Interesting frame header sent separately from frame payload",
