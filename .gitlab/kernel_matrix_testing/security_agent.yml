@@ -154,7 +154,6 @@ kmt_run_secagent_tests_x64:
           - "rocky_9.4"
           - "opensuse_15.3"
           - "opensuse_15.5"
-          - "suse_12.5"
         TEST_SET: [cws_host]
   after_script:
     - !reference [.collect_outcomes_kmt]
@@ -197,7 +196,6 @@ kmt_run_secagent_tests_x64_peds:
           - "rocky_9.4"
           - "opensuse_15.3"
           - "opensuse_15.5"
-          - "suse_12.5"
         TEST_SET: [cws_peds]
   after_script:
     - !reference [.collect_outcomes_kmt]
