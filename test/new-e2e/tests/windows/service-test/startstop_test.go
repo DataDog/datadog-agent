@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/cenkalti/backoff"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -80,7 +80,7 @@ type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actua
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
@@ -89,7 +89,7 @@ func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 // TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
 func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
@@ -98,7 +98,7 @@ func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
@@ -139,7 +139,7 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
@@ -289,7 +289,7 @@ type agentServiceDisabledSuite struct {
 // TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
@@ -308,7 +308,7 @@ type agentServiceDisabledSystemProbeSuite struct {
 // TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
@@ -327,7 +327,7 @@ type agentServiceDisabledProcessAgentSuite struct {
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
@@ -342,7 +342,7 @@ type agentServiceDisabledTraceAgentSuite struct {
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &agentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
@@ -564,7 +564,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 
 	// TODO(WINA-1320): mark this crash as flaky while we investigate it
-	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
+	s.T().Skip("flakytest: skip known flaky test: Exception code: 0x40000015")
 
 	// Enable crash dumps
 	s.dumpFolder = werCrashDumpFolder
@@ -954,7 +954,7 @@ type dvAgentServiceDisabledInstallerSuite struct {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
@@ -966,7 +966,7 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
@@ -978,7 +978,7 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvAgentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
@@ -996,7 +996,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvAgentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
@@ -1015,7 +1015,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvAgentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
@@ -1030,7 +1030,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
+	t.Skip("flakytest: skip known flaky test")
 
 	s := &dvAgentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
