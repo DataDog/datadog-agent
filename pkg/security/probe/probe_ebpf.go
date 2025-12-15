@@ -1494,7 +1494,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			tags = append(tags, "service:"+service)
 		}
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
 			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 		)
 		return false
