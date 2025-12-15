@@ -83,6 +83,24 @@ func TestFileTransformWithRollback_No_original(t *testing.T) {
 	assertNoExists(t, originalPath)
 }
 
+// TestFileTransform_No_original_ignores_leftovers verifies that when the original file doesn't exist,
+// leftover temporary files from previous operations are ignored and don't pollute the transformation.
+func TestFileTransform_No_original_ignores_leftovers(t *testing.T) {
+	originalPath := t.TempDir() + "/original.txt"
+
+	mutator := newFileMutator(originalPath, func(_ context.Context, data []byte) ([]byte, error) {
+		return append(data, []byte(transformedContent)...), nil // append to reflect any leftover
+	}, nil, nil)
+
+	require.NoError(t, os.WriteFile(mutator.pathTmp, []byte("[leftover]"), 0644))
+
+	rollback, err := mutator.mutate(context.TODO())
+	require.NoError(t, err)
+	require.NotNil(t, rollback)
+
+	assertFile(t, originalPath, transformedContent, detectDefaultMode(t))
+}
+
 func detectDefaultMode(t *testing.T) os.FileMode {
 	tmpDir := t.TempDir()
 	f, err := os.OpenFile(filepath.Join(tmpDir, "find_mode"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)

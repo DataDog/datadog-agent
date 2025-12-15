@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -37,8 +37,10 @@ func TestWindowsTestSuite(t *testing.T) {
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-				awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+				awshost.WithRunOptions(
+					ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+					ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+				),
 			),
 		),
 	)
@@ -74,9 +76,11 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			awshost.WithAgentOptions(
-				agentParams...,
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithAgentOptions(
+					agentParams...,
+				),
 			),
 		),
 	)
@@ -121,9 +125,11 @@ func (s *windowsTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			awshost.WithAgentOptions(
-				agentParams...,
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithAgentOptions(
+					agentParams...,
+				),
 			),
 		),
 	)
@@ -180,8 +186,10 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 
 func (s *windowsTestSuite) TestProtectedProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+		),
 	))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
 	assertProcessCheck(s.T(), s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
@@ -189,8 +197,12 @@ func (s *windowsTestSuite) TestProtectedProcessCheck() {
 
 func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)),
+		),
+	))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
 	assertProcessCheck(t, s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 
@@ -204,8 +216,10 @@ func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
+		),
 	))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -225,8 +239,10 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		),
 	))
 
 	// Flush fake intake to remove payloads that won't have IO stats
@@ -254,8 +270,10 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		),
 	))
 
 	process, cmd, err := runDiskSpd(s.T(), s.Env().RemoteHost)

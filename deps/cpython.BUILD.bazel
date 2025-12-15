@@ -98,5 +98,10 @@ pkg_files(
 
 pkg_install(
     name = "install",
-    srcs = [":install_files"],
+    srcs = [":install_files"] + select({
+        "@platforms//os:windows": [
+            "@openssl//:openssl_exe_file",
+        ],
+        "//conditions:default": [],
+    }),
 )

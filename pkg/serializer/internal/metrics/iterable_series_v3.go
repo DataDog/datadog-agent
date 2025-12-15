@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
@@ -155,6 +156,10 @@ func newPayloadsBuilderV3WithConfig(
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
+
+	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
+		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
+	}
 
 	return newPayloadsBuilderV3(
 		maxCompressedSize,

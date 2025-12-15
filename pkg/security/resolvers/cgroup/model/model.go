@@ -19,9 +19,10 @@ import (
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
-	model.CGroupContext
-	model.ContainerContext
 	sync.RWMutex
+	CGroupContext    model.CGroupContext
+	ContainerContext model.ContainerContext
+
 	Deleted *atomic.Bool
 	PIDs    map[uint32]bool
 }
@@ -32,6 +33,9 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.
 		Deleted: atomic.NewBool(false),
 		ContainerContext: model.ContainerContext{
 			ContainerID: containerID,
+		},
+		CGroupContext: model.CGroupContext{
+			Releasable: &model.Releasable{},
 		},
 		PIDs: make(map[uint32]bool, 10),
 	}

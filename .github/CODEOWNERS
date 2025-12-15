@@ -35,6 +35,7 @@
 # For now, agent-build are the experts in that.
 /compliance/                            @DataDog/agent-build
 /third_party/                           @DataDog/agent-build
+/.copyright-overrides.yml               @DataDog/agent-build @DataDog/agent-devx
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -105,7 +106,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx
-/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build @cmourot @dd-ddamien
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-build @DataDog/agent-onboarding
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx
@@ -228,7 +229,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring
+/cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring @DataDog/network-path
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
@@ -253,7 +254,7 @@
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/compliance*   @DataDog/agent-cspm
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
-/cmd/system-probe/modules/traceroute*  @DataDog/cloud-network-monitoring
+/cmd/system-probe/modules/traceroute*  @DataDog/cloud-network-monitoring @DataDog/network-path
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
@@ -305,7 +306,6 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
@@ -325,7 +325,7 @@
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
-/comp/networkpath @DataDog/cloud-network-monitoring
+/comp/networkpath @DataDog/cloud-network-monitoring @DataDog/network-path
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
@@ -652,6 +652,7 @@
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
 /pkg/snmp/                              @DataDog/ndm-core
+/pkg/ssi/                               @DataDog/injection-platform
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-products
 /comp/core/workloadmeta/collectors/internal/cloudfoundry     @DataDog/agent-integrations
@@ -667,9 +668,9 @@
 /comp/core/workloadmeta/collectors/internal/process          @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
-/pkg/networkpath/                       @DataDog/cloud-network-monitoring
-/pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products
-/pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring
+/pkg/networkpath/                       @DataDog/cloud-network-monitoring @DataDog/network-path
+/pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
+/pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
 
 /releasenotes/                          @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation
@@ -728,13 +729,13 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/integration/                      @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
+/test/e2e-framework/testing/testcommon/check            @DataDog/agent-runtimes
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx
-/test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @DataDog/agent-security
@@ -762,7 +763,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products
+/test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/orchestrator              @DataDog/kubernetes-experiences
@@ -783,6 +784,7 @@
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
+/test/static/static_quality_gates.yml        @DataDog/agent-build @cmourot @dd-ddamien
 /test/system/                                 @DataDog/agent-runtimes
 /test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
@@ -822,3 +824,5 @@
 
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
+
+/q_branch/                               @scottopell @val06
