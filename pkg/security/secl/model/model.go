@@ -506,9 +506,7 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount    uint64                     `field:"-"`
-	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
-	onRelease   []func()                   `field:"-"`
+	onRelease []func() `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -519,15 +517,7 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	// `coreRelease` function should not be cleared on reset
-	// it's used for pool and cache size management
 	pc.onRelease = nil
-}
-
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
 }
 
 // AppendReleaseCallback set the callback called when the entry is released
@@ -537,28 +527,16 @@ func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	}
 }
 
-func (pc *ProcessCacheEntry) callReleaseCallbacks() {
+// CallReleaseCallbacks calls all release callbacks
+func (pc *ProcessCacheEntry) CallReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
 		cb()
 	}
-	if pc.coreRelease != nil {
-		pc.coreRelease(pc)
-	}
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	if pc.refCount > 1 {
-		pc.refCount--
-		return
-	}
-
-	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{coreRelease: coreRelease}
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

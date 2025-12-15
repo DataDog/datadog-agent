@@ -584,12 +584,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64, newPid bool) {
 	entry.Source = source
 
-	if prev := p.entryCache[entry.Pid]; prev != nil {
-		prev.Release()
-	}
-
 	p.entryCache[entry.Pid] = entry
-	entry.Retain()
 	// only increment the cache entry count when we first retain the entry,
 	// the count will be decremented once the entry is released
 	p.processCacheEntryCount.Inc()
@@ -682,7 +677,6 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -1647,7 +1641,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		p.inodeErrStats[tag] = atomic.NewInt64(0)
 	}
 
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.processCacheEntryCount.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)

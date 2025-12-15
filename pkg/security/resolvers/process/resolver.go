@@ -8,39 +8,23 @@ package process
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Pool defines a pool for process entry allocations
 type Pool struct {
-	pool *ddsync.TypedPool[model.ProcessCacheEntry]
 }
 
 // Get returns a cache entry
 func (p *Pool) Get() *model.ProcessCacheEntry {
-	return p.pool.Get()
+	return model.NewProcessCacheEntry()
 }
 
 // Put returns a cache entry
-func (p *Pool) Put(pce *model.ProcessCacheEntry) {
-	pce.Reset()
-	p.pool.Put(pce)
+func (p *Pool) Put(_ *model.ProcessCacheEntry) {
+	// do nothing
 }
 
 // NewProcessCacheEntryPool returns a new Pool
-func NewProcessCacheEntryPool(onRelease func()) *Pool {
-	pcep := Pool{}
-	pcep.pool = ddsync.NewTypedPool(func() *model.ProcessCacheEntry {
-		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			onRelease()
-
-			pcep.Put(pce)
-		})
-	})
-
-	return &pcep
+func NewProcessCacheEntryPool() *Pool {
+	return &Pool{}
 }

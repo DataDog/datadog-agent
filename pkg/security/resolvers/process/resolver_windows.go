@@ -56,19 +56,13 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 		statsdClient: statsdClient,
 	}
 
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	return p, nil
 }
 
 func (p *Resolver) insertEntry(entry *model.ProcessCacheEntry) {
-	// PID collision
-	if prev := p.processes[entry.Pid]; prev != nil {
-		prev.Release()
-	}
-
 	p.processes[entry.Pid] = entry
-	entry.Retain()
 
 	parent := p.processes[entry.PPid]
 	if parent != nil {
@@ -86,7 +80,6 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.processes, entry.Pid)
-	entry.Release()
 }
 
 // AddToExitedQueue adds the exited processes to a queue
