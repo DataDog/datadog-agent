@@ -9,6 +9,7 @@ package djm
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -228,6 +229,57 @@ func TestSetupCommonHostTags(t *testing.T) {
 			setupCommonHostTags(s)
 
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
+		})
+	}
+}
+
+func TestNormalizeTagValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "lowercase and sanitize spaces",
+			input:    "Example Workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "trim quotes",
+			input:    "\"example_workspace\"",
+			expected: "example_workspace",
+		},
+		{
+			name:     "dedupe underscores",
+			input:    "example___workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "remove leading and trailing underscores and colons",
+			input:    "_:_example_workspace!!",
+			expected: "example_workspace",
+		},
+		{
+			name:     "allow starting with numbers",
+			input:    "___123_workspace",
+			expected: "123_workspace",
+		},
+		{
+			name:     "truncate to 200 characters",
+			input:    strings.Repeat("a", 250),
+			expected: strings.Repeat("a", 200),
+		},
+		{
+			name:     "complex real-world case",
+			input:    "\"___Example@Workspace#123!!___\"",
+			expected: "example_workspace_123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeTagValue(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

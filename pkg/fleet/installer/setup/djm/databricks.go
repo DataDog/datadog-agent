@@ -31,6 +31,8 @@ var (
 	jobNameRegex       = regexp.MustCompile(`[,\']+`)
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
 	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	dedupeUnderscores  = regexp.MustCompile(`_+`)
+	fixInitRegex       = regexp.MustCompile(`^[_:]+`)
 	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
@@ -161,6 +163,22 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
+func normalizeTagValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	normalized := strings.ToLower(value)
+	normalized = strings.Trim(normalized, "\"'")
+	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
+	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
+	normalized = fixInitRegex.ReplaceAllString(normalized, "")
+	if len(normalized) > 200 {
+		normalized = normalized[:200]
+	}
+	normalized = strings.TrimRight(normalized, "_")
+	return normalized
+}
+
 func prefixWithWorkspace(normalizedWorkspace, value string) string {
 	if normalizedWorkspace != "" {
 		return normalizedWorkspace + "-" + value
@@ -188,9 +206,7 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 	var normalizedWorkspace string
 	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
-		normalizedWorkspace = strings.ToLower(workspace)
-		normalizedWorkspace = strings.Trim(normalizedWorkspace, "\"'")
-		normalizedWorkspace = workspaceNameRegex.ReplaceAllString(normalizedWorkspace, "_")
+		normalizedWorkspace = normalizeTagValue(workspace)
 		setClearHostTag(s, "workspace", normalizedWorkspace)
 	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
