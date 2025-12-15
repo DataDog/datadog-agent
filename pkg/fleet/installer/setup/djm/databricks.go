@@ -32,7 +32,6 @@ var (
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
 	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
 	dedupeUnderscores  = regexp.MustCompile(`_+`)
-	fixInitRegex       = regexp.MustCompile(`^[_:]+`)
 	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
@@ -163,7 +162,15 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
-func normalizeTagValue(value string) string {
+// normalizeWorkspaceName normalizes a workspace name to match Python's normalize_tags behavior:
+// 1. Convert to all lowercase unicode string
+// 2. Trim leading/trailing quotes
+// 3. Convert bad characters to underscores
+// 4. Dedupe contiguous underscores
+// 5. Remove initial underscores/digits such that the string starts with an alpha char
+// 6. Truncate to 200 characters
+// 7. Strip trailing underscores
+func normalizeWorkspaceName(value string) string {
 	if value == "" {
 		return ""
 	}
@@ -171,12 +178,23 @@ func normalizeTagValue(value string) string {
 	normalized = strings.Trim(normalized, "\"'")
 	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
 	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
-	normalized = fixInitRegex.ReplaceAllString(normalized, "")
+
+	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
+		normalized = trimLeadingNonAlpha(normalized)
+	}
+
 	if len(normalized) > 200 {
 		normalized = normalized[:200]
 	}
-	normalized = strings.TrimRight(normalized, "_")
-	return normalized
+	return strings.TrimRight(normalized, "_")
+}
+
+func trimLeadingNonAlpha(s string) string {
+	s = strings.TrimLeft(s, "_")
+	if len(s) > 0 && s[0] >= '0' && s[0] <= '9' {
+		s = strings.TrimLeft(s, "_:0123456789")
+	}
+	return s
 }
 
 func prefixWithWorkspace(normalizedWorkspace, value string) string {
@@ -206,7 +224,7 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 	var normalizedWorkspace string
 	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
-		normalizedWorkspace = normalizeTagValue(workspace)
+		normalizedWorkspace = normalizeWorkspaceName(workspace)
 		setClearHostTag(s, "workspace", normalizedWorkspace)
 	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)

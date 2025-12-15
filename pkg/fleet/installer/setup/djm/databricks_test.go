@@ -255,14 +255,19 @@ func TestNormalizeTagValue(t *testing.T) {
 			expected: "example_workspace",
 		},
 		{
-			name:     "remove leading and trailing underscores and colons",
-			input:    "_:_example_workspace!!",
-			expected: "example_workspace",
+			name:     "remove leading and trailing underscores and other special characters except for colons",
+			input:    "_!:_example_workspace!!",
+			expected: ":_example_workspace",
 		},
 		{
-			name:     "allow starting with numbers",
-			input:    "___123_workspace",
-			expected: "123_workspace",
+			name:     "remove leading digits",
+			input:    "___123_[]workspace123",
+			expected: "workspace123",
+		},
+		{
+			name:     "allow  numbers if surrounded by alpha",
+			input:    "___123_workspace123workspace",
+			expected: "workspace123workspace",
 		},
 		{
 			name:     "truncate to 200 characters",
@@ -278,7 +283,7 @@ func TestNormalizeTagValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeTagValue(tt.input)
+			result := normalizeWorkspaceName(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
