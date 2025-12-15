@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -161,8 +160,6 @@ func (suite *kindSuite) TestControlPlane() {
 func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 	ctx := suite.T().Context()
 	namespace := "secret-refresh-workload"
-	deploymentName := "redis-with-secret"
-
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
@@ -193,12 +190,12 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 		[]byte(fmt.Sprintf(`{"stringData": {"%s": "%s"}}`, "password", "new_s3cr3t")),
 		metav1.PatchOptions{},
 	)
-	require.NoError(suite.T(), err, "updating secret failed")
+	suite.Require().NoError(err, "updating secret failed")
 
-	// Step 7: Redeploy redis to pick up the new password
+	// Redeploy redis to pick up the new password
 	suite.T().Log("Redeploying redis service with new password.")
-	deployment, err := k8sClient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
-	require.NoError(suite.T(), err, "Couldn't find redis deployment")
+	deployment, err := k8sClient.AppsV1().Deployments(namespace).Get(ctx, "redis-with-secret", metav1.GetOptions{})
+	suite.Require().NoError(err, "Couldn't find redis deployment")
 
 	if deployment.Spec.Template.Annotations == nil {
 		deployment.Spec.Template.Annotations = map[string]string{}
@@ -206,13 +203,11 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 	deployment.Spec.Template.Annotations["force-redeploy"] = time.Now().String()
 
 	_, err = k8sClient.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{})
-	require.NoError(suite.T(), err, "Failed to recreate redis deployment")
+	suite.Require().NoError(err, "Failed to recreate redis deployment")
 
-	// Step 8: Reset fake intake
 	err = suite.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(suite.T(), err, "Failed to reset fake intake")
+	suite.Require().NoError(err, "Failed to reset fake intake")
 
-	// Step 9: Verify redis check can connect (implicit test that it's using new password)\
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
