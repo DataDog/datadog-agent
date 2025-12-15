@@ -27,7 +27,6 @@ import (
 	"go.uber.org/fx"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
