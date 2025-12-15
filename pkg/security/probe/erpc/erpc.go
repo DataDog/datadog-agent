@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -92,7 +94,7 @@ func (k *ERPC) Close() error {
 
 // NewERPC returns a new ERPC object
 func NewERPC() (*ERPC, error) {
-	fd, err := syscall.Dup(syscall.Stdout)
+	fd, err := unix.FcntlInt(uintptr(syscall.Stdout), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}

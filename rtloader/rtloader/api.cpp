@@ -20,6 +20,7 @@
 #endif
 #include <csignal>
 #include <cstring>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -112,7 +113,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -167,7 +168,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 void destroy(rtloader_t *rtloader)
@@ -186,9 +187,9 @@ void destroy(rtloader_t *rtloader)
 }
 #endif
 
-void set_memory_tracker_cb(cb_memory_tracker_t cb)
+void enable_memory_tracker(void)
 {
-    _set_memory_tracker_cb(cb);
+    _enable_memory_tracker();
 }
 
 int init(rtloader_t *rtloader)
@@ -310,31 +311,25 @@ void clear_error(rtloader_t *rtloader)
 }
 
 #ifndef WIN32
-core_trigger_t core_dump = NULL;
 
-static inline void core(int sig)
-{
-    signal(sig, SIG_DFL);
-    kill(getpid(), sig);
-}
+// Storage for the previous signal handler
+static struct sigaction old_sigsegv_handler;
 
 //! signalHandler
 /*!
   \brief Crash handler for UNIX OSes
   \param sig Integer representing the signal number that triggered the crash.
-  \param Unused siginfo_t parameter.
-  \param Unused void * pointer parameter.
+  \param info siginfo_t pointer with signal information.
+  \param context void pointer to the signal context.
 
   This crash handler intercepts crashes triggered in C-land, printing the stacktrace
   at the time of the crash to stderr - logging cannot be assumed to be working at this
-  poinrt and hence the use of stderr. If the core dump has been enabled, we will also
-  dump a core - of course the correct ulimits need to be set for the dump to be created.
-  The idea of handling the crashes here is to allow us to collect the stacktrace, with
-  all its C-context, before it unwinds as would be the case if we allowed the go runtime
-  to handle it.
+  point and hence the use of stderr. After collecting the C stack trace, this handler
+  chains to the previously installed signal handler (typically the Go runtime's handler)
+  to allow it to perform its own crash handling and generate a goroutine dump.
 */
 #    define STACKTRACE_SIZE 500
-void signalHandler(int sig, siginfo_t *, void *)
+void signalHandler(int sig, siginfo_t *info, void *context)
 {
 #    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
@@ -357,39 +352,85 @@ void signalHandler(int sig, siginfo_t *, void *)
     }
 #    endif
 
-    // dump core if so configured
-    __sync_synchronize();
-    if (core_dump) {
-        core_dump(sig);
+    // Chain to the previous signal handler (typically Go runtime's handler)
+    if (old_sigsegv_handler.sa_flags & SA_SIGINFO) {
+        // Old handler uses the three-argument form
+        if (old_sigsegv_handler.sa_sigaction != NULL) {
+            old_sigsegv_handler.sa_sigaction(sig, info, context);
+        }
     } else {
-        kill(getpid(), SIGABRT);
+        // Old handler uses the simple one-argument form
+        if (old_sigsegv_handler.sa_handler != SIG_DFL && old_sigsegv_handler.sa_handler != SIG_IGN) {
+            old_sigsegv_handler.sa_handler(sig);
+        } else {
+            // No previous handler or it was default/ignore, so just abort
+            std::cerr << "Received SIGSEGV and no handler to chain to. Aborting. \n";
+            kill(getpid(), SIGABRT);
+        }
     }
 }
 
 /*
  * C-land crash handling
  */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const int enable_stacktrace, char **error)
 {
+    if (!enable_coredump && !enable_stacktrace) {
+        // Nothing to do
+        return 1;
+    }
+    if (enable_coredump) {
+        // All we have to do is set the RLIMIT_CORE to unlimited
+        // This should not require any special privileges, but
+        // if it returns EPERM then perhaps there is a system policy
+        // that prevents it.
+        struct rlimit rlim;
+        rlim.rlim_cur = RLIM_INFINITY;
+        rlim.rlim_max = RLIM_INFINITY;
+        if (setrlimit(RLIMIT_CORE, &rlim) != 0) {
+            std::ostringstream err_msg;
+            err_msg << "unable to enable core dump: " << strerror(errno);
+            *error = strdupe(err_msg.str().c_str());
+            return 0;
+        }
+    }
 
-    struct sigaction sa;
-    sa.sa_flags = SA_SIGINFO;
-    sa.sa_sigaction = signalHandler;
+    if (enable_stacktrace) {
+        // Establish an alternate stack, as go stacks are too shallow and might crash
+        const size_t alt_stack_size = SIGSTKSZ;
+        static void *alt_stack = nullptr;
 
-    // on segfault - what else?
-    int err = sigaction(SIGSEGV, &sa, NULL);
-
-    if (enable && err == 0) {
         __sync_synchronize();
-        core_dump = core;
-    }
-    if (err) {
-        std::ostringstream err_msg;
-        err_msg << "unable to set crash handler: " << strerror(errno);
-        *error = strdupe(err_msg.str().c_str());
+        if (alt_stack == nullptr) {
+            // Note: this memory is never freed, but it is necessary for the duration of the program
+            alt_stack = _malloc(alt_stack_size);
+            stack_t new_stack{ .ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size };
+            int ret = sigaltstack(&new_stack, nullptr);
+            if (ret != 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to set alternate stack: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
+        }
+
+        struct sigaction sa;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        sa.sa_sigaction = signalHandler;
+
+        // Gather stacktrace on segfault and save the old handler
+        int err = sigaction(SIGSEGV, &sa, &old_sigsegv_handler);
+
+        if (err) {
+            std::ostringstream err_msg;
+            err_msg << "unable to set crash handler: " << strerror(errno);
+            *error = strdupe(err_msg.str().c_str());
+            return 0;
+        }
     }
 
-    return err == 0 ? 1 : 0;
+    return 1;
 }
 #endif
 

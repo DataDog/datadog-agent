@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -229,7 +230,7 @@ func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 	// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
 	lengthOverspill := uriLength >= maxCharactersPerChunk
 	if lengthOverspill && numBuckets == 0 {
-		return true, fmt.Errorf("Query is too long, could yield a server side error. Dropping")
+		return true, errors.New("Query is too long, could yield a server side error. Dropping")
 	}
 
 	chunkSize := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.chunk_size")
@@ -268,7 +269,7 @@ func getKey(name string, labels map[string]string, aggregator string, rollup int
 	var result string
 
 	if len(labels) == 0 {
-		result = fmt.Sprintf("%s{*}", name)
+		result = name + "{*}"
 	} else {
 		datadogTags := []string{}
 		for key, val := range labels {

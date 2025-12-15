@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -38,7 +37,6 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -49,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 //go:embed testdata/decoded
@@ -145,7 +144,6 @@ func testDyninst(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
 		real module.ProcessSubscriber,
@@ -156,6 +154,7 @@ func testDyninst(
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
+	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
@@ -171,18 +170,8 @@ func testDyninst(
 		_ = sampleProc.Wait()
 	}()
 
-	stat, err := os.Stat(servicePath)
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(sampleProc.Process.Pid))
 	require.NoError(t, err)
-	fileInfo := stat.Sys().(*syscall.Stat_t)
-	exe := actuator.Executable{
-		Path: servicePath,
-		Key: process.FileKey{
-			FileHandle: process.FileHandle{
-				Dev: uint64(fileInfo.Dev),
-				Ino: fileInfo.Ino,
-			},
-		},
-	}
 	const runtimeID = "foo"
 	sendUpdate(process.ProcessesUpdate{
 		Updates: []process.Config{
@@ -312,6 +301,7 @@ func runIntegrationTestSuite(
 		})
 	}
 	probes := testprogs.MustGetProbeDefinitions(t, service)
+	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error

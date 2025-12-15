@@ -6,7 +6,7 @@
 package gosnmplib
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -22,7 +22,7 @@ func Test_getAuthProtocol(t *testing.T) {
 		{
 			"invalid",
 			gosnmp.NoAuth,
-			fmt.Errorf("unsupported authentication protocol: invalid"),
+			errors.New("unsupported authentication protocol: invalid"),
 		},
 		{
 			"",
@@ -83,7 +83,7 @@ func Test_getPrivProtocol(t *testing.T) {
 		{
 			"invalid",
 			gosnmp.NoPriv,
-			fmt.Errorf("unsupported privacy protocol: invalid"),
+			errors.New("unsupported privacy protocol: invalid"),
 		},
 		{
 			"",

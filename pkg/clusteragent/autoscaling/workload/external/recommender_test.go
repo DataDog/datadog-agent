@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	clock "k8s.io/utils/clock/testing"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -124,7 +125,9 @@ func TestProcess(t *testing.T) {
 	store.Set("default/autoscaler2", dpaLocal, "")
 
 	// test
-	recommender := NewRecommender(pw, store, "test-cluster")
+	fakeClock := clock.NewFakeClock(time.Now())
+	recommender, err := NewRecommender(ctx, fakeClock, pw, store, "test-cluster", nil)
+	assert.NoError(t, err)
 	recommender.process(ctx)
 
 	paiExternal, found := store.Get("default/autoscaler1")

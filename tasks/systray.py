@@ -60,6 +60,7 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
         ldflags=ldflags,
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        build_tags=["grpcnotrace"],
     )
 
 

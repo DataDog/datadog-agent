@@ -41,4 +41,11 @@ type Component interface {
 
 	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
 	GetContainerSBOMFilters() FilterBundle
+
+	// String returns a string representation of the workloadfilter configuration
+	// If useColor is true, the output will include ANSI color codes.
+	String(useColor bool) string
+
+	// Evaluate evaluates a program for a given entity
+	Evaluate(programName string, entity Filterable) (Result, error)
 }

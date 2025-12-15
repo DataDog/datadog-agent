@@ -2,9 +2,6 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
-# Defines a "libyaml" target for the lib
-bazel_dep(name = "libyaml", version = "0.2.5")
-
 # Defies a "liblua" target for the lib
 bazel_dep(name = "lua", version = "5.4.6")
 
@@ -14,9 +11,6 @@ bazel_dep(name = "sqlite3", version = "3.46.1")
 http_archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
-    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
-    strip_prefix = "xz-5.8.1",
-    url = "https://tukaani.org/xz/xz-5.8.1.tar.gz",
     files = {
         "config.lzma-linux-arm64.h": "//deps/xz:config.lzma-linux-arm64.h",
         "config.lzma-linux-x86_64.h": "//deps/xz:config.lzma-linux-x86_64.h",
@@ -24,6 +18,12 @@ http_archive(
         "config.lzma-osx-x86_64.h": "//deps/xz:config.lzma-osx-x86_64.h",
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
+    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
+    strip_prefix = "xz-5.8.1",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/xz-5.8.1.tar.gz",
+        "https://tukaani.org/xz/xz-5.8.1.tar.gz",
+    ],
 )
 
 http_archive(
@@ -31,28 +31,58 @@ http_archive(
     build_file = "//deps:zlib.BUILD.bazel",
     sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
     strip_prefix = "zlib-1.3.1",
-    url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/zlib-1.3.1.tar.gz",
+        "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+    ],
 )
 
 http_archive(
     name = "bzip2",
-    build_file = "//deps:bzip2.BUILD.bazel",
+    files = {
+        "BUILD.bazel": "//deps/bzip2:overlay.BUILD.bazel",
+        "bzip2.pc.in": "//deps/bzip2:bzip2.pc.in",
+    },
     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
     strip_prefix = "bzip2-1.0.8",
     # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
     # team mirror is more reliable.
-    url = "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/bzip2-1.0.8.tar.gz",
+        "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    ],
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+single_version_override(
+    module_name = "rules_foreign_cc",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
+    ],
+)
+
+register_toolchains(
+    "@rules_foreign_cc//toolchains:preinstalled_cmake_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_make_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_ninja_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_meson_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_autoconf_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_automake_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_m4_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain",
+)
 
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
     sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
     strip_prefix = "openssl-3.5.4",
-    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.5.4.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
+    ],
 )
 
 http_archive(
@@ -60,7 +90,10 @@ http_archive(
     build_file = "//deps:libffi.BUILD.bazel",
     sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
     strip_prefix = "libffi-3.4.8",
-    url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/libffi-3.4.8.tar.gz",
+        "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+    ],
 )
 
 http_archive(
@@ -68,31 +101,40 @@ http_archive(
     build_file = "//deps:libsepol.BUILD.bazel",
     sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
     strip_prefix = "libsepol-3.5",
-    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/libsepol-3.5.tar.gz",
+        "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+    ],
 )
 
 # PCRE2 has native bazel support.
 # They expose a :pcre2 label for the main library
 http_archive(
     name = "pcre2",
-    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
-    strip_prefix = "pcre2-10.46",
-    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
     files = {
         # We still need to vendor the build file as long as we need .pc files & the :install rule
         "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
     },
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/pcre2-10.46.tar.bz2",
+        "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    ],
 )
 
 http_archive(
     name = "util-linux",
     build_file = "//deps:util-linux.BUILD.bazel",
-    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    files = {
+        "generated/config.h": "//deps:util-linux/config.h",
+    },
     sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
     strip_prefix = "util-linux-2.39.2",
-    files = {
-        "generated/config.h": "//deps:util-linux/config.h"
-    }
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/util-linux-2.39.2.tar.gz",
+        "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    ],
 )
 
 http_archive(
@@ -100,7 +142,10 @@ http_archive(
     build_file = "//deps:libselinux.BUILD.bazel",
     sha256 = "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",
     strip_prefix = "libselinux-3.5",
-    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libselinux-3.5.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/libselinux-3.5.tar.gz",
+        "https://github.com/SELinuxProject/selinux/releases/download/3.5/libselinux-3.5.tar.gz",
+    ],
 )
 
 http_archive(
@@ -108,7 +153,10 @@ http_archive(
     build_file = "//deps:patchelf.BUILD.bazel",
     sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
     strip_prefix = "patchelf-0.18.0",
-    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/patchelf-0.18.0.tar.gz",
+        "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
+    ],
 )
 
 http_archive(
@@ -119,7 +167,10 @@ http_archive(
     },
     sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
     strip_prefix = "nghttp2-1.58.0",
-    url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/nghttp2-1.58.0.tar.gz",
+        "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
+    ],
 )
 
 http_archive(
@@ -127,5 +178,117 @@ http_archive(
     build_file = "//deps:popt.BUILD.bazel",
     sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
     strip_prefix = "popt-1.19",
-    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/popt-1.19.tar.gz",
+        "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "libyaml",
+    build_file = "//deps:libyaml.BUILD.bazel",
+    sha256 = "c642ae9b75fee120b2d96c712538bd2cf283228d2337df2cf2988e3c02678ef4",
+    strip_prefix = "yaml-0.2.5",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/yaml-0.2.5.tar.gz",
+        "https://pyyaml.org/download/libyaml/yaml-0.2.5.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "attr",
+    files = {
+        "BUILD.bazel": "//deps:attr/attr.BUILD.bazel",
+        "config-linux-x86_64.h": "//deps:attr/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:attr/config-linux-arm64.h",
+    },
+    sha256 = "db448a626f9313a1a970d636767316a8da32aede70518b8050fa0de7947adc32",
+    strip_prefix = "attr-2.5.1",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/attr-attr-2.5.1.tar.xz",
+        "https://download.savannah.nongnu.org/releases/attr/attr-2.5.1.tar.xz",
+    ],
+)
+
+http_archive(
+    name = "zstd",
+    build_file = "//deps:zstd.BUILD.bazel",
+    sha256 = "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+    strip_prefix = "zstd-1.5.7",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/zstd-1.5.7.tar.gz",
+        "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "gpg-error",
+    files = {
+        "config-linux-x86_64.h": "//deps:gpg-error/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gpg-error/gpg-error.BUILD.bazel",
+    },
+    sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
+    strip_prefix = "libgpg-error-1.56",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/libgpg-error-1.56.tar.bz2",
+        "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
+    ],
+)
+
+http_archive(
+    name = "gcrypt",
+    files = {
+        "config-linux-x86_64.h": "//deps:gcrypt/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
+    },
+    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
+    strip_prefix = "libgcrypt-1.11.2",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/libgcrypt-1.11.2.tar.bz2",
+        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+    ],
+)
+
+http_archive(
+    name = "unixodbc",
+    build_file = "//deps:unixodbc.BUILD.bazel",
+    files = {
+        "x86_64/unixodbc_conf.h": "//deps/unixodbc/x86_64:unixodbc_conf.h",
+        "x86_64/config.h": "//deps/unixodbc/x86_64:config.h",
+        "aarch64/unixodbc_conf.h": "//deps/unixodbc/aarch64:unixodbc_conf.h",
+        "aarch64/config.h": "//deps/unixodbc/aarch64:config.h",
+        "libltdl/ltdl.h": "//deps:unixodbc/ltdl.h",
+    },
+    sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
+    strip_prefix = "unixODBC-2.3.9",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/unixODBC-2.3.9.tar.gz",
+        "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "libxml2",
+    files = {
+        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
+        "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
+    },
+    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
+    strip_prefix = "libxml2-2.14.5",
+    url = "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
+)
+
+http_archive(
+    name = "libxslt",
+    files = {
+        "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:libxslt/config-linux-arm64.h",
+        "BUILD.bazel": "//deps:libxslt/overlay.BUILD.bazel",
+    },
+    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
+    strip_prefix = "libxslt-1.1.43",
+    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
 )

@@ -41,6 +41,12 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
 
     pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
     pkt->pid = get_flow_pid(&pid_route);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("Lookup: ip: %lu %lu port: %d", pid_route.addr[0], pid_route.addr[1], htons(pid_route.port));
+    bpf_printk("        netns: %lu, protocol: %d", pid_route.netns, pid_route.l4_protocol);
+    bpf_printk("        pid: %lu", pkt->pid);
+    #endif
 }
 
 __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {

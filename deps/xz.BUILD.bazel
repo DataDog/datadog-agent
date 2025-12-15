@@ -11,7 +11,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//packages:__subpackages__"],
 )
 
 alias(
@@ -178,10 +178,6 @@ cc_library(
 cc_shared_library(
     name = "lzma",
     deps = [":liblzma"],
-    features = select({
-        "@platforms//os:macos": ["-macos_default_link_flags"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
 )
 

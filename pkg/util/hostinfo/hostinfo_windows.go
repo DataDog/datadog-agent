@@ -19,7 +19,7 @@
 package hostinfo
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"runtime"
 	"time"
@@ -108,9 +108,9 @@ func Pids() ([]int32, error) {
 	for {
 		ps := make([]uint32, psSize)
 		if !w32.EnumProcesses(ps, uint32(len(ps)), &read) {
-			return nil, fmt.Errorf("could not get w32.EnumProcesses")
+			return nil, errors.New("could not get w32.EnumProcesses")
 		}
-		if uint32(len(ps)) == read { // ps buffer was too small to host every results, retry with a bigger one
+		if uint32(len(ps)*int(dwordSize)) == read { // ps buffer was too small to host every results, retry with a bigger one
 			psSize += 1024
 			continue
 		}

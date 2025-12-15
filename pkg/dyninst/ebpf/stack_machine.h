@@ -56,9 +56,9 @@ static type_t lookup_go_interface(uint32_t go_runtime_type) {
 static bool chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
                                       type_t type) {
   switch (chased_pointers_trie_insert(chased, ptr, type)) {
-  case CHASED_POINTERS_TRIE_SUCCESS:
+  case CHASED_POINTERS_TRIE_INSERTED:
     return true;
-  case CHASED_POINTERS_TRIE_EXISTS:
+  case CHASED_POINTERS_TRIE_ALREADY_EXISTS:
     break;
   case CHASED_POINTERS_TRIE_FULL:
     LOG(3, "chased_pointers_push: full %lld %d\n", ptr, type);
@@ -309,10 +309,16 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
 // Returns false if the pointer has already been memoized.
 static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
-                   target_ptr_t addr) {
+                   target_ptr_t addr, uint32_t maybe_len) {
   // Check if address was already processed before.
   stack_machine_t* sm = ctx->stack_machine;
-  return chased_pointers_trie_push(&sm->chased, addr, type);
+  if (maybe_len == ENQUEUE_LEN_SENTINEL) {
+    // Statically sized object.
+    return chased_pointers_trie_push(&sm->chased, addr, type);
+  }
+  // Dynamically sized object, we may try to capture same address and type
+  // multiple times, but with different lengths.
+  return chased_slices_push(&sm->chased_slices, addr, type, maybe_len);
 }
 
 static inline __attribute__((always_inline)) bool
@@ -326,7 +332,7 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   if (decrease_ttl && sm->pointer_chasing_ttl == 0) {
     return true;
   }
-  if (!sm_memoize_pointer(ctx, type, addr)) {
+  if (!sm_memoize_pointer(ctx, type, addr, maybe_len)) {
     return true;
   }
   pointers_queue_item_t* item;
@@ -803,30 +809,33 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(5, "recorded scratch@0x%llx < [register expr]", sm->offset);
   } break;
 
-    // case SM_OP_EXPR_DEREFERENCE_PTR: {
-    //   uint32_t bias = sm_read_program_uint32(sm);
-    //   uint32_t byte_len = sm_read_program_uint32(sm);
-    //   buf_offset_t value_offset = sm->offset;
-    //   if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
-    //     return 1;
-    //   }
-    //   data_item_header_t di = {
-    //       .type = 0,
-    //       .length = byte_len,
-    //       .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
-    //   if (di.address == 0) {
-    //     sm->offset = 0;
-    //   } else {
-    //     sm->offset = scratch_buf_serialize(buf, &di, byte_len);
-    //   }
-    //   if (!sm->offset) {
-    //     // Abort expression evaluation by returning early.
-    //     scratch_buf_set_len(buf, sm->expr_results_end_offset);
-    //     if (!sm_return(sm)) {
-    //       return 1;
-    //     }
-    //   }
-    // } break;
+  case SM_OP_EXPR_DEREFERENCE_PTR: {
+    LOG(4, "EXPR_DEREFERENCE_PTR: starting");
+    uint32_t bias = sm_read_program_uint32(sm);
+    uint32_t byte_len = sm_read_program_uint32(sm);
+    buf_offset_t value_offset = sm->offset;
+    if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
+    if (addr == 0) {
+      // NULL pointer: abort expression evaluation.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    addr += bias;
+    if (!scratch_buf_dereference(buf, sm->offset, byte_len, addr)) {
+      // Dereference failed: abort expression evaluation.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+  } break;
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);

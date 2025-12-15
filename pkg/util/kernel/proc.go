@@ -210,3 +210,12 @@ func isMemfdFilePath(path, memfdFileName string) bool {
 
 	return strings.HasPrefix(name, "/memfd:"+memfdFileName)
 }
+
+// ProcessExists returns true if the process exists in the procfs
+func ProcessExists(pid int) bool {
+	path := filepath.Join(HostProc(), strconv.Itoa(pid))
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	return true
+}

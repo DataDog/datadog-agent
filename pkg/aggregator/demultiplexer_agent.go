@@ -254,7 +254,7 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 		if d.aggregator.hostname != "" {
 			// Send startup event only when we have a valid hostname
 			d.aggregator.eventIn <- event.Event{
-				Text:           fmt.Sprintf("Version %s", agentVersion),
+				Text:           "Version " + agentVersion,
 				SourceTypeName: "System",
 				Host:           d.aggregator.hostname,
 				EventType:      "Agent Startup",
@@ -502,12 +502,18 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-// SetTimeSamplersFilterList triggers a reconfiguration of the filter list
-// applied in the time samplers.
-func (d *AgentDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
+// SetSamplersFilterList triggers a reconfiguration of the filter list
+// applied in the samplers.
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+
+	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
+	// Histogram metrics need aggregating before we determine the correct name to be filtered.
 	for _, worker := range d.statsd.workers {
-		worker.filterListChan <- filterList
+		worker.filterListChan <- histoFilterList
 	}
+
+	// Metrics from checks are only filtered here, so we need the full filter list.
+	d.aggregator.filterListChan <- filterList
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

@@ -1,4 +1,0 @@
-logs:
-  - type: journald
-    service: hello
-    source: custom_log

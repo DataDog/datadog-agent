@@ -18,10 +18,10 @@ import (
 // Invalid characters to clean up
 var invalidChars = regexp.MustCompile("[^a-zA-Z0-9_-]")
 
-// Return a file where to store the data. We split the key by ":", using the
-// first prefix as directory, if present. This is useful for integrations, which
-// use the check_id formed with $check_name:$hash
-func getFileForKey(key string) (string, error) {
+// GetFileForKey returns a file where to store the data.
+// We split the key by ":", using the first prefix as directory, if present.
+// This is useful for integrations, which use the check_id formed with $check_name:$hash.
+func GetFileForKey(key string) (string, error) {
 	parent := pkgconfigsetup.Datadog().GetString("run_path")
 	paths := strings.SplitN(key, ":", 2)
 	cleanedPath := invalidChars.ReplaceAllString(paths[0], "")
@@ -40,7 +40,7 @@ func getFileForKey(key string) (string, error) {
 
 // Write stores data on disk in the run directory.
 func Write(key, value string) error {
-	path, err := getFileForKey(key)
+	path, err := GetFileForKey(key)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func Write(key, value string) error {
 
 // Read returns a value previously stored, or the empty string.
 func Read(key string) (string, error) {
-	path, err := getFileForKey(key)
+	path, err := GetFileForKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +66,7 @@ func Read(key string) (string, error) {
 
 // Exists returns whether the cache exists.
 func Exists(key string) bool {
-	path, err := getFileForKey(key)
+	path, err := GetFileForKey(key)
 	if err != nil {
 		return false
 	}
@@ -76,11 +76,11 @@ func Exists(key string) bool {
 
 // Rename renames a cache file.
 func Rename(oldKey, newKey string) error {
-	oldPath, err := getFileForKey(oldKey)
+	oldPath, err := GetFileForKey(oldKey)
 	if err != nil {
 		return err
 	}
-	newPath, err := getFileForKey(newKey)
+	newPath, err := GetFileForKey(newKey)
 	if err != nil {
 		return err
 	}

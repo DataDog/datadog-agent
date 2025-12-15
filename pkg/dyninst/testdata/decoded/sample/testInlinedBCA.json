@@ -56,10 +56,10 @@
           "location": {
             "method": "main.testInlinedBCA"
           }
-        },
-        "captures": {}
+        }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBCA"
   }
 ]

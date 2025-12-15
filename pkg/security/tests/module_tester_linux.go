@@ -76,9 +76,10 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
-  socket: /tmp/test-event-monitor.sock
   custom_sensitive_words:
     - "*custom*"
+  custom_sensitive_regexps:
+    - "gh-[a-zA-Z0-9]+"
   network:
     enabled: true
     flow_monitor:
@@ -365,7 +366,13 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -484,7 +491,13 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		scrubber, err := utils.NewScrubber(nil, nil)
+		if err != nil {
+			tb.Errorf("failed to create scrubber: %v", err)
+			return
+		}
+
+		eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -539,7 +552,13 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -632,7 +651,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var proFile *os.File
 	if withProfile {
 		var err error
-		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
+		proFile, err = os.CreateTemp("/tmp", "cpu-profile-"+t.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1057,9 +1076,9 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := log.LogLevelFromString(logLevelStr)
-	if !found {
-		return fmt.Errorf("invalid log level '%s'", logLevel)
+	logLevel, err := log.ValidateLogLevel(logLevelStr)
+	if err != nil {
+		return err
 	}
 
 	if !logInitilialized {
@@ -1083,7 +1102,7 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := log.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.ValidateLogLevel(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1560,7 +1579,7 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
 	var files []string
 	for i := 0; i < numberOfFiles; i++ {
-		files = append(files, filepath.Join(directory, "ad-test-create-"+fmt.Sprintf("%d", i)))
+		files = append(files, filepath.Join(directory, "ad-test-create-"+strconv.Itoa(i)))
 	}
 	args := []string{"sleep", "2", ";", "open"}
 	args = append(args, files...)

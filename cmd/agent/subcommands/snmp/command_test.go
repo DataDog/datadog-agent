@@ -6,13 +6,13 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

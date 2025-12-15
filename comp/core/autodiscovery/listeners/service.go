@@ -147,8 +147,10 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
-	s.filterTemplatesContainerCollectAll(configs)
 	filterTemplatesMatched(s, configs)
+
+	// Container Collect All filtering should always be last
+	s.filterTemplatesContainerCollectAll(configs)
 }
 
 // GetFilterableEntity returns the filterable entity of the service
