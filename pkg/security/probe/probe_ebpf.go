@@ -838,6 +838,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
+		if event.ProcessCacheEntry != nil {
+			event.ProcessCacheEntry.Release()
+		}
 		p.putBackPoolEvent(event)
 	}
 }
@@ -1050,9 +1053,6 @@ func (p *EBPFProbe) getPoolEvent() *model.Event {
 var relatedEventZeroer = model.NewEventZeroer()
 
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	if event.ProcessCacheEntry != nil {
-		event.ProcessCacheEntry.Release()
-	}
 	relatedEventZeroer(event)
 	p.eventPool.Put(event)
 }
