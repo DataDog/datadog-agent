@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -505,8 +506,6 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-
-	onRelease []func() `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -517,20 +516,16 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.onRelease = nil
 }
+
+type cleanupKey struct{}
 
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, callback)
-	}
-}
-
-// CallReleaseCallbacks calls all release callbacks
-func (pc *ProcessCacheEntry) CallReleaseCallbacks() {
-	for _, cb := range pc.onRelease {
-		cb()
+		runtime.AddCleanup(pc, func(_ cleanupKey) {
+			callback()
+		}, cleanupKey{})
 	}
 }
 
