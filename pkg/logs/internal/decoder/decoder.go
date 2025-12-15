@@ -133,10 +133,8 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 }
 
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern) LineHandler {
-	outputFn := func(messages []*message.Message) {
-		for _, msg := range messages {
-			outputChan <- msg
-		}
+	outputFn := func(msg *message.Message) {
+		outputChan <- msg
 	}
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
@@ -153,7 +151,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples)
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, true)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
@@ -162,7 +160,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	return lineHandler
 }
 
-func getLegacyAutoMultilineHandler(outputFn func([]*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
+func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
 
 	if multiLinePattern != nil {
 		log.Info("Found a previously detected pattern - using multiline handler")
@@ -177,7 +175,7 @@ func getLegacyAutoMultilineHandler(outputFn func([]*message.Message), multiLineP
 	return buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
 }
 
-func buildLegacyAutoMultilineHandlerFromConfig(outputFn func([]*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
+func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line_default_sample_size")
