@@ -36,6 +36,8 @@ build do
   meson_build_dir = "#{project_dir}/build"
   command "mkdir #{meson_build_dir}", env: env
   command "meson setup " + meson_options.join(' ').strip + " ..", cwd: meson_build_dir, env: env
+  mkdir "/go/src/github.com/DataDog/datadog-agent/omnibus/pkg/generated/dbus"
+  copy "#{meson_build_dir}/config.h", "/go/src/github.com/DataDog/datadog-agent/omnibus/pkg/generated/dbus/"
   command "ninja install", env: env, cwd: meson_build_dir
 
   # Remove dbus tools.
