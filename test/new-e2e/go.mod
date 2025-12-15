@@ -44,9 +44,9 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.0-alpha.0
 	k8s.io/apimachinery v0.35.0-alpha.0
-	k8s.io/cli-runtime v0.34.1 // indirect
+	k8s.io/cli-runtime v0.34.3 // indirect
 	k8s.io/client-go v0.35.0-alpha.0
-	k8s.io/kubectl v0.34.1 // indirect
+	k8s.io/kubectl v0.34.3 // indirect
 )
 
 require (
