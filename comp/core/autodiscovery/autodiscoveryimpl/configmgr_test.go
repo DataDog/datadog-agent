@@ -137,65 +137,25 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateScheduled() {
 // A new, non-template config with secrets is scheduled immediately and unscheduled when
 // deleted
 func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
-	mockResolver := &MockSecretResolver{t: suite.T(), scenarios: []mockSecretScenario{
+	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
-			expectedOrigin: "",
-			returnedData:   []byte("foo: barDecoded"),
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte("foo: ENC[bar]"),
-			expectedOrigin: "",
+			expectedOrigin: inputNewConfig.Digest(),
 			returnedData:   []byte("foo: barDecoded"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
+			expectedOrigin: inputNewConfig.Digest(),
 			returnedData:   []byte{},
 			returnedError:  nil,
 		},
 	}}
 	// assign mock secretResolver to the configManager
 	cm := suite.cm.(*reconcilingConfigManager)
-	cm.secretResolver = mockResolver
+	cm.secretResolver = &mockResolver
 
-	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
-	digest := inputNewConfig.Digest()
-	for i := range mockResolver.scenarios {
-		mockResolver.scenarios[i].expectedOrigin = digest
-	}
 	changes, changedIDs := suite.cm.processNewConfig(inputNewConfig)
 
 	assert.Empty(suite.T(), changedIDs) // Only returned if the config provider is cluster-checks.
@@ -216,52 +176,17 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 }
 
 func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
+	inputNewConfig := deepcopy.Copy(clusterCheckConfigWithSecrets).(integration.Config)
 	mockResolver := &MockSecretResolver{t: suite.T(), scenarios: []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
-			expectedOrigin: "",
-			returnedData:   []byte("foo: barDecoded"),
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte("foo: ENC[bar]"),
-			expectedOrigin: "",
+			expectedOrigin: inputNewConfig.Digest(),
 			returnedData:   []byte("foo: barDecoded"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
-			returnedData:   []byte{},
-			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte{},
-			expectedOrigin: "",
+			expectedOrigin: inputNewConfig.Digest(),
 			returnedData:   []byte{},
 			returnedError:  nil,
 		},
@@ -270,11 +195,6 @@ func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
 	cm := suite.cm.(*reconcilingConfigManager)
 	cm.secretResolver = mockResolver
 
-	inputNewConfig := deepcopy.Copy(clusterCheckConfigWithSecrets).(integration.Config)
-	digest := inputNewConfig.Digest()
-	for i := range mockResolver.scenarios {
-		mockResolver.scenarios[i].expectedOrigin = digest
-	}
 	changes, changedIDs := suite.cm.processNewConfig(inputNewConfig)
 
 	// Check that changedIDs contains the correct mapping of IDs

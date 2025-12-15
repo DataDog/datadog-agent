@@ -29,8 +29,6 @@ type mockSecretScenario struct {
 type MockSecretResolver struct {
 	t         *testing.T
 	scenarios []mockSecretScenario
-	callback  secrets.SecretChangeCallback
-	callCount int
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -43,9 +41,6 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 	}
 	for n, scenario := range m.scenarios {
 		if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
-			if m.scenarios[n].called != m.callCount {
-				continue
-			}
 			m.scenarios[n].called++
 			return scenario.returnedData, scenario.returnedError
 		}
@@ -56,15 +51,7 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
-func (m *MockSecretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
-	m.callback = cb
-}
-
-func (m *MockSecretResolver) trigger(handle, origin string) {
-	if m.callback != nil {
-		m.callback(handle, origin, nil, nil, nil)
-	}
-}
+func (m *MockSecretResolver) SubscribeToChanges(secrets.SecretChangeCallback) {}
 
 func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
@@ -82,7 +69,7 @@ func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 
 func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	for _, scenario := range m.scenarios {
-		if scenario.called != 0 && scenario.called != 2 {
+		if scenario.called != 0 {
 			return false
 		}
 	}
@@ -126,34 +113,6 @@ func makeScenariosForConfig(conf integration.Config) []mockSecretScenario {
 			expectedOrigin: digest,
 			returnedData:   []byte("param4: log"),
 			returnedError:  nil,
-		},
-		{
-			expectedData:   []byte("param1: ENC[foo]"),
-			expectedOrigin: digest,
-			returnedData:   []byte("param1: foo_new"),
-			returnedError:  nil,
-			called:         2,
-		},
-		{
-			expectedData:   []byte("param2: ENC[bar]"),
-			expectedOrigin: digest,
-			returnedData:   []byte("param2: bar_new"),
-			returnedError:  nil,
-			called:         2,
-		},
-		{
-			expectedData:   []byte("param3: ENC[met]"),
-			expectedOrigin: digest,
-			returnedData:   []byte("param3: met_new"),
-			returnedError:  nil,
-			called:         2,
-		},
-		{
-			expectedData:   []byte("param4: ENC[log]"),
-			expectedOrigin: digest,
-			returnedData:   []byte("param4: log_new"),
-			returnedError:  nil,
-			called:         2,
 		},
 	}
 }
