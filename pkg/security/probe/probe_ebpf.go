@@ -795,6 +795,10 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
+			return
+		}
+
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
