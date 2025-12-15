@@ -1047,11 +1047,13 @@ func (p *EBPFProbe) getPoolEvent() *model.Event {
 	return event
 }
 
+var relatedEventZeroer = model.NewEventZeroer()
+
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
 	if event.ProcessCacheEntry != nil {
 		event.ProcessCacheEntry.Release()
 	}
-	probeEventZeroer(event)
+	relatedEventZeroer(event)
 	p.eventPool.Put(event)
 }
 
