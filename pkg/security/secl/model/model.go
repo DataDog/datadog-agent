@@ -548,6 +548,11 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
+	// This should never happen, but we panic to be safe
+	if pc.refCount == 0 {
+		panic("ProcessCacheEntry refCount is 0, this should never happen")
+	}
+
 	if pc.refCount > 1 {
 		pc.refCount--
 		return
