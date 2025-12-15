@@ -2025,6 +2025,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
+	// Log Pattern Eviction
+	config.BindEnvAndSetDefault("logs_config.patterns.max_pattern_count", 700)
+	config.BindEnvAndSetDefault("logs_config.patterns.max_memory_bytes", 4*1024*1024) // 4MB
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_high_watermark", 0.80) // Trigger eviction at 80% capacity
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_low_watermark", 0.70)  // Evict back to 70%
+	config.BindEnvAndSetDefault("logs_config.patterns.age_decay_factor", 0.5)
+
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
 	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
