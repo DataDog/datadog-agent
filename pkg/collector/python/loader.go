@@ -25,6 +25,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -103,7 +104,7 @@ type PythonCheckLoader struct {
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger, filter)
+	collectoraggregator.InitializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil
