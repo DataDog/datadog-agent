@@ -56,9 +56,9 @@ static type_t lookup_go_interface(uint32_t go_runtime_type) {
 static bool chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
                                       type_t type) {
   switch (chased_pointers_trie_insert(chased, ptr, type)) {
-  case CHASED_POINTERS_TRIE_SUCCESS:
+  case CHASED_POINTERS_TRIE_INSERTED:
     return true;
-  case CHASED_POINTERS_TRIE_EXISTS:
+  case CHASED_POINTERS_TRIE_ALREADY_EXISTS:
     break;
   case CHASED_POINTERS_TRIE_FULL:
     LOG(3, "chased_pointers_push: full %lld %d\n", ptr, type);
@@ -309,10 +309,16 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
 // Returns false if the pointer has already been memoized.
 static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
-                   target_ptr_t addr) {
+                   target_ptr_t addr, uint32_t maybe_len) {
   // Check if address was already processed before.
   stack_machine_t* sm = ctx->stack_machine;
-  return chased_pointers_trie_push(&sm->chased, addr, type);
+  if (maybe_len == ENQUEUE_LEN_SENTINEL) {
+    // Statically sized object.
+    return chased_pointers_trie_push(&sm->chased, addr, type);
+  }
+  // Dynamically sized object, we may try to capture same address and type
+  // multiple times, but with different lengths.
+  return chased_slices_push(&sm->chased_slices, addr, type, maybe_len);
 }
 
 static inline __attribute__((always_inline)) bool
@@ -326,7 +332,7 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   if (decrease_ttl && sm->pointer_chasing_ttl == 0) {
     return true;
   }
-  if (!sm_memoize_pointer(ctx, type, addr)) {
+  if (!sm_memoize_pointer(ctx, type, addr, maybe_len)) {
     return true;
   }
   pointers_queue_item_t* item;
