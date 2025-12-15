@@ -18,6 +18,12 @@
         },
         {
           "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
+        },
+        {
+          "required": [
             "coredump"
           ],
           "title": "CoreDumpAction"
