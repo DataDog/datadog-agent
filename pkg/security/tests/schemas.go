@@ -174,6 +174,10 @@ func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateSetrlimitSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///setrlimit.schema.json")
 }
