@@ -425,17 +425,17 @@ require (
 	k8s.io/apiextensions-apiserver v0.35.0-alpha.0
 	k8s.io/apimachinery v0.35.0-alpha.0
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
-	k8s.io/cli-runtime v0.34.1
+	k8s.io/cli-runtime v0.34.3
 	k8s.io/client-go v0.35.0-alpha.0
 	k8s.io/component-base v0.35.0-alpha.0
-	k8s.io/cri-api v0.34.1
-	k8s.io/cri-client v0.34.1
+	k8s.io/cri-api v0.34.3
+	k8s.io/cri-client v0.34.3
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-aggregator v0.34.1
+	k8s.io/kube-aggregator v0.34.3
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
-	k8s.io/kubectl v0.34.1
-	k8s.io/kubelet v0.34.1
-	k8s.io/metrics v0.34.1
+	k8s.io/kubectl v0.34.3
+	k8s.io/kubelet v0.34.3
+	k8s.io/metrics v0.34.3
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.33.0
@@ -961,7 +961,7 @@ require (
 	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/apiserver v0.35.0-alpha.0 // indirect
 	k8s.io/cloud-provider v0.34.1 // indirect
-	k8s.io/component-helpers v0.34.1 // indirect
+	k8s.io/component-helpers v0.34.3 // indirect
 	k8s.io/csi-translation-lib v0.34.1 // indirect
 	k8s.io/kms v0.35.0-alpha.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
