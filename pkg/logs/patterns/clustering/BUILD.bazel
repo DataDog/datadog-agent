@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "cluster.go",
         "cluster_manager.go",
+        "eviction.go",
+        "eviction_manager.go",
         "pattern.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering",
@@ -13,6 +15,8 @@ go_library(
         "//pkg/logs/patterns/clustering/merging",
         "//pkg/logs/patterns/token",
         "//pkg/trace/log",
+        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
+        "@com_github_datadog_datadog_agent_pkg_util_log//:log",
     ],
 )
 
@@ -21,6 +25,7 @@ go_test(
     srcs = [
         "cluster_manager_test.go",
         "cluster_test.go",
+        "eviction_test.go",
         "pattern_test.go",
     ],
     embed = [":clustering"],
