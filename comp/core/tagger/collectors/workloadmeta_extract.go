@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -219,7 +220,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
-			tagList.AddLow(tags.DockerImage, fmt.Sprintf("%s:%s", image.Name, image.Tag))
+			tagList.AddLow(tags.DockerImage, image.Name+":"+image.Tag)
 		} else {
 			tagList.AddLow(tags.DockerImage, image.Name)
 		}
@@ -283,18 +284,24 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 
 	// Add Unified Service Tagging tags if present in the service metadata
 	if process.Service != nil {
-		if process.Service.UST.Service != "" {
-			tagList.AddStandard(tags.Service, process.Service.UST.Service)
-		}
-		if process.Service.UST.Env != "" {
-			tagList.AddStandard(tags.Env, process.Service.UST.Env)
-		}
-		if process.Service.UST.Version != "" {
-			tagList.AddStandard(tags.Version, process.Service.UST.Version)
-		}
+		ustService := process.Service.UST.Service
+		ustEnv := process.Service.UST.Env
+		ustVersion := process.Service.UST.Version
+
+		tagList.AddStandard(tags.Service, ustService)
+		tagList.AddStandard(tags.Env, ustEnv)
+		tagList.AddStandard(tags.Version, ustVersion)
 
 		for _, tracerMeta := range process.Service.TracerMetadata {
-			parseProcessTags(tagList, tracerMeta.ProcessTags)
+			for key, value := range tracerMeta.Tags() {
+				if tracermetadata.ShouldSkipServiceTagKV(key, value, ustService, ustEnv, ustVersion) {
+					continue
+				}
+
+				// Add as low cardinality tag since these are application-level
+				// metadata
+				tagList.AddLow(key, value)
+			}
 		}
 	}
 
@@ -584,9 +591,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
 	// These deployments don't report a hostname (task is the unit of identity)
-	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	// IsSidecar() returns true for both ECS Fargate and managed instances in sidecar mode
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
-		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsSidecar()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -604,7 +611,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		// Add global cluster tags for EC2 and Managed Instances in daemon mode
 		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
 		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
-			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsSidecar()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),
@@ -748,6 +755,7 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
@@ -832,9 +840,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tagList.AddHigh(tags.ContainerID, container.ID)
 
 	if container.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", container.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, container.Name+"_"+pod.Name)
 	} else if podContainer.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, podContainer.Name+"_"+pod.Name)
 	}
 
 	image := podContainer.Image
@@ -969,7 +977,7 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {
@@ -1012,38 +1020,5 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
-	}
-}
-
-// parseProcessTags parses comma-separated process tags from TracerMetadata
-// and adds them to the provided tagList as low cardinality tags
-func parseProcessTags(tags *taglist.TagList, processTags string) {
-	if processTags == "" {
-		return
-	}
-
-	for tag := range strings.SplitSeq(processTags, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
-			continue
-		}
-
-		// Split each tag into key:value format
-		key, value, ok := strings.Cut(tag, ":")
-		if !ok {
-			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
-			continue
-		}
-
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-
-		if key == "" || value == "" {
-			log.Debugf("Process tag %q has empty key or value, skipping", tag)
-			continue
-		}
-
-		// Add as low cardinality tag since these are application-level metadata
-		tags.AddLow(key, value)
 	}
 }

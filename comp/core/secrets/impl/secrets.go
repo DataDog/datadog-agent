@@ -100,7 +100,6 @@ type secretResolver struct {
 	refreshInterval        time.Duration
 	refreshIntervalScatter bool
 	scatterDuration        time.Duration
-	ticker                 *clock.Ticker
 	// filename to write audit records to
 	auditFilename    string
 	auditFileMaxSize int
@@ -125,6 +124,12 @@ type secretResolver struct {
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
+
+	// Secret refresh throttling
+	apiKeyFailureRefreshInterval time.Duration
+	lastThrottledRefresh         time.Time
+
+	refreshTrigger chan struct{}
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -138,6 +143,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 		clk:                     newClock(),
 		unresolvedSecrets:       make(map[string]struct{}),
+		refreshTrigger:          make(chan struct{}, 1),
 	}
 }
 
@@ -205,7 +211,7 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh()
+	result, err := r.Refresh(true)
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -288,9 +294,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
-	if r.refreshInterval != 0 {
-		r.startRefreshRoutine(nil)
-	}
 
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
@@ -306,11 +309,29 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
+
+	r.apiKeyFailureRefreshInterval = time.Duration(params.APIKeyFailureRefreshInterval) * time.Minute
+
+	// If either timed interval refresh, or invalid key refresh, are set then we need a goroutine
+	if r.refreshInterval != 0 || r.apiKeyFailureRefreshInterval != 0 {
+		log.Debug("Secrets refresh routine starting...")
+		r.startRefreshRoutine(nil)
+	} else {
+		log.Debug("Secrets does not need refresh routine")
+	}
 }
 
-func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
-	if r.ticker != nil || r.refreshInterval == 0 {
-		return
+func (r *secretResolver) setupRefreshInterval(rd *rand.Rand) *clock.Ticker {
+	if r.refreshInterval <= 0 {
+		log.Debug("Secrets refresh using no-op clock")
+		// We need to return an actual Ticker object with a channel, so that the select block
+		// below has something to query. However, we don't want to produce any actual ticks.
+		// This pattern basically builds a no-op clock by setting a huge time delay of 1 year
+		// and then calling Stop to prevent ticks from being produced.
+		noopClock := clock.NewMock()
+		neverTicker := noopClock.Ticker(time.Hour * 24 * 365)
+		neverTicker.Stop()
+		return neverTicker
 	}
 
 	if r.refreshIntervalScatter {
@@ -322,24 +343,52 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 		}
 		// Scatter when the refresh happens within the interval, with a minimum of 1 second
 		r.scatterDuration = time.Duration(int63) + time.Second
-		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
+		log.Debugf("Secrets refresh using scatter, first refresh will be in %d seconds", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval
+		log.Debugf("Secrets refresh not using scatter, refresh in %d seconds", r.scatterDuration)
 	}
-	r.ticker = r.clk.Ticker(r.scatterDuration)
+
+	return r.clk.Ticker(r.scatterDuration)
+}
+
+func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
+	refreshTicker := r.setupRefreshInterval(rd)
 
 	go func() {
-		<-r.ticker.C
-		if _, err := r.Refresh(); err != nil {
-			log.Infof("Error with refreshing secrets: %s", err)
-		}
-		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
-		r.ticker.Reset(r.refreshInterval)
-
 		for {
-			<-r.ticker.C
-			if _, err := r.Refresh(); err != nil {
-				log.Infof("Error with refreshing secrets: %s", err)
+			select {
+			case <-refreshTicker.C:
+				log.Debug("Secrets refresh got tick, performing now")
+
+				// scheduled refresh
+				if _, err := r.performRefresh(); err != nil {
+					log.Infof("Error with refreshing secrets: %s", err)
+				}
+				// we want to reset the refresh interval to the refreshInterval after the refreshing in case a scattered first refresh interval was configured
+				// this is safe to do repeatedly, as the interval will always stay the same after being Reset
+				refreshTicker.Reset(r.refreshInterval)
+			// triggered refresh
+			case <-r.refreshTrigger:
+				log.Debug("Secrets refresh got async request")
+				// disabled
+				if r.apiKeyFailureRefreshInterval == 0 {
+					log.Debug("Secrets refresh async request: disabled")
+					continue
+				}
+				// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
+				if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
+					log.Debug("Secrets refresh async request: throttled")
+					continue
+				}
+				log.Debug("Secrets refresh async request, performing now")
+				r.lastThrottledRefresh = time.Now()
+				// throttled refresh
+				if result, err := r.performRefresh(); err != nil {
+					log.Debugf("Secret refresh after invalid API key failed: %v", err)
+				} else if result != "" {
+					log.Infof("Secret refresh after invalid API key completed")
+				}
 			}
 		}
 	}()
@@ -528,7 +577,6 @@ var (
 		"debugger_additional_endpoints",
 		"debugger_diagnostics_additional_endpoints",
 		"symdb_additional_endpoints",
-		"events_additional_endpoints",
 	}
 	// tests override this to test refresh logic
 	allowlistEnabled = true
@@ -614,8 +662,25 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh the secrets after they have been Resolved by fetching them from the backend again
-func (r *secretResolver) Refresh() (string, error) {
+// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+func (r *secretResolver) Refresh(updateNow bool) (string, error) {
+	if updateNow {
+		// blocking refresh
+		return r.performRefresh()
+	}
+
+	// non-blocking refresh, max 1 at a time, others dropped
+	select {
+	case r.refreshTrigger <- struct{}{}:
+	default:
+	}
+	return "", nil
+}
+
+// performRefresh executes the actual secret refresh operation
+func (r *secretResolver) performRefresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -669,7 +734,9 @@ func (r *secretResolver) Refresh() (string, error) {
 	if err = t.Execute(b, refreshResult); err != nil {
 		return "", err
 	}
-	return b.String(), auditRecordErr
+	result := b.String()
+
+	return result, auditRecordErr
 }
 
 type auditRecord struct {

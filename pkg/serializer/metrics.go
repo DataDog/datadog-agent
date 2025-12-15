@@ -40,6 +40,10 @@ func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kin
 		resolver.GetConfigName())
 }
 
+func metricsValidateV3(config config.Component, kind metricsKind) bool {
+	return config.GetBool(fmt.Sprintf("serializer_experimental_use_v3_api.%s.validate", kind))
+}
+
 func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
@@ -48,6 +52,9 @@ func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 		}
 		return endpoints.SeriesEndpoint
 	case metricsKindSketches:
+		if useV3 {
+			return endpoints.V3SketchSeriesEndpoint
+		}
 		return endpoints.SketchSeriesEndpoint
 	default:
 		panic("invalid metricsKind value")
@@ -59,13 +66,16 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 
 	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
+	validateV3 := metricsValidateV3(s.config, kind)
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
 		useV3 := metricsUseV3(resolver, s.config, kind)
+		validateV3 := useV3 && validateV3
 
 		dest := metrics.PipelineDestination{
-			Resolver: resolver,
-			Endpoint: metricsEndpointFor(kind, useV3),
+			Resolver:             resolver,
+			Endpoint:             metricsEndpointFor(kind, useV3),
+			AddValidationHeaders: validateV3,
 		}
 
 		switch {
@@ -92,6 +102,20 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
+
+			// On a regular route if using v3 and validation is enabled, send a v2 payload too.
+			if validateV3 {
+				vconf := metrics.PipelineConfig{
+					Filter: metrics.AllowAllFilter{},
+					V3:     false,
+				}
+				vdest := metrics.PipelineDestination{
+					Resolver:             resolver,
+					Endpoint:             metricsEndpointFor(kind, false),
+					AddValidationHeaders: true,
+				}
+				pipelines.Add(vconf, vdest)
+			}
 		}
 	}
 

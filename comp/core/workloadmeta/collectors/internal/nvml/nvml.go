@@ -192,7 +192,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 }
 
 // Pull collects the GPUs available on the node and notifies the store
-func (c *collector) Pull(_ context.Context) error {
+func (c *collector) Pull(ctx context.Context) error {
 	lib, err := ddnvml.GetSafeNvmlLib()
 	if err != nil {
 		// Do not consider an unloaded driver as an error more than once.
@@ -207,7 +207,7 @@ func (c *collector) Pull(_ context.Context) error {
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
 
-	deviceCache := ddnvml.NewDeviceCacheWithOptions(lib)
+	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
 	if err := deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
@@ -223,6 +223,12 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 	}
 
+	// attempt getting list of unhealthy devices (if available)
+	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
+	if (err != nil || unhealthyDevices == nil) && logLimiter.ShouldLog() {
+		log.Warnf("failed getting unhealthy devices: %v", err)
+	}
+
 	// note: the device list can change over time so we need to set/unset for reconciliation
 	allDevices, err := deviceCache.All()
 	if err != nil {
@@ -236,10 +242,14 @@ func (c *collector) Pull(_ context.Context) error {
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
-		gpu.DriverVersion = driverVersion
 		if err != nil {
 			return err
 		}
+
+		gpu.DriverVersion = driverVersion
+
+		_, unhealthy := unhealthyDevices[gpu.ID]
+		gpu.Healthy = !unhealthy
 
 		uuid := dev.GetDeviceInfo().UUID
 		currentUUIDs[uuid] = struct{}{}
@@ -348,6 +358,8 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 	switch nvmlArch {
 	case nvml.DEVICE_ARCH_KEPLER:
 		return "kepler"
+	case nvml.DEVICE_ARCH_MAXWELL:
+		return "maxwell"
 	case nvml.DEVICE_ARCH_PASCAL:
 		return "pascal"
 	case nvml.DEVICE_ARCH_VOLTA:
@@ -360,6 +372,9 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		return "ada"
 	case nvml.DEVICE_ARCH_HOPPER:
 		return "hopper"
+	case 10: // nvml.DEVICE_ARCH_BLACKWELL in newer versions of go-nvml
+		// note: we hardcode the enum to avoid updating to an untested newer go-nvml version
+		return "blackwell"
 	case nvml.DEVICE_ARCH_UNKNOWN:
 		return "unknown"
 	default:

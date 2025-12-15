@@ -8,6 +8,7 @@ package datadogexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -161,7 +162,7 @@ func (f *factory) createTracesExporter(
 	}
 
 	if cfg.OnlyMetadata {
-		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
+		return nil, errors.New("datadog::only_metadata should not be set in OTel Agent")
 	}
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)

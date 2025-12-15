@@ -351,7 +351,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Co
 	cwsInjectorContainerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
-		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
+		return nil, errors.New("can't initialize CWS Instrumentation without an image_name")
 	}
 	if len(cwsInjectorImageTag) == 0 {
 		cwsInjectorImageTag = "latest"

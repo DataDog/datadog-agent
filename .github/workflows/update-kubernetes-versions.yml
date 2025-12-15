@@ -2,8 +2,8 @@ name: Update Kubernetes Versions
 
 on:
   schedule:
-    # Run twice daily at 6am and 6pm UTC
-    - cron: "0 6,18 * * *"
+    # Run once daily at 6am UTC
+    - cron: "0 6 * * *"
 
   # Allow manual trigger
   workflow_dispatch:
@@ -58,7 +58,7 @@ jobs:
         if: steps.update-yaml.outputs.updated == 'true'
         with:
           commit-message: "chore(e2e): add new Kubernetes version to e2e tests"
-          branch: update-k8s-versions-${{ github.run_id }}-${{ github.run_attempt }}
+          branch: update-k8s-versions-automated
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
           title: "[automated] Add new Kubernetes version to e2e tests"

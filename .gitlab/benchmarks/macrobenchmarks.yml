@@ -7,14 +7,14 @@ variables:
   timeout: 1h
   rules:
     - !reference [.except_coverage_pipeline]
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: always
-    - !reference [.on_scheduled_main]
+    - !reference [.on_scheduled_main_or_release_branch]
     - !reference [.manual]
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
   script:
+    # NOTE: If you encounter any issue by cloning this repository, it's probably because the pipeline has been triggered via `dda inv -- pipeline.run`.
+    # Please reach out #agent-devx-help if you need to trigger this job using a manually triggered pipeline.
     - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - ./steps/run-benchmarks.sh
   artifacts:

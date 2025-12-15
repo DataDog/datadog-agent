@@ -7,6 +7,7 @@
 package snmp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -92,6 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				secretsfx.Module(),
 				snmpscanfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
@@ -156,6 +159,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				secretsfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -283,9 +287,10 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	deviceID := namespace + ":" + connParams.IPAddress
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
-	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, snmpscan.ScanParams{
-		ScanType: metadata.ManualScan,
-	})
+	err := snmpScanner.ScanDeviceAndSendData(context.Background(), connParams, namespace,
+		snmpscan.ScanParams{
+			ScanType: metadata.ManualScan,
+		})
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)
 		return err

@@ -24,7 +24,7 @@ type GoVersion struct {
 
 // NewGoVersion returns a new GoVersion struct
 func NewGoVersion(rawVersion string) (GoVersion, error) {
-	version, ok := goversion.Parse(fmt.Sprintf("go%s", rawVersion))
+	version, ok := goversion.Parse("go" + rawVersion)
 	if !ok {
 		return GoVersion{}, fmt.Errorf("couldn't parse go version %s", rawVersion)
 	}

@@ -1,10 +1,7 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -31,6 +28,7 @@ license(
 )
 
 PUBLIC_HEADERS = [
+    "pcap.h",
     "pcap/bluetooth.h",
     "pcap/bpf.h",
     "pcap/can_socketcan.h",
@@ -49,7 +47,7 @@ PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "libpcap",
+    name = "pcap",
     # This may over include .h files
     srcs = [
         "arcnet.h",
@@ -124,6 +122,7 @@ cc_library(
         "sunatmpos.h",
         "thread-local.h",
         "varattrs.h",
+        "missing/strlcpy.c",
     ],
     hdrs = PUBLIC_HEADERS,
     includes = [
@@ -132,10 +131,9 @@ cc_library(
     ],
     copts = [
         "-Wno-implicit-function-declaration",
-        #"-include $(location libattr/libattr.h)",
-        "-fpic",
         "-O2",
     ],
+    linkstatic = True,
     local_defines = [
         # Tricky stuff. pcap.h changes behavior if you are bulding or using it.
         "BUILDING_PCAP",
@@ -145,23 +143,17 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-cc_shared_library(
-    name = "pcap",
-    deps = [":libpcap"],
-    visibility = ["//visibility:public"],
-)
-
-so_symlink(
+pkg_files(
     name = "lib_files",
-    src = ":pcap",
-    libname = "libpcap",
-    version = "1.10.5",
+    srcs = [":pcap"],
+    prefix = "lib",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/pcap",
+    prefix = "include",
+    strip_prefix = strip_prefix.from_pkg(),
 )
 
 pkg_install(

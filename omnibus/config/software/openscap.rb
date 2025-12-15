@@ -15,11 +15,17 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
+build do
+  command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
+    " #{install_dir}/embedded/lib/libacl.so"
+end
+
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
 dependency 'dbus'
-dependency 'libacl'
 dependency 'libgcrypt'
 dependency 'libselinux'
 dependency 'libsepol'
@@ -43,6 +49,7 @@ build do
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
   patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
+  patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

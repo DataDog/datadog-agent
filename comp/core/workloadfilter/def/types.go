@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -146,6 +148,18 @@ const (
 	Unknown
 )
 
+// String returns the string representation of the Result.
+func (r Result) String() string {
+	switch r {
+	case Included:
+		return "included"
+	case Excluded:
+		return "excluded"
+	default:
+		return "unknown"
+	}
+}
+
 // Filterable is an interface for objects that can be filtered.
 type Filterable interface {
 	// Serialize converts the object into a filterable object.
@@ -156,6 +170,14 @@ type Filterable interface {
 	GetAnnotations() map[string]string
 	// GetName returns the name of the object.
 	GetName() string
+	// ToBytes converts the object into a byte slice.
+	ToBytes() ([]byte, error)
+}
+
+// FilterIdentifier identifies a specific filter instance
+type FilterIdentifier interface {
+	TargetResource() ResourceType
+	GetFilterName() string
 }
 
 //
@@ -165,7 +187,6 @@ type Filterable interface {
 // Container represents a filterable container object.
 type Container struct {
 	*core.FilterContainer
-	Owner Filterable
 }
 
 var _ Filterable = &Container{}
@@ -178,6 +199,11 @@ func (c *Container) Serialize() any {
 // Type returns the resource type of the container.
 func (c *Container) Type() ResourceType {
 	return ContainerType
+}
+
+// ToBytes converts the Container object to a byte slice.
+func (c *Container) ToBytes() ([]byte, error) {
+	return proto.MarshalOptions{Deterministic: true}.Marshal(c.FilterContainer)
 }
 
 // GetAnnotations returns the annotations of the container.
@@ -216,7 +242,6 @@ func CreateContainer(id, name, reference string, owner Filterable) *Container {
 
 	return &Container{
 		FilterContainer: c,
-		Owner:           owner,
 	}
 }
 
@@ -237,25 +262,35 @@ func setContainerOwner(c *core.FilterContainer, owner Filterable) {
 }
 
 // ContainerFilter defines the type of container filter.
-type ContainerFilter int
+type ContainerFilter string
+
+// TargetResource returns the resource type for ContainerFilter
+func (f ContainerFilter) TargetResource() ResourceType {
+	return ContainerType
+}
+
+// GetFilterName returns the name for ContainerFilter
+func (f ContainerFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Container filter kinds
 const (
-	LegacyContainerMetrics ContainerFilter = iota
-	LegacyContainerLogs
-	LegacyContainerGlobal
-	LegacyContainerACInclude
-	LegacyContainerACExclude
-	LegacyContainerSBOM
-	ContainerADAnnotationsMetrics
-	ContainerADAnnotationsLogs
-	ContainerADAnnotations
-	ContainerPaused
+	ContainerLegacyMetrics        ContainerFilter = "container-legacy-metrics"
+	ContainerLegacyLogs           ContainerFilter = "container-legacy-logs"
+	ContainerLegacyGlobal         ContainerFilter = "container-legacy-global"
+	ContainerLegacyACInclude      ContainerFilter = "container-legacy-ac-include"
+	ContainerLegacyACExclude      ContainerFilter = "container-legacy-ac-exclude"
+	ContainerLegacySBOM           ContainerFilter = "container-legacy-sbom"
+	ContainerADAnnotationsMetrics ContainerFilter = "container-ad-annotations-metrics"
+	ContainerADAnnotationsLogs    ContainerFilter = "container-ad-annotations-logs"
+	ContainerADAnnotations        ContainerFilter = "container-ad-annotations"
+	ContainerPaused               ContainerFilter = "container-paused"
 	// CEL-based filters
-	ContainerCELMetrics
-	ContainerCELLogs
-	ContainerCELSBOM
-	ContainerCELGlobal
+	ContainerCELMetrics ContainerFilter = "container-cel-metrics"
+	ContainerCELLogs    ContainerFilter = "container-cel-logs"
+	ContainerCELSBOM    ContainerFilter = "container-cel-sbom"
+	ContainerCELGlobal  ContainerFilter = "container-cel-global"
 )
 
 //
@@ -279,6 +314,11 @@ func (p *Pod) Type() ResourceType {
 	return PodType
 }
 
+// ToBytes converts the Pod object to a byte slice.
+func (p *Pod) ToBytes() ([]byte, error) {
+	return proto.MarshalOptions{Deterministic: true}.Marshal(p.FilterPod)
+}
+
 // CreatePod creates a Filterable Pod object.
 func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
 	return &Pod{
@@ -292,17 +332,27 @@ func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
 }
 
 // PodFilter defines the type of pod filter.
-type PodFilter int
+type PodFilter string
+
+// TargetResource returns the resource type for PodFilter
+func (f PodFilter) TargetResource() ResourceType {
+	return PodType
+}
+
+// GetFilterName returns the name for PodFilter
+func (f PodFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Pod filter kinds
 const (
-	LegacyPodMetrics PodFilter = iota
-	LegacyPodGlobal
-	PodADAnnotationsMetrics
-	PodADAnnotations
+	PodLegacyMetrics        PodFilter = "pod-legacy-metrics"
+	PodLegacyGlobal         PodFilter = "pod-legacy-global"
+	PodADAnnotationsMetrics PodFilter = "pod-ad-annotations-metrics"
+	PodADAnnotations        PodFilter = "pod-ad-annotations"
 	// CEL-based filters
-	PodCELMetrics
-	PodCELGlobal
+	PodCELMetrics PodFilter = "pod-cel-metrics"
+	PodCELGlobal  PodFilter = "pod-cel-global"
 )
 
 //
@@ -337,18 +387,33 @@ func (s *Service) Type() ResourceType {
 	return ServiceType
 }
 
+// ToBytes converts the Service object to a byte slice.
+func (s *Service) ToBytes() ([]byte, error) {
+	return proto.MarshalOptions{Deterministic: true}.Marshal(s.FilterKubeService)
+}
+
 // ServiceFilter defines the type of service filter.
-type ServiceFilter int
+type ServiceFilter string
+
+// TargetResource returns the resource type for ServiceFilter
+func (f ServiceFilter) TargetResource() ResourceType {
+	return ServiceType
+}
+
+// GetFilterName returns the name for ServiceFilter
+func (f ServiceFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Service filter kinds
 const (
-	LegacyServiceMetrics ServiceFilter = iota
-	LegacyServiceGlobal
-	ServiceADAnnotationsMetrics
-	ServiceADAnnotations
+	ServiceLegacyMetrics        ServiceFilter = "service-legacy-metrics"
+	ServiceLegacyGlobal         ServiceFilter = "service-legacy-global"
+	ServiceADAnnotationsMetrics ServiceFilter = "service-ad-annotations-metrics"
+	ServiceADAnnotations        ServiceFilter = "service-ad-annotations"
 	// CEL-based filters
-	ServiceCELMetrics
-	ServiceCELGlobal
+	ServiceCELMetrics ServiceFilter = "service-cel-metrics"
+	ServiceCELGlobal  ServiceFilter = "service-cel-global"
 )
 
 //
@@ -383,18 +448,33 @@ func (e *Endpoint) Type() ResourceType {
 	return EndpointType
 }
 
+// ToBytes converts the Endpoint object to a byte slice.
+func (e *Endpoint) ToBytes() ([]byte, error) {
+	return proto.MarshalOptions{Deterministic: true}.Marshal(e.FilterKubeEndpoint)
+}
+
 // EndpointFilter defines the type of endpoint filter.
-type EndpointFilter int
+type EndpointFilter string
+
+// TargetResource returns the resource type for EndpointFilter
+func (f EndpointFilter) TargetResource() ResourceType {
+	return EndpointType
+}
+
+// GetFilterName returns the name for EndpointFilter
+func (f EndpointFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Endpoint filter kinds
 const (
-	LegacyEndpointMetrics EndpointFilter = iota
-	LegacyEndpointGlobal
-	EndpointADAnnotationsMetrics
-	EndpointADAnnotations
+	EndpointLegacyMetrics        EndpointFilter = "endpoint-legacy-metrics"
+	EndpointLegacyGlobal         EndpointFilter = "endpoint-legacy-global"
+	EndpointADAnnotationsMetrics EndpointFilter = "endpoint-ad-annotations-metrics"
+	EndpointADAnnotations        EndpointFilter = "endpoint-ad-annotations"
 	// CEL-based filters
-	EndpointCELMetrics
-	EndpointCELGlobal
+	EndpointCELMetrics EndpointFilter = "endpoint-cel-metrics"
+	EndpointCELGlobal  EndpointFilter = "endpoint-cel-global"
 )
 
 //
@@ -423,17 +503,32 @@ func (p *Process) Type() ResourceType {
 	return ProcessType
 }
 
+// ToBytes converts the Process object to a byte slice.
+func (p *Process) ToBytes() ([]byte, error) {
+	return proto.MarshalOptions{Deterministic: true}.Marshal(p.FilterProcess)
+}
+
 // SetLogFile updates the log file path on an existing Process.
 func (p *Process) SetLogFile(logFile string) {
 	p.FilterProcess.LogFile = logFile
 }
 
 // ProcessFilter defines the type of process filter.
-type ProcessFilter int
+type ProcessFilter string
+
+// TargetResource returns the resource type for ProcessFilter
+func (f ProcessFilter) TargetResource() ResourceType {
+	return ProcessType
+}
+
+// GetFilterName returns the name for ProcessFilter
+func (f ProcessFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Process filter kinds.
 const (
-	LegacyProcessExcludeList ProcessFilter = iota
-	ProcessCELLogs
-	ProcessCELGlobal
+	ProcessLegacyExclude ProcessFilter = "process-legacy-exclude"
+	ProcessCELLogs       ProcessFilter = "process-cel-logs"
+	ProcessCELGlobal     ProcessFilter = "process-cel-global"
 )
