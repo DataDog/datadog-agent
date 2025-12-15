@@ -115,10 +115,6 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    install_prefix = select({
-        "@platforms//os:windows": "",
-        "//conditions:default": "/opt/datadog-agent/embedded",
-    }),
     env = select({
         "@platforms//os:macos": {
             # For some reason AR is set to libtool on macos
