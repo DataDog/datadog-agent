@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package clustering provides clustering functionality for grouping similar TokenLists
-// and identifying wildcard positions for pattern extraction.
+// Package clustering provides clustering functionality for grouping similar TokenLists,
+// extracting patterns wildcard, and managing pattern lifecycle through eviction policies.
 package clustering
 
 import (
@@ -83,6 +83,7 @@ func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList, cm *Cluster
 
 			// Merge into existing pattern (same PatternID is preserved)
 			p.LogCount++
+			p.LastAccessAt = time.Now() // Update last access time for eviction
 			p.UpdatedAt = time.Now()
 			c.UpdatedAt = time.Now()
 

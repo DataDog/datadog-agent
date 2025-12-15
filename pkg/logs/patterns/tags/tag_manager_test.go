@@ -6,6 +6,7 @@
 package tags
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -72,8 +73,8 @@ func TestTagManager_EncodeTagStrings_InvalidFormats(t *testing.T) {
 
 	encoded, newEntries := tm.EncodeTagStrings([]string{
 		"valid:tag",
-		"",
-		":novalue",
+		"", // empty string should be skipped
+		":novalue", // colon should not be used as a delimiter for key-only tags, skip it
 	})
 
 	assert.Len(t, encoded, 1)
@@ -86,7 +87,7 @@ func TestTagManager_EncodeTagStrings_KeyOnly(t *testing.T) {
 
 	encoded, newEntries := tm.EncodeTagStrings([]string{
 		"env",
-		"service:",
+		"service:", // assume colon is mistyped, result in a key-only tag
 	})
 
 	require.Len(t, encoded, 2)
@@ -99,6 +100,8 @@ func TestTagManager_EncodeTagStrings_KeyOnly(t *testing.T) {
 	keyWithEmptyValue := encoded[1]
 	assert.NotNil(t, keyWithEmptyValue.GetKey())
 	assert.Nil(t, keyWithEmptyValue.GetValue())
+
+	fmt.Println(newEntries)
 
 	assert.Equal(t, 2, tm.Count())
 }
@@ -140,7 +143,7 @@ func TestTagManager_Concurrency(t *testing.T) {
 
 	// Each goroutine adds the same set of tags repeatedly
 	for i := 0; i < numGoroutines; i++ {
-		go func(routineID int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < tagsPerGoroutine; j++ {
 				encoded, _ := tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform"})

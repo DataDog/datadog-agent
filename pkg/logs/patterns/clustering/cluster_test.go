@@ -363,24 +363,6 @@ func getMostCommonPattern(c *Cluster) *Pattern {
 	return c.Patterns[mostCommonIdx]
 }
 
-// getPatternString returns a string representation of the most common pattern.
-func getPatternString(c *Cluster) string {
-	mostCommon := getMostCommonPattern(c)
-	if mostCommon == nil {
-		return ""
-	}
-	return mostCommon.GetPatternString()
-}
-
-// getWildcardPositions returns wildcard token positions for the most common pattern.
-func getWildcardPositions(c *Cluster) []int {
-	mostCommon := getMostCommonPattern(c)
-	if mostCommon == nil {
-		return nil
-	}
-	return mostCommon.Positions
-}
-
 // hasWildcards returns true if any pattern in this cluster contains wildcard positions.
 func hasWildcards(c *Cluster) bool {
 	for _, p := range c.Patterns {
