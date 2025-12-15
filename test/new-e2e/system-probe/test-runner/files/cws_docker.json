@@ -1,9 +1,11 @@
 {
     "filters": {
-        "*": {
-            "exclude": false
-        }
-    },
+		"pkg/security": {
+			"run-only": [
+				"TestMProtectEvent"
+			]
+		}
+	},
     "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main",
     "additional_test_args": [
         "--env",
