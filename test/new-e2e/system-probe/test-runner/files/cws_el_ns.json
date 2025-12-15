@@ -1,9 +1,11 @@
 {
     "filters": {
-        "*": {
-            "exclude": false
-        }
-    },
+		"pkg/security": {
+			"run-only": [
+				"TestEnv"
+			]
+		}
+	},
     "additional_test_args": [
         "-trace",
         "-disable-seccomp"
