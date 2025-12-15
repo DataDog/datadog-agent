@@ -35,6 +35,20 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 	serverContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("redis"),
 		Image: pulumi.String("ghcr.io/datadog/redis:" + apps.Version),
+		Environment: ecs.TaskDefinitionKeyValuePairArray{
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_SERVICE"),
+				Value: pulumi.StringPtr("redis-fargate"),
+			},
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_ENV"),
+				Value: pulumi.StringPtr("e2e-test"),
+			},
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_VERSION"),
+				Value: pulumi.StringPtr("1.0"),
+			},
+		},
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:fargate\"]"),
 		},

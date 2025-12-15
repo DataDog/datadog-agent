@@ -38,6 +38,20 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 				"nginx": {
 					Name:  pulumi.String("nginx"),
 					Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+					Environment: ecs.TaskDefinitionKeyValuePairArray{
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_SERVICE"),
+							Value: pulumi.StringPtr("nginx"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_ENV"),
+							Value: pulumi.StringPtr("e2e-test"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_VERSION"),
+							Value: pulumi.StringPtr("1.0"),
+						},
+					},
 					DockerLabels: pulumi.StringMap{
 						"com.datadoghq.ad.checks": pulumi.String(utils.JSONMustMarshal(
 							map[string]interface{}{
