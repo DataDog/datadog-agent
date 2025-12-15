@@ -619,7 +619,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	entries, err := host.ReadDir(logsFolder)
 	if s.Assert().NoError(err, "should read log folder") {
 		for _, entry := range entries {
-			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			err = host.RemoveAll(filepath.Join(logsFolder, entry.Name()))
 			s.Assert().NoError(err, "should remove %s", entry.Name())
 		}
 	}
