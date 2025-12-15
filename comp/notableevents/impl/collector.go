@@ -10,23 +10,48 @@ package notableeventsimpl
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
+// eventDefinition describes a notable event type and how to collect/process it
+type eventDefinition struct {
+	// Event identification (for lookup after receiving event)
+	Provider string
+	EventID  uint
+
+	// Event metadata (for payload)
+	EventType string
+	Title     string
+	Message   string
+
+	// Query definition - inner content of <Query> block
+	Channel   string // Path attribute for <Query> element (e.g., "System")
+	QueryBody string // Raw XML inside <Query>: Select and optional Suppress elements
+}
+
+// eventKey uniquely identifies an event by provider and event ID
+type eventKey struct {
+	Provider string
+	EventID  uint
+}
+
 // collector monitors Windows Event Log for notable events
 type collector struct {
 	// in
 	api         evtapi.API
-	channelPath string
 	query       string
+	eventLookup map[eventKey]*eventDefinition // Event registry lookup
 	// out
 	outChan chan<- eventPayload
 	// internal
@@ -35,15 +60,64 @@ type collector struct {
 	wg     sync.WaitGroup
 }
 
+// getEventDefinitions returns the list of notable events to collect
+func getEventDefinitions() []eventDefinition {
+	e := []eventDefinition{
+		{
+			Provider:  "Microsoft-Windows-Kernel-Power",
+			EventID:   41,
+			Channel:   "System",
+			QueryBody: `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41]]</Select>`,
+			EventType: "Unexpected reboot",
+			Title:     "Unexpected reboot",
+			Message:   "The system has rebooted without cleanly shutting down first",
+		},
+		// Future events added here
+	}
+	return e
+}
+
+// buildEventLookup creates a map for fast event definition lookup.
+// Returns error if duplicate event keys are found.
+func buildEventLookup(events []eventDefinition) (map[eventKey]*eventDefinition, error) {
+	lookup := make(map[eventKey]*eventDefinition)
+	for i := range events {
+		def := &events[i]
+		key := eventKey{Provider: def.Provider, EventID: def.EventID}
+		if _, exists := lookup[key]; exists {
+			return nil, fmt.Errorf("duplicate event definition: %s/%d", def.Provider, def.EventID)
+		}
+		lookup[key] = def
+	}
+	return lookup, nil
+}
+
+// buildQuery generates full XML query from event definitions.
+// Each event gets its own <Query> block with auto-generated ID.
+func buildQuery(events []eventDefinition) string {
+	var queries []string
+	for i, def := range events {
+		query := fmt.Sprintf(`  <Query Id="%d" Path="%s">
+%s
+  </Query>`, i, def.Channel, def.QueryBody)
+		queries = append(queries, query)
+	}
+	return fmt.Sprintf("<QueryList>\n%s\n</QueryList>", strings.Join(queries, "\n"))
+}
+
 // newCollector creates a new collector instance
-func newCollector(outChan chan<- eventPayload) *collector {
-	// TODO(WINA-1970): make real query
+func newCollector(outChan chan<- eventPayload) (*collector, error) {
+	events := getEventDefinitions()
+	lookup, err := buildEventLookup(events)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build event lookup: %w", err)
+	}
 	return &collector{
 		api:         winevtapi.New(),
-		channelPath: "System",
-		query:       "*[System[(Level=1 or Level=2 or Level=3)]]",
+		query:       buildQuery(events),
 		outChan:     outChan,
-	}
+		eventLookup: lookup,
+	}, nil
 }
 
 // start begins monitoring Windows Event Log
@@ -54,12 +128,12 @@ func (c *collector) start() error {
 
 	// Create subscription object (will be started in the event loop)
 	c.sub = evtsubscribe.NewPullSubscription(
-		c.channelPath,
+		"", // empty chennel path when XML query is used
 		c.query,
 		evtsubscribe.WithWindowsEventLogAPI(c.api),
 	)
 
-	log.Infof("Initialized Windows Event Log subscription: channel=%s, query=%s", c.channelPath, c.query)
+	log.Debugf("Initialized Windows Event Log subscription: query=%s", c.query)
 
 	// Start processing events in background
 	c.wg.Add(1)
@@ -109,7 +183,7 @@ func (c *collector) run(ctx context.Context) {
 		// Check if loop should exit
 		select {
 		case <-ctx.Done():
-			log.Info("Notable events collector context cancelled, shutting down")
+			log.Debug("Notable events collector context cancelled, shutting down")
 			return
 		default:
 		}
@@ -123,7 +197,7 @@ func (c *collector) run(ctx context.Context) {
 					return err
 				}
 				// Subscription started successfully
-				log.Infof("Started Windows Event Log subscription: channel=%s, query=%s", c.channelPath, c.query)
+				log.Debugf("Started Windows Event Log subscription: query=%s", c.query)
 				return nil
 			})
 			if err != nil {
@@ -136,7 +210,7 @@ func (c *collector) run(ctx context.Context) {
 		// Subscription is running, wait for events or cancellation
 		select {
 		case <-ctx.Done():
-			log.Info("Notable events collector context cancelled, shutting down")
+			log.Debug("Notable events collector context cancelled, shutting down")
 			return
 		case events, ok := <-c.sub.GetEvents():
 			if !ok {
@@ -162,23 +236,48 @@ func (c *collector) run(ctx context.Context) {
 
 // processEvent extracts event data and sends it to the output channel
 func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, eventRecord *evtapi.EventRecord) error {
-	// Render event values
+	// Render event values for lookup
 	vals, err := c.api.EvtRenderEventValues(renderCtx, eventRecord.EventRecordHandle)
 	if err != nil {
 		return fmt.Errorf("failed to render event values: %w", err)
 	}
 	defer vals.Close()
 
-	// Extract Event ID
-	eventID, err := vals.UInt(evtapi.EvtSystemEventID)
-	if err != nil {
-		return fmt.Errorf("failed to get event ID: %w", err)
-	}
+	// Extract provider and event ID for lookup
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
 		return fmt.Errorf("failed to get provider name: %w", err)
 	}
-	// TODO: get nanoseconds precision from event log
+	eventID, err := vals.UInt(evtapi.EvtSystemEventID)
+	if err != nil {
+		return fmt.Errorf("failed to get event ID: %w", err)
+	}
+
+	// Lookup event definition
+	def, found := c.eventLookup[eventKey{Provider: providerName, EventID: uint(eventID)}]
+	if !found {
+		return fmt.Errorf("unknown event: %s/%d", providerName, eventID)
+	}
+
+	// Render full event XML
+	xmlUTF16, err := c.api.EvtRenderEventXml(eventRecord.EventRecordHandle)
+	if err != nil {
+		return fmt.Errorf("failed to render event XML: %w", err)
+	}
+	xmlString := windows.UTF16ToString(xmlUTF16)
+
+	// Convert XML to JSON map using windowsevent package
+	eventMap, err := windowsevent.NewMapXML([]byte(xmlString))
+	if err != nil {
+		return fmt.Errorf("failed to parse event XML: %w", err)
+	}
+
+	// Build custom data with windows_event_log
+	customData := map[string]interface{}{
+		"windows_event_log": eventMap.Map,
+	}
+
+	// Get timestamp
 	var timestamp time.Time
 	unixTimestamp, err := vals.Time(evtapi.EvtSystemTimeCreated)
 	if err != nil {
@@ -188,13 +287,15 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 		timestamp = time.Unix(unixTimestamp, 0)
 	}
 
-	log.Debugf("Collected notable event: channel=%s, event_id=%d", c.channelPath, eventID)
+	log.Debugf("Collected notable event: provider=%s, event_id=%d, title=%s", providerName, eventID, def.Title)
 
+	// Build and send payload
 	payload := eventPayload{
-		Channel:   c.channelPath,
-		Provider:  providerName,
-		EventID:   uint(eventID),
 		Timestamp: timestamp,
+		EventType: def.EventType,
+		Title:     def.Title,
+		Message:   def.Message,
+		Custom:    customData,
 	}
 	c.outChan <- payload
 
