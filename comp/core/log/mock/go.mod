@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/comp/core/log/mock
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.74.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.74.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.74.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.74.0-rc.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.74.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.74.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.74.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.74.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.74.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.74.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
