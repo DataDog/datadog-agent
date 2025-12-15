@@ -18,6 +18,7 @@ var validProducts = map[string]struct{}{
 	ProductAPMSampling:                  {},
 	ProductCWSDD:                        {},
 	ProductCWSCustom:                    {},
+	ProductCWSRemediation:               {},
 	ProductCWSProfiles:                  {},
 	ProductCSMSideScanning:              {},
 	ProductASM:                          {},
@@ -72,6 +73,8 @@ const (
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
 	ProductCWSCustom = "CWS_CUSTOM"
+	// ProductCWSRemediation is the cloud workload security remediation product
+	ProductCWSRemediation = "CWS_REMEDIATION"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
 	// ProductCSMSideScanning is the side scanning product
