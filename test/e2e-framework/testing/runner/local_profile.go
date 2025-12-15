@@ -143,7 +143,7 @@ func (p localProfile) CreateOutputSubDir(subdirectory string) (string, error) {
 	}
 	err = os.Symlink(outputDir, latestLink)
 	if err != nil {
-		return "", NonFatalError(err)
+		return outputDir, NonFatalError(err)
 	}
 	return outputDir, nil
 }
