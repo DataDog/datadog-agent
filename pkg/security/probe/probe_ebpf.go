@@ -838,8 +838,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		event.ProcessCacheEntry.Release()
-		p.eventPool.Put(event)
+		p.putBackPoolEvent(event)
 	}
 }
 
@@ -947,8 +946,8 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 	}
 }
 
-func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ProcessContext.Process.CGroup)
+func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -970,7 +969,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	}
 }
 
-func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext model.CGroupContext, data []byte) (int, error) {
 	var sc model.SyscallContext
 
 	n, err := sc.UnmarshalBinary(data)
@@ -991,9 +990,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.ContainerContext.ContainerID = ev.ProcessContext.Process.ContainerContext.ContainerID
-
-	entry.Process.CGroup.Merge(&ev.ProcessContext.Process.CGroup)
+	entry.Process.CGroup = cgroupContext
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1044,6 +1041,22 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+func (p *EBPFProbe) getPoolEvent() *model.Event {
+	event := p.eventPool.Get()
+	event.FieldHandlers = p.fieldHandlers
+	return event
+}
+
+var relatedEventZeroer = model.NewEventZeroer()
+
+func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
+	if event.ProcessCacheEntry != nil {
+		event.ProcessCacheEntry.Release()
+	}
+	relatedEventZeroer(event)
+	p.eventPool.Put(event)
+}
+
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
@@ -1085,6 +1098,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event         = p.zeroEvent()
 		dataLen       = uint64(len(data))
 		relatedEvents []*model.Event
+		cgroupContext model.CGroupContext
 		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
 			// all Execs will be forwarded since used by AD. Forks will be forwarded all if there are consumers
 			if !entry.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
@@ -1092,6 +1106,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
+			relatedEvent.Source = model.EventSourceRelated
 
 			if err != nil {
 				var errResolution *path.ErrPathResolution
@@ -1127,7 +1142,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 	// unmarshall contexts
-	read, err = p.unmarshalContexts(data[offset:], event)
+	read, err = p.unmarshalContexts(data[offset:], event, &cgroupContext)
 	if err != nil {
 		seclog.Errorf("failed to decode event `%s`: %s", eventType, err)
 		return
@@ -1140,7 +1155,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	if !p.handleBeforeProcessContext(event, data, offset, dataLen, newEntryCb) {
+	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
 		return
 	}
 	// resolve process context
@@ -1159,7 +1174,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
-		p.eventPool.Put(relatedEvent)
+		p.putBackPoolEvent(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
 
@@ -1583,12 +1598,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 // handleBeforeProcessContext unmarshals and populates the process cache entry for fork and exec events before setting the process context.
 // It returns false if the event should be dropped due to processing errors.
-func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
 	case model.ForkEventType:
-		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, cgroupContext, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
@@ -1599,7 +1614,7 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 		}
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, cgroupContext, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return false
 		}
@@ -1616,8 +1631,6 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 // handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
 // It returns false if an error occurs or if the event should not be dispatched further, true otherwise
 func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
-	event.ProcessContext = &model.ProcessContext{}
-
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
@@ -1652,7 +1665,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.ProcessContext.Process.CGroup = *cgroupContext
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
@@ -3464,7 +3476,7 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 		eventType = model.ForkEventType
 	}
 
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 
 	event.Type = uint32(eventType)
 	event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -3477,11 +3489,12 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 
 // newBindEventFromReplay returns a new bind event with a process context
 func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.eventPool.Get()
+	event := p.getPoolEvent()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
+	event.AddToFlags(model.EventFlagsFromReplay)
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family

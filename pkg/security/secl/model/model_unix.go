@@ -12,7 +12,6 @@
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -191,8 +190,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 }
 
 // Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -381,10 +382,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
 
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -396,8 +401,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+		String:  pc.Comm,
+	}
 }
 
 // ParentScope returns the parent entity scope
