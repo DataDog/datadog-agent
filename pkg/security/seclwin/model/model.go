@@ -9,6 +9,7 @@
 package model
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"reflect"
@@ -548,12 +549,21 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	if pc.refCount > 1 {
-		pc.refCount--
+	if pc.refCount == 0 {
+		panic(fmt.Sprintf("ProcessCacheEntry has negative refCount %+v", pc))
+	}
+
+	pc.refCount--
+	if pc.refCount > 0 {
 		return
 	}
 
 	pc.callReleaseCallbacks()
+}
+
+// GetRefCount returns the reference count
+func (pc *ProcessCacheEntry) GetRefCount() uint64 {
+	return pc.refCount
 }
 
 // NewProcessCacheEntry returns a new process cache entry

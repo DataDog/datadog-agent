@@ -123,3 +123,20 @@ func TestEntryEquals(t *testing.T) {
 	e1.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.True(t, e1.Equals(e2))
 }
+
+// TestRetainRelease tests the Retain and Release methods
+func TestRetainRelease(t *testing.T) {
+	releaseCalled := false
+	pce := NewProcessCacheEntry(func(_ *ProcessCacheEntry) {
+		releaseCalled = true
+	})
+	assert.Equal(t, uint64(0), pce.GetRefCount())
+	pce.Retain()
+	assert.Equal(t, uint64(1), pce.GetRefCount())
+	assert.False(t, releaseCalled)
+	pce.Release()
+	assert.True(t, releaseCalled)
+	assert.Equal(t, uint64(0), pce.GetRefCount())
+
+	assert.Panics(t, pce.Release)
+}
