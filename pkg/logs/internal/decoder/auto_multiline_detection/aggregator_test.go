@@ -43,7 +43,7 @@ func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
 
 func TestNoAggregate(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("1"), noAggregate)
 	ag.Aggregate(newMessage("2"), noAggregate)
@@ -57,7 +57,7 @@ func TestNoAggregate(t *testing.T) {
 func TestNoAggregateEndsGroup(t *testing.T) {
 
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), startGroup)
@@ -70,7 +70,7 @@ func TestNoAggregateEndsGroup(t *testing.T) {
 
 func TestAggregateGroups(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), false)
 
 	// Aggregated log
 	ag.Aggregate(newMessage("1"), startGroup)
@@ -90,7 +90,7 @@ func TestAggregateGroups(t *testing.T) {
 
 func TestAggregateDoesntStartGroup(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("1"), aggregate)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -103,7 +103,7 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 
 func TestForceFlush(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -115,7 +115,7 @@ func TestForceFlush(t *testing.T) {
 
 func TestTagTruncatedLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 10, true, false, status.NewInfoRegistry(), false)
 
 	// First 3 should be tagged as single line logs since they are too big to aggregate no matter what the label is.
 	ag.Aggregate(newMessage("1234567890"), startGroup)
@@ -163,7 +163,7 @@ func TestTagTruncatedLogs(t *testing.T) {
 
 func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("123"), startGroup)
 	ag.Aggregate(newMessage("456"), aggregate)
@@ -181,7 +181,7 @@ func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
 
 func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("12345"), startGroup) // Exactly the size of the max message size - simulates truncation in the framer
 	ag.Aggregate(newMessage("456"), aggregate)
@@ -199,7 +199,7 @@ func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 
 func TestTagMultiLineLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, false, true, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 10, false, true, status.NewInfoRegistry(), false)
 
 	ag.Aggregate(newMessage("12345"), startGroup)
 	ag.Aggregate(newMessage("6789"), aggregate)
@@ -227,7 +227,7 @@ func TestTagMultiLineLogs(t *testing.T) {
 
 func TestSingleLineTooLongTruncation(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, false, true, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, false, true, status.NewInfoRegistry(), false)
 
 	// Multi line log where each message is too large except the last one
 	ag.Aggregate(newMessage("123"), startGroup)
@@ -279,4 +279,167 @@ func TestSingleLineTooLongTruncation(t *testing.T) {
 	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
 	msg = <-outputChan
 	assertMessageContent(t, msg, "...TRUNCATED...123")
+}
+
+// Detection-only mode tests (using tagOnlyBucket)
+
+func TestDetectionOnly_SingleLineNotTagged(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// Single-line logs should not be tagged
+	ag.Aggregate(newMessage("single line 1"), startGroup)
+	ag.Aggregate(newMessage("single line 2"), startGroup)
+	ag.Flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, "single line 1", string(msg1.GetContent()))
+	assert.Empty(t, msg1.ProcessingTags, "Single-line log should not have processing tags")
+
+	msg2 := <-outputChan
+	assert.Equal(t, "single line 2", string(msg2.GetContent()))
+	assert.Empty(t, msg2.ProcessingTags, "Single-line log should not have processing tags")
+}
+
+func TestDetectionOnly_TwoLineGroupTagged(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// 2-line multiline group
+	ag.Aggregate(newMessage("line 1"), startGroup)
+	ag.Aggregate(newMessage("line 2"), aggregate)
+	ag.Flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, "line 1", string(msg1.GetContent()))
+	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:2")
+
+	msg2 := <-outputChan
+	assert.Equal(t, "line 2", string(msg2.GetContent()))
+	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:2")
+}
+
+func TestDetectionOnly_ThreeLineGroupTagged(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// 3-line multiline group
+	ag.Aggregate(newMessage("line 1"), startGroup)
+	ag.Aggregate(newMessage("line 2"), aggregate)
+	ag.Aggregate(newMessage("line 3"), aggregate)
+	ag.Flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, "line 1", string(msg1.GetContent()))
+	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:3")
+
+	msg2 := <-outputChan
+	assert.Equal(t, "line 2", string(msg2.GetContent()))
+	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:3")
+
+	msg3 := <-outputChan
+	assert.Equal(t, "line 3", string(msg3.GetContent()))
+	assert.Contains(t, msg3.ProcessingTags, "auto_multiline_group_size:3")
+}
+
+func TestDetectionOnly_MultipleGroups(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// First group: 2 lines
+	ag.Aggregate(newMessage("group1 line1"), startGroup)
+	ag.Aggregate(newMessage("group1 line2"), aggregate)
+
+	// Second group: 3 lines
+	ag.Aggregate(newMessage("group2 line1"), startGroup)
+	ag.Aggregate(newMessage("group2 line2"), aggregate)
+	ag.Aggregate(newMessage("group2 line3"), aggregate)
+
+	// Single line
+	ag.Aggregate(newMessage("single line"), startGroup)
+	ag.Flush()
+
+	// First group messages
+	msg := <-outputChan
+	assert.Equal(t, "group1 line1", string(msg.GetContent()))
+	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:2")
+
+	msg = <-outputChan
+	assert.Equal(t, "group1 line2", string(msg.GetContent()))
+	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:2")
+
+	// Second group messages
+	msg = <-outputChan
+	assert.Equal(t, "group2 line1", string(msg.GetContent()))
+	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+
+	msg = <-outputChan
+	assert.Equal(t, "group2 line2", string(msg.GetContent()))
+	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+
+	msg = <-outputChan
+	assert.Equal(t, "group2 line3", string(msg.GetContent()))
+	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+
+	// Single line message
+	msg = <-outputChan
+	assert.Equal(t, "single line", string(msg.GetContent()))
+	assert.Empty(t, msg.ProcessingTags)
+}
+
+func TestDetectionOnly_NoAggregateNotTagged(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// NoAggregate messages should never be tagged
+	ag.Aggregate(newMessage("line 1"), noAggregate)
+	ag.Aggregate(newMessage("line 2"), noAggregate)
+
+	msg1 := <-outputChan
+	assert.Equal(t, "line 1", string(msg1.GetContent()))
+	assert.Empty(t, msg1.ProcessingTags)
+
+	msg2 := <-outputChan
+	assert.Equal(t, "line 2", string(msg2.GetContent()))
+	assert.Empty(t, msg2.ProcessingTags)
+}
+
+func TestDetectionOnly_AggregateWithoutStartGroup(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// Aggregate labels without a startGroup should be flushed immediately and not tagged
+	ag.Aggregate(newMessage("line 1"), aggregate)
+	ag.Aggregate(newMessage("line 2"), aggregate)
+
+	msg1 := <-outputChan
+	assert.Equal(t, "line 1", string(msg1.GetContent()))
+	assert.Empty(t, msg1.ProcessingTags)
+
+	msg2 := <-outputChan
+	assert.Equal(t, "line 2", string(msg2.GetContent()))
+	assert.Empty(t, msg2.ProcessingTags)
+}
+
+func TestDetectionOnly_ContentNotCombined(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry(), true)
+
+	// In detection-only mode, content should NOT be combined
+	ag.Aggregate(newMessage("line 1"), startGroup)
+	ag.Aggregate(newMessage("line 2"), aggregate)
+	ag.Aggregate(newMessage("line 3"), aggregate)
+	ag.Flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, "line 1", string(msg1.GetContent()))
+	assert.NotContains(t, string(msg1.GetContent()), "\\n", "Content should not be combined")
+
+	msg2 := <-outputChan
+	assert.Equal(t, "line 2", string(msg2.GetContent()))
+	assert.NotContains(t, string(msg2.GetContent()), "\\n", "Content should not be combined")
+
+	msg3 := <-outputChan
+	assert.Equal(t, "line 3", string(msg3.GetContent()))
+	assert.NotContains(t, string(msg3.GetContent()), "\\n", "Content should not be combined")
 }

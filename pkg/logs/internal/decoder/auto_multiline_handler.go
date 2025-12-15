@@ -28,7 +28,7 @@ type AutoMultilineHandler struct {
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
 // If detectionOnly is true, logs are tagged with their label but not aggregated.
-func NewAutoMultilineHandler(outputFn func(m []*message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, detectionOnly bool) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, isDetectionOnly bool) *AutoMultilineHandler {
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
@@ -87,7 +87,8 @@ func NewAutoMultilineHandler(outputFn func(m []*message.Message), maxContentSize
 			maxContentSize,
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-			tailerInfo),
+			tailerInfo,
+			isDetectionOnly),
 		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
 		flushTimeout:          flushTimeout,
 		enableJSONAggregation: enableJSONAggregation,

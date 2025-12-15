@@ -24,7 +24,7 @@ const linesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lin
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	outputFn          func([]*message.Message)
+	outputFn          func(*message.Message)
 	newContentRe      *regexp.Regexp
 	buffer            *bytes.Buffer
 	flushTimeout      time.Duration
@@ -42,7 +42,7 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func([]*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *MultiLineHandler {
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *MultiLineHandler {
 
 	i := status.NewMappedInfo("Multi-Line Pattern")
 	i.SetMessage("Pattern", newContentRe.String())
@@ -183,6 +183,6 @@ func (h *MultiLineHandler) sendBuffer() {
 			}
 		}
 		metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-		h.outputFn([]*message.Message{msg})
+		h.outputFn(msg)
 	}
 }

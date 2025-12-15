@@ -173,11 +173,11 @@ func (b *tagOnlyBucket) flush() []*message.Message {
 	return b.messages
 }
 
-func (b *tagOnlyBucket) setShouldTruncate(val bool) {
+func (b *tagOnlyBucket) setShouldTruncate(_ bool) {
 	// No-op: tagOnlyBucket doesn't track truncation
 }
 
-func (b *tagOnlyBucket) setNeedsTruncation(val bool) {
+func (b *tagOnlyBucket) setNeedsTruncation(_ bool) {
 	// No-op
 }
 
@@ -189,9 +189,9 @@ func (b *tagOnlyBucket) incrementLineCount() {
 	b.lineCount++
 }
 
-// DefaultAggregator aggregates multiline logs with a given label.
-type DefaultAggregator struct {
-	outputFn           func(m []*message.Message)
+// Aggregator aggregates multiline logs with a given label.
+type Aggregator struct {
+	outputFn           func(m *message.Message)
 	bucket             bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
@@ -199,7 +199,7 @@ type DefaultAggregator struct {
 }
 
 // NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m []*message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry, isDetectionOnly bool) *DefaultAggregator {
+func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry, isDetectionOnly bool) *Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
@@ -222,7 +222,7 @@ func NewAggregator(outputFn func(m []*message.Message), maxContentSize int, tagT
 		}
 	}
 
-	return &DefaultAggregator{
+	return &Aggregator{
 		outputFn:           outputFn,
 		bucket:             bkt,
 		maxContentSize:     maxContentSize,
@@ -232,7 +232,7 @@ func NewAggregator(outputFn func(m []*message.Message), maxContentSize int, tagT
 }
 
 // Aggregate aggregates a multiline log using a label.
-func (a *DefaultAggregator) Aggregate(msg *message.Message, label Label) {
+func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
@@ -284,15 +284,18 @@ func (a *DefaultAggregator) Aggregate(msg *message.Message, label Label) {
 }
 
 // Flush flushes the aggregator.
-func (a *DefaultAggregator) Flush() {
+func (a *Aggregator) Flush() {
 	if a.bucket.isEmpty() {
 		a.bucket.reset()
 		return
 	}
-	a.outputFn(a.bucket.flush())
+	messages := a.bucket.flush()
+	for _, msg := range messages {
+		a.outputFn(msg)
+	}
 }
 
 // IsEmpty returns true if the bucket is empty.
-func (a *DefaultAggregator) IsEmpty() bool {
+func (a *Aggregator) IsEmpty() bool {
 	return a.bucket.isEmpty()
 }
