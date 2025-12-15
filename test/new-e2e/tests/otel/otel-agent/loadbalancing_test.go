@@ -10,7 +10,6 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -28,7 +27,7 @@ var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
 	// TODO(OTAGENT-665): fix flaky test, failed in CIs since k8s 0.34.1
-	flake.Mark(t)
+	//flake.Mark(t)
 	values := `
 datadog:
   otelCollector:
