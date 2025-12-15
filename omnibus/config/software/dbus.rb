@@ -43,5 +43,4 @@ build do
   delete "#{install_dir}/embedded/bin/dbus-*"
   delete "#{install_dir}/embedded/share/doc/dbus"
   delete "#{install_dir}/embedded/share/xml/dbus-*"
-  delete "#{install_dir}/embedded/share/xml/dbus-*"
 end
