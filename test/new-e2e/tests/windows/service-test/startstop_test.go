@@ -679,6 +679,17 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 	}
 	for _, entry := range entries {
 		s.T().Logf("Found log file: %s", entry.Name())
+		// check to see if the file is a directory
+		// if it is, download the contents of the directory
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = host.GetFolder(
+				filepath.Join(logsFolder, entry.Name()),
+				filepath.Join(s.SessionOutputDir(), entry.Name()),
+			)
+			s.Assert().NoError(err, "should download %s", entry.Name())
+			continue
+		}
 		err = host.GetFile(
 			filepath.Join(logsFolder, entry.Name()),
 			filepath.Join(s.SessionOutputDir(), entry.Name()),
