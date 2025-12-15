@@ -11,16 +11,20 @@ from tasks.libs.owners.parsing import read_owners
 
 class TestFindTarball(unittest.TestCase):
     def test_tarball_in_folder(self):
-        tarball_in_folder = "./tasks/unit_tests/testdata/secret.tar.gz"
-        # Normalize path separators for cross-platform compatibility
+        # Use normalized paths to ensure cross-platform compatibility
+        tarball_in_folder = os.path.normpath("./tasks/unit_tests/testdata/secret.tar.gz")
         expected = os.path.join(tarball_in_folder, "secret.tar.gz")
-        self.assertEqual(junit.find_tarball(tarball_in_folder), expected)
+        result = junit.find_tarball(tarball_in_folder)
+        # Normalize both for comparison to handle path separator differences
+        self.assertEqual(os.path.normpath(result), os.path.normpath(expected))
 
     def test_tarball_in_folder_not_found(self):
-        tarball_in_folder = "./tasks/unit_tests/testdata/go_mod_formatter"
-        # Normalize path separators for cross-platform compatibility
+        # Use normalized paths to ensure cross-platform compatibility
+        tarball_in_folder = os.path.normpath("./tasks/unit_tests/testdata/go_mod_formatter")
         expected = os.path.join(tarball_in_folder, "junit.tar.gz")
-        self.assertEqual(junit.find_tarball(tarball_in_folder), expected)
+        result = junit.find_tarball(tarball_in_folder)
+        # Normalize both for comparison to handle path separator differences
+        self.assertEqual(os.path.normpath(result), os.path.normpath(expected))
 
 
 class TestReadAdditionalTags(unittest.TestCase):
@@ -70,11 +74,17 @@ class TestGroupPerTag(unittest.TestCase):
         grouped = junit.group_per_tags(test_dir, [])
         self.assertIn("default", grouped)
         # Normalize path separators for cross-platform compatibility
-        expected_default = [os.path.join(str(test_dir), "onepiece"), os.path.join(str(test_dir), "dragonball")]
-        self.assertCountEqual(expected_default, grouped["default"])
+        expected_default = [
+            os.path.normpath(os.path.join(str(test_dir), "onepiece")),
+            os.path.normpath(os.path.join(str(test_dir), "dragonball")),
+        ]
+        # Normalize grouped paths for comparison
+        normalized_grouped_default = [os.path.normpath(p) for p in grouped["default"]]
+        self.assertCountEqual(expected_default, normalized_grouped_default)
         self.assertIn("e2e", grouped)
-        expected_e2e = [os.path.join(str(test_dir), "naruto")]
-        self.assertEqual(expected_e2e, grouped["e2e"])
+        expected_e2e = [os.path.normpath(os.path.join(str(test_dir), "naruto"))]
+        normalized_grouped_e2e = [os.path.normpath(p) for p in grouped["e2e"]]
+        self.assertEqual(expected_e2e, normalized_grouped_e2e)
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
 

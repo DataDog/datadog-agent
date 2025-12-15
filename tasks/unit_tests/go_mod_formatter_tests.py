@@ -9,12 +9,15 @@ def run_mod_formatter(path, formatFile=False, allow_fail=False, repo_path=None):
     # Use os.path.isabs for cross-platform absolute path check (Windows: C:\, Unix: /)
     if not os.path.isabs(path):
         path = os.path.abspath(path)
-    extraArgs = ""
+
+    # Build the command with properly quoted paths for cross-platform compatibility
+    modformatter_path = os.path.join(".", "internal", "tools", "modformatter", "modformatter.go")
+    cmd = ["go", "run", modformatter_path, "--path", path, "--repoPath", repo_path]
     if formatFile:
-        extraArgs = "--formatFile true"
+        cmd.extend(["--formatFile", "true"])
+
     proc = subprocess.run(
-        f"go run ./internal/tools/modformatter/modformatter.go --path {path} --repoPath {repo_path} {extraArgs}",
-        shell=True,
+        cmd,
         capture_output=True,
     )
     if not allow_fail:
