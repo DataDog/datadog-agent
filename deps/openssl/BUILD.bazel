@@ -1,0 +1,7 @@
+package(default_visibility = ["//visibility:public"])
+
+sh_binary(
+    name = "fix_openssl_paths",
+    srcs = ["fix_openssl_paths.sh"],
+)
+
