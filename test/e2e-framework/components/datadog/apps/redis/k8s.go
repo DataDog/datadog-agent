@@ -364,3 +364,145 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	return k8sComponent, nil
 }
+
+// K8sAppDefinitionWithPassword defines a Kubernetes application, with a deployment, a service, a pod disruption budget and an HPA.
+func K8sAppDefinitionWithPassword(e config.Env, kubeProvider *kubernetes.Provider, namespace string, deploymentName string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
+
+	k8sComponent := &componentskube.Workload{}
+	if err := e.Ctx().RegisterComponentResource("dd:apps", deploymentName, k8sComponent, opts...); err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, pulumi.Parent(k8sComponent))
+
+	ns, err := corev1.NewNamespace(e.Ctx(), namespace, &corev1.NamespaceArgs{
+		Metadata: metav1.ObjectMetaArgs{
+			Name: pulumi.String(namespace),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	secret, err := corev1.NewSecret(e.Ctx(), "redis-secret", &corev1.SecretArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("redis-secret"),
+			Namespace: pulumi.String(namespace),
+		},
+		Type: pulumi.String("Opaque"),
+		StringData: pulumi.StringMap{
+			"password": pulumi.String("s3cr3t"),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentMetadata := &metav1.ObjectMetaArgs{
+		Name:      pulumi.String(deploymentName),
+		Namespace: pulumi.String(namespace),
+		Labels: pulumi.StringMap{
+			"app": pulumi.String(deploymentName),
+		},
+	}
+
+	templateMetadata := &metav1.ObjectMetaArgs{
+		Labels: pulumi.StringMap{
+			"app": pulumi.String(deploymentName),
+		},
+		Annotations: pulumi.StringMap{
+			"ad.datadoghq.com/redis.checks": pulumi.Sprintf(`{
+			"redisdb": {
+				"init_config": {},
+				"instances": [
+					{
+						"host": "%%%%host%%%%",
+						"port": 6379,
+						"password": "ENC[k8s_secret@%s/redis-secret/password]"
+					}
+				]
+			}
+		}`, namespace),
+		},
+	}
+
+	podSpec := &corev1.PodSpecArgs{
+		Containers: corev1.ContainerArray{
+			&corev1.ContainerArgs{
+				Name:  pulumi.String("redis"),
+				Image: pulumi.String("ghcr.io/datadog/redis:" + apps.Version),
+				Args: pulumi.StringArray{
+					pulumi.String("--loglevel"),
+					pulumi.String("verbose"),
+				},
+				Resources: &corev1.ResourceRequirementsArgs{
+					Limits: pulumi.StringMap{
+						"cpu":    pulumi.String("100m"),
+						"memory": pulumi.String("32Mi"),
+					},
+					Requests: pulumi.StringMap{
+						"cpu":    pulumi.String("10m"),
+						"memory": pulumi.String("32Mi"),
+					},
+				},
+				Ports: &corev1.ContainerPortArray{
+					&corev1.ContainerPortArgs{
+						Name:          pulumi.String("redis"),
+						ContainerPort: pulumi.Int(6379),
+						Protocol:      pulumi.String("TCP"),
+					},
+				},
+				LivenessProbe: &corev1.ProbeArgs{
+					TcpSocket: &corev1.TCPSocketActionArgs{
+						Port: pulumi.Int(6379),
+					},
+				},
+				ReadinessProbe: &corev1.ProbeArgs{
+					TcpSocket: &corev1.TCPSocketActionArgs{
+						Port: pulumi.Int(6379),
+					},
+				},
+				Env: corev1.EnvVarArray{
+					&corev1.EnvVarArgs{
+						Name: pulumi.String("REDIS_PASS"),
+						ValueFrom: &corev1.EnvVarSourceArgs{
+							SecretKeyRef: &corev1.SecretKeySelectorArgs{
+								Name: secret.Metadata.Name(),
+								Key:  pulumi.String("password"),
+							},
+						},
+					},
+				},
+				Command: pulumi.StringArray{
+					pulumi.String("sh"),
+					pulumi.String("-c"),
+					pulumi.String(`redis-server --requirepass "$REDIS_PASS"`),
+				},
+			},
+		},
+	}
+
+	_, err = appsv1.NewDeployment(e.Ctx(), deploymentName, &appsv1.DeploymentArgs{
+		Metadata: deploymentMetadata,
+		Spec: &appsv1.DeploymentSpecArgs{
+			Replicas: pulumi.Int(1),
+			Selector: &metav1.LabelSelectorArgs{
+				MatchLabels: pulumi.StringMap{
+					"app": pulumi.String(deploymentName),
+				},
+			},
+			Template: &corev1.PodTemplateSpecArgs{
+				Metadata: templateMetadata,
+				Spec:     podSpec,
+			},
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return k8sComponent, nil
+}
