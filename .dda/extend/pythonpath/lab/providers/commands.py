@@ -75,6 +75,8 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         from lab.config import load_config
 
         provider = provider_cls()
+        if not name:
+            name = f"{provider.category}-{provider.name}"
 
         # Load lab config once and inject into provider config
         lab_config = load_config()
@@ -108,7 +110,7 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         ).save()
 
     # Apply options dynamically
-    create_cmd = click.option("--name", "-n", required=True, help="Environment name")(create_cmd)
+    create_cmd = click.option("--name", "-n", default=None, help="Environment name")(create_cmd)
 
     for opt in reversed(provider_cls.create_options):
         kwargs: dict[str, Any] = {"help": opt.help}
