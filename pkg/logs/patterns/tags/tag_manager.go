@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tags provides a thread-safe dictionary manager for encoding tag strings into dictionary indices
+// for efficient storage and transmission in log pattern clustering.
 package tags
 
 import (
@@ -92,15 +94,20 @@ func (tm *TagManager) EncodeTagStrings(tagStrings []string) (tag []*statefulpb.T
 				newEntries[keyID] = key
 			}
 
-			valueID, valueNew := tm.AddString(value)
-			if valueNew {
-				newEntries[valueID] = value
+			tag := &statefulpb.Tag{
+				Key: dictIndexValue(keyID),
 			}
 
-			encoded = append(encoded, &statefulpb.Tag{
-				Key:   dictIndexValue(keyID),
-				Value: dictIndexValue(valueID),
-			})
+			// Only add value to dictionary if it's not empty
+			if value != "" {
+				valueID, valueNew := tm.AddString(value)
+				if valueNew {
+					newEntries[valueID] = value
+				}
+				tag.Value = dictIndexValue(valueID)
+			}
+
+			encoded = append(encoded, tag)
 		}
 	}
 
