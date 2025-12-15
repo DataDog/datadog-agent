@@ -113,10 +113,15 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = false
 	// Add a tag for the stream when deducible from the header byte
+<<<<<<< HEAD
 	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
 		if stream != "" {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
 		}
+=======
+	if stream != "" {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+>>>>>>> 6553d72bef (Tag stderr logs with LogSource)
 	}
 	return msg, nil
 }
