@@ -326,6 +326,17 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		Attached:     1,
 	})
 
+	// Ensure that the diagnostics states are as expected.
+	require.Equal(t,
+		[]map[string][]string{
+			{
+				"look_at_the_request": {"received", "installed", "emitted"},
+				"http_handler":        {"received", "installed", "emitted"},
+			},
+		},
+		slices.Collect(maps.Values(ts.module.DiagnosticsStates())),
+	)
+
 	// Clear the remote config.
 	ts.rc.UpdateRemoteConfig(nil)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -346,17 +357,9 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		})
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 
-	// Ensure that the diagnostics states are as expected, and get cleared
-	// when the process exits.
-	require.Equal(t,
-		[]map[string][]string{
-			{
-				"look_at_the_request": {"received", "installed", "emitted"},
-				"http_handler":        {"received", "installed", "emitted"},
-			},
-		},
-		slices.Collect(maps.Values(ts.module.DiagnosticsStates())),
-	)
+	// Ensure that the diagnostics states have been cleared.
+	require.Empty(t, ts.module.DiagnosticsStates())
+
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

@@ -6,12 +6,14 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -115,19 +117,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
-	if err == nil {
-		return celConfig, nil
-	}
-
-	// Fallback: try to get raw value and unmarshal manually
-	rawValue := cfg.GetString("cel_workload_exclude")
-	if rawValue == "" {
-		return nil, nil
-	}
-
-	// handles both yaml and json input
-	err = yaml.Unmarshal([]byte(rawValue), &celConfig)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig, structure.EnableStringUnmarshal)
 	if err == nil {
 		return celConfig, nil
 	}
@@ -136,11 +126,53 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 }
 
 // String returns a string representation of the FilterConfig
-func (fc *FilterConfig) String() (string, error) {
+// If useColor is true, the output will include ANSI color codes.
+func (fc *FilterConfig) String(useColor bool) string {
+	var buffer bytes.Buffer
 	filterConfigJSON, err := json.Marshal(fc)
 	if err != nil {
 		log.Warnf("failed to marshal filter configuration: %v", err)
-		return fmt.Sprintf("%+v", fc), err
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Invalid configuration format"))
+			fmt.Fprintf(&buffer, "         %s %+v\n", color.HiRedString("raw config:"), fc)
+		} else {
+			fmt.Fprintf(&buffer, "      -> Invalid configuration format\n")
+			fmt.Fprintf(&buffer, "         raw config: %+v\n", fc)
+		}
+		return buffer.String()
 	}
-	return string(filterConfigJSON), nil
+
+	var filterConfig map[string]any
+	if err := json.Unmarshal(filterConfigJSON, &filterConfig); err != nil {
+		log.Warnf("failed to unmarshal filter configuration: %v", err)
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Invalid configuration format"))
+			fmt.Fprintf(&buffer, "         %s %s\n", color.HiRedString("raw config:"), string(filterConfigJSON))
+		} else {
+			fmt.Fprintf(&buffer, "      -> Invalid configuration format\n")
+			fmt.Fprintf(&buffer, "         raw config: %s\n", string(filterConfigJSON))
+		}
+		return buffer.String()
+	}
+
+	sortedKeys := make([]string, 0, len(filterConfig))
+	for key := range filterConfig {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, key := range sortedKeys {
+		value := filterConfig[key]
+		display := fmt.Sprintf("%v", value)
+		if display == "" || display == "[]" || display == "map[]" || display == "<nil>" {
+			if useColor {
+				display = color.HiYellowString("not configured")
+			} else {
+				display = "not configured"
+			}
+		}
+		fmt.Fprintf(&buffer, "      %-28s %s\n", key+":", display)
+	}
+
+	return buffer.String()
 }
