@@ -26,22 +26,23 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
-	pc.hasValidLineage = nil
+	pc.validLineageResult = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
 }
 
-func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
 	)
 
 	for pc != nil {
-		if pc.hasValidLineage != nil {
-			return *pc.hasValidLineage, pc.lineageError
+		if pc.validLineageResult != nil {
+			return pc.validLineageResult.valid, pc.validLineageResult.err
 		}
+		pc.validLineageResult = result
 
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
@@ -63,8 +64,18 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
 func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	res, err := hasValidLineage(pc)
-	pc.hasValidLineage, pc.lineageError = &res, err
+	vlres := &validLineageResult{
+		valid: false,
+		// if this error is returned, it means that we saw this cache entry in
+		// an ancestor of the current pce, hence a cycle
+		err: ErrCycleInProcessLineage,
+	}
+
+	res, err := hasValidLineage(pc, vlres)
+
+	vlres.valid = res
+	vlres.err = err
+
 	return res, err
 }
 
