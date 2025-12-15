@@ -458,7 +458,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, stringArrayScopedVar)
 	assert.True(t, ok)
-	value, _ = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
@@ -468,7 +468,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, intArrayScopedVar)
 	assert.True(t, ok)
-	value, _ = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
@@ -478,7 +478,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, intVarScopedVar)
 	assert.True(t, ok)
-	value, isSet := intVarScopedVar.GetValue(ctx)
+	value, isSet := intVarScopedVar.GetValue(ctx, false)
 	assert.True(t, isSet)
 	assert.NotNil(t, value)
 	assert.Equal(t, 456, value)
@@ -494,15 +494,15 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 
-	value, _ = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotContains(t, value, "foo")
 	assert.Len(t, value, 0)
 
-	value, _ = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 
-	value, isSet = intVarScopedVar.GetValue(ctx)
+	value, isSet = intVarScopedVar.GetValue(ctx, false)
 	assert.False(t, isSet)
 	assert.Equal(t, 0, value)
 }
@@ -608,10 +608,10 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	ctx := eval.NewContext(event)
 
-	_, set = stringArrayScopedVar.GetValue(ctx)
+	_, set = stringArrayScopedVar.GetValue(ctx, false)
 	assert.False(t, set)
 
-	_, set = intArrayScopedVar.GetValue(ctx)
+	_, set = intArrayScopedVar.GetValue(ctx, false)
 	assert.False(t, set)
 
 	if !rs.Evaluate(event) {
@@ -633,14 +633,14 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Len(t, value, 1)
 	assert.True(t, set)
 
-	value, set = stringArrayScopedVar.GetValue(ctx)
+	value, set = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
 	assert.Len(t, value, 1)
 	assert.True(t, set)
 
-	value, set = intArrayScopedVar.GetValue(ctx)
+	value, set = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
@@ -701,7 +701,7 @@ func TestActionSetEmptyScope(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set := stringArrayScopedVar.GetValue(ctx)
+	value, set := stringArrayScopedVar.GetValue(ctx, false)
 	assert.Nil(t, value)
 	assert.False(t, set)
 }
@@ -907,7 +907,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 	assert.NotNil(t, stringScopedVar)
 	assert.True(t, ok)
 
-	value, set := stringScopedVar.GetValue(ctx)
+	value, set := stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	// TODO(lebauce): should be 123. default_value are not properly handled
 	assert.Equal(t, 0, value)
@@ -917,7 +917,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set = stringScopedVar.GetValue(ctx)
+	value, set = stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Equal(t, 456, value)
 	assert.True(t, set)
@@ -942,7 +942,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set = stringScopedVar.GetValue(ctx)
+	value, set = stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Equal(t, 1000, value)
 	assert.True(t, set)
@@ -1082,7 +1082,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	ctx := eval.NewContext(event)
 
 	// test correlation key initial value
-	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "", correlationKeyValue)
 	assert.False(t, set)
@@ -1091,12 +1091,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "first_"))
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
@@ -1105,7 +1105,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
 	ctx = eval.NewContext(event2)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
@@ -1114,12 +1114,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 
 	// jump to the third rule, check:
@@ -1128,7 +1128,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
 	ctx = eval.NewContext(event3)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
@@ -1137,12 +1137,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "third_"))
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 
 	correlationKeyFromThirdRule := correlationKeyValue.(string)
@@ -1151,7 +1151,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
 	ctx = eval.NewContext(event4)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
 	assert.True(t, set)
@@ -1160,12 +1160,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
@@ -1352,13 +1352,13 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_first", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "first", correlationKeyValue.(string))
 	assert.True(t, set)
@@ -1368,23 +1368,23 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
-	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
 	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.Equal(t, []string{"first"}, parentCorrelationKeysValue.([]string))
 
 	if !rs.Evaluate(event3) {
@@ -1392,23 +1392,23 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
 	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "third", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
 }
 
