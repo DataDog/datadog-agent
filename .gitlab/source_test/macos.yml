@@ -38,6 +38,10 @@ include:
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
   tags: ["macos:sonoma-amd64", "specific:true"]
 
 tests_macos_gitlab_arm64:
