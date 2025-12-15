@@ -1,5 +1,6 @@
 import functools
 import os
+import platform
 import re
 import unittest
 from pprint import pformat
@@ -52,14 +53,14 @@ class TestOmnibusCache(unittest.TestCase):
     def _for_each_platform(test_func):
         @functools.wraps(test_func)
         def wrapper(self, *args, **kwargs):
-            for platform, get_dd_api_key_env in {
+            for platf, get_dd_api_key_env in {
                 "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
                 "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
                 "win32": {"API_KEY_ORG2": "api-key"},
             }.items():
                 with (
-                    self.subTest(platform=platform),
-                    mock.patch("sys.platform", platform),
+                    self.subTest(platform=platf),
+                    mock.patch("sys.platform", platf),
                     mock.patch.dict(os.environ, get_dd_api_key_env),
                 ):
                     self.setUp()  # because `unittest` doesn't offer a subtest setup hook yet
@@ -283,6 +284,7 @@ class TestRpathEdit(unittest.TestCase):
         compatibility version 1.0.0
         """
 
+    @unittest.skipIf(platform.system() == 'Windows', "Linux-specific test using objdump/patchelf")
     def test_rpath_edit_linux(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -301,6 +303,7 @@ class TestRpathEdit(unittest.TestCase):
         assert mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True) in call_list
         assert mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
 
+    @unittest.skipIf(platform.system() == 'Windows', "macOS-specific test using otool/install_name_tool")
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
             'run',

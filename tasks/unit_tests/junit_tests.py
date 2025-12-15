@@ -1,3 +1,4 @@
+import os
 import shutil
 import unittest
 from pathlib import Path
@@ -11,11 +12,15 @@ from tasks.libs.owners.parsing import read_owners
 class TestFindTarball(unittest.TestCase):
     def test_tarball_in_folder(self):
         tarball_in_folder = "./tasks/unit_tests/testdata/secret.tar.gz"
-        self.assertEqual(junit.find_tarball(tarball_in_folder), f"{tarball_in_folder}/secret.tar.gz")
+        # Normalize path separators for cross-platform compatibility
+        expected = os.path.join(tarball_in_folder, "secret.tar.gz")
+        self.assertEqual(junit.find_tarball(tarball_in_folder), expected)
 
     def test_tarball_in_folder_not_found(self):
         tarball_in_folder = "./tasks/unit_tests/testdata/go_mod_formatter"
-        self.assertEqual(junit.find_tarball(tarball_in_folder), f"{tarball_in_folder}/junit.tar.gz")
+        # Normalize path separators for cross-platform compatibility
+        expected = os.path.join(tarball_in_folder, "junit.tar.gz")
+        self.assertEqual(junit.find_tarball(tarball_in_folder), expected)
 
 
 class TestReadAdditionalTags(unittest.TestCase):
@@ -64,9 +69,12 @@ class TestGroupPerTag(unittest.TestCase):
         test_dir = Path("./tasks/unit_tests/testdata/to_group")
         grouped = junit.group_per_tags(test_dir, [])
         self.assertIn("default", grouped)
-        self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["default"])
+        # Normalize path separators for cross-platform compatibility
+        expected_default = [os.path.join(str(test_dir), "onepiece"), os.path.join(str(test_dir), "dragonball")]
+        self.assertCountEqual(expected_default, grouped["default"])
         self.assertIn("e2e", grouped)
-        self.assertEqual([f"{str(test_dir)}/naruto"], grouped["e2e"])
+        expected_e2e = [os.path.join(str(test_dir), "naruto")]
+        self.assertEqual(expected_e2e, grouped["e2e"])
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
 

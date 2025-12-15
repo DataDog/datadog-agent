@@ -1,3 +1,4 @@
+import os
 import re
 import unittest
 from unittest.mock import MagicMock, call
@@ -30,7 +31,9 @@ class TestGit(unittest.TestCase):
 
         files = list(get_staged_files(self.ctx_mock, include_deleted_files=True))
 
-        self.assertEqual(files, ["/root/file1", "/root/file2", "/root/file3"])
+        # Normalize paths for cross-platform compatibility (Windows uses backslashes)
+        expected_files = [os.path.join("/root", f) for f in ["file1", "file2", "file3"]]
+        self.assertEqual(files, expected_files)
         self.ctx_mock.run.assert_has_calls(
             [call("git diff --name-only --staged HEAD", hide=True), call("git rev-parse --show-toplevel", hide=True)],
             any_order=False,
@@ -46,7 +49,9 @@ class TestGit(unittest.TestCase):
 
         files = list(get_staged_files(self.ctx_mock))
 
-        self.assertEqual(files, ["/root/file1", "/root/file3"])
+        # Normalize paths for cross-platform compatibility (Windows uses backslashes)
+        expected_files = [os.path.join("/root", f) for f in ["file1", "file3"]]
+        self.assertEqual(files, expected_files)
         self.ctx_mock.run.assert_has_calls(
             [call("git diff --name-only --staged HEAD", hide=True), call("git rev-parse --show-toplevel", hide=True)],
             any_order=False,
