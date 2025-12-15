@@ -161,7 +161,7 @@ func TestStripTags(t *testing.T) {
 			matcherTags:  map[string][]string{"metric1": {"env", "invalid"}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
-			expectedTags: []string{"host:server1"},
+			expectedTags: []string{":invalid", "host:server1"},
 		},
 		{
 			name:         "partial tag name match should not strip",
@@ -196,15 +196,42 @@ func TestStripTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			matcher := NewMatcher([]string{}, false, tt.matcherTags)
-			resultTags, stripped := matcher.StripTags(tt.lookupName, tt.inputTags)
 
-			assert.Equal(t, tt.expectedTags, resultTags)
-			assert.Equal(t, !slices.Equal(resultTags, tt.inputTags), stripped)
+			tagMatcher, ok := matcher.ShouldStripTags(tt.lookupName)
+			_, tagConfigured := tt.matcherTags[tt.lookupName]
+			assert.Equal(t, tagConfigured, ok)
+
+			if ok {
+				resultTags, stripped := tagMatcher.StripTags(tt.inputTags)
+				assert.Equal(t, tt.expectedTags, resultTags)
+
+				assert.Equal(t, !slices.Equal(resultTags, tt.inputTags), stripped)
+			}
 		})
 	}
 }
 
-func TestStripTagsModifiesInPlace(t *testing.T) {
+func TestStripTagsDoesNotMutate(t *testing.T) {
+	// Test that StripTags modifies the slice in place and returns a re-sliced version
+	matcherTags := map[string][]string{"metric1": {"env"}}
+	matcher := NewMatcher([]string{}, false, matcherTags)
+
+	inputTags := []string{"env:prod", "host:server1", "version:1.0"}
+
+	tagMatcher, ok := matcher.ShouldStripTags("metric1")
+
+	assert.True(t, ok, "metric should need tag stripping")
+
+	resultTags, stripped := tagMatcher.StripTags(inputTags)
+
+	assert.True(t, stripped, "tags should be stripped")
+	assert.Equal(t, []string{"host:server1", "version:1.0"}, resultTags)
+
+	// The original tags should be unchanged
+	assert.Equal(t, []string{"env:prod", "host:server1", "version:1.0"}, inputTags)
+}
+
+func TestStripTagsMutModifiesInPlace(t *testing.T) {
 	// Test that StripTags modifies the slice in place and returns a re-sliced version
 	matcherTags := map[string][]string{"metric1": {"env"}}
 	matcher := NewMatcher([]string{}, false, matcherTags)
@@ -212,10 +239,14 @@ func TestStripTagsModifiesInPlace(t *testing.T) {
 	inputTags := []string{"env:prod", "host:server1", "version:1.0"}
 	originalCap := cap(inputTags)
 
-	resultTags, stripped := matcher.StripTags("metric1", inputTags)
+	tagMatcher, ok := matcher.ShouldStripTags("metric1")
+
+	assert.True(t, ok, "metric should need tag stripping")
+
+	resultTags, stripped := tagMatcher.StripTagsMut(inputTags)
 
 	assert.True(t, stripped, "tags should be stripped")
 	assert.Equal(t, []string{"host:server1", "version:1.0"}, resultTags)
-	// The result should be a slice of the same underlying array
+
 	assert.Equal(t, originalCap, cap(resultTags), "capacity should be preserved")
 }

@@ -92,40 +92,87 @@ func (m *Matcher) Test(name string) bool {
 
 // ShouldStripTags returns true if it has been configured to strip tags
 // from the given metric name.
-func (m *Matcher) ShouldStripTags(name string) bool {
-	_, ok := m.tags[name]
-	return ok
+func (m *Matcher) ShouldStripTags(name string) (TagMatcher, bool) {
+	tags, ok := m.tags[name]
+	return tags, ok
+}
+
+type TagMatcher []string
+
+// StripTagsMut removes the configured tag from the given tags.
+// Returns the stripped tags and a boolean that is true if any tags
+// were actually removed.
+// NOTE, this mutates the passed in tag list and does not allocate a new
+// array. If the tags are coming from a cached store of tags, use
+// StripTags instead
+func (tm TagMatcher) StripTagsMut(tags []string) ([]string, bool) {
+	stripped := false
+	idx := 0
+	for _, tag := range tags {
+		tagNamePos := strings.Index(tag, ":")
+		if tagNamePos == 0 {
+			// Invalid tag
+			continue
+		}
+		if tagNamePos < 0 {
+			tagNamePos = len(tag)
+		}
+
+		tagName := tag[:tagNamePos]
+		if !slices.Contains(tm, tagName) {
+			tags[idx] = tag
+			idx++
+		} else {
+			stripped = true
+		}
+	}
+	tags = tags[0:idx]
+
+	return tags, stripped
+}
+
+// tagName extracts the tag name portion from the tag.
+func tagName(tag string) string {
+	tagNamePos := strings.Index(tag, ":")
+	if tagNamePos == 0 {
+		// Invalid tag
+		return ""
+	}
+	if tagNamePos < 0 {
+		tagNamePos = len(tag)
+	}
+
+	return tag[:tagNamePos]
 }
 
 // StripTags removes the configured tag from the given tags.
 // Returns the stripped tags and a boolean that is true if any tags
 // were actually removed.
-func (m *Matcher) StripTags(name string, tags []string) ([]string, bool) {
-	tagset, ok := m.tags[name]
-	if ok {
-		stripped := false
-		idx := 0
-		for _, tag := range tags {
-			tagNamePos := strings.Index(tag, ":")
-			if tagNamePos == 0 {
-				// Invalid tag
-				continue
-			}
-			if tagNamePos < 0 {
-				tagNamePos = len(tag)
-			}
+// This does not mutate the underlying list and will create a copy of
+// the tag list if a tag needs stripping.
+func (tm TagMatcher) StripTags(tags []string) ([]string, bool) {
+	stripped := false
+	idx := 0
+	for _, tag := range tags {
+		if !slices.Contains(tm, tagName(tag)) {
+			idx++
+		} else {
+			stripped = true
+			break
+		}
+	}
 
-			tagName := tag[:tagNamePos]
-			if !slices.Contains(tagset, tagName) {
-				tags[idx] = tag
-				idx++
-			} else {
-				stripped = true
+	if stripped {
+		// A tag needs to be stripped, create a new list
+		result := append([]string{}, tags[0:idx]...)
+		for _, tag := range tags[idx:] {
+			if !slices.Contains(tm, tagName(tag)) {
+				result = append(result, tag)
 			}
 		}
-		tags = tags[0:idx]
 
-		return tags, stripped
+		return result, true
 	}
+
 	return tags, false
 }

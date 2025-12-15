@@ -10,22 +10,23 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
+// tagStripAccumulator uses the tagFilterlist to strip any unwanted tags appended
+// whilst accumulating.
 type tagStripAccumulator struct {
-	currentName string
-	accumulator tagset.TagsAccumulator
-	filterList  *utilstrings.Matcher
+	accumulator   tagset.TagsAccumulator
+	tagFilterList utilstrings.TagMatcher
 }
 
 func (t *tagStripAccumulator) Append(tags ...string) {
-	newTags, _ := t.filterList.StripTags(t.currentName, tags)
+	newTags, _ := t.tagFilterList.StripTagsMut(tags)
 	t.accumulator.Append(newTags...)
 }
 
 func (t *tagStripAccumulator) AppendHashed(tags tagset.HashedTags) {
-	newTags, stripped := t.filterList.StripTags(t.currentName, tags.Get())
+	newTags, stripped := t.tagFilterList.StripTags(tags.Get())
 	if stripped {
 		// Sadly we have to recalculate the hash if the tags are changed.
-		t.Append(newTags...)
+		t.accumulator.Append(newTags...)
 	} else {
 		t.accumulator.AppendHashed(tags)
 	}
