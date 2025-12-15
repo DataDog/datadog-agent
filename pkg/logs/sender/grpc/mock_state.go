@@ -22,8 +22,9 @@ const nanoToMillis = 1000000
 // MessageTranslator handles translation of message.Message to message.StatefulMessage
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
-	clusterManager *clustering.ClusterManager
-	tagManager     *tags.TagManager
+	clusterManager  *clustering.ClusterManager
+	tagManager      *tags.TagManager
+	evictionManager *clustering.EvictionManager
 
 	pipelineName string
 }
@@ -32,9 +33,10 @@ type MessageTranslator struct {
 // If clusterManager is nil, a new one will be created
 func NewMessageTranslator(pipelineName string) *MessageTranslator {
 	mt := &MessageTranslator{
-		clusterManager: clustering.NewClusterManager(),
-		tagManager:     tags.NewTagManager(),
-		pipelineName:   pipelineName,
+		clusterManager:  clustering.NewClusterManager(),
+		tagManager:      tags.NewTagManager(),
+		evictionManager: clustering.NewEvictionManager(),
+		pipelineName:    pipelineName,
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -90,7 +92,13 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	tokenList := tokenizeMessage(contentStr)
 
 	// Process tokenized log through cluster manager to get/create pattern
-	pattern, changeType := mt.clusterManager.Add(tokenList)
+	pattern, changeType, patternCount, estimatedBytes := mt.clusterManager.Add(tokenList)
+
+	// Check if eviction is needed using high watermark threshold
+	countOverLimit, bytesOverLimit := mt.evictionManager.ShouldEvict(patternCount, estimatedBytes)
+	if countOverLimit || bytesOverLimit {
+		mt.evictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+	}
 
 	// Build complete tag list including log-level fields
 	// These fields are sent as separate JSON fields in the HTTP pipeline,
