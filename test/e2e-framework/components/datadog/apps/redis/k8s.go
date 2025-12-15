@@ -376,9 +376,24 @@ func K8sAppDefinitionWithPassword(e config.Env, kubeProvider *kubernetes.Provide
 
 	opts = append(opts, pulumi.Parent(k8sComponent))
 
+	ns, err := corev1.NewNamespace(e.Ctx(), namespace, &corev1.NamespaceArgs{
+		Metadata: metav1.ObjectMetaArgs{
+			Name: pulumi.String(namespace),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, utils.PulumiDependsOn(ns))
+
 	secret, err := corev1.NewSecret(e.Ctx(), "redis-secret", &corev1.SecretArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("redis-secret"),
+			Namespace: pulumi.String(namespace),
+		},
 		Type: pulumi.String("Opaque"),
-		Data: pulumi.StringMap{
+		StringData: pulumi.StringMap{
 			"password": pulumi.String("s3cr3t"),
 		},
 	}, opts...)
