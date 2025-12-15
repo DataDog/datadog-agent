@@ -2,6 +2,8 @@ lading:
   version: 0.30.0
 
 target:
+  ddprof_replicas: 1
+  internal_profiling_replicas: 1
 
 # Link templates for reports.
 #
