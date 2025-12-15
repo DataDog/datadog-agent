@@ -410,7 +410,6 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
-
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
