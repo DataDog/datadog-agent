@@ -276,6 +276,8 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 	failNow := make(chan bool, 1)
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+		tb.Logf("Received event: %+v from %s", e, r.ID)
+
 		tb.Helper()
 		select {
 		case <-ctx.Done():
@@ -334,6 +336,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
+		tb.Logf("Received custom event: %+v from %s", event, rule.ID)
 		if event.GetEventType() != eventType || rule.ID != ruleID {
 			return
 		}
@@ -378,6 +381,8 @@ func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(r
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterSendEventHandler(func(rule *rules.Rule, event *model.Event) {
+		tb.Logf("Received event: %+v from %s", event, rule.ID)
+
 		if rule.ID != ruleID {
 			return
 		}
@@ -432,13 +437,17 @@ func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
+func (tm *testModule) GetProbeEvent(tb testing.TB, action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
+	tb.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterProbeEventHandler(func(event *model.Event) {
+		tb.Logf("Received probe event: %+v", event)
+
 		if len(eventTypes) > 0 {
 			match := false
 			for _, eventType := range eventTypes {

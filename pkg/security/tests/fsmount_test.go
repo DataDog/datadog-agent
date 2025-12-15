@@ -10,14 +10,15 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 
 	"golang.org/x/sys/unix"
 )
@@ -57,7 +58,7 @@ func TestFsmount(t *testing.T) {
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
 
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
 				t.Skip("This kernel doesn't have the new mount api")

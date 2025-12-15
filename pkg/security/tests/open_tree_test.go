@@ -192,7 +192,7 @@ func TestOpenTree(t *testing.T) {
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
 		seen := 0
 
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			if err != nil {
 				t.Fatal(err)
@@ -224,7 +224,7 @@ func TestOpenTree(t *testing.T) {
 
 	t.Run("copy-tree-test-detached-non-recursive", func(t *testing.T) {
 		seen := 0
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			if err != nil {
 				t.Fatal(err)

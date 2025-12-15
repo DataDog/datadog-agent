@@ -79,7 +79,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 	defer os.Remove(testFile1)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
 		if err != nil {
 			return err
@@ -111,7 +111,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
 		if err != nil {
 			return err
@@ -121,7 +121,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		t.Fatal("shouldn't get an event")
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
 		if err != nil {
 			return err
@@ -181,7 +181,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -262,7 +262,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	}
 
 	// Check that we get a probe event "saved by activity dumps"
-	if err := test.GetProbeEvent(func() error {
+	if err := test.GetProbeEvent(t, func() error {
 		cmd := dockerInstance.Command("cat", []string{testFile}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -330,7 +330,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	}
 	defer os.Remove(testFile)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -364,7 +364,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	// reset stats
 	test.statsdClient.Flush()
 
-	if err := waitForProbeEvent(test, func() error {
+	if err := waitForProbeEvent(t, test, func() error {
 		args := []string{
 			"-login-uid-test",
 			"-login-uid-event-type", eventType.String(),
@@ -397,7 +397,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForProbeEvent(test, func() error {
+	if err := waitForProbeEvent(t, test, func() error {
 		args := []string{
 			"-login-uid-test",
 			"-login-uid-event-type", eventType.String(),
@@ -643,7 +643,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+		if err := waitForProbeEvent(t, test, nil, model.FileUtimesEventType, eventKeyValueFilter{
 			key:   "utimes.file.path",
 			value: testFile,
 		}); err != nil {
@@ -656,7 +656,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+		if err := waitForProbeEvent(t, test, nil, model.FileUtimesEventType, eventKeyValueFilter{
 			key:   "utimes.file.path",
 			value: testFile,
 		}); err == nil {
@@ -725,7 +725,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -751,7 +751,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -811,7 +811,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -833,7 +833,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -868,7 +868,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 
 	defer os.Remove(testFile)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_NOCTTY)
 		if err != nil {
 			return err
@@ -894,7 +894,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -919,7 +919,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_RDONLY)
 		if err != nil {
 			return err
@@ -958,7 +958,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	}
 
 	wrapper.Run(t, "cat", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if err := waitForOpenProbeEvent(test, func() error {
+		if err := waitForOpenProbeEvent(t, test, func() error {
 			cmd := cmdFunc("/bin/cat", []string{"/etc/nsswitch.conf"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -972,7 +972,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	test.statsdClient.Flush()
 
 	wrapper.Run(t, "truncate", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if err := waitForOpenProbeEvent(test, func() error {
+		if err := waitForOpenProbeEvent(t, test, func() error {
 			cmd := cmdFunc("/bin/truncate", []string{"-s", "0", "/etc/nsswitch.conf"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -1048,7 +1048,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
 			return err
@@ -1075,7 +1075,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	}
 
 	for time.Now().Before(end) {
-		if err := waitForOpenProbeEvent(test, func() error {
+		if err := waitForOpenProbeEvent(t, test, func() error {
 			fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
 			if err != nil {
 				return err
@@ -1132,7 +1132,7 @@ func TestFilterBpfCmd(t *testing.T) {
 		assertTriggeredRule(t, rule, "test_bpf_map_create")
 	})
 
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		if m.Update(uint32(0), uint32(1), ebpf.UpdateAny) != nil {
 			return err
 		}
@@ -1183,7 +1183,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 	defer os.Remove(testFile)
 
 	// test that we don't receive event from the kernel
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForOpenProbeEvent(t, test, func() error {
 		fd, err := openTestFile(test, testFile, syscall.O_CREAT)
 		if err != nil {
 			return err
@@ -1240,7 +1240,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 
 	go listener.Accept()
 
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		return runSyscallTesterFunc(
 			context.Background(),
 			t,

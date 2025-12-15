@@ -63,7 +63,7 @@ func TestMount(t *testing.T) {
 
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
@@ -121,7 +121,7 @@ func TestMount(t *testing.T) {
 	defer releaseFile.Close()
 
 	t.Run("umount", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
 				return fmt.Errorf("could not unmount test-mount: %w", err)
