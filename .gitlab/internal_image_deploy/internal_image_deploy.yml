@@ -36,18 +36,18 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v16
+  IMAGE_VERSION: tmpl-v17
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
-  IMAGE_VERSION: tmpl-v8
+  IMAGE_VERSION: tmpl-v9
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
-  IMAGE_VERSION: tmpl-v2
+  IMAGE_VERSION: tmpl-v3
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 

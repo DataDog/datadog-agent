@@ -115,7 +115,7 @@ configure_make(
     }),
     deps = select({
         "//conditions:default": [
-            "@bzip2//:bz2",
+            "@bzip2//:libbz2",
             "@xz//:liblzma",
             "@zlib//:zlib",
         ],
@@ -123,6 +123,21 @@ configure_make(
     }),
     copts = ["-O2"],
     targets = ["depend", "", "install_sw", "install_ssldirs"],
+    # Fix install names, as openssl's build system might not get them right
+    postfix_script = select({
+        "@platforms//os:macos": "".join([
+                """
+                install_name_tool -id @rpath/{lib} \
+                        $$INSTALLDIR/lib/{lib}
+                for dep in $$(otool -L $$INSTALLDIR/lib/{lib} | grep 'sandbox.*execroot' | awk '{{print $$1}}'); do
+                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" \
+                            $$INSTALLDIR/lib/{lib};
+                done
+                """.format(lib = lib)
+            for lib in ["libcrypto.dylib", "libssl.dylib"]
+        ]),
+        "//conditions:default": ""
+    }),
 )
 
 filegroup(

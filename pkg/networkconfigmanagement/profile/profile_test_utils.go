@@ -10,7 +10,7 @@ package profile
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -25,14 +25,16 @@ type Fixture struct {
 	Expected []byte
 }
 
-func loadFixture(profileName string) Fixture {
-	initial, err := fixturesFS.ReadFile("fixtures/" + profileName + "/initial.txt")
+func loadFixture(profileName string, command CommandType) Fixture {
+	initialPath := path.Join("fixtures", profileName, string(command), "initial.txt")
+	initial, err := fixturesFS.ReadFile(initialPath)
 	if err != nil {
-		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, error: %s", profileName, err))
+		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, command: %s, error: %s", profileName, command, err))
 	}
-	expected, err := fixturesFS.ReadFile("fixtures/" + profileName + "/expected.txt")
+	expectedPath := path.Join("fixtures", profileName, string(command), "expected.txt")
+	expected, err := fixturesFS.ReadFile(expectedPath)
 	if err != nil {
-		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, error: %s", profileName, err))
+		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, command:%s, error: %s", profileName, command, err))
 	}
 	return Fixture{
 		Initial:  normalizeOutput(initial),
@@ -214,20 +216,24 @@ func getRunningScrubber() *scrubber.Scrubber {
 	return sc
 }
 
-var ncmDefaultProfilesPath = filepath.Join("..", "..", "..", "cmd", "agent", "dist", "conf.d", "network_config_management.d", "default_profiles")
+// DefaultProfile will parse the official default profile given the name of the profile file
+func DefaultProfile(profileName string) *NCMProfile {
+	file := profileName + ".json"
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, file))
+	prof, _ := parseNCMProfileFromBytes(b, profileName)
+	return prof
+}
 
 // IOSProfile parses the test profile for IOS devices to test with
 func IOSProfile() *NCMProfile {
-	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "cisco-ios.json"))
-	configFile := resolveNCMProfileDefinitionPath(file)
-	prof, _ := ParseNCMProfileFromFile(configFile)
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "cisco-ios")
 	return prof
 }
 
 // JunOSProfile parses the test profile for junOS devices to test with
 func JunOSProfile() *NCMProfile {
-	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "junos.json"))
-	configFile := resolveNCMProfileDefinitionPath(file)
-	prof, _ := ParseNCMProfileFromFile(configFile)
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "junos.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "junos")
 	return prof
 }
