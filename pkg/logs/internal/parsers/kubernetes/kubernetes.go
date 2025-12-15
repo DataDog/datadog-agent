@@ -64,6 +64,11 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	msg.ParsingExtra = message.ParsingExtra{
 		IsPartial: isPartial(flag),
 	}
+	// Tag the stream (stdout/stderr) so downstream can filter by origin stream.
+	stream := string(components[1])
+	if stream == "stdout" || stream == "stderr" {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+	}
 
 	// Validate timestamp format. K8s API uses either RFC3339 or RFC3339Nano
 	// but RFC3339Nano is a superset that can parse both formats.
