@@ -1185,6 +1185,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
+	config.BindEnvAndSetDefault("installer.refresh_interval", time.Duration(30*time.Second))
+	config.BindEnvAndSetDefault("installer.gc_interval", time.Duration(time.Hour))
+
 	// Legacy installer configuration
 	config.SetKnown("remote_policies") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
@@ -1223,6 +1226,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 
+	// Shared library check
+	config.BindEnvAndSetDefault("shared_library_check.enabled", false)
+	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultAdditionalChecksPath)
+
+	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
 
 	// Filterlist
