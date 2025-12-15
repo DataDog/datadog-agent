@@ -41,10 +41,12 @@ MACOS_LIBCRYPTO = "libcrypto.dylib"
 # Expects $LIBS to be set by caller to the list of libraries to patch
 # In case of OPENSSLDIR there is no additional slash between BUILD_TMPDIR and INSTALL_PREFIX,
 # but there is for ENGINESDIR and MODULESDIR.
+# TARGET value is a 200 symbols long placeholder that is easy to find and replace after the build.
+# It should be long enough to support most paths, but leave room for suffixes like /ssl/private.
 FIX_OPENSSL_PATHS = """
     # Fix OpenSSL hardcoded paths in binaries
     SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
-    TARGET="$$INSTALL_PREFIX"
+    TARGET="##########################################################################################PLACEHOLDERDIRECTORY##########################################################################################"
 
     # OPENSSLDIR: /ssl"
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
@@ -100,10 +102,6 @@ configure_make(
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
-    }),
-    install_prefix = select({
-        "@platforms//os:windows": "",
-        "//conditions:default": "/opt/datadog-agent/embedded",
     }),
     env = select({
         "@platforms//os:macos": {
