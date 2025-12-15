@@ -92,6 +92,33 @@ AGENT_CORECHECKS = [
     "network_config_management",
 ]
 
+## These will be used in future ddot_helper build iterations, expectedly
+## Commenting out for now.
+#
+#
+# DDOT_HELPER_CORECHECKS = [
+#     "container",
+#     "containerd",
+#     "container_image",
+#     "container_lifecycle",
+#     "cpu",
+#     "cri",
+#     "docker",
+#     "file_handle",
+#     "io",
+#     "kubernetes_apiserver",
+#     "load",
+#     "memory",
+#     "systemd",
+#     "uptime",
+#     "telemetry",
+#     "orchestrator_pod",
+#     "orchestrator_kubelet_config",
+#     "orchestrator_ecs",
+#     "network_path",
+#     "discovery",
+# ]
+
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
@@ -157,7 +184,7 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and not (flavor.is_iot() or flavor.is_ddot_helper()):
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
@@ -191,8 +218,8 @@ def build(
     else:
         bundled_agents += bundle or []
 
-    if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+    if flavor.is_iot() or flavor.is_ddot_helper():
+        # Iot  and ddot_helper modes override whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
@@ -217,6 +244,8 @@ def build(
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    if flavor.is_ddot_helper():
+        agent_bin = os.path.join(BIN_PATH, bin_name("ddot_helper"))
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
@@ -288,6 +317,8 @@ def render_config(ctx, env, flavor, skip_assets, build_tags, development, window
     build_type = "agent-py3"
     if flavor.is_iot():
         build_type = "iot-agent"
+    if flavor.is_ddot_helper():
+        return
 
     generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 

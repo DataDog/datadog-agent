@@ -153,6 +153,21 @@ CLUSTER_AGENT_TAGS = {
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "cel"}
 
+# DDOT_HELPER_TAGS lists the tags needed when building the DDOT helper process
+DDOT_HELPER_TAGS = {
+    "containerd",
+    "cri",
+    "crio",
+    "docker",
+    "ec2",
+    "etcd",
+    "kubeapiserver",
+    "kubelet",
+    "podman",
+    "zlib",
+    "zstd",
+}
+
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
 DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 
@@ -285,6 +300,7 @@ build_tags = {
         "agent": AGENT_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+        "ddot_helper": DDOT_HELPER_TAGS,
         "dogstatsd": DOGSTATSD_TAGS,
         "installer": INSTALLER_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
@@ -314,6 +330,7 @@ build_tags = {
     },
     AgentFlavor.fips: {
         "agent": AGENT_TAGS.union(FIPS_TAGS),
+        "ddot_helper": DDOT_HELPER_TAGS.union(FIPS_TAGS),
         "dogstatsd": DOGSTATSD_TAGS.union(FIPS_TAGS),
         "process-agent": PROCESS_AGENT_TAGS.union(FIPS_TAGS),
         "security-agent": SECURITY_AGENT_TAGS.union(FIPS_TAGS),
@@ -341,6 +358,11 @@ build_tags = {
         "agent": IOT_AGENT_TAGS,
         "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.ddot_helper: {
+        "ddot_helper": DDOT_HELPER_TAGS,
+        "lint": DDOT_HELPER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": DDOT_HELPER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
