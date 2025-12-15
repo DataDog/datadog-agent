@@ -46,6 +46,8 @@ var stringInterner = utilintern.NewStringInterner()
 
 type containerReader struct {
 	resolvStripper
+	readResolvConf func(entry *events.Process) (string, error)
+	debugLimit     *log.Limit
 }
 
 type readContainerItemResult struct {
@@ -55,12 +57,22 @@ type readContainerItemResult struct {
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
 	resolvConf, err := cr.readResolvConf(entry)
+	// we do not check for os.ErrNotExist here, because if the file is truly missing, we
+	// should propagate that fact upwards.
+	//
+	// If the process doesn't exist anymore, this will sometimes spuriously receive ErrNotExist, but
+	// we check isProcessStillRunning afterward to verify that.
+	if errIsProcessNotRunning(err) {
+		return readContainerItemResult{
+			noDataReason: "process not running (when reading resolv.conf)",
+		}, nil
+	}
 	if err != nil {
 		return readContainerItemResult{}, err
 	}
 
 	// we must check this last, to guarantee the result of readResolvConf is valid
-	isRunning, err := isProcessStillRunning(ctx, entry)
+	isRunning, err := cr.isProcessStillRunning(ctx, entry)
 	if err != nil {
 		return readContainerItemResult{}, err
 	}
@@ -98,6 +110,9 @@ func makeResolvStripper(size int) resolvStripper {
 	}
 }
 
+// readResolvConf reads and strips a process's resolv.conf.
+// If the resolv.conf is missing, it returns "<missing>" instead of an error.
+// It can return various OS errors which need to be checked by checkProcessNotRunningErr
 func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	rootPath := hostRoot()
 	if entry.ContainerID != nil {
@@ -170,9 +185,14 @@ func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) 
 	return resolvConf, nil
 }
 
-func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {
+func errIsProcessNotRunning(err error) bool {
+	return errors.Is(err, process.ErrorProcessNotRunning) ||
+		errors.Is(err, os.ErrProcessDone)
+}
+
+func (cr *containerReader) isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {
 	proc, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
-	if errors.Is(err, process.ErrorProcessNotRunning) {
+	if errIsProcessNotRunning(err) || errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
@@ -180,7 +200,7 @@ func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, er
 	}
 
 	createTime, err := proc.CreateTimeWithContext(ctx)
-	if errors.Is(err, process.ErrorProcessNotRunning) {
+	if errIsProcessNotRunning(err) || errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
@@ -191,7 +211,7 @@ func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, er
 
 	// detect (rare) PID reuse by comparing the StartTime
 	if entry.StartTime != createTime {
-		if log.ShouldLog(log.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) && cr.debugLimit.ShouldLog() {
 			logDetectedProcessReuse(entry, createTime)
 		}
 		return false, nil
