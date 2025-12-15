@@ -507,6 +507,8 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		len(sketch.Points),
 	)
 
+	// find a single smallest type that can fit all summary values
+	// without loss of precision
 	valueType := valueZero
 	for _, pnt := range sketch.Points {
 		valueType = max(valueType,
