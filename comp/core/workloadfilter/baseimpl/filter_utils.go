@@ -9,6 +9,7 @@ package baseimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:pkgconfigusage
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
@@ -21,6 +22,8 @@ type filterSelection struct {
 	containerSharedMetric         [][]workloadfilter.ContainerFilter
 	containerPaused               [][]workloadfilter.ContainerFilter
 	containerSBOM                 [][]workloadfilter.ContainerFilter
+	containerCompliance           [][]workloadfilter.ContainerFilter
+	containerRuntimeSecurity      [][]workloadfilter.ContainerFilter
 
 	// Pod filters
 	podSharedMetric [][]workloadfilter.PodFilter
@@ -50,6 +53,9 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.containerAutodiscoveryLogs = pf.computeContainerAutodiscoveryFilters(cfg, workloadfilter.LogsFilter)
 	pf.containerSharedMetric = pf.computeContainerSharedMetricFilters(cfg)
 
+	pf.containerCompliance = pf.computeContainerComplianceFilters(cfg)
+	pf.containerRuntimeSecurity = pf.computeContainerRuntimeSecurityFilters(pkgconfigsetup.SystemProbe())
+
 	// Initialize container paused and SBOM filters
 	pf.containerPaused = pf.computeContainerPausedFilters(cfg)
 	pf.containerSBOM = pf.computeContainerSBOMFilters(cfg)
@@ -78,26 +84,6 @@ func (pf *filterSelection) GetContainerAutodiscoveryFilters(filterScope workload
 	default:
 		return nil
 	}
-}
-
-// GetContainerSharedMetricFilters returns pre-computed container shared metric filters
-func (pf *filterSelection) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerSharedMetric
-}
-
-// GetContainerPausedFilters returns pre-computed container paused filters
-func (pf *filterSelection) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerPaused
-}
-
-// GetContainerSBOMFilters returns pre-computed container SBOM filters
-func (pf *filterSelection) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerSBOM
-}
-
-// GetPodSharedMetricFilters returns pre-computed pod shared metric filters
-func (pf *filterSelection) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
-	return pf.podSharedMetric
 }
 
 // GetServiceAutodiscoveryFilters returns pre-computed service autodiscovery filters
@@ -245,4 +231,22 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	flist[1] = low  // lowPrecedence
 
 	return flist
+}
+
+// computeContainerComplianceFilters computes container compliance filters
+func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyCompliance}
+	if cfg.GetBool("compliance_config.exclude_pause_containers") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
+}
+
+// computeContainerRuntimeSecurityFilters computes container runtime security filters
+func (pf *filterSelection) computeContainerRuntimeSecurityFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyRuntimeSecurity}
+	if cfg.GetBool("runtime_security.exclude_pause_containers") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
 }
