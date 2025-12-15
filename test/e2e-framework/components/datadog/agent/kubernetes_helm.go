@@ -57,8 +57,12 @@ type HelmInstallationArgs struct {
 	DualShipping bool
 	// OTelAgent is used to deploy the OTel agent instead of the classic agent
 	OTelAgent bool
+	// OTelAgentGateway is used to deploy the OTel agent with gateway enabled
+	OTelAgentGateway bool
 	// OTelConfig is used to provide a custom OTel configuration
 	OTelConfig string
+	// OTelGatewayConfig is used to provide a custom OTel configuration for the gateway collector
+	OTelGatewayConfig string
 	// GKEAutopilot is used to enable the GKE Autopilot mode and keep only compatible values
 	GKEAutopilot bool
 	// FIPS is used to deploy the agent with the FIPS agent image
@@ -171,7 +175,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	var valuesYAML pulumi.AssetOrArchiveArray
 	valuesYAML = append(valuesYAML, defaultYAMLValues)
 	valuesYAML = append(valuesYAML, args.ValuesYAML...)
-	if args.OTelAgent {
+	if args.OTelAgentGateway {
+		valuesYAML = append(valuesYAML, buildOTelAgentGatewayConfigWithFakeintake(args.OTelGatewayConfig, args.Fakeintake))
+	}
+	if args.OTelAgent && !args.OTelAgentGateway {
 		valuesYAML = append(valuesYAML, buildOTelConfigWithFakeintake(args.OTelConfig, args.Fakeintake))
 	}
 
@@ -894,6 +901,43 @@ datadog:
     config: |
 %s
 `, utils.IndentMultilineString(string(mergedConfigYAML), 6))
+		return pulumi.NewStringAsset(otelConfigValues), nil
+
+	}).(pulumi.AssetOutput)
+}
+
+func buildOTelAgentGatewayConfigWithFakeintake(otelConfig string, fakeintake *fakeintake.Fakeintake) pulumi.AssetOutput {
+	return fakeintake.URL.ApplyT(func(url string) (pulumi.Asset, error) {
+		defaultConfig := map[string]any{
+			"exporters": map[string]any{
+				"datadog": map[string]any{
+					"metrics": map[string]any{
+						"endpoint": url,
+					},
+					"traces": map[string]any{
+						"endpoint": url,
+					},
+					"logs": map[string]any{
+						"endpoint": url,
+					},
+				},
+			},
+		}
+		config := map[string]any{}
+		if err := yaml.Unmarshal([]byte(otelConfig), &config); err != nil {
+			return nil, err
+		}
+		mergeSlices := false
+		mergedConfig := utils.MergeMaps(config, defaultConfig, mergeSlices)
+		mergedConfigYAML, err := yaml.Marshal(mergedConfig)
+		if err != nil {
+			return nil, err
+		}
+		otelConfigValues := fmt.Sprintf(`
+otelAgentGateway:
+  config: |
+%s
+`, utils.IndentMultilineString(string(mergedConfigYAML), 4))
 		return pulumi.NewStringAsset(otelConfigValues), nil
 
 	}).(pulumi.AssetOutput)

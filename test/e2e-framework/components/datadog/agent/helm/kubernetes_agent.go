@@ -40,6 +40,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			DualShipping:                   params.DualShipping,
 			DisableLogsContainerCollectAll: params.DisableLogsContainerCollectAll,
 			OTelAgent:                      params.OTelAgent,
+			OTelAgentGateway:               params.OTelAgentGateway,
 			OTelConfig:                     params.OTelConfig,
 			GKEAutopilot:                   params.GKEAutopilot,
 			FIPS:                           params.FIPS,
