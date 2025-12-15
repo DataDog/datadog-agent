@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package clustering provides clustering functionality for grouping similar TokenLists
-// and identifying wildcard positions for pattern extraction.
+// Package clustering provides clustering functionality for grouping similar TokenLists,
+// extracting patterns wildcard, and managing pattern lifecycle through eviction policies.
 package clustering
 
 import (
@@ -25,28 +25,62 @@ type Pattern struct {
 	Sample    *token.TokenList // First log sample (for multi-pattern matching)
 	LogCount  int              // Total number of logs that matched this pattern
 
-	// Timestamp tracking for stateful encoding
-	CreatedAt time.Time // When pattern was first created
-	UpdatedAt time.Time // When pattern was last modified
+	// Timestamp tracking for stateful encoding and eviction
+	CreatedAt    time.Time // When pattern was first created (used for age-based decay)
+	UpdatedAt    time.Time // When pattern was last modified (structure changed)
+	LastAccessAt time.Time // When pattern last matched a log (used for recency in eviction)
 }
 
 // newPattern creates a new pattern from a single token list.
 func newPattern(tokenList *token.TokenList, patternID uint64) *Pattern {
 	now := time.Now()
 	return &Pattern{
-		Template:  tokenList, // First log becomes initial template
-		Positions: []int{},   // No wildcards yet
-		PatternID: patternID,
-		Sample:    tokenList, // Store first log as sample
-		LogCount:  1,         // First log
-		CreatedAt: now,
-		UpdatedAt: now,
+		Template:     tokenList, // First log becomes initial template
+		Positions:    []int{},   // No wildcards yet
+		PatternID:    patternID,
+		Sample:       tokenList, // Store first log as sample
+		LogCount:     1,         // First log (HitCount for eviction)
+		CreatedAt:    now,       // Pattern birth time (for age decay)
+		UpdatedAt:    now,       // Last structure modification
+		LastAccessAt: now,       // Last match time (for recency in eviction)
 	}
 }
 
 // size returns the number of logs in this pattern.
 func (p *Pattern) size() int {
 	return p.LogCount
+}
+
+// EstimatedBytes returns an approximate memory footprint (in bytes) of this pattern.
+//
+// This is NOT exact Go heap usage; it is a heuristic used to trigger eviction before unbounded growth.
+// It focuses on the dominant contributors: token value strings, wildcard positions, and token slices.
+func (p *Pattern) EstimatedBytes() int64 {
+	var b int64
+
+	// Positions slice (ints)
+	b += int64(len(p.Positions)) * 8
+
+	// Estimate token lists (avoid double counting if Sample == Template)
+	b += estimateTokenListBytes(p.Template)
+	if p.Sample != nil && p.Sample != p.Template {
+		b += estimateTokenListBytes(p.Sample)
+	}
+
+	return b
+}
+
+func estimateTokenListBytes(tl *token.TokenList) int64 {
+	if tl == nil {
+		return 0
+	}
+
+	var b int64
+	// Token slice header/struct overhead is ignored; we approximate dominant string storage.
+	for _, tok := range tl.Tokens {
+		b += int64(len(tok.Value))
+	}
+	return b
 }
 
 // GetPatternString returns the pattern template.
