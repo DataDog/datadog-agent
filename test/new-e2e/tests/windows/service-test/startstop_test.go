@@ -80,7 +80,6 @@ type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actua
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
@@ -89,7 +88,6 @@ func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 // TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
 func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
@@ -98,7 +96,6 @@ func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
@@ -139,7 +136,6 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
@@ -289,7 +285,6 @@ type agentServiceDisabledSuite struct {
 // TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
@@ -308,7 +303,6 @@ type agentServiceDisabledSystemProbeSuite struct {
 // TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
@@ -327,7 +321,6 @@ type agentServiceDisabledProcessAgentSuite struct {
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
@@ -342,7 +335,6 @@ type agentServiceDisabledTraceAgentSuite struct {
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
 
 	s := &agentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
