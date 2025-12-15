@@ -297,7 +297,6 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -596,6 +595,24 @@ new-e2e-cws:
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
+
+
+new-e2e-sbom:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_sbom_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+  variables:
+    TARGETS: ./tests/sbom
+    TEAM: csm-threats-agent
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+
 
 new-e2e-discovery:
   extends: .new_e2e_template
