@@ -18,12 +18,6 @@
         },
         {
           "required": [
-            "network_filter"
-          ],
-          "title": "NetworkFilterAction"
-        },
-        {
-          "required": [
             "coredump"
           ],
           "title": "CoreDumpAction"
@@ -39,6 +33,12 @@
             "log"
           ],
           "title": "LogAction"
+        },
+        {
+          "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
         }
       ],
       "properties": {
