@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux || darwin
+//go:build linux
 
-package oscillation
+package cpuoscillation
 
 import (
 	"testing"
@@ -17,15 +17,16 @@ import (
 
 func defaultTestConfig() OscillationConfig {
 	return OscillationConfig{
-		WindowSize:          10, // Small window for tests
-		MinZeroCrossings:    3,
-		AmplitudeMultiplier: 2.0,
-		DecayFactor:         0.1,
-		WarmupDuration:      0, // No warmup for most tests
-		SampleInterval:      time.Second,
+		WindowSize:            10, // Small window for tests
+		MinDirectionReversals: 3,
+		AmplitudeMultiplier:   2.0,
+		DecayFactor:           0.1,
+		WarmupDuration:        0, // No warmup for most tests
+		SampleInterval:        time.Second,
 	}
 }
 
+// @requirement REQ-COD-001
 func TestNewOscillationDetector(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -36,6 +37,7 @@ func TestNewOscillationDetector(t *testing.T) {
 	assert.Equal(t, 0, d.sampleIndex)
 }
 
+// @requirement REQ-COD-001
 func TestAddSample(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -54,7 +56,8 @@ func TestAddSample(t *testing.T) {
 	assert.Equal(t, config.WindowSize, d.sampleCount)
 }
 
-func TestCountZeroCrossings_NoOscillation(t *testing.T) {
+// @requirement REQ-COD-001
+func TestCountDirectionReversals_NoOscillation(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
 
@@ -63,11 +66,12 @@ func TestCountZeroCrossings_NoOscillation(t *testing.T) {
 		d.AddSample(float64(i * 5))
 	}
 
-	crossings := d.countZeroCrossings()
+	crossings := d.countDirectionReversals()
 	assert.Equal(t, 0, crossings)
 }
 
-func TestCountZeroCrossings_Oscillating(t *testing.T) {
+// @requirement REQ-COD-001
+func TestCountDirectionReversals_Oscillating(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
 
@@ -81,12 +85,13 @@ func TestCountZeroCrossings_Oscillating(t *testing.T) {
 		}
 	}
 
-	crossings := d.countZeroCrossings()
+	crossings := d.countDirectionReversals()
 	// With 10 samples oscillating, we expect 8 zero crossings (each peak and trough)
 	assert.Equal(t, 8, crossings)
 }
 
-func TestCountZeroCrossings_SinglePeak(t *testing.T) {
+// @requirement REQ-COD-001
+func TestCountDirectionReversals_SinglePeak(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 5
 	d := NewOscillationDetector(config)
@@ -97,11 +102,12 @@ func TestCountZeroCrossings_SinglePeak(t *testing.T) {
 		d.AddSample(s)
 	}
 
-	crossings := d.countZeroCrossings()
+	crossings := d.countDirectionReversals()
 	// One peak = one zero crossing (direction change from up to down)
 	assert.Equal(t, 1, crossings)
 }
 
+// @requirement REQ-COD-003
 func TestCalculateAmplitude(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -117,6 +123,7 @@ func TestCalculateAmplitude(t *testing.T) {
 	assert.Equal(t, 30.0, amplitude)
 }
 
+// @requirement REQ-COD-002
 func TestCalculateVariance(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 4
@@ -135,6 +142,7 @@ func TestCalculateVariance(t *testing.T) {
 	assert.InDelta(t, 0.75, variance, 0.001)
 }
 
+// @requirement REQ-COD-002
 func TestUpdateBaseline_FirstSample(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -143,6 +151,7 @@ func TestUpdateBaseline_FirstSample(t *testing.T) {
 	assert.Equal(t, 10.0, d.baselineVariance)
 }
 
+// @requirement REQ-COD-002
 func TestUpdateBaseline_ExponentialDecay(t *testing.T) {
 	config := defaultTestConfig()
 	config.DecayFactor = 0.5 // Easy to calculate
@@ -154,6 +163,7 @@ func TestUpdateBaseline_ExponentialDecay(t *testing.T) {
 	assert.Equal(t, 15.0, d.baselineVariance)
 }
 
+// @requirement REQ-COD-002
 func TestWarmupPeriod(t *testing.T) {
 	config := defaultTestConfig()
 	config.WarmupDuration = 5 * time.Second
@@ -169,6 +179,7 @@ func TestWarmupPeriod(t *testing.T) {
 	assert.True(t, d.IsWarmedUp())
 }
 
+// @requirement REQ-COD-001
 func TestAnalyze_WindowNotFull(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -179,9 +190,11 @@ func TestAnalyze_WindowNotFull(t *testing.T) {
 
 	result := d.Analyze()
 	assert.False(t, result.Detected)
-	assert.Equal(t, 0, result.ZeroCrossings)
+	assert.Equal(t, 0, result.DirectionReversals)
 }
 
+// @requirement REQ-COD-002
+// @requirement REQ-COD-006
 func TestAnalyze_DuringWarmup(t *testing.T) {
 	config := defaultTestConfig()
 	config.WarmupDuration = 100 * time.Second // Long warmup
@@ -197,14 +210,15 @@ func TestAnalyze_DuringWarmup(t *testing.T) {
 	}
 
 	result := d.Analyze()
-	// Should not detect during warmup even with oscillating data
+	// REQ-COD-006: Should not detect during warmup even with oscillating data (detected=0)
 	assert.False(t, result.Detected)
 }
 
+// @requirement REQ-COD-001
 func TestAnalyze_DetectsOscillation(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 20
-	config.MinZeroCrossings = 6
+	config.MinDirectionReversals = 6
 	config.AmplitudeMultiplier = 2.0
 	d := NewOscillationDetector(config)
 
@@ -230,10 +244,11 @@ func TestAnalyze_DetectsOscillation(t *testing.T) {
 
 	result := d2.Analyze()
 	assert.True(t, result.Detected, "Should detect oscillation with high amplitude and many zero crossings")
-	assert.Equal(t, 18, result.ZeroCrossings) // 20 samples oscillating = 18 direction changes
+	assert.Equal(t, 18, result.DirectionReversals) // 20 samples oscillating = 18 direction changes
 	assert.Equal(t, 40.0, result.Amplitude)
 }
 
+// @requirement REQ-COD-001
 func TestAnalyze_NoOscillation_StableData(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -246,9 +261,10 @@ func TestAnalyze_NoOscillation_StableData(t *testing.T) {
 	result := d.Analyze()
 	assert.False(t, result.Detected)
 	assert.Equal(t, 0.0, result.Amplitude)
-	assert.Equal(t, 0, result.ZeroCrossings)
+	assert.Equal(t, 0, result.DirectionReversals)
 }
 
+// @requirement REQ-COD-001
 func TestAnalyze_NoOscillation_GradualChange(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -260,14 +276,16 @@ func TestAnalyze_NoOscillation_GradualChange(t *testing.T) {
 
 	result := d.Analyze()
 	assert.False(t, result.Detected)
-	assert.Equal(t, 0, result.ZeroCrossings)
+	assert.Equal(t, 0, result.DirectionReversals)
 }
 
+// @requirement REQ-COD-001
+// @requirement REQ-COD-005
 func TestAnalyze_MinAmplitudeThreshold(t *testing.T) {
 	t.Run("oscillation blocked by min_amplitude", func(t *testing.T) {
 		config := defaultTestConfig()
 		config.WindowSize = 20
-		config.MinZeroCrossings = 6
+		config.MinDirectionReversals = 6
 		config.AmplitudeMultiplier = 2.0
 		config.MinAmplitude = 50.0 // Require at least 50% amplitude
 		d := NewOscillationDetector(config)
@@ -290,7 +308,7 @@ func TestAnalyze_MinAmplitudeThreshold(t *testing.T) {
 	t.Run("oscillation allowed when above min_amplitude", func(t *testing.T) {
 		config := defaultTestConfig()
 		config.WindowSize = 20
-		config.MinZeroCrossings = 6
+		config.MinDirectionReversals = 6
 		config.AmplitudeMultiplier = 2.0
 		config.MinAmplitude = 30.0 // Require at least 30% amplitude
 		d := NewOscillationDetector(config)
@@ -313,7 +331,7 @@ func TestAnalyze_MinAmplitudeThreshold(t *testing.T) {
 	t.Run("min_amplitude disabled when zero", func(t *testing.T) {
 		config := defaultTestConfig()
 		config.WindowSize = 20
-		config.MinZeroCrossings = 6
+		config.MinDirectionReversals = 6
 		config.AmplitudeMultiplier = 2.0
 		config.MinAmplitude = 0 // Disabled
 		d := NewOscillationDetector(config)
@@ -335,6 +353,7 @@ func TestAnalyze_MinAmplitudeThreshold(t *testing.T) {
 	})
 }
 
+// @requirement REQ-COD-003
 func TestFrequencyCalculation(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 60 // 60 seconds
@@ -360,6 +379,7 @@ func TestFrequencyCalculation(t *testing.T) {
 	assert.InDelta(t, 0.083, result.Frequency, 0.02)
 }
 
+// @requirement REQ-COD-002
 func TestBaselineStdDev(t *testing.T) {
 	config := defaultTestConfig()
 	d := NewOscillationDetector(config)
@@ -369,6 +389,7 @@ func TestBaselineStdDev(t *testing.T) {
 	assert.Equal(t, 4.0, d.BaselineStdDev())
 }
 
+// @requirement REQ-COD-004
 func TestRingBufferWraparound(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 5
@@ -389,6 +410,7 @@ func TestRingBufferWraparound(t *testing.T) {
 	assert.Equal(t, 40.0, amplitude) // max=70, min=30
 }
 
+// @requirement REQ-COD-004
 func TestGetSample_LogicalOrder(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 5
@@ -413,14 +435,15 @@ func TestGetSample_LogicalOrder(t *testing.T) {
 	}
 }
 
-func TestZeroCrossings_EdgeCases(t *testing.T) {
+// @requirement REQ-COD-007
+func TestDirectionReversals_EdgeCases(t *testing.T) {
 	t.Run("less than 3 samples", func(t *testing.T) {
 		config := defaultTestConfig()
 		d := NewOscillationDetector(config)
 		d.AddSample(10)
 		d.AddSample(20)
 
-		assert.Equal(t, 0, d.countZeroCrossings())
+		assert.Equal(t, 0, d.countDirectionReversals())
 	})
 
 	t.Run("flat line", func(t *testing.T) {
@@ -430,7 +453,7 @@ func TestZeroCrossings_EdgeCases(t *testing.T) {
 			d.AddSample(50)
 		}
 
-		assert.Equal(t, 0, d.countZeroCrossings())
+		assert.Equal(t, 0, d.countDirectionReversals())
 	})
 
 	t.Run("single direction change", func(t *testing.T) {
@@ -444,10 +467,11 @@ func TestZeroCrossings_EdgeCases(t *testing.T) {
 			d.AddSample(s)
 		}
 
-		assert.Equal(t, 1, d.countZeroCrossings())
+		assert.Equal(t, 1, d.countDirectionReversals())
 	})
 }
 
+// @requirement REQ-COD-007
 func TestVariance_EdgeCases(t *testing.T) {
 	t.Run("single sample", func(t *testing.T) {
 		config := defaultTestConfig()
@@ -468,6 +492,7 @@ func TestVariance_EdgeCases(t *testing.T) {
 	})
 }
 
+// @requirement REQ-COD-007
 func TestAmplitude_EdgeCases(t *testing.T) {
 	t.Run("single sample", func(t *testing.T) {
 		config := defaultTestConfig()
@@ -487,12 +512,14 @@ func TestAmplitude_EdgeCases(t *testing.T) {
 	})
 }
 
+// @requirement REQ-COD-005
 func TestConfigParse(t *testing.T) {
 	t.Run("default values", func(t *testing.T) {
 		config := &Config{}
 		err := config.Parse([]byte(""))
 		require.NoError(t, err)
 
+		assert.Equal(t, false, config.Enabled)           // Default disabled
 		assert.Equal(t, 300, config.WarmupSeconds)       // Default 5 minutes
 		assert.Equal(t, 4.0, config.AmplitudeMultiplier) // Default 4.0
 		assert.Equal(t, 0.0, config.MinAmplitude)        // Default 0 (disabled)
@@ -501,6 +528,7 @@ func TestConfigParse(t *testing.T) {
 	t.Run("custom values", func(t *testing.T) {
 		config := &Config{}
 		yaml := `
+enabled: true
 amplitude_multiplier: 3.5
 min_amplitude: 25.0
 warmup_seconds: 120
@@ -508,6 +536,7 @@ warmup_seconds: 120
 		err := config.Parse([]byte(yaml))
 		require.NoError(t, err)
 
+		assert.Equal(t, true, config.Enabled)
 		assert.Equal(t, 120, config.WarmupSeconds)
 		assert.Equal(t, 3.5, config.AmplitudeMultiplier)
 		assert.Equal(t, 25.0, config.MinAmplitude)
@@ -529,6 +558,7 @@ warmup_seconds: 10000
 	})
 }
 
+// @requirement REQ-COD-005
 func TestDetectorConfig(t *testing.T) {
 	config := &Config{
 		AmplitudeMultiplier: 3.0,
@@ -539,7 +569,7 @@ func TestDetectorConfig(t *testing.T) {
 	dc := config.DetectorConfig()
 
 	assert.Equal(t, 60, dc.WindowSize)
-	assert.Equal(t, 6, dc.MinZeroCrossings)
+	assert.Equal(t, 6, dc.MinDirectionReversals)
 	assert.Equal(t, 3.0, dc.AmplitudeMultiplier)
 	assert.Equal(t, 20.0, dc.MinAmplitude)
 	assert.Equal(t, 0.1, dc.DecayFactor)
@@ -547,15 +577,16 @@ func TestDetectorConfig(t *testing.T) {
 	assert.Equal(t, time.Second, dc.SampleInterval)
 }
 
+// @requirement REQ-COD-004
 // Benchmark to ensure we meet performance requirements
 func BenchmarkAddSample(b *testing.B) {
 	config := OscillationConfig{
-		WindowSize:          60,
-		MinZeroCrossings:    6,
-		AmplitudeMultiplier: 2.0,
-		DecayFactor:         0.1,
-		WarmupDuration:      0,
-		SampleInterval:      time.Second,
+		WindowSize:            60,
+		MinDirectionReversals: 6,
+		AmplitudeMultiplier:   2.0,
+		DecayFactor:           0.1,
+		WarmupDuration:        0,
+		SampleInterval:        time.Second,
 	}
 	d := NewOscillationDetector(config)
 
@@ -570,14 +601,15 @@ func BenchmarkAddSample(b *testing.B) {
 	}
 }
 
+// @requirement REQ-COD-004
 func BenchmarkAnalyze(b *testing.B) {
 	config := OscillationConfig{
-		WindowSize:          60,
-		MinZeroCrossings:    6,
-		AmplitudeMultiplier: 2.0,
-		DecayFactor:         0.1,
-		WarmupDuration:      0,
-		SampleInterval:      time.Second,
+		WindowSize:            60,
+		MinDirectionReversals: 6,
+		AmplitudeMultiplier:   2.0,
+		DecayFactor:           0.1,
+		WarmupDuration:        0,
+		SampleInterval:        time.Second,
 	}
 	d := NewOscillationDetector(config)
 
@@ -597,15 +629,16 @@ func BenchmarkAnalyze(b *testing.B) {
 	}
 }
 
+// @requirement REQ-COD-004
 // Test to verify memory is fixed (no allocations in hot path)
 func TestNoAllocationsInHotPath(t *testing.T) {
 	config := OscillationConfig{
-		WindowSize:          60,
-		MinZeroCrossings:    6,
-		AmplitudeMultiplier: 2.0,
-		DecayFactor:         0.1,
-		WarmupDuration:      0,
-		SampleInterval:      time.Second,
+		WindowSize:            60,
+		MinDirectionReversals: 6,
+		AmplitudeMultiplier:   2.0,
+		DecayFactor:           0.1,
+		WarmupDuration:        0,
+		SampleInterval:        time.Second,
 	}
 	d := NewOscillationDetector(config)
 

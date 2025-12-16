@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux || darwin
+//go:build linux
 
-package oscillation
+// Package cpuoscillation implements the per-container CPU oscillation detection check.
+// REQ-COD-001: Detect Rapid CPU Cycling Per Container
+// REQ-COD-002: Establish Container-Specific Baseline
+package cpuoscillation
 
 import (
 	"math"
@@ -13,25 +16,31 @@ import (
 )
 
 // OscillationConfig holds configuration for the detector
+// REQ-COD-005: Configurable Detection with Default Disabled
 type OscillationConfig struct {
-	WindowSize          int           // Number of samples in ring buffer (default: 60)
-	MinZeroCrossings    int           // Minimum direction changes to flag (default: 6)
-	AmplitudeMultiplier float64       // Baseline multiplier for significance (default: 4.0)
-	MinAmplitude        float64       // Absolute minimum amplitude to trigger (default: 0, disabled)
-	DecayFactor         float64       // Exponential decay alpha (default: 0.1)
-	WarmupDuration      time.Duration // Initial learning period (default: 5m)
-	SampleInterval      time.Duration // Time between samples (default: 1s)
+	WindowSize            int           // Number of samples in ring buffer (default: 60)
+	MinDirectionReversals int           // Minimum direction changes to flag (default: 6)
+	AmplitudeMultiplier   float64       // Baseline multiplier for significance (default: 4.0)
+	MinAmplitude          float64       // Absolute minimum amplitude to trigger (default: 0, disabled)
+	DecayFactor           float64       // Exponential decay alpha (default: 0.1)
+	WarmupDuration        time.Duration // Initial learning period (default: 5m)
+	SampleInterval        time.Duration // Time between samples (default: 1s)
 }
 
 // OscillationResult contains the results of oscillation analysis
+// REQ-COD-003: Report Oscillation Characteristics with Container Tags
 type OscillationResult struct {
-	Detected      bool
-	Amplitude     float64 // Peak-to-trough percentage
-	Frequency     float64 // Cycles per second (Hz)
-	ZeroCrossings int     // Number of direction changes
+	Detected           bool
+	Amplitude          float64 // Peak-to-trough percentage
+	Frequency          float64 // Cycles per second (Hz)
+	DirectionReversals int     // Number of direction changes (rising→falling or falling→rising)
 }
 
 // OscillationDetector analyzes CPU samples for oscillation patterns
+// One instance per container
+// REQ-COD-001: Direction reversal count + amplitude detection
+// REQ-COD-002: Baseline tracking with exponential decay
+// REQ-COD-004: Fixed memory per container (~500 bytes)
 type OscillationDetector struct {
 	// Ring buffer for CPU samples (fixed size, no allocation after init)
 	samples     []float64
@@ -78,13 +87,14 @@ func (d *OscillationDetector) getSample(i int) float64 {
 	return d.samples[actualIndex]
 }
 
-// countZeroCrossings counts direction changes in the CPU samples
-func (d *OscillationDetector) countZeroCrossings() int {
+// countDirectionReversals counts direction changes in the CPU samples
+// REQ-COD-001: Count direction changes (rising to falling, falling to rising)
+func (d *OscillationDetector) countDirectionReversals() int {
 	if d.sampleCount < 3 {
 		return 0
 	}
 
-	crossings := 0
+	reversals := 0
 	var lastNonZeroDir int // -1 for decreasing, +1 for increasing, 0 for unset
 
 	for i := 1; i < d.sampleCount; i++ {
@@ -104,14 +114,15 @@ func (d *OscillationDetector) countZeroCrossings() int {
 
 		// Count sign change from last non-zero direction
 		if lastNonZeroDir != 0 && currDir != lastNonZeroDir {
-			crossings++
+			reversals++
 		}
 		lastNonZeroDir = currDir
 	}
-	return crossings
+	return reversals
 }
 
 // calculateAmplitude returns the peak-to-trough difference in the window
+// REQ-COD-003: Report swing amplitude (peak-to-trough percentage)
 func (d *OscillationDetector) calculateAmplitude() float64 {
 	if d.sampleCount < 2 {
 		return 0
@@ -154,6 +165,7 @@ func (d *OscillationDetector) calculateVariance() float64 {
 }
 
 // updateBaseline updates the baseline variance using exponential decay
+// REQ-COD-002: Update baseline variance using exponential decay
 func (d *OscillationDetector) updateBaseline(newVariance float64) {
 	if d.baselineVariance == 0 {
 		// First sample
@@ -161,12 +173,13 @@ func (d *OscillationDetector) updateBaseline(newVariance float64) {
 		return
 	}
 
-	// Exponential decay: new = α * current + (1-α) * old
+	// Exponential decay: new = alpha * current + (1-alpha) * old
 	alpha := d.config.DecayFactor
 	d.baselineVariance = alpha*newVariance + (1-alpha)*d.baselineVariance
 }
 
 // DecrementWarmup decreases the warmup timer by one sample interval
+// REQ-COD-002: Warmup period tracking
 func (d *OscillationDetector) DecrementWarmup() {
 	if d.warmupRemaining > 0 {
 		d.warmupRemaining -= d.config.SampleInterval
@@ -177,6 +190,7 @@ func (d *OscillationDetector) DecrementWarmup() {
 }
 
 // IsWarmedUp returns true if the warmup period has completed
+// REQ-COD-002: 5-minute warmup per container
 func (d *OscillationDetector) IsWarmedUp() bool {
 	return d.warmupRemaining <= 0
 }
@@ -192,6 +206,8 @@ func (d *OscillationDetector) BaselineStdDev() float64 {
 }
 
 // Analyze performs oscillation detection on the current window
+// REQ-COD-001: Detection logic - direction reversals >= 6 AND amplitude > 4x baseline stddev
+// REQ-COD-006: Returns result for all containers (detected=false during warmup)
 func (d *OscillationDetector) Analyze() OscillationResult {
 	result := OscillationResult{}
 
@@ -203,12 +219,14 @@ func (d *OscillationDetector) Analyze() OscillationResult {
 	currentVariance := d.calculateVariance()
 
 	// Still in warmup - learn baseline but don't flag oscillation
+	// REQ-COD-002: Learn baseline during warmup without flagging
+	// REQ-COD-006: Emit detected=0 during warmup
 	if !d.IsWarmedUp() {
 		d.updateBaseline(currentVariance)
 		return result
 	}
 
-	zeroCrossings := d.countZeroCrossings()
+	directionReversals := d.countDirectionReversals()
 	amplitude := d.calculateAmplitude()
 
 	// Update baseline (continuous learning)
@@ -218,20 +236,20 @@ func (d *OscillationDetector) Analyze() OscillationResult {
 	baselineStdDev := d.BaselineStdDev()
 	amplitudeThreshold := d.config.AmplitudeMultiplier * baselineStdDev
 
-	result.ZeroCrossings = zeroCrossings
+	result.DirectionReversals = directionReversals
 	result.Amplitude = amplitude
-	// Frequency = cycles per second. Zero crossings / 2 = cycles, divided by window size in seconds
-	result.Frequency = float64(zeroCrossings) / float64(d.config.WindowSize) / 2.0
+	// REQ-COD-003: Frequency = cycles per second. Direction reversals / 2 = cycles, divided by window size in seconds
+	result.Frequency = float64(directionReversals) / float64(d.config.WindowSize) / 2.0
 
-	// Check oscillation criteria:
-	// 1. Enough direction changes (rapid cycling)
-	// 2. Amplitude exceeds baseline-relative threshold
+	// REQ-COD-001: Check oscillation criteria:
+	// 1. Enough direction changes (rapid cycling) - more than 6 times within 60s
+	// 2. Amplitude exceeds baseline-relative threshold - exceeds 4x baseline stddev
 	// 3. Amplitude exceeds absolute minimum (if configured)
-	meetsZeroCrossings := zeroCrossings >= d.config.MinZeroCrossings
+	meetsReversalCount := directionReversals >= d.config.MinDirectionReversals
 	meetsRelativeThreshold := amplitude > amplitudeThreshold
 	meetsAbsoluteThreshold := d.config.MinAmplitude == 0 || amplitude > d.config.MinAmplitude
 
-	if meetsZeroCrossings && meetsRelativeThreshold && meetsAbsoluteThreshold {
+	if meetsReversalCount && meetsRelativeThreshold && meetsAbsoluteThreshold {
 		result.Detected = true
 	}
 

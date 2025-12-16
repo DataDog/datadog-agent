@@ -1,35 +1,50 @@
-# CPU Oscillation Detector - Technical Design
+# Per-Container CPU Oscillation Detector - Technical Design
 
 ## Architecture Overview
 
-The CPU Oscillation Detector is implemented as a **long-running check** that samples aggregate CPU usage at 1Hz and detects rapid oscillation patterns. It runs independently of the standard 15-second CPU check, maintaining its own sampling loop and baseline state.
+The Per-Container CPU Oscillation Detector is implemented as a **long-running check** that samples CPU usage for each running container at 1Hz and detects rapid oscillation patterns. It uses WorkloadMeta for container discovery/lifecycle and the standard container metrics provider for CPU statistics.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CPU Oscillation Check                       │
-│  (Long-running: Interval() == 0)                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │   1Hz CPU    │───>│  Oscillation │───>│   Metric     │       │
-│  │   Sampler    │    │   Detector   │    │   Emitter    │       │
-│  └──────────────┘    └──────────────┘    └──────────────┘       │
-│         │                   │                    │              │
-│         v                   v                    v              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │ Ring Buffer  │    │   Baseline   │    │   Sender     │       │
-│  │ (60 samples) │    │   Tracker    │    │  (Gauges)    │       │
-│  └──────────────┘    └──────────────┘    └──────────────┘       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                    Container CPU Oscillation Check                       |
+|  (Long-running: Interval() == 0)                                         |
++-------------------------------------------------------------------------+
+|                                                                          |
+|  +----------------+    +------------------+    +-----------------+        |
+|  |  WorkloadMeta  |    |  1Hz CPU Sampler |    | Metric Emitter  |        |
+|  |  Subscriber    |    |  (per container) |    | (15s interval)  |        |
+|  +-------+--------+    +--------+---------+    +--------+--------+        |
+|          |                      |                      |                 |
+|          v                      v                      v                 |
+|  +----------------+    +------------------+    +-----------------+        |
+|  | Container      |    | Detector Map     |    | Tagger          |        |
+|  | Lifecycle      |    | map[containerID] |    | Integration     |        |
+|  | Events         |    | *OscillationDet  |    |                 |        |
+|  +----------------+    +------------------+    +-----------------+        |
+|                                                                          |
++-------------------------------------------------------------------------+
 ```
+
+## Key Architectural Changes from Host-Level Design
+
+| Aspect | Host-Level (Previous) | Per-Container (New) |
+|--------|----------------------|---------------------|
+| CPU Source | gopsutil host CPU | Container metrics provider (cgroup) |
+| Detector State | Single `*OscillationDetector` | `map[containerID]*OscillationDetector` |
+| Discovery | N/A (single host) | WorkloadMeta subscription |
+| Lifecycle | N/A | Create/delete detectors on container start/stop |
+| Tagging | None | Tagger component integration |
+| Metric Namespace | `system.cpu.oscillation.*` | `container.cpu.oscillation.*` |
 
 ## Component Design
 
-### OscillationDetector Struct
+### OscillationDetector Struct (Unchanged Algorithm)
+
+The core oscillation detection algorithm remains the same as the host-level design. Each container gets its own detector instance.
 
 ```go
 // OscillationDetector analyzes CPU samples for oscillation patterns
+// One instance per container
 type OscillationDetector struct {
     // Ring buffer for CPU samples (fixed size, no allocation after init)
     samples     []float64
@@ -40,8 +55,8 @@ type OscillationDetector struct {
     baselineVariance float64
     baselineMean     float64
 
-    // Configuration
-    config OscillationConfig
+    // Configuration (shared across all detectors)
+    config *OscillationConfig
 
     // State
     warmupRemaining time.Duration
@@ -59,28 +74,47 @@ type OscillationConfig struct {
 }
 
 type OscillationResult struct {
-    Detected   bool
-    Amplitude  float64  // Peak-to-trough percentage
-    Frequency  float64  // Cycles per second (Hz)
-    ZeroCrossings int   // Number of direction changes
+    Detected      bool
+    Amplitude     float64 // Peak-to-trough percentage
+    Frequency     float64 // Cycles per second (Hz)
+    ZeroCrossings int     // Number of direction changes
 }
 ```
 
-### Check Struct
+### Check Struct (New: Per-Container Architecture)
 
 ```go
-// Check implements the CPU oscillation detection check
+// Check implements the per-container CPU oscillation detection check
 type Check struct {
     core.CheckBase
 
-    detector *OscillationDetector
-    config   *checkConfig
+    // Per-container detector map
+    detectors   map[string]*ContainerDetector
+    detectorsMu sync.RWMutex
 
-    // Long-running check control
-    stopCh   chan struct{}
+    // Shared configuration
+    config *checkConfig
 
-    // CPU sampling (reuse gopsutil)
-    lastCPUTimes cpu.TimesStat
+    // Component dependencies
+    wmeta   workloadmeta.Component
+    tagger  tagger.Component
+    metrics metrics.Provider
+
+    // Lifecycle management
+    stopCh          chan struct{}
+    wmetaEventCh    chan workloadmeta.EventBundle
+}
+
+// ContainerDetector wraps OscillationDetector with container-specific state
+type ContainerDetector struct {
+    detector     *OscillationDetector
+    containerID  string
+    namespace    string  // Container namespace (for metrics provider)
+    runtime      string  // Container runtime
+    runtimeFlavor string // Runtime flavor
+
+    // CPU rate calculation (same pattern as pkg/process/util/containers)
+    lastCPUTotal   float64
     lastSampleTime time.Time
 }
 
@@ -92,251 +126,274 @@ type checkConfig struct {
 }
 ```
 
-## Algorithm Details
+## Container Discovery and Lifecycle
 
-### Zero-Crossing Detection
+### WorkloadMeta Integration
 
-Oscillation is detected by counting "zero crossings" of the CPU usage derivative (rate of change). A zero crossing occurs when CPU transitions from increasing to decreasing or vice versa.
+The check subscribes to WorkloadMeta for container lifecycle events:
 
-```
-CPU %
-  ^
-  |    /\      /\
-  |   /  \    /  \      <- 4 zero crossings in this pattern
-  |  /    \  /    \
-  | /      \/      \
-  +-------------------> time
-```
-
-**Implementation:**
 ```go
-func (d *OscillationDetector) countZeroCrossings() int {
-    if d.sampleCount < 3 {
-        return 0
-    }
+func (c *Check) subscribeToWorkloadMeta() {
+    filter := workloadmeta.NewFilter(
+        []workloadmeta.Kind{workloadmeta.KindContainer},
+        workloadmeta.SourceAll,
+        workloadmeta.EventTypeAll,
+    )
 
-    crossings := 0
-    var prevDiff float64
-
-    for i := 1; i < d.sampleCount; i++ {
-        curr := d.getSample(i)
-        prev := d.getSample(i - 1)
-        currDiff := curr - prev
-
-        if i > 1 {
-            // Sign change = zero crossing
-            if (prevDiff > 0 && currDiff < 0) || (prevDiff < 0 && currDiff > 0) {
-                crossings++
-            }
-        }
-        prevDiff = currDiff
-    }
-    return crossings
+    c.wmetaEventCh = c.wmeta.Subscribe(
+        "container_cpu_oscillation",
+        workloadmeta.NormalPriority,
+        filter,
+    )
 }
-```
 
-### Amplitude Calculation
-
-Amplitude is the difference between maximum and minimum CPU values in the current window:
-
-```go
-func (d *OscillationDetector) calculateAmplitude() float64 {
-    if d.sampleCount < 2 {
-        return 0
-    }
-
-    min, max := d.getSample(0), d.getSample(0)
-    for i := 1; i < d.sampleCount; i++ {
-        v := d.getSample(i)
-        if v < min {
-            min = v
-        }
-        if v > max {
-            max = v
-        }
-    }
-    return max - min
-}
-```
-
-### Baseline Tracking (Exponential Decay)
-
-The baseline variance adapts to each host's normal behavior using exponential moving average:
-
-```go
-func (d *OscillationDetector) updateBaseline(newVariance float64) {
-    if d.baselineVariance == 0 {
-        // First sample
-        d.baselineVariance = newVariance
+func (c *Check) handleWorkloadMetaEvent(event workloadmeta.Event) {
+    container, ok := event.Entity.(*workloadmeta.Container)
+    if !ok {
         return
     }
 
-    // Exponential decay: new = α * current + (1-α) * old
-    α := d.config.DecayFactor
-    d.baselineVariance = α*newVariance + (1-α)*d.baselineVariance
+    switch event.Type {
+    case workloadmeta.EventTypeSet:
+        // Container created or updated
+        if container.State.Running {
+            c.ensureDetector(container)
+        }
+    case workloadmeta.EventTypeUnset:
+        // Container removed - immediate state cleanup (REQ-COD-002)
+        c.removeDetector(container.ID)
+    }
+}
+
+func (c *Check) ensureDetector(container *workloadmeta.Container) {
+    c.detectorsMu.Lock()
+    defer c.detectorsMu.Unlock()
+
+    if _, exists := c.detectors[container.ID]; exists {
+        return // Already tracking
+    }
+
+    c.detectors[container.ID] = &ContainerDetector{
+        detector:      NewOscillationDetector(c.config.toOscillationConfig()),
+        containerID:   container.ID,
+        namespace:     container.Namespace,
+        runtime:       string(container.Runtime),
+        runtimeFlavor: string(container.RuntimeFlavor),
+        lastCPUTotal:  -1, // Sentinel for "no previous sample"
+    }
+}
+
+func (c *Check) removeDetector(containerID string) {
+    c.detectorsMu.Lock()
+    defer c.detectorsMu.Unlock()
+    delete(c.detectors, containerID)
 }
 ```
 
-### Detection Logic
+### Container CPU Sampling
+
+Uses the existing container metrics provider, consistent with `pkg/process/util/containers`:
 
 ```go
-func (d *OscillationDetector) Analyze() OscillationResult {
-    result := OscillationResult{}
-
-    // No analysis until window is full (60 samples)
-    if d.sampleCount < d.config.WindowSize {
-        return result
+func (c *Check) sampleContainerCPU(cd *ContainerDetector) (float64, error) {
+    collector := c.metrics.GetCollector(provider.NewRuntimeMetadata(
+        cd.runtime,
+        cd.runtimeFlavor,
+    ))
+    if collector == nil {
+        return 0, fmt.Errorf("no collector for runtime %s", cd.runtime)
     }
 
-    // Still in warmup - learn baseline but don't flag oscillation
-    if d.warmupRemaining > 0 {
-        d.updateBaseline(d.calculateVariance())
-        return result
+    stats, err := collector.GetContainerStats(cd.namespace, cd.containerID, 0)
+    if err != nil {
+        return 0, fmt.Errorf("failed to get container stats: %w", err)
     }
 
-    zeroCrossings := d.countZeroCrossings()
-    amplitude := d.calculateAmplitude()
-    currentVariance := d.calculateVariance()
-
-    // Update baseline (continuous learning)
-    d.updateBaseline(currentVariance)
-
-    // Check oscillation criteria
-    baselineStdDev := math.Sqrt(d.baselineVariance)
-    amplitudeThreshold := d.config.AmplitudeMultiplier * baselineStdDev
-
-    result.ZeroCrossings = zeroCrossings
-    result.Amplitude = amplitude
-    result.Frequency = float64(zeroCrossings) / float64(d.config.WindowSize) / 2.0 // cycles per second
-
-    // Check oscillation criteria:
-    // 1. Enough direction changes (rapid cycling)
-    // 2. Amplitude exceeds baseline-relative threshold
-    // 3. Amplitude exceeds absolute minimum (if configured)
-    meetsZeroCrossings := zeroCrossings >= d.config.MinZeroCrossings
-    meetsRelativeThreshold := amplitude > amplitudeThreshold
-    meetsAbsoluteThreshold := d.config.MinAmplitude == 0 || amplitude > d.config.MinAmplitude
-
-    if meetsZeroCrossings && meetsRelativeThreshold && meetsAbsoluteThreshold {
-        result.Detected = true
+    if stats == nil || stats.CPU == nil || stats.CPU.Total == nil {
+        return 0, fmt.Errorf("no CPU stats available")
     }
 
-    return result
+    // CPU.Total is in nanoseconds (cumulative)
+    currentTotal := *stats.CPU.Total
+    currentTime := stats.Timestamp
+    if currentTime.IsZero() {
+        currentTime = time.Now()
+    }
+
+    // First sample - need delta
+    if cd.lastCPUTotal < 0 || cd.lastSampleTime.IsZero() {
+        cd.lastCPUTotal = currentTotal
+        cd.lastSampleTime = currentTime
+        return 0, fmt.Errorf("first sample, need delta")
+    }
+
+    // Calculate CPU percentage since last sample
+    timeDelta := currentTime.Sub(cd.lastSampleTime)
+    if timeDelta <= 0 {
+        return 0, fmt.Errorf("no time elapsed")
+    }
+
+    cpuDelta := currentTotal - cd.lastCPUTotal
+    if cpuDelta < 0 {
+        // Counter reset (container restarted)
+        cd.lastCPUTotal = currentTotal
+        cd.lastSampleTime = currentTime
+        return 0, fmt.Errorf("CPU counter reset")
+    }
+
+    // Convert to percentage: (cpu_ns_used / elapsed_ns) * 100
+    cpuPercent := (cpuDelta / float64(timeDelta.Nanoseconds())) * 100.0
+
+    cd.lastCPUTotal = currentTotal
+    cd.lastSampleTime = currentTime
+
+    return cpuPercent, nil
 }
 ```
+
+## Algorithm Details
+
+The oscillation detection algorithm is unchanged from the host-level design. See the previous design document for details on:
+- Zero-crossing detection
+- Amplitude calculation
+- Baseline tracking (exponential decay)
+- Detection logic
 
 ## File Structure
 
 ```
-pkg/collector/corechecks/system/cpu/
-├── cpu/
-│   ├── cpu.go                    # Existing CPU check (unchanged)
-│   ├── cpu_windows.go            # Existing Windows impl (unchanged)
-│   └── ...
-└── oscillation/                  # NEW directory
-    ├── oscillation.go            # Check implementation
-    ├── oscillation_test.go       # Unit tests
-    ├── detector.go               # OscillationDetector logic
-    ├── detector_test.go          # Detector unit tests
-    └── config.go                 # Configuration parsing
+pkg/collector/corechecks/containers/cpu_oscillation/
+    oscillation.go            # Check implementation (per-container)
+    oscillation_test.go       # Unit tests
+    detector.go               # OscillationDetector logic (unchanged algorithm)
+    detector_test.go          # Detector unit tests
+    config.go                 # Configuration parsing
+    stub.go                   # Stub for non-Linux platforms
 ```
+
+Note: File location changed from `system/cpu/oscillation/` to `containers/cpu_oscillation/` to reflect the per-container scope.
 
 ## Configuration
 
-**conf.d/cpu_oscillation.d/conf.yaml.default:**
+**conf.d/container_cpu_oscillation.d/conf.yaml.default:**
 ```yaml
 init_config:
 
 instances:
-  - amplitude_multiplier: 4.0      # Swings must exceed 4x baseline stddev
+  - enabled: false                 # Explicit opt-in required (default: disabled)
+    amplitude_multiplier: 4.0      # Swings must exceed 4x baseline stddev
     min_amplitude: 0               # Absolute minimum amplitude (0 = disabled)
-    warmup_seconds: 300            # 5 minute warmup period
+    warmup_seconds: 300            # 5 minute warmup period per container
     # min_collection_interval: 15  # Metric emission interval (detection runs at 1Hz internally)
+```
+
+**datadog.yaml (alternative):**
+```yaml
+container_cpu_oscillation:
+  enabled: false
+  amplitude_multiplier: 4.0
+  min_amplitude: 0
+  warmup_seconds: 300
 ```
 
 ## Timing Model
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         TIMING MODEL                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  SAMPLE INTERVAL: 1 second                                              │
-│  ├─ CPU sampled once per second via gopsutil                            │
-│  └─ Each sample added to ring buffer                                    │
-│                                                                         │
-│  DETECTION WINDOW: 60 seconds (sliding)                                 │
-│  ├─ Ring buffer holds last 60 samples                                   │
-│  └─ No metrics emitted until window is full                             │
-│                                                                         │
-│  EMISSION INTERVAL: 15 seconds                                          │
-│  ├─ Metrics emitted every 15 seconds (after window is full)             │
-│  └─ Each emission reflects current 60s sliding window                   │
-│                                                                         │
-│  WARMUP PERIOD: 300 seconds (5 minutes)                                 │
-│  ├─ Baseline variance learned, oscillation.detected always 0            │
-│  └─ Other metrics (amplitude, zero_crossings, etc.) still emitted       │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                         TIMING MODEL (Per Container)                     |
++-------------------------------------------------------------------------+
+|                                                                          |
+|  SAMPLE INTERVAL: 1 second                                               |
+|  - CPU sampled once per second for each container                        |
+|  - Each sample added to that container's ring buffer                     |
+|                                                                          |
+|  DETECTION WINDOW: 60 seconds (sliding, per container)                   |
+|  - Ring buffer holds last 60 samples per container                       |
+|  - No detection until window is full for that container                  |
+|                                                                          |
+|  EMISSION INTERVAL: 15 seconds                                           |
+|  - Metrics emitted every 15 seconds for ALL containers                   |
+|  - Each emission reflects current 60s sliding window per container       |
+|                                                                          |
+|  WARMUP PERIOD: 300 seconds (5 minutes, per container)                   |
+|  - Each container has independent warmup starting at first sample        |
+|  - Baseline variance learned, oscillation.detected always 0 during warmup|
+|  - Other metrics (amplitude, zero_crossings) still emitted               |
+|                                                                          |
+|  CONTAINER LIFECYCLE:                                                    |
+|  - New container: New detector, fresh warmup                             |
+|  - Removed container: Immediate state deletion                           |
+|  - Short-lived (<5min): Never triggers detection (acceptable)            |
+|                                                                          |
++-------------------------------------------------------------------------+
 
-Timeline:
+Timeline (per container):
 
 t=0s              t=60s         t=300s        t=315s
-│                 │             │             │
-▼                 ▼             ▼             ▼
-Start             First         Warmup        First possible
-(collecting)      emission      ends          detection=1
+|                 |             |             |
+v                 v             v             v
+Container         First         Warmup        First possible
+starts            emission      ends          detection=1
+(collecting)
 ```
-
-**Key behaviors:**
-- No metrics emitted until 60 samples collected (window full)
-- `oscillation.detected=1` only possible after warmup ends (t≥300s)
-- An oscillation event stays in the window for 60s, so may appear in up to 4 consecutive emissions
 
 ## Metrics Emitted
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `system.cpu.oscillation.detected` | Gauge (0/1) | 1 if oscillation detected in current 60s window. Always 0 during warmup. |
-| `system.cpu.oscillation.amplitude` | Gauge | Peak-to-trough CPU% swing in current window (0-100 scale) |
-| `system.cpu.oscillation.frequency` | Gauge | Estimated oscillation frequency in Hz (zero_crossings / 60 / 2) |
-| `system.cpu.oscillation.baseline_stddev` | Gauge | Current baseline standard deviation of CPU% (for threshold tuning) |
-| `system.cpu.oscillation.zero_crossings` | Gauge | Direction changes in current 60s window (max 59) |
+| Metric Name | Type | Tags | Description |
+|-------------|------|------|-------------|
+| `container.cpu.oscillation.detected` | Gauge (0/1) | container tags | 1 if oscillation detected in current 60s window. Always 0 during warmup. |
+| `container.cpu.oscillation.amplitude` | Gauge | container tags | Peak-to-trough CPU% swing in current window (0-100+ scale) |
+| `container.cpu.oscillation.frequency` | Gauge | container tags | Estimated oscillation frequency in Hz (zero_crossings / 60 / 2) |
+| `container.cpu.oscillation.baseline_stddev` | Gauge | container tags | Current baseline standard deviation of CPU% (for threshold tuning) |
+| `container.cpu.oscillation.zero_crossings` | Gauge | container tags | Direction changes in current 60s window (max 59) |
+
+**Tags included (via tagger component with DD_CHECKS_TAG_CARDINALITY):**
+- `container_id`
+- `container_name`
+- `image_name`, `image_tag`
+- `kube_namespace`, `kube_deployment`, `kube_pod_name` (if K8s)
+- `ecs_task_family`, `ecs_task_arn` (if ECS)
+- Standard orchestrator tags based on environment
 
 ## Check Lifecycle
 
 ### Initialization (Configure)
 1. Parse configuration from YAML
-2. Initialize OscillationDetector with config
-3. Allocate ring buffer (fixed 60 elements)
-4. Set warmup timer
+2. Validate configuration, exit if disabled
+3. Initialize empty detector map
+4. Get WorkloadMeta, Tagger, and Metrics Provider components
 
 ### Run Loop (Long-Running)
 ```go
 func (c *Check) Run() error {
-    ticker := time.NewTicker(c.detector.config.SampleInterval)
-    defer ticker.Stop()
+    // Subscribe to container lifecycle events
+    c.subscribeToWorkloadMeta()
+    defer c.wmeta.Unsubscribe(c.wmetaEventCh)
 
-    emitTicker := time.NewTicker(15 * time.Second) // Emit metrics every 15s
+    // Initialize detectors for existing containers
+    c.initializeExistingContainers()
+
+    sampleTicker := time.NewTicker(1 * time.Second)
+    defer sampleTicker.Stop()
+
+    emitTicker := time.NewTicker(15 * time.Second)
     defer emitTicker.Stop()
 
     for {
         select {
-        case <-ticker.C:
-            // Sample CPU at 1Hz
-            cpuPercent, err := c.sampleCPU()
-            if err != nil {
-                continue
+        case eventBundle := <-c.wmetaEventCh:
+            // Handle container lifecycle events
+            eventBundle.Acknowledge()
+            for _, event := range eventBundle.Events {
+                c.handleWorkloadMetaEvent(event)
             }
-            c.detector.AddSample(cpuPercent)
 
-            // Update warmup timer
-            if c.detector.warmupRemaining > 0 {
-                c.detector.warmupRemaining -= c.detector.config.SampleInterval
-            }
+        case <-sampleTicker.C:
+            // Sample CPU for all containers at 1Hz
+            c.sampleAllContainers()
 
         case <-emitTicker.C:
-            // Emit metrics at standard interval
+            // Emit metrics for all containers
             c.emitMetrics()
 
         case <-c.stopCh:
@@ -344,49 +401,36 @@ func (c *Check) Run() error {
         }
     }
 }
-```
 
-### CPU Sampling
-
-Reuse gopsutil for consistency with existing CPU check:
-
-```go
-func (c *Check) sampleCPU() (float64, error) {
-    times, err := cpu.Times(false) // Aggregate, not per-CPU
-    if err != nil {
-        return 0, err
+func (c *Check) initializeExistingContainers() {
+    containers := c.wmeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+    for _, container := range containers {
+        c.ensureDetector(container)
     }
+}
 
-    if len(times) == 0 {
-        return 0, errors.New("no CPU times returned")
+func (c *Check) sampleAllContainers() {
+    c.detectorsMu.RLock()
+    detectorsCopy := make([]*ContainerDetector, 0, len(c.detectors))
+    for _, cd := range c.detectors {
+        detectorsCopy = append(detectorsCopy, cd)
     }
+    c.detectorsMu.RUnlock()
 
-    t := times[0]
-    total := t.User + t.System + t.Idle + t.Nice + t.Iowait + t.Irq + t.Softirq + t.Steal
+    for _, cd := range detectorsCopy {
+        cpuPercent, err := c.sampleContainerCPU(cd)
+        if err != nil {
+            // Log at debug level (transient errors are expected)
+            log.Debugf("Failed to sample CPU for container %s: %v", cd.containerID[:12], err)
+            continue
+        }
+        cd.detector.AddSample(cpuPercent)
 
-    if c.lastSampleTime.IsZero() {
-        c.lastCPUTimes = t
-        c.lastSampleTime = time.Now()
-        return 0, errors.New("first sample, need delta")
+        // Update warmup timer
+        if cd.detector.warmupRemaining > 0 {
+            cd.detector.warmupRemaining -= time.Second
+        }
     }
-
-    // Calculate CPU busy percentage since last sample
-    prevTotal := c.lastCPUTimes.User + c.lastCPUTimes.System + c.lastCPUTimes.Idle +
-                 c.lastCPUTimes.Nice + c.lastCPUTimes.Iowait + c.lastCPUTimes.Irq +
-                 c.lastCPUTimes.Softirq + c.lastCPUTimes.Steal
-
-    deltaTotal := total - prevTotal
-    deltaIdle := t.Idle - c.lastCPUTimes.Idle
-
-    c.lastCPUTimes = t
-    c.lastSampleTime = time.Now()
-
-    if deltaTotal == 0 {
-        return 0, nil
-    }
-
-    busyPercent := 100.0 * (1.0 - deltaIdle/deltaTotal)
-    return busyPercent, nil
 }
 ```
 
@@ -399,18 +443,32 @@ func (c *Check) emitMetrics() {
         return
     }
 
-    result := c.detector.Analyze()
+    c.detectorsMu.RLock()
+    defer c.detectorsMu.RUnlock()
 
-    detected := 0.0
-    if result.Detected {
-        detected = 1.0
+    for containerID, cd := range c.detectors {
+        // Get container tags via tagger
+        entityID := types.NewEntityID(types.ContainerID, containerID)
+        tags, err := c.tagger.Tag(entityID, types.LowCardinality) // Respect DD_CHECKS_TAG_CARDINALITY
+        if err != nil {
+            log.Debugf("Failed to get tags for container %s: %v", containerID[:12], err)
+            tags = []string{}
+        }
+
+        result := cd.detector.Analyze()
+
+        detected := 0.0
+        if result.Detected {
+            detected = 1.0
+        }
+
+        sender.Gauge("container.cpu.oscillation.detected", detected, "", tags)
+        sender.Gauge("container.cpu.oscillation.amplitude", result.Amplitude, "", tags)
+        sender.Gauge("container.cpu.oscillation.frequency", result.Frequency, "", tags)
+        sender.Gauge("container.cpu.oscillation.zero_crossings", float64(result.ZeroCrossings), "", tags)
+        sender.Gauge("container.cpu.oscillation.baseline_stddev",
+            math.Sqrt(cd.detector.baselineVariance), "", tags)
     }
-
-    sender.Gauge("system.cpu.oscillation.detected", detected, "", nil)
-    sender.Gauge("system.cpu.oscillation.amplitude", result.Amplitude, "", nil)
-    sender.Gauge("system.cpu.oscillation.frequency", result.Frequency, "", nil)
-    sender.Gauge("system.cpu.oscillation.zero_crossings", float64(result.ZeroCrossings), "", nil)
-    sender.Gauge("system.cpu.oscillation.baseline_stddev", math.Sqrt(c.detector.baselineVariance), "", nil)
 
     sender.Commit()
 }
@@ -418,16 +476,41 @@ func (c *Check) emitMetrics() {
 
 ## Error Handling
 
-- **CPU sampling failures:** Log warning, skip sample, continue (don't crash check)
-- **First sample:** Skip (need delta for percentage calculation)
-- **Warmup period:** Collect data but don't emit `detected=1`
-- **Insufficient samples:** No metrics emitted until 60 samples collected
+| Error Condition | Handling | Rationale |
+|----------------|----------|-----------|
+| No metrics collector for runtime | Skip container, log debug | Not all runtimes support CPU stats |
+| Cgroup read failure | Skip container this interval, log debug | Transient errors expected in dynamic environments |
+| Container removed mid-sample | Graceful via WorkloadMeta event | Container already removed from map |
+| First sample (no delta) | Skip, return error | Need two samples for rate calculation |
+| CPU counter reset | Skip, reset tracking state | Container likely restarted |
+| No running containers | Run normally, emit no metrics | Not an error condition |
+| Tagger failure | Emit metrics without tags | Degraded but still useful |
 
 ## Performance Considerations
 
-- **CPU overhead:** gopsutil `cpu.Times()` is lightweight (~0.1ms per call)
-- **Memory:** Fixed allocation: 60 floats = 480 bytes + struct overhead
-- **No allocations in hot path:** Ring buffer reuses memory
+### Memory Budget
+
+| Component | Per Container | 100 Containers |
+|-----------|--------------|----------------|
+| OscillationDetector.samples | 480 bytes (60 x 8 bytes) | 48 KB |
+| OscillationDetector struct fields | ~50 bytes | 5 KB |
+| ContainerDetector wrapper | ~100 bytes | 10 KB |
+| Map overhead | ~50 bytes | 5 KB |
+| **Total** | **~500 bytes** | **~50 KB** |
+
+### CPU Overhead
+
+- Container metrics provider call: ~0.1-1ms per container (varies by runtime)
+- Oscillation analysis: O(n) where n=60 samples, ~0.01ms
+- For 100 containers at 1Hz: ~100-200ms total per second = ~10-20% of one core worst case
+- Target: <1% of Agent process CPU (achieved by leveraging cached metrics)
+
+### Optimizations
+
+1. **Leverage cached metrics**: Container metrics provider already caches stats; use `cacheValidity: 0` to get freshest data without extra syscalls
+2. **No allocations in hot path**: Ring buffer pre-allocated, reused per container
+3. **RWMutex for detector map**: Allows concurrent reads during sampling
+4. **Copy-on-iterate**: Copy detector slice before sampling to minimize lock hold time
 
 ## Testing Strategy
 
@@ -438,31 +521,44 @@ func (c *Check) emitMetrics() {
 4. Warmup period enforcement
 5. Detection threshold tuning
 
+### Unit Tests (oscillation_test.go)
+1. Container discovery via WorkloadMeta mock
+2. Container removal triggers state cleanup
+3. CPU rate calculation from cumulative values
+4. Metric emission with correct tags
+5. Configuration validation
+
 ### Integration Tests
 1. Check starts and stops cleanly
-2. Metrics emitted at expected interval
-3. Long-running behavior (no memory growth)
+2. Handles container churn (create/delete cycles)
+3. Metrics emitted with correct tags
+4. Long-running behavior (no memory growth)
+5. Multiple container runtimes (docker, containerd)
 
 ### Staging Validation
-1. Deploy to staging cluster
-2. Build dashboard for oscillation metrics
-3. Correlate `detected=1` events with known incidents
-4. Tune thresholds based on false positive/negative rates
+1. Deploy to staging K8s cluster with 50+ containers
+2. Build dashboard grouping by namespace/deployment
+3. Correlate `detected=1` events with known container issues
+4. Verify tags enable direct navigation to logs/events
+5. Tune thresholds based on false positive/negative rates
 
 ## Requirements Traceability
 
 | Requirement | Implementation Location | Approach |
 |-------------|------------------------|----------|
-| **REQ-COD-001:** Detect Rapid CPU Cycling | `detector.go:Analyze()` | Zero-crossing count ≥6 AND amplitude >4x baseline stddev AND amplitude > min_amplitude (if set) |
-| **REQ-COD-002:** Establish Host-Specific Baseline | `detector.go:updateBaseline()` | Exponential decay (α=0.1) with 5-minute warmup |
-| **REQ-COD-003:** Report Oscillation Characteristics | `oscillation.go:emitMetrics()` | Gauge metrics for amplitude, frequency, zero_crossings |
-| **REQ-COD-004:** Minimal Performance Impact | `oscillation.go:Run()` | gopsutil cpu.Times() at 1Hz, fixed 480-byte ring buffer |
-| **REQ-COD-005:** Configurable Detection Sensitivity | `config.go` | YAML instance config for amplitude_multiplier, min_amplitude, warmup_seconds |
+| **REQ-COD-001:** Detect Rapid CPU Cycling Per Container | `detector.go:Analyze()` | Zero-crossing count >= 6 AND amplitude > 4x baseline stddev AND amplitude > min_amplitude |
+| **REQ-COD-002:** Establish Container-Specific Baseline | `detector.go:updateBaseline()`, `oscillation.go:handleWorkloadMetaEvent()` | Exponential decay (alpha=0.1) with 5-minute warmup; immediate cleanup on container removal |
+| **REQ-COD-003:** Report Oscillation Characteristics with Container Tags | `oscillation.go:emitMetrics()` | Gauge metrics with tagger integration for container tags |
+| **REQ-COD-004:** Minimal Performance Impact at Scale | `oscillation.go:Run()` | Container metrics provider (cached), ~500 bytes per container, <50KB for 100 containers |
+| **REQ-COD-005:** Configurable Detection with Default Disabled | `config.go` | YAML config for enabled, amplitude_multiplier, min_amplitude, warmup_seconds; default disabled |
+| **REQ-COD-006:** Metric Emission for All Tracked Containers | `oscillation.go:emitMetrics()` | Iterate all detectors, emit for each regardless of detection state |
+| **REQ-COD-007:** Graceful Error Handling | `oscillation.go:sampleAllContainers()` | Log debug, skip container, continue; WorkloadMeta events for lifecycle |
 
 ## Future Considerations (Out of Scope)
 
-- Per-process oscillation detection
-- Multiple frequency band detection
-- Event emission on state transitions
-- Baseline persistence across restarts (see Auditer/registry.json)
-- Correlation with memory/IO oscillation patterns
+- Per-process within container oscillation detection
+- Multiple frequency band detection (fast vs. slow oscillations)
+- Event emission on state transitions (in addition to metrics)
+- Baseline persistence across agent restarts
+- Host-level aggregation metric (can be computed at query time)
+- Cross-container correlation (e.g., multiple containers oscillating in sync)

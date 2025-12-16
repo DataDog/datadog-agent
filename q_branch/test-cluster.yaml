@@ -4,7 +4,8 @@ metadata:
   name: datadog
 spec:
   global:
-    clusterName: gadget-dev
+    checksTagCardinality: high
+    clusterName: sopell-gadget-dev
     kubelet:
       tlsVerify: false
     credentials:
@@ -17,9 +18,15 @@ spec:
   override:
     nodeAgent:
       image:
-        # localhost/ prefix required - operator prepends default registry without it
+        #name: docker.io/datadog/agent-dev:sopell-q-branch-cpu-oscillation-per-container-py3-jmx
         name: localhost/datadog-agent:local
         pullPolicy: Never
+      extraConfd:
+        configMap:
+          name: cpu-oscillation-config
+      env:
+        - name: DD_DD_URL
+          value: "http://proxy-dumper.default.svc.cluster.local:8081"
   features:
     logCollection:
       enabled: true
@@ -49,36 +56,49 @@ spec:
       unixDomainSocketConfig:
         enabled: true
 ---
-# CPU Oscillation stress test - creates rapid on/off CPU pattern
-apiVersion: v1
-kind: Pod
+# Proxy dumper to intercept and log metrics
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: cpu-oscillator
-  labels:
-    app: cpu-oscillator
+  name: proxy-dumper
 spec:
-  containers:
-  - name: oscillator
-    image: busybox
-    command:
-    - /bin/sh
-    - -c
-    - |
-      # Oscillate CPU: 2 seconds busy, 2 seconds idle
-      # This creates ~0.25 Hz oscillation pattern
-      while true; do
-        # CPU spike: tight loop for 2 seconds
-        end=$(($(date +%s) + 2))
-        while [ $(date +%s) -lt $end ]; do
-          : # busy loop
-        done
-        # CPU idle: sleep for 2 seconds
-        sleep 2
-      done
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "32Mi"
-      limits:
-        cpu: "500m"
-        memory: "64Mi"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxy-dumper
+  template:
+    metadata:
+      labels:
+        app: proxy-dumper
+    spec:
+      containers:
+      - name: proxy-dumper
+        image: proxy-dumper
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-dumper
+spec:
+  selector:
+    app: proxy-dumper
+  ports:
+  - port: 8081
+    targetPort: 8081
+---
+# ConfigMap to enable cpu_oscillation check
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cpu-oscillation-config
+data:
+  cpu_oscillation.yaml: |
+    instances:
+      - enabled: true
+        warmup_seconds: 60
+        min_amplitude: 10
+        min_direction_reversals: 40
+---
