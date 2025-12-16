@@ -85,6 +85,30 @@ jobs:
                 });
               }
             }
+      - name: Remove the "waiting on author" label when issue is commented
+        if: steps.datadog-comment.outputs.result == 'false'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const issueNumber = context.eventName === 'issue_comment'
+              ? context.issue.number
+              : parseInt(context.payload.inputs.issue_number);
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            for (const label of labels.data) {
+              if (label.name === 'waiting on author') {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: label.name
+                });
+              }
+            }
       - name: Remove the team/triage label if another team label exists
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
