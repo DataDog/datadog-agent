@@ -34,7 +34,7 @@ relative_path "openssl-#{version}"
 build do
   # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
   # Also, excluding openssl build for FIPS as it will be built as part of the FIPS provider.
-  if !windows? && !fips_mode?
+  if !windows?
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     lib_extension = if linux_target? then ".so" else ".dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
@@ -45,5 +45,17 @@ build do
     command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+  end
+
+  
+  if fips_mode?
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
+    if windows?
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=\"#{install_dir}\" --embedded_ssl_dir=\"C:/Program Files/Datadog/Datadog Agent/embedded3/ssl\"" 
+    else
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}"
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+        " #{install_dir}/embedded/lib/ossl-modules/fips.so" \
+    end
   end
 end

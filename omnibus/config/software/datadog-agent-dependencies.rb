@@ -7,9 +7,7 @@ if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
 end
-if fips_mode?
-  dependency 'openssl-fips-provider'
-else
+if !fips_mode?
   dependency 'secret-generic-connector' unless heroku_target?
 end
 
