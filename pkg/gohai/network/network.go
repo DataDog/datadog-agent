@@ -261,6 +261,9 @@ func macAddress() (string, error) {
 			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
+			if iface.HardwareAddr.String() == "" {
+				continue
+			}
 			return iface.HardwareAddr.String(), nil
 		}
 	}
