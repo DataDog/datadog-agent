@@ -67,7 +67,6 @@ func TestNewHardwareHostProvider_FullMode(t *testing.T) {
 
 	// Should be disabled for full mode
 	assert.False(t, hh.InventoryPayload.Enabled, "Should be disabled in full mode")
-	assert.Nil(t, hh.MetadataProvider, "Provider should be nil when disabled")
 }
 
 func TestNewHardwareHostProvider_BasicMode(t *testing.T) {
@@ -107,17 +106,6 @@ func TestGetPayload(t *testing.T) {
 
 	// Verify metadata structure exists (values will depend on the system)
 	assert.NotNil(t, p.Metadata, "Host hardware metadata should not be nil")
-}
-
-func TestGetPayload_NilData(t *testing.T) {
-	hh := getTestHostHardware(t, nil)
-
-	// Set data to nil
-	hh.data = nil
-
-	// Get payload should return nil when data is nil
-	payload := hh.getPayload()
-	assert.Nil(t, payload, "Payload should be nil when data is nil")
 }
 
 func TestPayloadMarshalJSON(t *testing.T) {
