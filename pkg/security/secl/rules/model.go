@@ -130,7 +130,7 @@ type ActionDefinition struct {
 	CoreDump      *CoreDumpDefinition      `yaml:"coredump,omitempty" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash          *HashDefinition          `yaml:"hash,omitempty" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
 	Log           *LogDefinition           `yaml:"log,omitempty" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
-	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty" jsonschema:"oneof_required=NetworkFilterAction"`
 }
 
 // Name returns the name of the action
