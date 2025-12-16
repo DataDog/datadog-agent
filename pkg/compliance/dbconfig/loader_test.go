@@ -9,6 +9,7 @@ package dbconfig
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -102,18 +103,40 @@ func launchFakeProcess(ctx context.Context, t *testing.T, procname string, args 
 		t.Fatal(err)
 	}
 	copyBin(w, r)
+	pipeR, pipeW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pipeR.Close()
+	defer pipeW.Close()
+
 	args = append([]string{"-test.run=TestDBConfigLaunchFakeProcess", "--"}, args...)
 	cmd := exec.CommandContext(ctx, binPath, args...)
 	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = pipeW
 	cmd.Env = append([]string{}, os.Environ()...)
 	cmd.Env = append(cmd.Env, "GO_TEST_COMPLIANCE_DBBENCHS_FAKE_PROCESS=1")
+
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("could not start fake process %q: %v", procname, err)
+		t.Fatal(err)
 	}
+	var b [16]byte
+	if _, err := pipeR.Read(b[:]); err != nil {
+		t.Fatal(err)
+	}
+	go io.Copy(io.Discard, pipeR)
+	t.Logf("read from fake process stdout=%s", string(b[:]))
 
 	proc, err := process.NewProcess(int32(cmd.Process.Pid))
 	assert.NoError(t, err)
+
+	exe, exeErr := proc.Exe()
+	name, nameErr := proc.Name()
+	cmdline, cmdlineErr := proc.CmdlineSlice()
+	uids, uidErr := proc.Uids()
+	gids, gidErr := proc.Gids()
+	t.Logf("fake process %q started with exe: %s (err=%v), name: %s (err=%v), cmdline: %v (err=%v), uids: %v (err=%v), gids: %v (err=%v)",
+		procname, exe, exeErr, name, nameErr, cmdline, cmdlineErr, uids, uidErr, gids, gidErr)
 
 	return proc, func() {
 		cmd.Process.Kill()
@@ -125,6 +148,7 @@ func TestDBConfigLaunchFakeProcess(t *testing.T) {
 	if os.Getenv("GO_TEST_COMPLIANCE_DBBENCHS_FAKE_PROCESS") != "1" {
 		t.Skip()
 	}
+	fmt.Printf("READY") // sending output to signal to caller that the process is properly execed and ready.
 	time.Sleep(1 * time.Minute)
 }
 
