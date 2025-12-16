@@ -114,23 +114,7 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
     create_cmd = click.option("--id", "-i", default=None, help="Environment id")(create_cmd)
 
     for opt in reversed(provider_cls.create_options):
-        kwargs: dict[str, Any] = {"help": opt.help}
-
-        if opt.is_flag:
-            kwargs["is_flag"] = True
-        else:
-            kwargs["default"] = opt.default
-            kwargs["show_default"] = opt.show_default
-            if opt.type:
-                kwargs["type"] = opt.type
-
-        if opt.required:
-            kwargs["required"] = True
-        if opt.envvar:
-            kwargs["envvar"] = opt.envvar
-
-        decorator = click.option(opt.name, **kwargs)
-        create_cmd = decorator(create_cmd)
+        opt(create_cmd)
 
     # Wrap with dynamic_command
     create_cmd = dynamic_command(short_help=f"Create a {provider_cls.description}")(create_cmd)

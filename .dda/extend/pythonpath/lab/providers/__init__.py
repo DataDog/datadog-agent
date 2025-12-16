@@ -36,23 +36,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from click import Option
     from dda.cli.application import Application
 
     from lab.config import LabConfig
-
-
-@dataclass
-class Option:
-    """Definition for a CLI option."""
-
-    name: str
-    default: Any = None
-    type: type | None = None
-    help: str = ""
-    is_flag: bool = False
-    required: bool = False
-    envvar: str | None = None
-    show_default: bool = True
 
 
 @dataclass

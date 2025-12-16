@@ -11,7 +11,9 @@ import tempfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
-from lab.providers import BaseProvider, MissingPrerequisite, Option, ProviderConfig, ProviderOptions, register_provider
+import click
+
+from lab.providers import BaseProvider, MissingPrerequisite, ProviderConfig, ProviderOptions, register_provider
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
@@ -23,14 +25,10 @@ class KindOptions(ProviderOptions):
 
     # Kind-specific options
     k8s_version: str = "v1.32.0"
-    install_agent: bool = False
+    no_agent: bool = False
     agent_image: str = ""
     load_image: str = ""
     build_agent: bool = False
-    with_process_agent: bool = False
-    with_trace_agent: bool = False
-    with_system_probe: bool = False
-    with_security_agent: bool = False
     helm_values: str = ""
     devenv: str = ""
     force: bool = False
@@ -47,14 +45,10 @@ class KindOptions(ProviderOptions):
         return cls(
             name=config.name,
             k8s_version=config.options.get("k8s_version", "v1.32.0"),
-            install_agent=config.options.get("install_agent", False),
+            no_agent=config.options.get("no_agent", False),
             agent_image=config.options.get("agent_image", ""),
             load_image=config.options.get("load_image", ""),
             build_agent=config.options.get("build_agent", False),
-            with_process_agent=config.options.get("with_process_agent", False),
-            with_trace_agent=config.options.get("with_trace_agent", False),
-            with_system_probe=config.options.get("with_system_probe", False),
-            with_security_agent=config.options.get("with_security_agent", False),
             helm_values=config.options.get("helm_values", ""),
             devenv=config.options.get("devenv", ""),
             force=config.options.get("force", False),
@@ -66,7 +60,7 @@ class KindOptions(ProviderOptions):
     @property
     def wants_agent(self) -> bool:
         """Check if agent installation is requested."""
-        return self.install_agent or self.build_agent or bool(self.load_image)
+        return not self.no_agent or self.build_agent or bool(self.load_image)
 
 
 @register_provider
@@ -79,19 +73,14 @@ class KindProvider(BaseProvider):
     options_class = KindOptions
 
     create_options = [
-        Option("--k8s-version", default="v1.32.0", help="Kubernetes version"),
-        Option("--install-agent", is_flag=True, help="Install Datadog Agent"),
-        Option("--agent-image", default="", help="Custom agent image"),
-        Option("--load-image", default="", help="Load existing local docker image into cluster"),
-        Option("--build-agent", is_flag=True, help="Build local agent image before deploying"),
-        Option("--with-process-agent", is_flag=True, help="Include process-agent in local build"),
-        Option("--with-trace-agent", is_flag=True, help="Include trace-agent in local build"),
-        Option("--with-system-probe", is_flag=True, help="Include system-probe in local build"),
-        Option("--with-security-agent", is_flag=True, help="Include security-agent in local build"),
-        Option("--helm-values", default="", help="Path to custom Helm values.yaml file"),
-        Option("--devenv", default="", help="Developer environment ID for building (see dda env dev)"),
-        Option("--force", "-f", is_flag=True, help="Recreate if exists"),
-        Option("--nodes-count", default=2, help="Number of nodes in the cluster"),
+        click.option("--k8s-version", default="v1.32.0", help="Kubernetes version"),
+        click.option("--no-agent", is_flag=True, default=True, help="Install Datadog Agent"),
+        click.option("--agent-image", default="", help="Custom agent image"),
+        click.option("--load-image", default="", help="Load existing local docker image into cluster"),
+        click.option("--helm-values", default="", help="Path to custom Helm values.yaml file"),
+        click.option("--devenv", default="", help="Developer environment ID for building (see dda env dev)"),
+        click.option("--force", "-f", is_flag=True, help="Recreate if exists"),
+        click.option("--nodes-count", default=2, help="Number of nodes in the cluster"),
     ]
 
     def check_prerequisites(self, app: Application, opts: ProviderOptions) -> list[MissingPrerequisite]:
@@ -115,7 +104,7 @@ class KindProvider(BaseProvider):
             )
 
         # Check dev environment is running if building locally
-        if options.build_agent:
+        if not options.agent_image and not options.load_image:
             if not self._is_devenv_running(options.devenv):
                 env_id = options.devenv or "default"
                 missing.append(
@@ -136,16 +125,13 @@ class KindProvider(BaseProvider):
         name = options.name
 
         # Build local agent image if requested (do this before cluster operations)
-        if options.build_agent:
+        if not options.agent_image and not options.load_image:
             options.agent_image = build_local_image(
                 app,
-                tag=options.agent_image or "datadog/agent-dev:local",
-                process_agent=options.with_process_agent,
-                trace_agent=options.with_trace_agent,
-                system_probe=options.with_system_probe,
-                security_agent=options.with_security_agent,
+                tag="datadog/agent-dev:local",
                 devenv=options.devenv,
             )
+            options._local_image = True
 
         existing = cluster_exists(name)
         if existing:
@@ -153,7 +139,7 @@ class KindProvider(BaseProvider):
                 app.display_info(f"Deleting existing cluster '{name}'...")
                 delete_cluster(app, name)
                 existing = False
-            elif options.wants_agent:
+            elif not options.no_agent:
                 # Cluster exists but user wants to install/update agent - that's fine
                 app.display_info(f"Cluster '{name}' exists. Installing/updating agent...")
             else:
@@ -186,9 +172,8 @@ nodes:
             show_cluster_info(app, name)
 
         # Load built image into cluster
-        if options.build_agent and options.agent_image:
+        if options.agent_image and options._local_image:
             load_image(app, name, options.agent_image)
-            options._local_image = True
 
         # Load existing image if specified
         if options.load_image:

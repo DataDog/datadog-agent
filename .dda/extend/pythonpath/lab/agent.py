@@ -15,11 +15,6 @@ DEFAULT_LOCAL_IMAGE_TAG = "datadog/agent-dev:local"
 def build_local_image(
     app: Application,
     tag: str = DEFAULT_LOCAL_IMAGE_TAG,
-    *,
-    process_agent: bool = False,
-    trace_agent: bool = False,
-    system_probe: bool = False,
-    security_agent: bool = False,
     devenv: str = "",
 ) -> str:
     """
@@ -40,16 +35,17 @@ def build_local_image(
     """
     app.display_info(f"Building local agent image with tag '{tag}'...")
 
-    cmd = ["dda", "inv", "agent.hacky-dev-image-build", "--target-image", tag]
-
-    if process_agent:
-        cmd.append("--process-agent")
-    if trace_agent:
-        cmd.append("--trace-agent")
-    if system_probe:
-        cmd.append("--system-probe")
-    if security_agent:
-        cmd.append("--security-agent")
+    cmd = [
+        "dda",
+        "inv",
+        "agent.hacky-dev-image-build",
+        "--target-image",
+        "--process-agent",
+        "--trace-agent",
+        "--system-probe",
+        "--security-agent",
+        tag,
+    ]
 
     # Run in devcontainer for proper build environment
     devenv_cmd = ["dda", "env", "dev", "run"]
