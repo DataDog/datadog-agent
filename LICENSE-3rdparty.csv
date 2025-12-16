@@ -2138,6 +2138,7 @@ core,github.com/yashtewari/glob-intersection,Apache-2.0,Copyright (c) 2018 Yash 
 core,github.com/youmark/pkcs8,MIT,Copyright (c) 2014 youmark
 core,github.com/yusufpapurcu/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/zeebo/xxh3,BSD-2-Clause,"Copyright (c) 2012-2014, Yann Collet | Copyright (c) 2019, Jeff Wendling"
+core,gitlab.com/gitlab-org/api/client-go,Apache-2.0,Andrea Funto' | Arkbriar | Daniel Steinke | Daniela Filipe Bento | Eric Stevens | FantasyTeddy | Hakki Ceylan | Igor Varavko | James Hong | Joel Gerber | Kordian Bruck | Mai Lapyst | Markus Lackner | Masahiro Yoshida | Matej Velikonja | Matthias Simon | Michael Lihs | Nick Westbury | Patrick Webster | Paul Cioanca | Paul Shoemaker | Pavel Kostohrys | Ryan Glab <ryan.j.glab@gmail.com> | Sander van Harmelen | Serena Fang | Stany MARCEL | Sune Keller | Timo Furrer <tuxtimo@gmail.com> | Yavuz Turk | 徐晓伟 <xuxiaowei@xuxiaowei.com.cn>
 core,go.etcd.io/bbolt,MIT,Copyright 2016 The etcd Authors
 core,go.etcd.io/bbolt/errors,MIT,Copyright 2016 The etcd Authors
 core,go.etcd.io/bbolt/internal/common,MIT,Copyright 2016 The etcd Authors

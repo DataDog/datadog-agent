@@ -39,7 +39,10 @@ http_archive(
 
 http_archive(
     name = "bzip2",
-    build_file = "//deps:bzip2.BUILD.bazel",
+    files = {
+        "BUILD.bazel": "//deps/bzip2:overlay.BUILD.bazel",
+        "bzip2.pc.in": "//deps/bzip2:bzip2.pc.in",
+    },
     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
     strip_prefix = "bzip2-1.0.8",
     # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
@@ -268,24 +271,24 @@ http_archive(
 
 http_archive(
     name = "libxml2",
-    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
-    url = "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
-    strip_prefix = "libxml2-2.14.5",
     files = {
         "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
     },
+    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
+    strip_prefix = "libxml2-2.14.5",
+    url = "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
 )
 
 http_archive(
     name = "libxslt",
-    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
-    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
-    strip_prefix = "libxslt-1.1.43",
     files = {
         "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:libxslt/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxslt/overlay.BUILD.bazel",
     },
+    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
+    strip_prefix = "libxslt-1.1.43",
+    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
 )
