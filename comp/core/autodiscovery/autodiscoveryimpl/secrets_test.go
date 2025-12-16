@@ -82,6 +82,7 @@ func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	return true
 }
 
+// nolint: deadcode, unused
 func (m *MockSecretResolver) triggerCallback(handle, origin string, path []string, oldValue, newValue any) {
 	for _, subscriber := range m.subscribers {
 		subscriber(handle, origin, path, oldValue, newValue)
