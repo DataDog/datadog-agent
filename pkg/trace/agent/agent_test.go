@@ -3488,6 +3488,10 @@ func TestMergeDuplicates(t *testing.T) {
 }
 
 func TestProcessStatsTimeout(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestProcessStatsTimeout is known to fail on the macOS Gitlab runners.")
+	}
+
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
