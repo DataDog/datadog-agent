@@ -36,8 +36,8 @@ type eventDefinition struct {
 	Message   string
 
 	// Query definition - inner content of <Query> block
-	Channel   string // Path attribute for <Query> element (e.g., "System")
-	QueryBody string // Raw XML inside <Query>: Select and optional Suppress elements
+	Channel   string
+	QueryBody string
 }
 
 // eventKey uniquely identifies an event by provider and event ID
@@ -51,7 +51,7 @@ type collector struct {
 	// in
 	api         evtapi.API
 	query       string
-	eventLookup map[eventKey]*eventDefinition // Event registry lookup
+	eventLookup map[eventKey]*eventDefinition
 	// out
 	outChan chan<- eventPayload
 	// internal
@@ -72,7 +72,6 @@ func getEventDefinitions() []eventDefinition {
 			Title:     "Unexpected reboot",
 			Message:   "The system has rebooted without cleanly shutting down first",
 		},
-		// Future events added here
 	}
 	return e
 }
@@ -236,7 +235,7 @@ func (c *collector) run(ctx context.Context) {
 
 // processEvent extracts event data and sends it to the output channel
 func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, eventRecord *evtapi.EventRecord) error {
-	// Render event values for lookup
+	// Render event values
 	vals, err := c.api.EvtRenderEventValues(renderCtx, eventRecord.EventRecordHandle)
 	if err != nil {
 		return fmt.Errorf("failed to render event values: %w", err)
@@ -267,6 +266,7 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	xmlString := windows.UTF16ToString(xmlUTF16)
 
 	// Convert XML to JSON map using windowsevent package
+	// TODO: We might not want some of the transforms applied here
 	eventMap, err := windowsevent.NewMapXML([]byte(xmlString))
 	if err != nil {
 		return fmt.Errorf("failed to parse event XML: %w", err)
