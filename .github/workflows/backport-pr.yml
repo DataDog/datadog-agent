@@ -1,33 +1,34 @@
 name: Backport PR
 on:
-  pull_request:
-    types:
-      - closed
-      - labeled
+  push:
+  # pull_request:
+  #   types:
+  #     - closed
+  #     - labeled
 
 jobs:
   backport:
     name: Backport PR
     runs-on: ubuntu-latest
-    if: >
-      github.event.pull_request.merged
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
-      )
+    # if: >
+    #   github.event.pull_request.merged
+    #   && (
+    #     github.event.action == 'closed'
+    #     || (
+    #       github.event.action == 'labeled'
+    #       && contains(github.event.label.name, 'backport')
+    #     )
+    #   )
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
       contents: write # This is required for pushing the backport branch
       pull-requests: write # This is required for creating the backport PR
     steps:
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/datadog-agent
-          policy: self.backport-pr.create-pr
+    #   - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+    #     id: octo-sts
+    #     with:
+    #       scope: DataDog/datadog-agent
+    #       policy: self.backport-pr.create-pr
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -41,9 +42,9 @@ jobs:
       - name: Run cherry-pick script
         id: cherry-pick
         env:
-            GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: dda gh cherry-pick pr
+        run: dda gh cherry-pick-pr --pr-number 43594 --target-branch 7.73.x
 
       - name: Reset cherry-pick
         if: steps.cherry-pick.outputs.base != ''
@@ -53,11 +54,11 @@ jobs:
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         if: steps.cherry-pick.outputs.base != ''
         with:
-          token: ${{ steps.octo-sts.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           base: ${{ steps.cherry-pick.outputs.base }}
-          branch: backport-${{steps.cherry-pick.outputs.original_pr_number}}-to-${{steps.cherry-pick.outputs.base}}
+          branch: backport-${{steps.cherry-pick.outputs.original_pr_number}}-to-${{steps.cherry-pick.outputs.base}}-test
           sign-commits: true
-          title: "[Backport ${{steps.cherry-pick.outputs.base}}]  ${{steps.cherry-pick.outputs.original_title}}"
+          title: "[DO NOT MERGE] [Backport ${{steps.cherry-pick.outputs.base}}]  ${{steps.cherry-pick.outputs.original_title}}"
           body: |
             Backport ${{steps.cherry-pick.outputs.merge_commit_sha}} from #${{steps.cherry-pick.outputs.original_pr_number}}.
             
@@ -65,7 +66,7 @@ jobs:
   
             ${{ steps.cherry-pick.outputs.original_body }}
   
-          labels: ${{ steps.cherry-pick.outputs.original_labels }},backport,bot
+          labels: ${{ steps.cherry-pick.outputs.original_labels }},backport,bot,test
           commit-message: |
             ${{ steps.cherry-pick.outputs.message }}
             
