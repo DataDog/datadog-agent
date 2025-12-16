@@ -352,12 +352,5 @@ pkg_install(
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
-    }) + select({
-        # datadog-agent-integrations-py3.rb expects the .dll.a files to be present in lib folder
-        # to then move them to DLLS folder for Python cryptography extensions to find them.
-        "@//:fips_mode_enabled": [
-            "@openssl//:dll_a",
-        ],
-        "//conditions:default": [],
     }),
 )
