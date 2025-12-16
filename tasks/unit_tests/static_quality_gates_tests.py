@@ -815,7 +815,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         pr_commenter_mock.assert_called_with(
             ANY,
             title='Static quality checks',
-            body='✅ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
+            body='✅ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n\n\n<details open>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
         )
 
     @patch.dict(
