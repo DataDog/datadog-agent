@@ -29,8 +29,25 @@ func TestAgentMSIInstallsDDOTPackage(t *testing.T) {
 		))
 }
 
-func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, _testName string) {
-	s.Installer().Purge()
+func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, testName string) {
+	s.T().Logf("=== AfterTest Diagnostics for %s ===", testName)
+
+	// Log package entries BEFORE purge
+	s.logPackagesState("BEFORE purge")
+
+	// Log installer service state
+	s.logInstallerServiceState()
+
+	// Execute purge via remote command to capture output
+	output, err := s.Env().RemoteHost.Execute(
+		`& 'C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe' purge 2>&1`)
+	s.T().Logf("Purge output:\n%s", output)
+	if err != nil {
+		s.T().Logf("Purge error: %v", err)
+	}
+
+	// Log package entries AFTER purge
+	s.logPackagesState("AFTER purge")
 }
 
 func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
@@ -79,6 +96,28 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 
 	// Assert: DDOT package directory removed
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(stableDir, "ddot package directory should be removed on uninstall when requested")
+}
+
+// logPackagesState queries datadog-installer status to see which packages are registered in packages.db
+func (s *testAgentMSIInstallsDDOT) logPackagesState(when string) {
+	s.T().Helper()
+	s.T().Logf("--- Package entries %s ---", when)
+
+	// Query installer for registered packages
+	output, err := s.Env().RemoteHost.Execute(
+		`& 'C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe' status 2>&1`)
+	s.T().Logf("Installer status %s:\n%s", when, output)
+	if err != nil {
+		s.T().Logf("Error getting installer status: %v", err)
+	}
+}
+
+// logInstallerServiceState checks if the Datadog Installer service is running
+func (s *testAgentMSIInstallsDDOT) logInstallerServiceState() {
+	s.T().Helper()
+	output, _ := s.Env().RemoteHost.Execute(
+		`Get-Service 'Datadog Installer' -ErrorAction SilentlyContinue | Select-Object Status, Name`)
+	s.T().Logf("Installer service state: %s", output)
 }
 
 // installPreviousAgentVersion mirrors the helper used in other MSI suites to lay down the stable agent first.
