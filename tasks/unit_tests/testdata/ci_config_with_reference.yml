@@ -137,5 +137,5 @@ workflow:
   - changes:
       paths:
         - omnibus/**/*
-        - .gitlab-ci.yml
+        - .gitlab/pipeline.yml
       compare_to: main

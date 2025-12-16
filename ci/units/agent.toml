@@ -1,0 +1,58 @@
+name = "Agent CI"
+description = '''\
+This is the primary unit for building and testing the Datadog Agent. Any
+changes to files that influence customer SBOMs should trigger this unit.
+
+The pipeline is statically defined in the `.gitlab/pipeline.yml` file.
+'''
+
+[pipeline]
+type = "static"
+path = ".gitlab/pipeline.yml"
+
+[[triggers]]
+include = [
+  ".dda/**/*",
+  ".github/**/*",
+  ".gitlab/**/*",
+  "bazel/**/*",
+  "chocolatey/**/*",
+  "cmd/**/*",
+  "comp/**/*",
+  "compliance/**/*",
+  "deps/**/*",
+  "Dockerfiles/**/*",
+  "internal/**/*",
+  "omnibus/**/*",
+  "packages/**/*",
+  "pkg/**/*",
+  "rtloader/**/*",
+  "tasks/**/*",
+  "test/**/*",
+  "third_party/**/*",
+  "tools/**/*",
+  ".bazelignore",
+  ".bazelrc",
+  ".bazelversion",
+  ".clang-format",
+  ".custom-gcl.yml",
+  ".go-version",
+  ".golangci.yml",
+  ".mockery.yaml",
+  ".pre-commit-config.yaml",
+  ".protoc-version",
+  ".python-version",
+  ".wwhrd.yml",
+  "BUILD.bazel",
+  "datadog-agent.map",
+  "generate_tools.go",
+  "go.mod",
+  "go.sum",
+  "go.work",
+  "MODULE.bazel",
+  "MODULE.bazel.lock",
+  "modules.yml",
+  "pyproject.toml",
+  "release.json",
+  "static-analysis.datadog.yml",
+]
