@@ -106,7 +106,7 @@ pkg_install(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [":fipsinstall_sh"],
-    }) + ["@openssl//:openssl_install_files"],
+    }),
 )
 
 # Cross-platform helper to set the correct paths in openssl.cnf and fipsinstall.sh.
