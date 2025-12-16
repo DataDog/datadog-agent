@@ -39,6 +39,7 @@ class KindOptions(ProviderOptions):
     app_key: str = ""
     # Internal state (set during create)
     _local_image: bool = False
+    nodes_count: int = 2
 
     @classmethod
     def from_config(cls, config: ProviderConfig) -> KindOptions:
@@ -59,6 +60,7 @@ class KindOptions(ProviderOptions):
             force=config.options.get("force", False),
             api_key=config.get_api_key() or "",
             app_key=config.get_app_key() or "",
+            nodes_count=config.options.get("nodes_count", 2),
         )
 
     @property
@@ -89,6 +91,7 @@ class KindProvider(BaseProvider):
         Option("--helm-values", default="", help="Path to custom Helm values.yaml file"),
         Option("--devenv", default="", help="Developer environment ID for building (see dda env dev)"),
         Option("--force", "-f", is_flag=True, help="Recreate if exists"),
+        Option("--nodes-count", default=2, help="Number of nodes in the cluster"),
     ]
 
     def check_prerequisites(self, app: Application, options: KindOptions) -> list[MissingPrerequisite]:
@@ -154,15 +157,18 @@ class KindProvider(BaseProvider):
 
         # Create cluster if needed
         if not existing:
+            if options.nodes_count <= 0:
+                app.abort("Number of nodes must be strictly greater than 0")
+
             app.display_info(f"Creating kind cluster '{name}' with Kubernetes {options.k8s_version}...")
 
-            kind_config = """
+            kind_config = f"""
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
-- role: worker
 """
+            kind_config += "\n".join([f"- role: worker" for _ in range(options.nodes_count - 1)])
             with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
                 f.write(kind_config)
                 config_path = f.name
