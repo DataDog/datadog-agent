@@ -37,7 +37,6 @@ DeviceInfo getDeviceInfo(void) {
 
         NSDictionary *platform = getServiceProperties(IOServiceMatching("IOPlatformExpertDevice"));
         if (platform) {
-            info.found = true;
             info.modelIdentifier = copyStringProperty(platform, @"model");
             info.serialNumber = copyStringProperty(platform, @"IOPlatformSerialNumber");
 
@@ -56,6 +55,9 @@ DeviceInfo getDeviceInfo(void) {
         NSDictionary *product = getServiceProperties(IOServiceNameMatching("product"));
         if (product) {
             info.productName = copyStringProperty(product, @"product-name");
+        }
+        if (!product || !info.productName) {
+            info.productName = strdup(info.modelIdentifier);
         }
 
         return info;
