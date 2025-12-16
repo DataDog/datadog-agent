@@ -614,6 +614,11 @@ new-e2e-discovery:
 
 new-e2e-process-ecs:
   extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
