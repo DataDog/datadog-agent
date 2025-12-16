@@ -72,10 +72,16 @@ build do
       end
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
     else
       msgoroot = "/usr/local/msgo"
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
     end
   end
 
@@ -138,10 +144,10 @@ build do
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
@@ -303,9 +309,10 @@ build do
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
+        "#{install_dir}/embedded/bin/installer",
       ]
 
-      symbol = "_Cfunc_go_openssl"
+      symbol = "_Cfunc__mkcgo_OPENSSL"
       check_block = Proc.new { |binary, symbols|
         count = symbols.scan(symbol).count
         if count > 0

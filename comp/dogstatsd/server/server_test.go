@@ -31,6 +31,23 @@ func TestNewServer(t *testing.T) {
 	requireStart(t, deps.Server)
 }
 
+func TestNewServerUseDogstatsdFalse(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["use_dogstatsd"] = false
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	requireStopped(t, deps.Server)
+}
+
+func TestNewServerDataPlaneEnabled(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["data_plane.enabled"] = true
+	cfg["data_plane.dogstatsd.enabled"] = true
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	requireStopped(t, deps.Server)
+}
+
 func TestHistogramMetricNamesFilter(t *testing.T) {
 	cfg := make(map[string]interface{})
 	require := require.New(t)
@@ -230,6 +247,11 @@ func TestOrigin(t *testing.T) {
 func requireStart(t *testing.T, s Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning(), "server was not running")
+}
+
+func requireStopped(t *testing.T, s Component) {
+	assert.NotNil(t, s)
+	assert.False(t, s.IsRunning(), "server was running")
 }
 
 func TestDogstatsdMappingProfilesOk(t *testing.T) {

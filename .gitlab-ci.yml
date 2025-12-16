@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v84300938-c7d07831
+  CI_IMAGE_BTF_GEN: v86420401-7cc6ce1f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v84300938-c7d07831
+  CI_IMAGE_DOCKER_X64: v86420401-7cc6ce1f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v84300938-c7d07831
+  CI_IMAGE_DOCKER_ARM64: v86420401-7cc6ce1f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v84300938-c7d07831
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v86420401-7cc6ce1f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v84300938-c7d07831
+  CI_IMAGE_LINUX: v86420401-7cc6ce1f
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v84300938-c7d07831
+  CI_IMAGE_RPM_X64: v86420401-7cc6ce1f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v84300938-c7d07831
+  CI_IMAGE_RPM_ARM64: v86420401-7cc6ce1f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v84300938-c7d07831
+  CI_IMAGE_RPM_ARMHF: v86420401-7cc6ce1f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v83281312-efec7b86
+  CI_IMAGE_WIN_LTSC2022_X64: v86420401-7cc6ce1f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v83281312-efec7b86
+  CI_IMAGE_WIN_LTSC2025_X64: v86420401-7cc6ce1f
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -249,7 +249,8 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "latest"
+  DD_PKG_VERSION: "0.6.0-beta.4"
+  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.staging.dog/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
@@ -370,7 +371,7 @@ variables:
 
 .on_build_changes: &on_build_changes
   changes:
-    paths: 
+    paths:
       - omnibus/**/*
     compare_to: $COMPARE_TO_BRANCH
 
@@ -563,8 +564,8 @@ workflow:
   - test/new-e2e/tests/cws/**/*
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
+  - test/e2e-framework/testing/runner/**/*
+  - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
@@ -608,6 +609,7 @@ workflow:
   - pkg/ebpf/**/*
   - pkg/network/**/*
   - pkg/process/monitor/*
+  - pkg/security/**/*
   - pkg/util/kernel/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
@@ -616,8 +618,8 @@ workflow:
   - .gitlab/source_test/ebpf.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
+  - test/e2e-framework/testing/runner/**/*
+  - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
@@ -650,7 +652,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
+        - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -671,12 +673,23 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
+        - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: never
+
+
+.dynamic_tests:
+  - changes:
+      paths:
+        - pkg/**/*
+        - cmd/**/*
+        - comp/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -712,6 +725,7 @@ workflow:
         - pkg/aggregator/*/**
         - comp/languagedetection/**/*
         - pkg/clusteragent/admission/mutate/**/*
+        - pkg/clusteragent/languagedetection/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1024,6 +1038,10 @@ workflow:
 .on_scheduled_main_on_success:
   - <<: *if_scheduled_main
     when: on_success
+
+.on_scheduled_main_or_release_branch:
+  - if: $DDR_WORKFLOW_ID != null && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/)
+    when: always
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
