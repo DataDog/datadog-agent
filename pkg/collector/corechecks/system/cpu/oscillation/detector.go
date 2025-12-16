@@ -16,7 +16,8 @@ import (
 type OscillationConfig struct {
 	WindowSize          int           // Number of samples in ring buffer (default: 60)
 	MinZeroCrossings    int           // Minimum direction changes to flag (default: 6)
-	AmplitudeMultiplier float64       // Baseline multiplier for significance (default: 2.0)
+	AmplitudeMultiplier float64       // Baseline multiplier for significance (default: 4.0)
+	MinAmplitude        float64       // Absolute minimum amplitude to trigger (default: 0, disabled)
 	DecayFactor         float64       // Exponential decay alpha (default: 0.1)
 	WarmupDuration      time.Duration // Initial learning period (default: 5m)
 	SampleInterval      time.Duration // Time between samples (default: 1s)
@@ -222,7 +223,15 @@ func (d *OscillationDetector) Analyze() OscillationResult {
 	// Frequency = cycles per second. Zero crossings / 2 = cycles, divided by window size in seconds
 	result.Frequency = float64(zeroCrossings) / float64(d.config.WindowSize) / 2.0
 
-	if zeroCrossings >= d.config.MinZeroCrossings && amplitude > amplitudeThreshold {
+	// Check oscillation criteria:
+	// 1. Enough direction changes (rapid cycling)
+	// 2. Amplitude exceeds baseline-relative threshold
+	// 3. Amplitude exceeds absolute minimum (if configured)
+	meetsZeroCrossings := zeroCrossings >= d.config.MinZeroCrossings
+	meetsRelativeThreshold := amplitude > amplitudeThreshold
+	meetsAbsoluteThreshold := d.config.MinAmplitude == 0 || amplitude > d.config.MinAmplitude
+
+	if meetsZeroCrossings && meetsRelativeThreshold && meetsAbsoluteThreshold {
 		result.Detected = true
 	}
 

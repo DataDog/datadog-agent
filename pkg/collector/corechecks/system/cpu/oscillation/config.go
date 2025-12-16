@@ -17,6 +17,7 @@ import (
 // Config holds the cpu_oscillation check configuration
 type Config struct {
 	AmplitudeMultiplier float64 `yaml:"amplitude_multiplier"`
+	MinAmplitude        float64 `yaml:"min_amplitude"`
 	WarmupSeconds       int     `yaml:"warmup_seconds"`
 }
 
@@ -44,7 +45,13 @@ var (
 	amplitudeMultiplierRange = &configFloatValueRange{
 		min:          0.5, // Very sensitive
 		max:          10,  // Very insensitive
-		defaultValue: 2.0, // Default: swings must exceed 2x baseline stddev
+		defaultValue: 4.0, // Default: swings must exceed 4x baseline stddev
+	}
+
+	minAmplitudeRange = &configFloatValueRange{
+		min:          0,   // Disabled (no absolute minimum)
+		max:          100, // Max possible CPU amplitude
+		defaultValue: 0,   // Default: disabled
 	}
 )
 
@@ -76,6 +83,12 @@ func (c *Config) Parse(data []byte) error {
 
 	validateIntValue(&c.WarmupSeconds, warmupSecondsRange)
 	validateFloatValue(&c.AmplitudeMultiplier, amplitudeMultiplierRange)
+	// MinAmplitude: 0 means disabled, so we only clamp to max if > 100
+	if c.MinAmplitude < minAmplitudeRange.min {
+		c.MinAmplitude = minAmplitudeRange.min
+	} else if c.MinAmplitude > minAmplitudeRange.max {
+		c.MinAmplitude = minAmplitudeRange.max
+	}
 
 	return nil
 }
@@ -86,6 +99,7 @@ func (c *Config) DetectorConfig() OscillationConfig {
 		WindowSize:          60,                    // 60 samples = 60 seconds at 1Hz
 		MinZeroCrossings:    6,                     // Minimum direction changes to flag
 		AmplitudeMultiplier: c.AmplitudeMultiplier, // From config
+		MinAmplitude:        c.MinAmplitude,        // From config (0 = disabled)
 		DecayFactor:         0.1,                   // Exponential decay alpha
 		WarmupDuration:      time.Duration(c.WarmupSeconds) * time.Second,
 		SampleInterval:      time.Second, // 1Hz sampling

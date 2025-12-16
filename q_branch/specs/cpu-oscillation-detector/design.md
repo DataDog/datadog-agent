@@ -51,7 +51,8 @@ type OscillationDetector struct {
 type OscillationConfig struct {
     WindowSize          int           // Number of samples in ring buffer (default: 60)
     MinZeroCrossings    int           // Minimum direction changes to flag (default: 6)
-    AmplitudeMultiplier float64       // Baseline multiplier for significance (default: 2.0)
+    AmplitudeMultiplier float64       // Baseline multiplier for significance (default: 4.0)
+    MinAmplitude        float64       // Absolute minimum amplitude to trigger (default: 0, disabled)
     DecayFactor         float64       // Exponential decay alpha (default: 0.1)
     WarmupDuration      time.Duration // Initial learning period (default: 5m)
     SampleInterval      time.Duration // Time between samples (default: 1s)
@@ -86,6 +87,7 @@ type Check struct {
 type checkConfig struct {
     Enabled             bool    `yaml:"enabled"`
     AmplitudeMultiplier float64 `yaml:"amplitude_multiplier"`
+    MinAmplitude        float64 `yaml:"min_amplitude"`
     WarmupSeconds       int     `yaml:"warmup_seconds"`
 }
 ```
@@ -207,7 +209,15 @@ func (d *OscillationDetector) Analyze() OscillationResult {
     result.Amplitude = amplitude
     result.Frequency = float64(zeroCrossings) / float64(d.config.WindowSize) / 2.0 // cycles per second
 
-    if zeroCrossings >= d.config.MinZeroCrossings && amplitude > amplitudeThreshold {
+    // Check oscillation criteria:
+    // 1. Enough direction changes (rapid cycling)
+    // 2. Amplitude exceeds baseline-relative threshold
+    // 3. Amplitude exceeds absolute minimum (if configured)
+    meetsZeroCrossings := zeroCrossings >= d.config.MinZeroCrossings
+    meetsRelativeThreshold := amplitude > amplitudeThreshold
+    meetsAbsoluteThreshold := d.config.MinAmplitude == 0 || amplitude > d.config.MinAmplitude
+
+    if meetsZeroCrossings && meetsRelativeThreshold && meetsAbsoluteThreshold {
         result.Detected = true
     }
 
@@ -238,7 +248,8 @@ pkg/collector/corechecks/system/cpu/
 init_config:
 
 instances:
-  - amplitude_multiplier: 2.0      # Swings must exceed 2x baseline stddev
+  - amplitude_multiplier: 4.0      # Swings must exceed 4x baseline stddev
+    min_amplitude: 0               # Absolute minimum amplitude (0 = disabled)
     warmup_seconds: 300            # 5 minute warmup period
     # min_collection_interval: 15  # Metric emission interval (detection runs at 1Hz internally)
 ```
@@ -442,11 +453,11 @@ func (c *Check) emitMetrics() {
 
 | Requirement | Implementation Location | Approach |
 |-------------|------------------------|----------|
-| **REQ-COD-001:** Detect Rapid CPU Cycling | `detector.go:Analyze()` | Zero-crossing count ≥6 AND amplitude >2x baseline stddev |
+| **REQ-COD-001:** Detect Rapid CPU Cycling | `detector.go:Analyze()` | Zero-crossing count ≥6 AND amplitude >4x baseline stddev AND amplitude > min_amplitude (if set) |
 | **REQ-COD-002:** Establish Host-Specific Baseline | `detector.go:updateBaseline()` | Exponential decay (α=0.1) with 5-minute warmup |
 | **REQ-COD-003:** Report Oscillation Characteristics | `oscillation.go:emitMetrics()` | Gauge metrics for amplitude, frequency, zero_crossings |
 | **REQ-COD-004:** Minimal Performance Impact | `oscillation.go:Run()` | gopsutil cpu.Times() at 1Hz, fixed 480-byte ring buffer |
-| **REQ-COD-005:** Configurable Detection Sensitivity | `config.go` | YAML instance config for amplitude_multiplier, warmup_seconds |
+| **REQ-COD-005:** Configurable Detection Sensitivity | `config.go` | YAML instance config for amplitude_multiplier, min_amplitude, warmup_seconds |
 
 ## Future Considerations (Out of Scope)
 

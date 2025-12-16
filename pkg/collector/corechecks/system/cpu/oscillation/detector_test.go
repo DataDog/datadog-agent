@@ -263,6 +263,78 @@ func TestAnalyze_NoOscillation_GradualChange(t *testing.T) {
 	assert.Equal(t, 0, result.ZeroCrossings)
 }
 
+func TestAnalyze_MinAmplitudeThreshold(t *testing.T) {
+	t.Run("oscillation blocked by min_amplitude", func(t *testing.T) {
+		config := defaultTestConfig()
+		config.WindowSize = 20
+		config.MinZeroCrossings = 6
+		config.AmplitudeMultiplier = 2.0
+		config.MinAmplitude = 50.0 // Require at least 50% amplitude
+		d := NewOscillationDetector(config)
+		d.baselineVariance = 1.0 // Low baseline
+
+		// Fill with oscillating data that has amplitude = 40 (less than min_amplitude)
+		for i := 0; i < config.WindowSize; i++ {
+			if i%2 == 0 {
+				d.AddSample(30)
+			} else {
+				d.AddSample(70)
+			}
+		}
+
+		result := d.Analyze()
+		assert.False(t, result.Detected, "Should NOT detect: amplitude 40 < min_amplitude 50")
+		assert.Equal(t, 40.0, result.Amplitude)
+	})
+
+	t.Run("oscillation allowed when above min_amplitude", func(t *testing.T) {
+		config := defaultTestConfig()
+		config.WindowSize = 20
+		config.MinZeroCrossings = 6
+		config.AmplitudeMultiplier = 2.0
+		config.MinAmplitude = 30.0 // Require at least 30% amplitude
+		d := NewOscillationDetector(config)
+		d.baselineVariance = 1.0 // Low baseline
+
+		// Fill with oscillating data that has amplitude = 40 (greater than min_amplitude)
+		for i := 0; i < config.WindowSize; i++ {
+			if i%2 == 0 {
+				d.AddSample(30)
+			} else {
+				d.AddSample(70)
+			}
+		}
+
+		result := d.Analyze()
+		assert.True(t, result.Detected, "Should detect: amplitude 40 > min_amplitude 30")
+		assert.Equal(t, 40.0, result.Amplitude)
+	})
+
+	t.Run("min_amplitude disabled when zero", func(t *testing.T) {
+		config := defaultTestConfig()
+		config.WindowSize = 20
+		config.MinZeroCrossings = 6
+		config.AmplitudeMultiplier = 2.0
+		config.MinAmplitude = 0 // Disabled
+		d := NewOscillationDetector(config)
+		d.baselineVariance = 1.0 // Low baseline
+
+		// Fill with oscillating data with small amplitude = 10
+		for i := 0; i < config.WindowSize; i++ {
+			if i%2 == 0 {
+				d.AddSample(45)
+			} else {
+				d.AddSample(55)
+			}
+		}
+
+		result := d.Analyze()
+		// Should detect because amplitude (10) > 2.0 * sqrt(1.0) = 2, and min_amplitude is disabled
+		assert.True(t, result.Detected, "Should detect: min_amplitude=0 means no absolute floor")
+		assert.Equal(t, 10.0, result.Amplitude)
+	})
+}
+
 func TestFrequencyCalculation(t *testing.T) {
 	config := defaultTestConfig()
 	config.WindowSize = 60 // 60 seconds
@@ -422,13 +494,15 @@ func TestConfigParse(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, 300, config.WarmupSeconds)       // Default 5 minutes
-		assert.Equal(t, 2.0, config.AmplitudeMultiplier) // Default 2.0
+		assert.Equal(t, 4.0, config.AmplitudeMultiplier) // Default 4.0
+		assert.Equal(t, 0.0, config.MinAmplitude)        // Default 0 (disabled)
 	})
 
 	t.Run("custom values", func(t *testing.T) {
 		config := &Config{}
 		yaml := `
 amplitude_multiplier: 3.5
+min_amplitude: 25.0
 warmup_seconds: 120
 `
 		err := config.Parse([]byte(yaml))
@@ -436,12 +510,14 @@ warmup_seconds: 120
 
 		assert.Equal(t, 120, config.WarmupSeconds)
 		assert.Equal(t, 3.5, config.AmplitudeMultiplier)
+		assert.Equal(t, 25.0, config.MinAmplitude)
 	})
 
 	t.Run("values clamped to range", func(t *testing.T) {
 		config := &Config{}
 		yaml := `
 amplitude_multiplier: 100
+min_amplitude: 200
 warmup_seconds: 10000
 `
 		err := config.Parse([]byte(yaml))
@@ -449,12 +525,14 @@ warmup_seconds: 10000
 
 		assert.Equal(t, 1800, config.WarmupSeconds)       // Max
 		assert.Equal(t, 10.0, config.AmplitudeMultiplier) // Max
+		assert.Equal(t, 100.0, config.MinAmplitude)       // Max
 	})
 }
 
 func TestDetectorConfig(t *testing.T) {
 	config := &Config{
 		AmplitudeMultiplier: 3.0,
+		MinAmplitude:        20.0,
 		WarmupSeconds:       180,
 	}
 
@@ -463,6 +541,7 @@ func TestDetectorConfig(t *testing.T) {
 	assert.Equal(t, 60, dc.WindowSize)
 	assert.Equal(t, 6, dc.MinZeroCrossings)
 	assert.Equal(t, 3.0, dc.AmplitudeMultiplier)
+	assert.Equal(t, 20.0, dc.MinAmplitude)
 	assert.Equal(t, 0.1, dc.DecayFactor)
 	assert.Equal(t, 180*time.Second, dc.WarmupDuration)
 	assert.Equal(t, time.Second, dc.SampleInterval)

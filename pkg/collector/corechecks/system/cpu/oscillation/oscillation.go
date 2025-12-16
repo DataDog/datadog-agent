@@ -76,8 +76,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	// Initialize detector with configuration
 	c.detector = NewOscillationDetector(c.instance.DetectorConfig())
 
-	log.Infof("[%s] Configured with amplitude_multiplier=%.2f, warmup_seconds=%d",
-		CheckName, c.instance.AmplitudeMultiplier, c.instance.WarmupSeconds)
+	log.Infof("[%s] Configured with amplitude_multiplier=%.2f, min_amplitude=%.2f, warmup_seconds=%d",
+		CheckName, c.instance.AmplitudeMultiplier, c.instance.MinAmplitude, c.instance.WarmupSeconds)
 
 	return nil
 }
