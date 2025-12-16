@@ -1374,3 +1374,149 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 		})
 	}
 }
+
+func TestGivenADiskCheckWithDefaultConfiguration_WhenCheckRuns_ThenNoPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskDisbled_WhenCheckRuns_ThenNoPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_physical_storage: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenCheckRuns_ThenPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:shm", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithDefaultConfiguration_WhenCheckRuns_ThenNoDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithCollectPhysicalMetricsDisbled_WhenCheckRuns_ThenNoDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+collect_physical_metrics: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithCollectPhysicalMetricsEnabled_WhenCheckRuns_ThenDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+collect_physical_metrics: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.physical_total", float64(97656250), "", []string{"device:/dev/sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_used", float64(68359375), "", []string{"device:/dev/sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_free", float64(29296875), "", []string{"device:/dev/sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_utilized", float64(70), "", []string{"device:/dev/sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_in_use", float64(0.7), "", []string{"device:/dev/sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_total", float64(48828125), "", []string{"device:/dev/sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_used", float64(29296875), "", []string{"device:/dev/sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_free", float64(19531250), "", []string{"device:/dev/sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_utilized", float64(60), "", []string{"device:/dev/sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.physical_in_use", float64(0.6), "", []string{"device:/dev/sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:shm"})
+}
