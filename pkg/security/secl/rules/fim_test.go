@@ -30,7 +30,7 @@ func TestExpandFIM(t *testing.T) {
 				},
 				{
 					id:   "__fim_expanded_chmod__test",
-					expr: "chmod.file.path == \"/tmp/test\"",
+					expr: "(chmod.file.path == \"/tmp/test\") && (chmod.file.destination.mode != chmod.file.mode)",
 				},
 				{
 					id:   "__fim_expanded_chown__test",
@@ -68,7 +68,7 @@ func TestExpandFIM(t *testing.T) {
 				},
 				{
 					id:   "__fim_expanded_chmod__complex",
-					expr: "(chmod.file.path == \"/tmp/test\" || chmod.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
+					expr: "((chmod.file.path == \"/tmp/test\" || chmod.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\") && (chmod.file.destination.mode != chmod.file.mode)",
 				},
 				{
 					id:   "__fim_expanded_chown__complex",
