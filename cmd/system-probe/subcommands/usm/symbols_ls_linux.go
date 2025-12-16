@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -99,7 +98,7 @@ func runSymbolsLs(filePath string, dynamic bool) error {
 		sym := idxSym.symbol
 
 		// Filter out FILE symbols (nm behavior - use -a to show them)
-		if elf.ST_TYPE(sym.Info) == elf.STT_FILE {
+		if safeelf.ST_TYPE(sym.Info) == safeelf.STT_FILE {
 			continue
 		}
 
@@ -110,7 +109,7 @@ func runSymbolsLs(filePath string, dynamic bool) error {
 		symbolName := sym.Name
 		if dynamic && versionMap != nil {
 			// Check if symbol is undefined (section index 0) or check symbolType == 'U'
-			isUndefined := (sym.Section == elf.SHN_UNDEF) || (symbolType == 'U')
+			isUndefined := (sym.Section == safeelf.SHN_UNDEF) || (symbolType == 'U')
 			if isUndefined {
 				// Symbol is undefined (imported), check for version
 				if version, ok := versionMap[idxSym.index]; ok && version != "" {
@@ -141,10 +140,10 @@ func getSymbolVersions(elfFile *safeelf.File) map[int]string {
 	versionMap := make(map[int]string)
 
 	// Find the .gnu.version section (contains version indices)
-	var versionSection *elf.Section
-	var verneedSection *elf.Section
-	var verdefSection *elf.Section
-	var dynstrSection *elf.Section
+	var versionSection *safeelf.Section
+	var verneedSection *safeelf.Section
+	var verdefSection *safeelf.Section
+	var dynstrSection *safeelf.Section
 
 	for _, section := range elfFile.Sections {
 		switch section.Name {
@@ -318,28 +317,28 @@ func readString(data []byte, offset int) string {
 // getSymbolType returns the nm-style symbol type character.
 // This mimics the behavior of the GNU nm utility.
 func getSymbolType(sym *safeelf.Symbol, elfFile *safeelf.File) rune {
-	bind := elf.ST_BIND(sym.Info)
-	typ := elf.ST_TYPE(sym.Info)
+	bind := safeelf.ST_BIND(sym.Info)
+	typ := safeelf.ST_TYPE(sym.Info)
 
 	// Undefined symbols
-	if sym.Section == elf.SHN_UNDEF {
-		if bind == elf.STB_WEAK {
+	if sym.Section == safeelf.SHN_UNDEF {
+		if bind == safeelf.STB_WEAK {
 			return 'w' // Weak undefined
 		}
 		return 'U'
 	}
 
 	// Common symbols (uninitialized data)
-	if sym.Section == elf.SHN_COMMON {
-		if bind == elf.STB_GLOBAL {
+	if sym.Section == safeelf.SHN_COMMON {
+		if bind == safeelf.STB_GLOBAL {
 			return 'C'
 		}
 		return 'c'
 	}
 
 	// Absolute symbols
-	if sym.Section == elf.SHN_ABS {
-		if bind == elf.STB_GLOBAL {
+	if sym.Section == safeelf.SHN_ABS {
+		if bind == safeelf.STB_GLOBAL {
 			return 'A'
 		}
 		return 'a'
@@ -354,13 +353,13 @@ func getSymbolType(sym *safeelf.Symbol, elfFile *safeelf.File) rune {
 	// Determine type based on section flags
 	var typeChar rune
 
-	if section.Flags&elf.SHF_EXECINSTR != 0 {
+	if section.Flags&safeelf.SHF_EXECINSTR != 0 {
 		// Code/text section
 		typeChar = 't'
-	} else if section.Flags&elf.SHF_ALLOC != 0 {
-		if section.Flags&elf.SHF_WRITE != 0 {
+	} else if section.Flags&safeelf.SHF_ALLOC != 0 {
+		if section.Flags&safeelf.SHF_WRITE != 0 {
 			// Writable data section
-			if section.Type == elf.SHT_NOBITS {
+			if section.Type == safeelf.SHT_NOBITS {
 				// BSS (uninitialized data)
 				typeChar = 'b'
 			} else {
@@ -373,15 +372,15 @@ func getSymbolType(sym *safeelf.Symbol, elfFile *safeelf.File) rune {
 		}
 	} else {
 		// Debug or other sections
-		if typ == elf.STT_FILE {
+		if typ == safeelf.STT_FILE {
 			return 'f'
 		}
 		typeChar = 'n'
 	}
 
 	// Special case for weak symbols
-	if bind == elf.STB_WEAK {
-		if typ == elf.STT_OBJECT {
+	if bind == safeelf.STB_WEAK {
+		if typ == safeelf.STT_OBJECT {
 			return 'V' // Weak object
 		}
 		return 'W' // Weak symbol
