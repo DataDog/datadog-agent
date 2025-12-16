@@ -255,9 +255,9 @@ func TestNormalizeTagValue(t *testing.T) {
 			expected: "example_workspace",
 		},
 		{
-			name:     "remove leading and trailing underscores and other special characters except for colons",
-			input:    "_!:_example_workspace!!",
-			expected: ":_example_workspace",
+			name:     "remove leading and trailing underscores and other special characters except for colons and slash",
+			input:    "_!:_/example_workspace!!",
+			expected: ":_/example_workspace",
 		},
 		{
 			name:     "remove leading digits",
@@ -265,9 +265,9 @@ func TestNormalizeTagValue(t *testing.T) {
 			expected: "workspace123",
 		},
 		{
-			name:     "allow  numbers if surrounded by alpha",
-			input:    "___123_workspace123workspace",
-			expected: "workspace123workspace",
+			name:     "allow  numbers if surrounded by alpha and non-ascii characters",
+			input:    "___123_workspàce123workspacé",
+			expected: "workspàce123workspacé",
 		},
 		{
 			name:     "truncate to 200 characters",

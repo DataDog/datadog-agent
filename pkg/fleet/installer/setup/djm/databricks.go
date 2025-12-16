@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -30,7 +31,7 @@ const (
 var (
 	jobNameRegex       = regexp.MustCompile(`[,\']+`)
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
-	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	workspaceNameRegex = regexp.MustCompile(`[^\p{L}\p{N}_:./-]+`)
 	dedupeUnderscores  = regexp.MustCompile(`_+`)
 	driverLogs         = []config.IntegrationConfigLogs{
 		{
@@ -180,21 +181,16 @@ func normalizeWorkspaceName(value string) string {
 	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
 
 	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
-		normalized = trimLeadingNonAlpha(normalized)
+		normalized = strings.TrimLeft(normalized, "_")
+		if len(normalized) > 0 && unicode.IsDigit([]rune(normalized)[0]) {
+			normalized = strings.TrimLeft(normalized, "_:0123456789")
+		}
 	}
 
 	if len(normalized) > 200 {
 		normalized = normalized[:200]
 	}
 	return strings.TrimRight(normalized, "_")
-}
-
-func trimLeadingNonAlpha(s string) string {
-	s = strings.TrimLeft(s, "_")
-	if len(s) > 0 && s[0] >= '0' && s[0] <= '9' {
-		s = strings.TrimLeft(s, "_:0123456789")
-	}
-	return s
 }
 
 func prefixWithWorkspace(normalizedWorkspace, value string) string {
