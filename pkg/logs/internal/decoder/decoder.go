@@ -148,13 +148,18 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		}
 	}
 	if lineHandler == nil {
-		// Priority: Detection-only mode (tags without aggregation)
-		if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, true)
-		} else if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		// Priority order for line handlers:
+		// 1. Legacy auto multiline (if explicitly enabled)
+		// 2. New auto multiline with aggregation (if explicitly enabled)
+		// 3. Detection-only tagging (tags without aggregation, enabled by default as fallback)
+		// 4. Single line handler (no multiline detection)
+		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
+			// Detection-only mode: tags lines but doesn't aggregate them
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, true)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}

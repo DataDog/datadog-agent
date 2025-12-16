@@ -100,6 +100,10 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path: suite.testPath,
 	}))
 
+	// Disable auto multiline detection tagging by default in tests
+	// Individual tests can re-enable it if they need to test that feature
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
+
 	suite.tailer = NewTailer(suite.createTailerOptions(nil))
 	suite.tailer.closeTimeout = closeTimeout
 }
@@ -358,8 +362,11 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	// Disable auto multiline detection tagging to ensure SingleLineHandler is used
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
 	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
