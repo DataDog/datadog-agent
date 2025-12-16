@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,8 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestNewServer(t *testing.T) {
@@ -368,4 +371,84 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	cfg := configmock.New(t)
 	mappings, _ := getDogstatsdMappingProfiles(cfg)
 	assert.Equal(t, expected, mappings)
+}
+
+func TestDogstatsdServerUsesConfiguredFilterlist(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	cfg["statsd_metric_blocklist"] = []string{"zork.nork"}
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+
+	require.True(t, waitUntil(time.Second, s, func(filterList *utilstrings.Matcher) bool {
+		return filterList.Test("zork.nork")
+	}), "timeout waiting for matcher update")
+}
+
+func TestDogstatsdServerSetsAndResetsRCFilterlist(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["statsd_metric_blocklist"] = []string{"zork.nork"}
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+
+	// RC Sends two metrics
+	updates := map[string]state.RawConfig{
+		"metric_filterlist": {
+			Config: []byte(
+				"{\"blocked_metrics\":{\"by_name\":{\"values\":[{\"created_at\":1751045727,\"metric_name\":\"ning.nong\"},{\"created_at\":1754328117,\"metric_name\":\"wiggle.wiggle\"}]}},\"policy_name\":\"test\"}",
+			),
+			Metadata: state.Metadata{},
+		},
+	}
+	s.onFilterListUpdateCallback(updates, func(_ string, _ state.ApplyStatus) {})
+
+	require.True(t, waitUntil(time.Second, s, func(filterList *utilstrings.Matcher) bool {
+		return filterList.Test("ning.nong") &&
+			!filterList.Test("zork.nork")
+	}), "timeout waiting for matcher update")
+
+	// RC Sends an empty list, we should reset to the original configured list
+	updates = map[string]state.RawConfig{
+		"metric_filterlist": {
+			Config: []byte(
+				"{\"blocked_metrics\":{\"by_name\":{\"values\":[]}},\"policy_name\":\"test\"}",
+			),
+			Metadata: state.Metadata{},
+		},
+	}
+	s.onFilterListUpdateCallback(updates, func(_ string, _ state.ApplyStatus) {})
+
+	require.True(t, waitUntil(time.Second, s, func(filterList *utilstrings.Matcher) bool {
+		return filterList.Test("zork.nork")
+	}), "timeout waiting for matcher update")
+}
+
+// waitUntil loops until all matchers for the workers in the server pass.
+// Returns true if all workers pass, false if it times out.
+func waitUntil(timeout time.Duration, s *server, f func(s *utilstrings.Matcher) bool) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		allPassed := true
+		for _, w := range s.workers {
+			w.filterListMtx.RLock()
+			if !f(&w.filterList) {
+				allPassed = false
+				w.filterListMtx.RUnlock()
+				break
+			}
+			w.filterListMtx.RUnlock()
+		}
+
+		if allPassed {
+			return true
+		}
+
+		if time.Now().After(deadline) {
+			return false
+		}
+
+		time.Sleep(time.Microsecond * 10)
+	}
 }

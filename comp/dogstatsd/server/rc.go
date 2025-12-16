@@ -39,8 +39,6 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 	if len(updates) == 0 {
 		s.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		s.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		s.restoreFilterListFromLocalConfig()
 		return
 	}
@@ -90,10 +88,6 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		// in `agent config` calls.
 		s.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		s.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(s.localFilterListConfig.metricNames) > 0 {
-			s.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
-			s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
-		}
 
 		// apply this new blocklist to all the running workers
 		s.tlmFilterListUpdates.Inc()
@@ -103,8 +97,6 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		// special case: if the metric names list is empty, fallback to local
 		s.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		s.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		s.restoreFilterListFromLocalConfig()
 	}
 }
