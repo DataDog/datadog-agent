@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -46,6 +46,7 @@ class LabEnvironment:
     Attributes:
         app: Application instance for storage access
         name: Unique identifier for the environment
+        category: Category of the environment (e.g., "local", "aws", "gcp")
         env_type: Type of environment (e.g., "kind", "gke", "eks", "minikube")
         created_at: ISO timestamp when the environment was created
         metadata: Type-specific metadata (flexible dict for provider-specific data)
@@ -54,6 +55,7 @@ class LabEnvironment:
     app: Application = field(repr=False, compare=False)
     name: str
     env_type: str
+    category: str
     created_at: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -67,6 +69,7 @@ class LabEnvironment:
         return cls(
             app=app,
             name=data["name"],
+            category=data["category"],
             env_type=data["env_type"],
             created_at=data.get("created_at", "unknown"),
             metadata=data.get("metadata", {}),
@@ -76,6 +79,7 @@ class LabEnvironment:
         """Convert to dictionary (excludes app)."""
         return {
             "name": self.name,
+            "category": self.category,
             "env_type": self.env_type,
             "created_at": self.created_at,
             "metadata": self.metadata,
@@ -129,25 +133,3 @@ class LabEnvironment:
     def exists(cls, app: Application, name: str) -> bool:
         """Check if an environment with this name exists."""
         return _get_environment_path(app, name).exists()
-
-
-# =============================================================================
-# Convenience Functions (delegate to LabEnvironment)
-# =============================================================================
-
-
-def add_environment(
-    app: Application,
-    name: str,
-    env_type: str,
-    metadata: dict[str, Any] | None = None,
-) -> LabEnvironment:
-    """Add a lab environment to storage."""
-    env = LabEnvironment(
-        app=app,
-        name=name,
-        env_type=env_type,
-        metadata=metadata or {},
-    )
-    env.save()
-    return env

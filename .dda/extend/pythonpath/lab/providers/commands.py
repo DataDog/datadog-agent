@@ -105,6 +105,7 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         LabEnvironment(
             app,
             name=id,
+            category=provider_cls.category,
             env_type=provider_cls.name,
             metadata=metadata or {},
         ).save()
