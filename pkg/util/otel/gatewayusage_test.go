@@ -15,33 +15,18 @@
 package otel
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestGatewayUsage_EnvVar(t *testing.T) {
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "0")
-	gEnv := NewGatewayUsage()
+	gEnv := NewGatewayUsage(false)
 	var gaude, enable = gEnv.Gauge()
 	require.EqualValuesf(t, 0.0, gaude, "Exected 0 value")
 	require.True(t, enable)
 
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "False")
-	gEnv = NewGatewayUsage()
-	gaude, enable = gEnv.Gauge()
-	require.EqualValuesf(t, 0.0, gaude, "Exected 0 value")
-	require.True(t, enable)
-
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "TRUE")
-	gEnv = NewGatewayUsage()
-	gaude, enable = gEnv.Gauge()
-	require.EqualValuesf(t, 1.0, gaude, "Exected 1 value")
-	require.True(t, enable)
-
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "1")
-	gEnv = NewGatewayUsage()
+	gEnv = NewGatewayUsage(true)
 	gaude, enable = gEnv.Gauge()
 	require.EqualValuesf(t, 1.0, gaude, "Exected 1 value")
 	require.True(t, enable)

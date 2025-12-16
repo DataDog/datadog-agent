@@ -7,8 +7,6 @@
 package otel
 
 import (
-	"os"
-	"strings"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -31,14 +29,11 @@ type GatewayUsage struct {
 }
 
 // NewGatewayUsage creates and returns a new GatewayUsage instance with an initialized underlying gateway usage
-func NewGatewayUsage() GatewayUsage {
-	gatewayMode, gatewayModeSet := os.LookupEnv("DD_OTELCOLLECTOR_GATEWAY_MODE")
+func NewGatewayUsage(gatewayModeSet bool) GatewayUsage {
 	gatewayModeEnv := &atomic.Bool{}
 
 	if gatewayModeSet {
-		if strings.ToLower(gatewayMode) == "true" || gatewayMode == "1" {
-			gatewayModeEnv.Store(true)
-		}
+		gatewayModeEnv.Store(true)
 	}
 
 	return GatewayUsage{

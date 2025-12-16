@@ -196,7 +196,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	addFactories(reqs, factories, otel.NewGatewayUsage(), reqs.Params.BYOC)
+
+	//reqs.Config.GetBool("otelcollector.gateway.mode")) -> Reading env variable "DD_OTELCOLLECTOR_GATEWAY_MODE"
+	addFactories(reqs, factories, otel.NewGatewayUsage(reqs.Config.GetBool("otelcollector.gateway.mode")), reqs.Params.BYOC)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger
