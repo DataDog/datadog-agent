@@ -203,7 +203,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
-		refreshEvent:             make(chan string, 2),
+		refreshEvent:             make(chan string, 100),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
@@ -225,24 +225,26 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
 		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
-		// TODO: can still block if channel is full. look into using a go routine or something other than channel
 		ac.refreshEvent <- origin
 	})
 
 	return ac
 }
 
-func (ac *AutoConfig) refreshConfig(origin string) {
+func (ac *AutoConfig) refreshConfig(origin string) integration.ConfigChanges {
+	var changes integration.ConfigChanges
+
 	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
 	if !found {
 		log.Warnf("no active config found for secret origin %s", origin)
-		return
+		return changes
 	}
 
-	ac.logs.Infof("Found config (%v) using recently refreshed secret. Refreshing config(s).", rawConfig.Name)
+	ac.logs.Infof("Found config (%v) using refreshed secret. Refreshing config(s).", rawConfig.Name)
 	ac.processRemovedConfigs([]integration.Config{rawConfig})
-	changes := ac.processNewConfig(rawConfig)
+	changes = ac.processNewConfig(rawConfig)
 	ac.applyChanges(changes)
+	return changes
 }
 
 // serviceListening is the main management goroutine for services.

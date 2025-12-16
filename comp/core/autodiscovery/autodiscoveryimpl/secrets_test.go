@@ -27,8 +27,9 @@ type mockSecretScenario struct {
 }
 
 type MockSecretResolver struct {
-	t         *testing.T
-	scenarios []mockSecretScenario
+	t           *testing.T
+	scenarios   []mockSecretScenario
+	subscribers []secrets.SecretChangeCallback
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -51,7 +52,12 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
-func (m *MockSecretResolver) SubscribeToChanges(secrets.SecretChangeCallback) {}
+func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCallback) {
+	if m.subscribers == nil {
+		m.subscribers = make([]secrets.SecretChangeCallback, 0)
+	}
+	m.subscribers = append(m.subscribers, callback)
+}
 
 func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
@@ -74,6 +80,12 @@ func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 		}
 	}
 	return true
+}
+
+func (m *MockSecretResolver) triggerCallback(handle, origin string, path []string, oldValue, newValue any) {
+	for _, subscriber := range m.subscribers {
+		subscriber(handle, origin, path, oldValue, newValue)
+	}
 }
 
 var sharedTpl = integration.Config{
