@@ -341,8 +341,7 @@ pkg_install(
     name = "install",
     srcs = select({
         "@platforms//os:windows": [
-            "@openssl//:openssl_exe_file",
-            ":install_files_win",
+            "@openssl_fips//:openssl_install_files",
         ],
         "//conditions:default": [
             ":install_libs_unix",
