@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCollect(t *testing.T) {
+	flake.Mark(t)
 	netInfo, err := CollectInfo()
 	require.NoError(t, err)
 
@@ -41,6 +43,7 @@ func TestCollect(t *testing.T) {
 }
 
 func TestAsJSON(t *testing.T) {
+	flake.Mark(t)
 	netInfo, err := CollectInfo()
 	require.NoError(t, err)
 

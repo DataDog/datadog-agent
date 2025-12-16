@@ -20,6 +20,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   meson_options = [
+    "-Ddefault_library=static",
     "-Dmessage_bus=false",
     "-Ddoxygen_docs=disabled",
     "-Dducktype_docs=disabled",
@@ -40,4 +41,6 @@ build do
 
   # Remove dbus tools.
   delete "#{install_dir}/embedded/bin/dbus-*"
+  delete "#{install_dir}/embedded/share/doc/dbus"
+  delete "#{install_dir}/embedded/share/xml/dbus-*"
 end
