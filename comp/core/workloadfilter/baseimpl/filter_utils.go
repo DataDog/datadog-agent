@@ -245,7 +245,7 @@ func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Componen
 // computeContainerRuntimeSecurityFilters computes container runtime security filters
 func (pf *filterSelection) computeContainerRuntimeSecurityFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
 	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyRuntimeSecurity}
-	if cfg.GetBool("runtime_security.exclude_pause_containers") {
+	if cfg.GetBool("runtime_security_config.exclude_pause_containers") {
 		flist = append(flist, workloadfilter.ContainerPaused)
 	}
 	return [][]workloadfilter.ContainerFilter{flist}

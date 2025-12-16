@@ -197,10 +197,12 @@ func (f *BaseFilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle 
 	return f.GetContainerFilters(f.selection.containerSBOM)
 }
 
+// GetContainerRuntimeSecurityFilters returns the pre-computed container runtime security filters
 func (f *BaseFilterStore) GetContainerRuntimeSecurityFilters() workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.containerRuntimeSecurity)
 }
 
+// GetContainerComplianceFilters returns the pre-computed container compliance filters
 func (f *BaseFilterStore) GetContainerComplianceFilters() workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.containerCompliance)
 }
