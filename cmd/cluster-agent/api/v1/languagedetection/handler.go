@@ -8,6 +8,7 @@
 package languagedetection
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -108,16 +109,12 @@ func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *ht
 		return false
 	}
 
-	return true
-}
-
-// leaderHandler is called only by the leader and used to patch the annotations
-func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r *http.Request) {
+	// Process and push to workloadmeta on ALL pods (followers and leader) to survive leadership changes
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
-		return
+		return false
 	}
 
 	// Create a new instance of the protobuf message type
@@ -128,7 +125,7 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 	if err != nil {
 		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
-		return
+		return false
 	}
 
 	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(handler.cfg.languageTTL))
@@ -144,9 +141,16 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ProcessedRequests.Inc(statusError)
-		return
+		return false
 	}
 
+	// Restore the body for downstream handlers (leaderHandler or forward)
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+	return true
+}
+
+// leaderHandler is called only by the leader
+func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, _ *http.Request) {
 	ProcessedRequests.Inc(statusSuccess)
 	w.WriteHeader(http.StatusOK)
 }
