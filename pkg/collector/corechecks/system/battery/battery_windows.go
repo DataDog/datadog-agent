@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -226,31 +227,31 @@ func getBatteryInfo() (*batteryInfo, error) {
 		maximumCapacityPct := math.Round((maximumCapacity / designedCapacity) * 100)
 		cycleCount := float64(bi.CycleCount)
 
-		info.designedCapacity = &designedCapacity
-		info.maximumCapacity = &maximumCapacity
-		info.maximumCapacityPct = &maximumCapacityPct
-		info.cycleCount = &cycleCount
+		info.designedCapacity = option.New(designedCapacity)
+		info.maximumCapacity = option.New(maximumCapacity)
+		info.maximumCapacityPct = option.New(maximumCapacityPct)
+		info.cycleCount = option.New(cycleCount)
 
 		if bs.Capacity == BATTERY_UNKNOWN_CAPACITY {
 			log.Debugf("Current charge percentage is unknown, metric not submitted")
-			info.currentChargePct = nil
+			info.currentChargePct = option.None[float64]()
 		} else {
 			currentChargePct := math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
-			info.currentChargePct = &currentChargePct
+			info.currentChargePct = option.New(currentChargePct)
 		}
 		if bs.Voltage == BATTERY_UNKNOWN_VOLTAGE {
 			log.Debugf("Voltage is unknown, metric not submitted")
-			info.voltage = nil
+			info.voltage = option.None[float64]()
 		} else {
 			voltage := float64(bs.Voltage)
-			info.voltage = &voltage
+			info.voltage = option.New(voltage)
 		}
 		if bs.Rate == BATTERY_UNKNOWN_RATE {
 			log.Debugf("Charge rate is unknown, metric not submitted")
-			info.chargeRate = nil
+			info.chargeRate = option.None[float64]()
 		} else {
 			chargeRate := float64(bs.Rate)
-			info.chargeRate = &chargeRate
+			info.chargeRate = option.New(chargeRate)
 		}
 
 		info.powerState = getPowerState(bs.PowerState)

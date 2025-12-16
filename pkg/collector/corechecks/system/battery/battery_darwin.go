@@ -15,22 +15,22 @@ package battery
 */
 import "C"
 
-// unwrapInt converts C.OptionalInt to *float64 (nil if not present)
-func unwrapInt(o C.OptionalInt) *float64 {
+import "github.com/DataDog/datadog-agent/pkg/util/option"
+
+// optionalInt converts C.OptionalInt to option.Option[float64]
+func optionalInt(o C.OptionalInt) option.Option[float64] {
 	if !o.hasValue {
-		return nil
+		return option.None[float64]()
 	}
-	v := float64(o.value)
-	return &v
+	return option.New(float64(o.value))
 }
 
-// unwrapBool converts C.OptionalBool to *bool (nil if not present)
-func unwrapBool(o C.OptionalBool) *bool {
+// optionalBool converts C.OptionalBool to option.Option[bool]
+func optionalBool(o C.OptionalBool) option.Option[bool] {
 	if !o.hasValue {
-		return nil
+		return option.None[bool]()
 	}
-	v := bool(o.value)
-	return &v
+	return option.New(bool(o.value))
 }
 
 func hasBatteryAvailable() (bool, error) {
@@ -50,29 +50,34 @@ func convertCBatteryInfo(cInfo C.BatteryInfo) *batteryInfo {
 		powerState: getPowerStateTags(cInfo.isCharging, cInfo.externalConnected),
 	}
 
-	designCapacity := unwrapInt(cInfo.designCapacity)
-	appleRawMaxCapacity := unwrapInt(cInfo.appleRawMaxCapacity)
-	voltage := unwrapInt(cInfo.voltage)
+	designCapacity := optionalInt(cInfo.designCapacity)
+	appleRawMaxCapacity := optionalInt(cInfo.appleRawMaxCapacity)
+	voltage := optionalInt(cInfo.voltage)
 
-	info.cycleCount = unwrapInt(cInfo.cycleCount)
-	info.currentChargePct = unwrapInt(cInfo.currentCapacity)
+	info.cycleCount = optionalInt(cInfo.cycleCount)
+	info.currentChargePct = optionalInt(cInfo.currentCapacity)
 	info.voltage = voltage
 
 	// Calculate derived metrics if we have the required values
-	if designCapacity != nil && appleRawMaxCapacity != nil {
-		maxCapPct := min(*appleRawMaxCapacity / *designCapacity * 100.0, 100.0)
-		info.maximumCapacityPct = &maxCapPct
+	designCapVal, hasDesignCap := designCapacity.Get()
+	appleRawMaxCapVal, hasAppleRawMaxCap := appleRawMaxCapacity.Get()
+	voltageVal, hasVoltage := voltage.Get()
 
-		if voltage != nil {
+	if hasDesignCap && hasAppleRawMaxCap {
+		maxCapPct := min(appleRawMaxCapVal/designCapVal*100.0, 100.0)
+		info.maximumCapacityPct = option.New(maxCapPct)
+
+		if hasVoltage {
 			// mAh * mV / 1000 = mWh
-			designedCap := *designCapacity * *voltage / 1000.0
-			maxCap := *appleRawMaxCapacity * *voltage / 1000.0
-			info.designedCapacity = &designedCap
-			info.maximumCapacity = &maxCap
+			designedCap := designCapVal * voltageVal / 1000.0
+			maxCap := appleRawMaxCapVal * voltageVal / 1000.0
+			info.designedCapacity = option.New(designedCap)
+			info.maximumCapacity = option.New(maxCap)
 
-			if instantAmperage := unwrapInt(cInfo.instantAmperage); instantAmperage != nil {
-				chargeRate := *instantAmperage * *voltage / 1000.0
-				info.chargeRate = &chargeRate
+			instantAmperageOpt := optionalInt(cInfo.instantAmperage)
+			if instantAmperage, ok := instantAmperageOpt.Get(); ok {
+				chargeRate := instantAmperage * voltageVal / 1000.0
+				info.chargeRate = option.New(chargeRate)
 			}
 		}
 	}
@@ -83,15 +88,17 @@ func convertCBatteryInfo(cInfo C.BatteryInfo) *batteryInfo {
 func getPowerStateTags(isCharging, externalConnected C.OptionalBool) []string {
 	powerStateTags := []string{}
 
-	if charging := unwrapBool(isCharging); charging != nil {
-		if *charging {
+	chargingOpt := optionalBool(isCharging)
+	if charging, ok := chargingOpt.Get(); ok {
+		if charging {
 			powerStateTags = append(powerStateTags, "power_state:battery_charging")
 		} else {
 			powerStateTags = append(powerStateTags, "power_state:battery_discharging")
 		}
 	}
 
-	if connected := unwrapBool(externalConnected); connected != nil && *connected {
+	connectedOpt := optionalBool(externalConnected)
+	if connected, ok := connectedOpt.Get(); ok && connected {
 		powerStateTags = append(powerStateTags, "power_state:battery_power_on_line")
 	}
 

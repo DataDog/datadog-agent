@@ -16,13 +16,34 @@ import (
 func TestConvertCBatteryInfo(t *testing.T) {
 	info := convertCBatteryInfo(testCBatteryInfo)
 
-	assert.Equal(t, 500.0, *info.cycleCount)
-	assert.Equal(t, 90.0, *info.maximumCapacityPct)  // 4500/5000 * 100
-	assert.Equal(t, 60000.0, *info.designedCapacity) // 5000 * 12000 / 1000
-	assert.Equal(t, 54000.0, *info.maximumCapacity)  // 4500 * 12000 / 1000
-	assert.Equal(t, 80.0, *info.currentChargePct)
-	assert.Equal(t, 12000.0, *info.voltage)
-	assert.Equal(t, -12000.0, *info.chargeRate) // -1000 * 12000 / 1000
+	cycleCount, ok := info.cycleCount.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 500.0, cycleCount)
+
+	maxCapPct, ok := info.maximumCapacityPct.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 90.0, maxCapPct) // 4500/5000 * 100
+
+	designedCap, ok := info.designedCapacity.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 60000.0, designedCap) // 5000 * 12000 / 1000
+
+	maxCap, ok := info.maximumCapacity.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 54000.0, maxCap) // 4500 * 12000 / 1000
+
+	currentCharge, ok := info.currentChargePct.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 80.0, currentCharge)
+
+	voltage, ok := info.voltage.Get()
+	assert.True(t, ok)
+	assert.Equal(t, 12000.0, voltage)
+
+	chargeRate, ok := info.chargeRate.Get()
+	assert.True(t, ok)
+	assert.Equal(t, -12000.0, chargeRate) // -1000 * 12000 / 1000
+
 	assert.Contains(t, info.powerState, "power_state:battery_discharging")
 }
 
@@ -32,13 +53,19 @@ func TestConvertCBatteryInfo_MissingVoltage(t *testing.T) {
 
 	info := convertCBatteryInfo(cInfo)
 
-	// These require voltage to calculate
-	assert.Nil(t, info.voltage)
-	assert.Nil(t, info.designedCapacity)
-	assert.Nil(t, info.maximumCapacity)
-	assert.Nil(t, info.chargeRate)
+	// These require voltage to calculate - should not have values
+	_, hasVoltage := info.voltage.Get()
+	assert.False(t, hasVoltage)
+	_, hasDesignedCap := info.designedCapacity.Get()
+	assert.False(t, hasDesignedCap)
+	_, hasMaxCap := info.maximumCapacity.Get()
+	assert.False(t, hasMaxCap)
+	_, hasChargeRate := info.chargeRate.Get()
+	assert.False(t, hasChargeRate)
 
-	// These don't need voltage
-	assert.NotNil(t, info.cycleCount)
-	assert.NotNil(t, info.maximumCapacityPct)
+	// These don't need voltage - should have values
+	_, hasCycleCount := info.cycleCount.Get()
+	assert.True(t, hasCycleCount)
+	_, hasMaxCapPct := info.maximumCapacityPct.Get()
+	assert.True(t, hasMaxCapPct)
 }

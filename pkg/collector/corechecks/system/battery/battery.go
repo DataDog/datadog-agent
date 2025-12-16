@@ -30,16 +30,15 @@ var getBatteryInfoFunc = getBatteryInfo
 var hasBatteryAvailableFunc = hasBatteryAvailable
 
 // batteryInfo contains normalized battery information across platforms
-// Ale pointers to indicate optional/unavailable values
 type batteryInfo struct {
-	cycleCount         *float64 // battery cycle count
-	designedCapacity   *float64 // mWh
-	maximumCapacity    *float64 // mWh
-	maximumCapacityPct *float64 // percentage (0-100)
-	currentChargePct   *float64 // percentage (0-100)
-	voltage            *float64 // mV
-	chargeRate         *float64 // mW (positive = charging, negative = discharging)
-	powerState         []string // power state tags
+	cycleCount         option.Option[float64] // battery cycle count
+	designedCapacity   option.Option[float64] // mWh
+	maximumCapacity    option.Option[float64] // mWh
+	maximumCapacityPct option.Option[float64] // percentage (0-100)
+	currentChargePct   option.Option[float64] // percentage (0-100)
+	voltage            option.Option[float64] // mV
+	chargeRate         option.Option[float64] // mW (positive = charging, negative = discharging)
+	powerState         []string               // power state tags
 }
 
 // Check is the battery check
@@ -90,26 +89,26 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	if info.designedCapacity != nil {
-		sender.Gauge("system.battery.designed_capacity", *info.designedCapacity, "", nil)
+	if v, ok := info.designedCapacity.Get(); ok {
+		sender.Gauge("system.battery.designed_capacity", v, "", nil)
 	}
-	if info.maximumCapacity != nil {
-		sender.Gauge("system.battery.maximum_capacity", *info.maximumCapacity, "", nil)
+	if v, ok := info.maximumCapacity.Get(); ok {
+		sender.Gauge("system.battery.maximum_capacity", v, "", nil)
 	}
-	if info.maximumCapacityPct != nil {
-		sender.Gauge("system.battery.maximum_capacity_pct", *info.maximumCapacityPct, "", nil)
+	if v, ok := info.maximumCapacityPct.Get(); ok {
+		sender.Gauge("system.battery.maximum_capacity_pct", v, "", nil)
 	}
-	if info.cycleCount != nil {
-		sender.Gauge("system.battery.cycle_count", *info.cycleCount, "", nil)
+	if v, ok := info.cycleCount.Get(); ok {
+		sender.Gauge("system.battery.cycle_count", v, "", nil)
 	}
-	if info.currentChargePct != nil {
-		sender.Gauge("system.battery.current_charge_pct", *info.currentChargePct, "", nil)
+	if v, ok := info.currentChargePct.Get(); ok {
+		sender.Gauge("system.battery.current_charge_pct", v, "", nil)
 	}
-	if info.voltage != nil {
-		sender.Gauge("system.battery.voltage", *info.voltage, "", nil)
+	if v, ok := info.voltage.Get(); ok {
+		sender.Gauge("system.battery.voltage", v, "", nil)
 	}
-	if info.chargeRate != nil {
-		sender.Gauge("system.battery.charge_rate", *info.chargeRate, "", nil)
+	if v, ok := info.chargeRate.Get(); ok {
+		sender.Gauge("system.battery.charge_rate", v, "", nil)
 	}
 
 	if len(info.powerState) > 0 {

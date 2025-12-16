@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // setupMocks is a test helper that mocks hasBatteryAvailableFunc and getBatteryInfoFunc
@@ -36,21 +37,21 @@ func setupMocks(hasBattery bool, info *batteryInfo) func() {
 	}
 }
 
-// ptrFloat64 is a helper to create a pointer to a float64
-func ptrFloat64(v float64) *float64 {
-	return &v
+// optFloat64 is a helper to create an option.Option[float64] with a value
+func optFloat64(v float64) option.Option[float64] {
+	return option.New(v)
 }
 
 // TestBatteryCheckWithMockedData tests the check with mocked battery info
 func TestBatteryCheckWithMockedData(t *testing.T) {
 	defer setupMocks(true, &batteryInfo{
-		cycleCount:         ptrFloat64(150),
-		designedCapacity:   ptrFloat64(100000),
-		maximumCapacity:    ptrFloat64(95000),
-		maximumCapacityPct: ptrFloat64(95.0),
-		currentChargePct:   ptrFloat64(84.21),
-		voltage:            ptrFloat64(12450),
-		chargeRate:         ptrFloat64(-2500),
+		cycleCount:         optFloat64(150),
+		designedCapacity:   optFloat64(100000),
+		maximumCapacity:    optFloat64(95000),
+		maximumCapacityPct: optFloat64(95.0),
+		currentChargePct:   optFloat64(84.21),
+		voltage:            optFloat64(12450),
+		chargeRate:         optFloat64(-2500),
 		powerState:         []string{"power_state:battery_discharging"},
 	})()
 
@@ -144,21 +145,14 @@ func TestBatteryMultipleRuns(t *testing.T) {
 	originalFunc := getBatteryInfoFunc
 	getBatteryInfoFunc = func() (*batteryInfo, error) {
 		callCount++
-		cycleCount := 150.0
-		designedCapacity := 100000.0
-		maximumCapacity := 95000.0
-		maximumCapacityPct := 95.0
-		currentChargePct := 85.0 - float64(callCount*5.0)
-		voltage := 12300 - float64(callCount*50)
-		chargeRate := -2000 - float64(callCount*100)
 		return &batteryInfo{
-			cycleCount:         &cycleCount,
-			designedCapacity:   &designedCapacity,
-			maximumCapacity:    &maximumCapacity,
-			maximumCapacityPct: &maximumCapacityPct,
-			currentChargePct:   &currentChargePct,
-			voltage:            &voltage,
-			chargeRate:         &chargeRate,
+			cycleCount:         option.New(150.0),
+			designedCapacity:   option.New(100000.0),
+			maximumCapacity:    option.New(95000.0),
+			maximumCapacityPct: option.New(95.0),
+			currentChargePct:   option.New(85.0 - float64(callCount*5.0)),
+			voltage:            option.New(12300 - float64(callCount*50)),
+			chargeRate:         option.New(-2000 - float64(callCount*100)),
 			powerState:         []string{"power_state:battery_discharging"},
 		}, nil
 	}
@@ -214,13 +208,13 @@ func TestBatteryHealthLevels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer setupMocks(true, &batteryInfo{
-				cycleCount:         ptrFloat64(100),
-				designedCapacity:   ptrFloat64(tt.designedCapacity),
-				maximumCapacity:    ptrFloat64(tt.maximumCapacity),
-				maximumCapacityPct: ptrFloat64(tt.expectedHealth),
-				currentChargePct:   ptrFloat64(50.0),
-				voltage:            ptrFloat64(12500),
-				chargeRate:         ptrFloat64(0),
+				cycleCount:         optFloat64(100),
+				designedCapacity:   optFloat64(tt.designedCapacity),
+				maximumCapacity:    optFloat64(tt.maximumCapacity),
+				maximumCapacityPct: optFloat64(tt.expectedHealth),
+				currentChargePct:   optFloat64(50.0),
+				voltage:            optFloat64(12500),
+				chargeRate:         optFloat64(0),
 				powerState:         []string{"power_state:battery_power_on_line"},
 			})()
 
@@ -262,20 +256,14 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 		if currentIndex < len(charges)-1 {
 			currentIndex++
 		}
-		cycleCount := 150.0
-		designedCapacity := 50000.0
-		maximumCapacity := 48000.0
-		maximumCapacityPct := 96.0
-		voltage := 12500 - (charge * 5)
-		chargeRate := -1500 - (charge * 2)
 		return &batteryInfo{
-			cycleCount:         &cycleCount,
-			designedCapacity:   &designedCapacity,
-			maximumCapacity:    &maximumCapacity,
-			maximumCapacityPct: &maximumCapacityPct,
-			currentChargePct:   &charge,
-			voltage:            &voltage,
-			chargeRate:         &chargeRate,
+			cycleCount:         option.New(150.0),
+			designedCapacity:   option.New(50000.0),
+			maximumCapacity:    option.New(48000.0),
+			maximumCapacityPct: option.New(96.0),
+			currentChargePct:   option.New(charge),
+			voltage:            option.New(12500 - (charge * 5)),
+			chargeRate:         option.New(-1500 - (charge * 2)),
 			powerState:         []string{"power_state:battery_discharging"},
 		}, nil
 	}
@@ -349,13 +337,13 @@ func TestBatteryPowerStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer setupMocks(true, &batteryInfo{
-				cycleCount:         ptrFloat64(100),
-				designedCapacity:   ptrFloat64(50000),
-				maximumCapacity:    ptrFloat64(48000),
-				maximumCapacityPct: ptrFloat64(96.0),
-				currentChargePct:   ptrFloat64(75.0),
-				voltage:            ptrFloat64(12400),
-				chargeRate:         ptrFloat64(-1800),
+				cycleCount:         optFloat64(100),
+				designedCapacity:   optFloat64(50000),
+				maximumCapacity:    optFloat64(48000),
+				maximumCapacityPct: optFloat64(96.0),
+				currentChargePct:   optFloat64(75.0),
+				voltage:            optFloat64(12400),
+				chargeRate:         optFloat64(-1800),
 				powerState:         tt.powerState,
 			})()
 
