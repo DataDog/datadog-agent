@@ -20,10 +20,10 @@ type Matcher struct {
 }
 
 type TagMatcher struct {
-	Tags []string
+	Tags []string `yaml:"tags"`
 	// If Negated == false, we keep only the provided tags (allow list).
 	// If Negated == true, we strip the provided tags (deny list).
-	Negated bool
+	Negated bool `yaml:"tags_negated"`
 }
 
 // NewMatcher creates a new strings matcher.

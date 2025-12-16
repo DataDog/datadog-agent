@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -661,13 +662,19 @@ func (s *server) loadTagFilterList() map[string]utilstrings.TagMatcher {
 		} else {
 			// Or tags can be configured as an object with fields:
 			// tags - array of tags
-			// negated - boolean to indicate negated.
-			tag, ok := tags.(utilstrings.TagMatcher)
-			if ok {
-				tagFilterList[metricName] = tag
-			} else {
+			// tags_negated - boolean to indicate negated.
+			// Roundtrip the struct through yaml to load it.
+			tagBytes, err := yaml.Marshal(tags)
+			if err != nil {
 				s.log.Errorf("invalid configuration for `tag_filterlist` %s", metricName)
-
+			} else {
+				var tags utilstrings.TagMatcher
+				err = yaml.Unmarshal(tagBytes, &tags)
+				if err != nil {
+					s.log.Errorf("error loading configuration for `tag_filterlist` %s", err)
+				} else {
+					tagFilterList[metricName] = tags
+				}
 			}
 		}
 	}
