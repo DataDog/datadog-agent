@@ -5,10 +5,10 @@
 Dynamic command generation for lab providers.
 
 Providers get auto-generated create commands:
-    dda lab local kind create --name foo
+    dda lab local kind create --id foo
 
 Deletion is generic (works for any provider):
-    dda lab delete --name foo
+    dda lab delete --id foo
 """
 
 from __future__ import annotations
@@ -71,16 +71,16 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
 
     # Build the command function
     @pass_app
-    def create_cmd(app: Application, *, name: str, **kwargs: Any) -> None:
+    def create_cmd(app: Application, *, id: str | None, **kwargs: Any) -> None:
         from lab.config import load_config
 
         provider = provider_cls()
-        if not name:
-            name = f"{provider.category}-{provider.name}"
+        if not id:
+            id = f"{provider.category}-{provider.name}"
 
         # Load lab config once and inject into provider config
         lab_config = load_config()
-        config = ProviderConfig(name=name, options=kwargs, lab_config=lab_config)
+        config = ProviderConfig(name=id, options=kwargs, lab_config=lab_config)
 
         # Create typed options for this provider
         options = provider.options_class.from_config(config)
@@ -104,13 +104,13 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         # Automatically save environment after successful create
         LabEnvironment(
             app,
-            name=name,
+            name=id,
             env_type=provider_cls.name,
             metadata=metadata or {},
         ).save()
 
     # Apply options dynamically
-    create_cmd = click.option("--name", "-n", default=None, help="Environment name")(create_cmd)
+    create_cmd = click.option("--id", "-i", default=None, help="Environment id")(create_cmd)
 
     for opt in reversed(provider_cls.create_options):
         kwargs: dict[str, Any] = {"help": opt.help}

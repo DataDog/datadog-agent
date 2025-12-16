@@ -13,23 +13,28 @@ if TYPE_CHECKING:
 
 
 @dynamic_command(short_help="Delete a lab environment")
-@click.option("--name", "-n", default=None, help="Name of the environment to delete (interactive if not provided)")
+@click.option(
+    "--id",
+    "-i",
+    default=None,
+    help="Environment id to delete (interactive if not provided)",
+)
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 @pass_app
-def cmd(app: Application, *, name: str | None, force: bool) -> None:
+def cmd(app: Application, *, id: str | None, force: bool) -> None:
     """
     Delete a lab environment.
 
     Works with any environment type (kind, gke, eks, etc.).
     The provider-specific cleanup is handled automatically.
 
-    If --name is not provided, shows an interactive selection menu.
+    If --id is not provided, shows an interactive selection menu.
     """
     from lab import LabEnvironment
     from lab.providers import get_provider
 
     # If no name provided, show interactive selection
-    if name is None:
+    if id is None:
         environments = LabEnvironment.load_all(app)
         if not environments:
             app.display_info("No lab environments found.")
@@ -46,12 +51,12 @@ def cmd(app: Application, *, name: str | None, force: bool) -> None:
             "Enter number",
             type=click.IntRange(1, len(choices)),
         )
-        name = environments[selection - 1].name
+        id = environments[selection - 1].name
 
-    env = LabEnvironment.load(app, name)
+    env = LabEnvironment.load(app, id)
 
     if env is None:
-        app.display_error(f"Environment '{name}' not found.")
+        app.display_error(f"Environment '{id}' not found.")
 
         environments = LabEnvironment.load_all(app)
         if environments:
@@ -61,17 +66,17 @@ def cmd(app: Application, *, name: str | None, force: bool) -> None:
         return
 
     if not force:
-        if not click.confirm(f"Delete {env.env_type} environment '{name}'?"):
+        if not click.confirm(f"Delete {env.env_type} environment '{id}'?"):
             app.display_info("Aborting.")
             return
 
-    app.display_info(f"Deleting {env.env_type} environment '{name}'...")
+    app.display_info(f"Deleting {env.env_type} environment '{id}'...")
 
     try:
         provider = get_provider(env.env_type)
-        provider.destroy(app, name)
+        provider.destroy(app, id)
     except ValueError:
         app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")
 
     env.delete()
-    app.display_success(f"Environment '{name}' deleted.")
+    app.display_success(f"Environment '{id}' deleted.")
