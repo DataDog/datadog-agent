@@ -3,11 +3,11 @@ module github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.1-rc.1
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
@@ -20,17 +20,17 @@ require (
 require go.opentelemetry.io/collector/component v1.44.0 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/api v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.73.1-rc.1 // indirect
 	github.com/DataDog/go-sqllexer v0.1.9 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
@@ -77,9 +77,9 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4 // indirect
 	google.golang.org/grpc v1.76.0 // indirect

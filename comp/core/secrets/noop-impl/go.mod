@@ -3,15 +3,15 @@ module github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.1-rc.1
+	github.com/DataDog/datadog-agent/comp/core/status v0.73.1-rc.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.73.1-rc.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -21,8 +21,8 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
