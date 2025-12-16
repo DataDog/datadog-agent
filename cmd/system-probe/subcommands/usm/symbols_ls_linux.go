@@ -1,0 +1,408 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux
+
+package usm
+
+import (
+	"debug/elf"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"os"
+	"sort"
+
+	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+)
+
+// makeSymbolsLsCommand returns the "usm symbols ls" cobra command.
+func makeSymbolsLsCommand(globalParams *command.GlobalParams) *cobra.Command {
+	var dynamic bool
+
+	cmd := makeOneShotCommand(
+		globalParams,
+		"ls",
+		"List symbols from binary files",
+		func(sysprobeconfig sysconfigcomponent.Component, params *command.GlobalParams) error {
+			return runSymbolsLs(sysprobeconfig, params, dynamic)
+		},
+	)
+
+	cmd.Flags().BoolVar(&dynamic, "dynamic", false,
+		"Display dynamic symbols instead of static symbols")
+
+	// symbols ls takes a file path as argument
+	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Use = "ls [flags] <binary-file>"
+
+	return cmd
+}
+
+type indexedSymbol struct {
+	symbol safeelf.Symbol
+	index  int
+}
+
+// runSymbolsLs is the main implementation of the symbols ls command.
+func runSymbolsLs(_ sysconfigcomponent.Component, _ *command.GlobalParams, dynamic bool) error {
+	// Get the file path from cobra args
+	// Note: cobra.Command.Args validation ensures we have at least 1 arg
+	args := os.Args
+
+	// Find the file path argument (last non-flag argument)
+	var filePath string
+	for i := len(args) - 1; i >= 0; i-- {
+		if args[i][0] != '-' && i > 0 {
+			filePath = args[i]
+			break
+		}
+	}
+
+	if filePath == "" {
+		return fmt.Errorf("no binary file specified")
+	}
+
+	// Open the ELF file
+	elfFile, err := safeelf.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open ELF file %s: %w", filePath, err)
+	}
+	defer elfFile.Close()
+
+	// Get symbols based on mode
+	var symbols []safeelf.Symbol
+	if dynamic {
+		symbols, err = elfFile.DynamicSymbols()
+		if err != nil {
+			if errors.Is(err, safeelf.ErrNoSymbols) {
+				fmt.Fprintf(os.Stderr, "%s: no dynamic symbols\n", filePath)
+				return nil
+			}
+			return fmt.Errorf("failed to read dynamic symbols: %w", err)
+		}
+	} else {
+		symbols, err = elfFile.Symbols()
+		if err != nil {
+			if errors.Is(err, safeelf.ErrNoSymbols) {
+				fmt.Fprintf(os.Stderr, "%s: no symbols\n", filePath)
+				return nil
+			}
+			return fmt.Errorf("failed to read symbols: %w", err)
+		}
+	}
+
+	// Get version information if displaying dynamic symbols (before sorting)
+	var versionMap map[int]string
+	if dynamic {
+		versionMap = getSymbolVersions(elfFile)
+	}
+
+	// Create indexed symbols to preserve original index after sorting
+	indexedSymbols := make([]indexedSymbol, len(symbols))
+	for i, sym := range symbols {
+		indexedSymbols[i] = indexedSymbol{symbol: sym, index: i}
+	}
+
+	// Sort symbols by value (address)
+	sort.Slice(indexedSymbols, func(i, j int) bool {
+		return indexedSymbols[i].symbol.Value < indexedSymbols[j].symbol.Value
+	})
+
+	// Display symbols in nm format
+	for _, idxSym := range indexedSymbols {
+		sym := idxSym.symbol
+
+		// Filter out FILE symbols (nm behavior - use -a to show them)
+		if elf.ST_TYPE(sym.Info) == elf.STT_FILE {
+			continue
+		}
+
+		symbolType := getSymbolType(&sym, elfFile)
+
+		// Get symbol name with version if available
+		// Version info is shown for undefined (imported) symbols
+		symbolName := sym.Name
+		if dynamic && versionMap != nil {
+			// Check if symbol is undefined (section index 0) or check symbolType == 'U'
+			isUndefined := (sym.Section == elf.SHN_UNDEF) || (symbolType == 'U')
+			if isUndefined {
+				// Symbol is undefined (imported), check for version
+				if version, ok := versionMap[idxSym.index]; ok && version != "" {
+					symbolName = symbolName + version
+				}
+			}
+		}
+
+		// Format: address type name
+		// Only show blank address for undefined symbols (U or w)
+		if sym.Value == 0 && (symbolType == 'U' || symbolType == 'w' || symbolType == 'v') {
+			fmt.Printf("%16s %c %s\n", "", symbolType, symbolName)
+		} else {
+			fmt.Printf("%016x %c %s\n", sym.Value, symbolType, symbolName)
+		}
+	}
+
+	return nil
+}
+
+// getSymbolVersions extracts version information for dynamic symbols.
+// Returns a map from symbol index to version string (e.g., "@GLIBC_2.17").
+func getSymbolVersions(elfFile *safeelf.File) map[int]string {
+	versionMap := make(map[int]string)
+
+	// Find the .gnu.version section (contains version indices)
+	var versionSection *elf.Section
+	var verneedSection *elf.Section
+	var verdefSection *elf.Section
+	var dynstrSection *elf.Section
+
+	for _, section := range elfFile.Sections {
+		switch section.Name {
+		case ".gnu.version":
+			versionSection = section
+		case ".gnu.version_r":
+			verneedSection = section
+		case ".gnu.version_d":
+			verdefSection = section
+		case ".dynstr":
+			dynstrSection = section
+		}
+	}
+
+	if versionSection == nil || dynstrSection == nil {
+		return versionMap
+	}
+
+	// Read version indices
+	versionData, err := versionSection.Data()
+	if err != nil {
+		return versionMap
+	}
+
+	// Read dynamic string table
+	dynstrData, err := dynstrSection.Data()
+	if err != nil {
+		return versionMap
+	}
+
+	// Parse version entries to build version index -> version string map
+	versionStrings := make(map[uint16]string)
+
+	// Parse verneed (version requirements - imported symbols)
+	if verneedSection != nil {
+		verneedData, err := verneedSection.Data()
+		if err == nil {
+			parseVerneed(verneedData, dynstrData, versionStrings)
+		}
+	}
+
+	// Parse verdef (version definitions - exported symbols)
+	if verdefSection != nil {
+		verdefData, err := verdefSection.Data()
+		if err == nil {
+			parseVerdef(verdefData, dynstrData, versionStrings)
+		}
+	}
+
+	// Map each symbol to its version
+	// Note: DynamicSymbols() skips the null symbol at index 0, but .gnu.version includes it
+	// So .gnu.version[0] is for null, .gnu.version[1] is for DynamicSymbols()[0], etc.
+	for i := 0; i < len(versionData)/2; i++ {
+		// Each entry is 2 bytes (uint16)
+		versionIdx := uint16(versionData[i*2]) | (uint16(versionData[i*2+1]) << 8)
+
+		// Version index 0 and 1 are special (local and global)
+		if versionIdx > 1 {
+			// Clear the hidden bit (bit 15)
+			versionIdx &= 0x7fff
+			if verStr, ok := versionStrings[versionIdx]; ok {
+				// i=0 is null symbol, i=1 is DynamicSymbols()[0], etc.
+				if i > 0 {
+					versionMap[i-1] = verStr
+				}
+			}
+		}
+	}
+
+	return versionMap
+}
+
+// parseVerneed parses the .gnu.version_r section to extract version strings.
+func parseVerneed(verneedData, dynstrData []byte, versionStrings map[uint16]string) {
+	offset := 0
+	for offset < len(verneedData) {
+		if offset+16 > len(verneedData) {
+			break
+		}
+
+		// Read Verneed structure
+		cnt := binary.LittleEndian.Uint16(verneedData[offset+2:])
+		fileOffset := binary.LittleEndian.Uint32(verneedData[offset+4:])
+		aux := binary.LittleEndian.Uint32(verneedData[offset+8:])
+		next := binary.LittleEndian.Uint32(verneedData[offset+12:])
+
+		// Read the file name (library name) - not used in standard nm format
+		_ = readString(dynstrData, int(fileOffset))
+
+		// Parse auxiliary version entries
+		auxOffset := offset + int(aux)
+		for i := uint16(0); i < cnt; i++ {
+			if auxOffset+16 > len(verneedData) {
+				break
+			}
+
+			// Read Vernaux structure
+			other := binary.LittleEndian.Uint16(verneedData[auxOffset+6:])
+			nameOffset := binary.LittleEndian.Uint32(verneedData[auxOffset+8:])
+			nextAux := binary.LittleEndian.Uint32(verneedData[auxOffset+12:])
+
+			// Read version name
+			versionName := readString(dynstrData, int(nameOffset))
+
+			// Store the version string with @ prefix (standard nm format)
+			versionStrings[other] = "@" + versionName
+
+			if nextAux == 0 {
+				break
+			}
+			auxOffset += int(nextAux)
+		}
+
+		if next == 0 {
+			break
+		}
+		offset += int(next)
+	}
+}
+
+// parseVerdef parses the .gnu.version_d section to extract version definitions.
+func parseVerdef(verdefData, dynstrData []byte, versionStrings map[uint16]string) {
+	offset := 0
+	for offset < len(verdefData) {
+		if offset+20 > len(verdefData) {
+			break
+		}
+
+		// Read Verdef structure
+		ndx := binary.LittleEndian.Uint16(verdefData[offset+4:])
+		cnt := binary.LittleEndian.Uint16(verdefData[offset+6:])
+		aux := binary.LittleEndian.Uint32(verdefData[offset+12:])
+		next := binary.LittleEndian.Uint32(verdefData[offset+16:])
+
+		// Parse auxiliary version entries (verdaux)
+		// The first aux entry contains the actual version name
+		if cnt > 0 {
+			auxOffset := offset + int(aux)
+			if auxOffset+8 <= len(verdefData) {
+				// Read Verdaux structure
+				nameOffset := binary.LittleEndian.Uint32(verdefData[auxOffset:])
+
+				// Read version name
+				versionName := readString(dynstrData, int(nameOffset))
+
+				// Store the version string with @@ prefix for base versions
+				// (nm uses @@ for default versions and @ for non-default)
+				versionStrings[ndx] = "@@" + versionName
+			}
+		}
+
+		if next == 0 {
+			break
+		}
+		offset += int(next)
+	}
+}
+
+// readString reads a null-terminated string from a byte slice at the given offset.
+func readString(data []byte, offset int) string {
+	if offset >= len(data) {
+		return ""
+	}
+	end := offset
+	for end < len(data) && data[end] != 0 {
+		end++
+	}
+	return string(data[offset:end])
+}
+
+// getSymbolType returns the nm-style symbol type character.
+// This mimics the behavior of the GNU nm utility.
+func getSymbolType(sym *safeelf.Symbol, elfFile *safeelf.File) rune {
+	bind := elf.ST_BIND(sym.Info)
+	typ := elf.ST_TYPE(sym.Info)
+
+	// Undefined symbols
+	if sym.Section == elf.SHN_UNDEF {
+		if bind == elf.STB_WEAK {
+			return 'w' // Weak undefined
+		}
+		return 'U'
+	}
+
+	// Common symbols (uninitialized data)
+	if sym.Section == elf.SHN_COMMON {
+		if bind == elf.STB_GLOBAL {
+			return 'C'
+		}
+		return 'c'
+	}
+
+	// Absolute symbols
+	if sym.Section == elf.SHN_ABS {
+		if bind == elf.STB_GLOBAL {
+			return 'A'
+		}
+		return 'a'
+	}
+
+	// Get the section
+	if int(sym.Section) >= len(elfFile.Sections) {
+		return '?'
+	}
+	section := elfFile.Sections[sym.Section]
+
+	// Determine type based on section flags
+	var typeChar rune
+
+	if section.Flags&elf.SHF_EXECINSTR != 0 {
+		// Code/text section
+		typeChar = 't'
+	} else if section.Flags&elf.SHF_ALLOC != 0 {
+		if section.Flags&elf.SHF_WRITE != 0 {
+			// Writable data section
+			if section.Type == elf.SHT_NOBITS {
+				// BSS (uninitialized data)
+				typeChar = 'b'
+			} else {
+				// Initialized data
+				typeChar = 'd'
+			}
+		} else {
+			// Read-only data
+			typeChar = 'r'
+		}
+	} else {
+		// Debug or other sections
+		if typ == elf.STT_FILE {
+			return 'f'
+		}
+		typeChar = 'n'
+	}
+
+	// Special case for weak symbols
+	if bind == elf.STB_WEAK {
+		if typ == elf.STT_OBJECT {
+			return 'V' // Weak object
+		}
+		return 'W' // Weak symbol
+	}
+
+	return typeChar
+}
