@@ -216,11 +216,15 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 
-	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, newValue any) {
+	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
+		if _, ok := oldValue.(string); !ok {
+			return
+		}
+
 		isEnc, _ := utils.IsEnc(oldValue.(string))
 		// - An empty old value means this secret was initially resolved and isn't a refresh.
 		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
-		if oldValue == "" || isEnc || oldValue == newValue {
+		if oldValue == "" || isEnc {
 			return
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
@@ -236,7 +240,7 @@ func (ac *AutoConfig) refreshConfig(origin string) integration.ConfigChanges {
 
 	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
 	if !found {
-		log.Warnf("no active config found for secret origin %s", origin)
+		ac.logs.Warnf("no active config found for secret origin %s", origin)
 		return changes
 	}
 
