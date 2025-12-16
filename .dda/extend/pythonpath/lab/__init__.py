@@ -91,13 +91,13 @@ class LabEnvironment:
         with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
-    def delete(self) -> bool:
+    def delete(self):
         """Delete this environment's file. Returns True if found and removed."""
         path = _get_environment_path(self.app, self.name)
         if path.exists():
             path.unlink()
             return True
-        return False
+        raise FileNotFoundError(f"Environment '{self.name}' not found")
 
     @classmethod
     def load(cls, app: Application, name: str) -> LabEnvironment | None:
@@ -105,12 +105,9 @@ class LabEnvironment:
         path = _get_environment_path(app, name)
         if not path.exists():
             return None
-        try:
-            with open(path) as f:
-                data = json.load(f)
-                return cls.from_dict(app, data)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Error parsing environment file {path}: {e}") from e
+        with open(path) as f:
+            data = json.load(f)
+            return cls.from_dict(app, data)
 
     @classmethod
     def load_all(cls, app: Application, env_type: str | None = None) -> list[LabEnvironment]:

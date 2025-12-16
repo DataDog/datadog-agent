@@ -5,24 +5,21 @@
 
 from __future__ import annotations
 
-import subprocess
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
 
 
-def cluster_exists(name: str) -> bool:
+def cluster_exists(app: Application, name: str) -> bool:
     """Check if a kind cluster with the given name exists."""
-    return name in get_clusters()
+    return name in get_clusters(app)
 
 
-def get_clusters() -> list[str]:
+def get_clusters(app: Application) -> list[str]:
     """Get list of existing kind clusters."""
-    result = subprocess.run(["kind", "get", "clusters"], capture_output=True, check=False)
-    if result.returncode != 0:
-        return []
-    clusters = result.stdout.decode().strip().split("\n")
+    result = app.subprocess.capture(["kind", "get", "clusters"], check=False)
+    clusters = result.strip().split("\n")
     return [c for c in clusters if c]
 
 

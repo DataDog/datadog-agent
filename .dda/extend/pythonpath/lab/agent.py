@@ -40,11 +40,11 @@ def build_local_image(
         "inv",
         "agent.hacky-dev-image-build",
         "--target-image",
+        tag,
         "--process-agent",
         "--trace-agent",
         "--system-probe",
         "--security-agent",
-        tag,
     ]
 
     # Run in devcontainer for proper build environment

@@ -53,7 +53,11 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
         )
         id = environments[selection - 1].name
 
-    env = LabEnvironment.load(app, id)
+    try:
+        env = LabEnvironment.load(app, id)
+    except Exception as exception:
+        app.display_error(f"Error loading environment '{id}': {exception}")
+        return
 
     if env is None:
         app.display_error(f"Environment '{id}' not found.")
@@ -78,5 +82,10 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
     except ValueError:
         app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")
 
-    env.delete()
+    try:
+        env.delete()
+    except FileNotFoundError:
+        app.display_error(f"Environment '{id}' not found.")
+        return
+
     app.display_success(f"Environment '{id}' deleted.")

@@ -133,7 +133,7 @@ class KindProvider(BaseProvider):
             )
             options._local_image = True
 
-        existing = cluster_exists(name)
+        existing = cluster_exists(app, name)
         if existing:
             if options.force:
                 app.display_info(f"Deleting existing cluster '{name}'...")
@@ -200,7 +200,7 @@ nodes:
     def destroy(self, app: Application, name: str) -> None:
         from lab.kind import cluster_exists, delete_cluster
 
-        if not cluster_exists(name):
+        if not cluster_exists(app, name):
             app.display_warning(f"Cluster '{name}' does not exist in kind")
             return
 
