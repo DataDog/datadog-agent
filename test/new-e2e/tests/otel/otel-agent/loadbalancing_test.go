@@ -26,8 +26,6 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
-	// TODO(OTAGENT-665): fix flaky test, failed in CIs since k8s 0.34.1
-	//flake.Mark(t)
 	values := `
 datadog:
   otelCollector:
