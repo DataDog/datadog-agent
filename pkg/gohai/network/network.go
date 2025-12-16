@@ -241,6 +241,7 @@ func macAddress() (string, error) {
 		return "", err
 	}
 
+	fmt.Printf("ifaces: %+q\n", ifaces)
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
@@ -250,6 +251,7 @@ func macAddress() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		fmt.Printf("iface %s addrs: %+q\n", iface.Name, addrs)
 		for _, addr := range addrs {
 			var ip net.IP
 			switch v := addr.(type) {
@@ -261,6 +263,7 @@ func macAddress() (string, error) {
 			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
+			fmt.Printf("ip: %+q, iface.HardwareAddr: %+q\n", ip, iface.HardwareAddr)
 			return iface.HardwareAddr.String(), nil
 		}
 	}
