@@ -134,6 +134,10 @@ const (
 	GPUVirtualizationMode = "gpu_virtualization_mode"
 	// GPUArchitecture is the tag for the GPU model architecture (e.g. Blackwell, Hopper, ...)
 	GPUArchitecture = "gpu_architecture"
+	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
+	GPUSlicingMode = "gpu_slicing_mode"
+	// GPUParentGPUUUID is the tag for the parent GPU UUID
+	GPUParentGPUUUID = "gpu_parent_uuid"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

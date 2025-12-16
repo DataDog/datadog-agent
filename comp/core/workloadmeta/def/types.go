@@ -2009,6 +2009,9 @@ type GPU struct {
 
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
+
+	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
+	ParentGPUUUID string
 }
 
 var _ Entity = &GPU{}
