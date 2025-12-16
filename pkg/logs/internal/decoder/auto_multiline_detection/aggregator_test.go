@@ -294,11 +294,11 @@ func TestDetectionOnly_SingleLineNotTagged(t *testing.T) {
 
 	msg1 := <-outputChan
 	assert.Equal(t, "single line 1", string(msg1.GetContent()))
-	assert.Empty(t, msg1.ProcessingTags, "Single-line log should not have processing tags")
+	assert.Empty(t, msg1.ParsingExtra.Tags, "Single-line log should not have processing tags")
 
 	msg2 := <-outputChan
 	assert.Equal(t, "single line 2", string(msg2.GetContent()))
-	assert.Empty(t, msg2.ProcessingTags, "Single-line log should not have processing tags")
+	assert.Empty(t, msg2.ParsingExtra.Tags, "Single-line log should not have processing tags")
 }
 
 func TestDetectionOnly_TwoLineGroupTagged(t *testing.T) {
@@ -312,11 +312,11 @@ func TestDetectionOnly_TwoLineGroupTagged(t *testing.T) {
 
 	msg1 := <-outputChan
 	assert.Equal(t, "line 1", string(msg1.GetContent()))
-	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	msg2 := <-outputChan
 	assert.Equal(t, "line 2", string(msg2.GetContent()))
-	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:2")
 }
 
 func TestDetectionOnly_ThreeLineGroupTagged(t *testing.T) {
@@ -331,15 +331,15 @@ func TestDetectionOnly_ThreeLineGroupTagged(t *testing.T) {
 
 	msg1 := <-outputChan
 	assert.Equal(t, "line 1", string(msg1.GetContent()))
-	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:3")
 
 	msg2 := <-outputChan
 	assert.Equal(t, "line 2", string(msg2.GetContent()))
-	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:3")
 
 	msg3 := <-outputChan
 	assert.Equal(t, "line 3", string(msg3.GetContent()))
-	assert.Contains(t, msg3.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg3.ParsingExtra.Tags, "auto_multiline_group_size:3")
 }
 
 func TestDetectionOnly_MultipleGroups(t *testing.T) {
@@ -362,29 +362,29 @@ func TestDetectionOnly_MultipleGroups(t *testing.T) {
 	// First group messages
 	msg := <-outputChan
 	assert.Equal(t, "group1 line1", string(msg.GetContent()))
-	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	msg = <-outputChan
 	assert.Equal(t, "group1 line2", string(msg.GetContent()))
-	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	// Second group messages
 	msg = <-outputChan
 	assert.Equal(t, "group2 line1", string(msg.GetContent()))
-	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg.ParsingExtra.Tags, "auto_multiline_group_size:3")
 
 	msg = <-outputChan
 	assert.Equal(t, "group2 line2", string(msg.GetContent()))
-	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg.ParsingExtra.Tags, "auto_multiline_group_size:3")
 
 	msg = <-outputChan
 	assert.Equal(t, "group2 line3", string(msg.GetContent()))
-	assert.Contains(t, msg.ProcessingTags, "auto_multiline_group_size:3")
+	assert.Contains(t, msg.ParsingExtra.Tags, "auto_multiline_group_size:3")
 
 	// Single line message
 	msg = <-outputChan
 	assert.Equal(t, "single line", string(msg.GetContent()))
-	assert.Empty(t, msg.ProcessingTags)
+	assert.Empty(t, msg.ParsingExtra.Tags)
 }
 
 func TestDetectionOnly_NoAggregateNotTagged(t *testing.T) {
@@ -397,11 +397,11 @@ func TestDetectionOnly_NoAggregateNotTagged(t *testing.T) {
 
 	msg1 := <-outputChan
 	assert.Equal(t, "line 1", string(msg1.GetContent()))
-	assert.Empty(t, msg1.ProcessingTags)
+	assert.Empty(t, msg1.ParsingExtra.Tags)
 
 	msg2 := <-outputChan
 	assert.Equal(t, "line 2", string(msg2.GetContent()))
-	assert.Empty(t, msg2.ProcessingTags)
+	assert.Empty(t, msg2.ParsingExtra.Tags)
 }
 
 func TestDetectionOnly_AggregateWithoutStartGroup(t *testing.T) {
@@ -414,11 +414,11 @@ func TestDetectionOnly_AggregateWithoutStartGroup(t *testing.T) {
 
 	msg1 := <-outputChan
 	assert.Equal(t, "line 1", string(msg1.GetContent()))
-	assert.Empty(t, msg1.ProcessingTags)
+	assert.Empty(t, msg1.ParsingExtra.Tags)
 
 	msg2 := <-outputChan
 	assert.Equal(t, "line 2", string(msg2.GetContent()))
-	assert.Empty(t, msg2.ProcessingTags)
+	assert.Empty(t, msg2.ParsingExtra.Tags)
 }
 
 func TestDetectionOnly_ContentNotCombined(t *testing.T) {
