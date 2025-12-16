@@ -1280,7 +1280,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 }
 
 // GetScopedVariables returns all scoped variables that match the given name and scope
-func (rs *RuleSet) GetScopedVariables(scope Scope, name string) map[string]eval.Variable {
+func (rs *RuleSet) GetScopedVariables(scope Scope, name string) map[eval.ScopeHashKey]eval.Variable {
 	variableProvider, found := rs.scopedVariables[scope]
 	if !found {
 		return nil
