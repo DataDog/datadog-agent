@@ -117,7 +117,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 	r.lastDefaults = configs
 	r.Unlock()
 
-	log.Info("new policies from remote-config policy provider")
+	log.Info("new policies from remote-config policy provider for default policices")
 
 	r.debouncer.Call()
 }
@@ -131,7 +131,7 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawC
 	r.lastCustoms = configs
 	r.Unlock()
 
-	log.Info("new policies from remote-config policy provider")
+	log.Info("new policies from remote-config policy provider for custom policices")
 
 	r.debouncer.Call()
 }
@@ -145,7 +145,7 @@ func (r *RCPolicyProvider) rcRemediationsUpdateCallback(configs map[string]state
 	r.lastRemediations = configs
 	r.Unlock()
 
-	log.Info("new policies from remote-config policy provider")
+	log.Info("new policies from remote-config policy provider for remediations")
 
 	r.debouncer.Call()
 }
