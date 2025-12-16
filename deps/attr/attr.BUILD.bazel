@@ -1,4 +1,5 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
@@ -12,18 +13,17 @@ package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
 _VERSION = "2.5.1"
 
-# This is going to change in the future. Debate the syntax in https://github.com/bazel-contrib/supply-chain/issues/124
-PURL = "pkg:https/download.savannah.nongnu.org/attr@{version}?url=https://download.savannah.nongnu.org/releases/attr/attr-%{version}.tar.xz".format(
-    version = _VERSION,
-)
-
 package_metadata(
     name = "package_metadata",
     attributes = [
         ":license",
         ":ship_source_offer",
     ],
-    purl = PURL,
+    purl = purl_for_generic(
+        package = "attr",
+        version = _VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/attr/attr-{version}.tar.xz",
+    ),
 )
 
 license(
