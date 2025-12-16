@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
@@ -160,9 +162,14 @@ func (suite *kindSuite) TestControlPlane() {
 func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 	ctx := suite.T().Context()
 	namespace := "secret-refresh-workload"
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^container_name:redis$`,
+				`^kube_namespace:secret-refresh-workload$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -179,8 +186,6 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 			AcceptUnexpectedTags: true,
 		},
 	})
-
-	suite.T().Log("Password protected redis check successfully scheduled by autodiscovery.")
 
 	k8sClient := suite.Env().KubernetesCluster.Client()
 	_, err := k8sClient.CoreV1().Secrets(namespace).Patch(
@@ -205,12 +210,39 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 	_, err = k8sClient.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{})
 	suite.Require().NoError(err, "Failed to recreate redis deployment")
 
+	// Wait for the deployment to be ready before flushing the fake intake
+	suite.T().Log("Waiting for redis deployment to be ready after update.")
+	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		updatedDeployment, err := k8sClient.AppsV1().Deployments(namespace).Get(ctx, "redis-with-secret", metav1.GetOptions{})
+		if !assert.NoError(c, err) {
+			c.Errorf("failed to get deployment redis-with-secret in namespace %s: %v", namespace, err)
+			return
+		}
+
+		// Check that the deployment has completed its rollout
+		if updatedDeployment.Status.AvailableReplicas == 0 {
+			c.Errorf("deployment redis-with-secret has 0 available replicas")
+			return
+		}
+
+		// Check that the observed generation matches the desired generation
+		if updatedDeployment.Status.ObservedGeneration != updatedDeployment.Generation {
+			c.Errorf("deployment redis-with-secret is still rolling out (observedGeneration: %d, generation: %d)",
+				updatedDeployment.Status.ObservedGeneration, updatedDeployment.Generation)
+		}
+	}, 2*time.Minute, 5*time.Second, "redis deployment did not become ready after update")
+
+	suite.T().Log("Flushing fake intake.")
 	err = suite.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	suite.Require().NoError(err, "Failed to reset fake intake")
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^container_name:redis$`,
+				`^kube_namespace:secret-refresh-workload$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{

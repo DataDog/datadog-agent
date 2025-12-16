@@ -110,7 +110,7 @@ var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
 func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
-	cm := &reconcilingConfigManager{
+	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
 		templatesByADID:    newMultimap(),
@@ -119,7 +119,6 @@ func newReconcilingConfigManager(secretResolver secrets.Component) configManager
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
 	}
-	return cm
 }
 
 // processNewService implements configManager#processNewService.
