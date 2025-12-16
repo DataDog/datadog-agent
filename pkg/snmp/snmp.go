@@ -123,23 +123,20 @@ var ErrNoConfigGiven = errors.New("no config given for snmp_listener")
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
 	var snmpConfig ListenerConfig
-	// Set defaults before unmarshalling
-	snmpConfig.CollectDeviceMetadata = true
-	snmpConfig.CollectTopology = true
 
 	ddcfg := pkgconfigsetup.Datadog()
-	if ddcfg.IsSet("network_devices.autodiscovery") {
+	if ddcfg.IsConfigured("network_devices.autodiscovery") {
 		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
-			return snmpConfig, err
+			return ListenerConfig{}, err
 		}
-	} else if ddcfg.IsSet("snmp_listener") {
+	} else if ddcfg.IsConfigured("snmp_listener") {
 		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
-			return snmpConfig, err
+			return ListenerConfig{}, err
 		}
 	} else {
-		return snmpConfig, ErrNoConfigGiven
+		return ListenerConfig{}, ErrNoConfigGiven
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
@@ -233,6 +230,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		}
 		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 	}
+
 	return snmpConfig, nil
 }
 
