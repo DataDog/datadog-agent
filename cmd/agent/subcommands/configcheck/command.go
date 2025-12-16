@@ -123,7 +123,7 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 		}
 
 	} else {
-		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
+		flare.PrintConfigCheck(color.Output, *cr, cliParams.verbose)
 	}
 
 	fmt.Println(b.String())
@@ -167,22 +167,22 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 	return fmt.Errorf("no check named %q was found", cliParams.args[0])
 }
 
-func getConfigCheckResponse(client ipc.HTTPClient) (integration.ConfigCheckResponse, error) {
-	var cr integration.ConfigCheckResponse
+func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResponse, error) {
+	cr := &integration.ConfigCheckResponse{}
 
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
-		return cr, err
+		return nil, err
 	}
 
 	res, err := endpoint.DoGet()
 	if err != nil {
-		return cr, fmt.Errorf("the agent ran into an error while checking config: %v", err)
+		return nil, fmt.Errorf("the agent ran into an error while checking config: %v", err)
 	}
 
-	err = json.Unmarshal(res, &cr)
+	err = json.Unmarshal(res, cr)
 	if err != nil {
-		return cr, fmt.Errorf("unable to parse configcheck: %v", err)
+		return nil, fmt.Errorf("unable to parse configcheck: %v", err)
 	}
 
 	return cr, nil
