@@ -111,19 +111,22 @@ func NewHardwareHostProvider(deps Requires) Provides {
 	}
 }
 
-func (hh *hostHardware) fillData() {
+func (hh *hostHardware) fillData() error {
 	hardwareInfo, err := hardware.Collect()
 	if err != nil {
 		hh.log.Errorf("Failed to collect hardware information: %v", err)
 		hh.data = &hostHardwareMetadata{}
-		return
+		return err
 	}
+
 	hh.data.Manufacturer = hardwareInfo.Manufacturer
 	hh.data.ModelNumber = hardwareInfo.ModelNumber
 	hh.data.SerialNumber = hardwareInfo.SerialNumber
 	hh.data.Name = hardwareInfo.Name
 	hh.data.ChassisType = hardwareInfo.ChassisType
 	hh.data.Identifier = hardwareInfo.Identifier
+
+	return nil
 }
 
 func (hh *hostHardware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
@@ -137,9 +140,9 @@ func (hh *hostHardware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Reques
 }
 
 func (hh *hostHardware) getPayload() marshaler.JSONMarshaler {
-
-	hh.fillData()
-	if hh.data == nil {
+	// Try to collect hardware data
+	if err := hh.fillData(); err != nil {
+		hh.log.Debugf("Skipping hardware metadata payload due to collection failure: %v", err)
 		return nil
 	}
 
