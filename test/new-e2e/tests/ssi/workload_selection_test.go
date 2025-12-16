@@ -44,8 +44,8 @@ func TestWorkloadSelectionSuite(t *testing.T) {
 						Apps: []singlestep.App{
 							{
 								Name:    DefaultAppName,
-								Image:   "registry.ddbuild.io/ci/injector-dev/python",
-								Version: "2cd78ded",
+								Image:   "gcr.io/datadoghq/injector-dev/python",
+								Version: "d425e7df",
 								Port:    8080,
 								PodLabels: map[string]string{
 									"language": "python",
@@ -53,8 +53,8 @@ func TestWorkloadSelectionSuite(t *testing.T) {
 							},
 							{
 								Name:    "expect-no-injection",
-								Image:   "registry.ddbuild.io/ci/injector-dev/python",
-								Version: "2cd78ded",
+								Image:   "gcr.io/datadoghq/injector-dev/python",
+								Version: "d425e7df",
 								Port:    8080,
 							},
 						},

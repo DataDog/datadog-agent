@@ -41,8 +41,8 @@ func TestNamespaceSelectionSuite(t *testing.T) {
 						Apps: []singlestep.App{
 							{
 								Name:    DefaultAppName,
-								Image:   "registry.ddbuild.io/ci/injector-dev/python",
-								Version: "2cd78ded",
+								Image:   "gcr.io/datadoghq/injector-dev/python",
+								Version: "d425e7df",
 								Port:    8080,
 							},
 						},
@@ -52,8 +52,8 @@ func TestNamespaceSelectionSuite(t *testing.T) {
 						Apps: []singlestep.App{
 							{
 								Name:    DefaultAppName,
-								Image:   "registry.ddbuild.io/ci/injector-dev/python",
-								Version: "2cd78ded",
+								Image:   "gcr.io/datadoghq/injector-dev/python",
+								Version: "d425e7df",
 								Port:    8080,
 							},
 						},
