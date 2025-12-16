@@ -89,8 +89,9 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 				"host":     hostnameValue,
 				"title":    payload.Title,
 				"category": "alert",
-				// TODO: "integration_id": "",
-				// TODO: "notable_events": map[string]interface{}{
+				// TODO(WINA-1969): add integration_id and schema fields
+				// "integration_id": "",
+				// "notable_events": map[string]interface{}{
 				// 	"event_type": payload.EventType,
 				// },
 				"attributes": map[string]interface{}{
