@@ -29,6 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+const unknownProvider = "Unknown provider"
+const unknownConfigSource = "Unknown configuration source"
+
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	*command.GlobalParams
@@ -193,13 +196,13 @@ func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) checkC
 	if c.Provider != "" {
 		jsonConfig.Provider = c.Provider
 	} else {
-		jsonConfig.Provider = "Unknown provider"
+		jsonConfig.Provider = unknownProvider
 	}
 
 	if c.Source != "" {
 		jsonConfig.Source = c.Source
 	} else {
-		jsonConfig.Source = "Unknown configuration source"
+		jsonConfig.Source = unknownConfigSource
 	}
 
 	jsonConfig.Instances = make([]instance, len(c.Instances))
