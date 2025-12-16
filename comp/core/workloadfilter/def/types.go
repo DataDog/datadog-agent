@@ -276,16 +276,18 @@ func (f ContainerFilter) GetFilterName() string {
 
 // Defined Container filter kinds
 const (
-	ContainerLegacyMetrics        ContainerFilter = "container-legacy-metrics"
-	ContainerLegacyLogs           ContainerFilter = "container-legacy-logs"
-	ContainerLegacyGlobal         ContainerFilter = "container-legacy-global"
-	ContainerLegacyACInclude      ContainerFilter = "container-legacy-ac-include"
-	ContainerLegacyACExclude      ContainerFilter = "container-legacy-ac-exclude"
-	ContainerLegacySBOM           ContainerFilter = "container-legacy-sbom"
-	ContainerADAnnotationsMetrics ContainerFilter = "container-ad-annotations-metrics"
-	ContainerADAnnotationsLogs    ContainerFilter = "container-ad-annotations-logs"
-	ContainerADAnnotations        ContainerFilter = "container-ad-annotations"
-	ContainerPaused               ContainerFilter = "container-paused"
+	ContainerLegacyMetrics         ContainerFilter = "container-legacy-metrics"
+	ContainerLegacyLogs            ContainerFilter = "container-legacy-logs"
+	ContainerLegacyGlobal          ContainerFilter = "container-legacy-global"
+	ContainerLegacyACInclude       ContainerFilter = "container-legacy-ac-include"
+	ContainerLegacyACExclude       ContainerFilter = "container-legacy-ac-exclude"
+	ContainerLegacySBOM            ContainerFilter = "container-legacy-sbom"
+	ContainerLegacyRuntimeSecurity ContainerFilter = "container-legacy-runtime-security"
+	ContainerLegacyCompliance      ContainerFilter = "container-legacy-compliance"
+	ContainerADAnnotationsMetrics  ContainerFilter = "container-ad-annotations-metrics"
+	ContainerADAnnotationsLogs     ContainerFilter = "container-ad-annotations-logs"
+	ContainerADAnnotations         ContainerFilter = "container-ad-annotations"
+	ContainerPaused                ContainerFilter = "container-paused"
 	// CEL-based filters
 	ContainerCELMetrics ContainerFilter = "container-cel-metrics"
 	ContainerCELLogs    ContainerFilter = "container-cel-logs"

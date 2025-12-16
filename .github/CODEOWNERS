@@ -243,6 +243,7 @@
 /cmd/dogstatsd/                         @DataDog/agent-metric-pipelines
 /cmd/loader/                            @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
+/cmd/privateactionrunner                @DataDog/action-platform
 /cmd/process-agent/                     @DataDog/container-experiences
 /cmd/serverless-init/                   @DataDog/serverless-azure-gcp
 /cmd/sbomgen/                           @DataDog/agent-security
