@@ -230,7 +230,7 @@ func URLhasFQDN(u string) bool {
 func URLwithPQDN(u string) (string, error) {
 	url, err := url.Parse(u)
 	if err != nil {
-		return "", fmt.Errorf("Route is not a valid URL")
+		return "", errors.New("Route is not a valid URL")
 	}
 
 	host := strings.TrimSuffix(url.Host, ".")
