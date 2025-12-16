@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -185,12 +186,12 @@ func formatCmdline(args []string) string {
 	if len(args) == 0 {
 		return ""
 	}
-	result := ""
+	var builder strings.Builder
 	for i, arg := range args {
 		if i > 0 {
-			result += " "
+			builder.WriteString(" ")
 		}
-		result += arg
+		builder.WriteString(arg)
 	}
-	return result
+	return builder.String()
 }

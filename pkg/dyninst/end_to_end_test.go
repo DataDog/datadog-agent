@@ -326,6 +326,17 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		Attached:     1,
 	})
 
+	// Ensure that the diagnostics states are as expected.
+	require.Equal(t,
+		[]map[string][]string{
+			{
+				"look_at_the_request": {"received", "installed", "emitted"},
+				"http_handler":        {"received", "installed", "emitted"},
+			},
+		},
+		slices.Collect(maps.Values(ts.module.DiagnosticsStates())),
+	)
+
 	// Clear the remote config.
 	ts.rc.UpdateRemoteConfig(nil)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -346,17 +357,9 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		})
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 
-	// Ensure that the diagnostics states are as expected, and get cleared
-	// when the process exits.
-	require.Equal(t,
-		[]map[string][]string{
-			{
-				"look_at_the_request": {"received", "installed", "emitted"},
-				"http_handler":        {"received", "installed", "emitted"},
-			},
-		},
-		slices.Collect(maps.Values(ts.module.DiagnosticsStates())),
-	)
+	// Ensure that the diagnostics states have been cleared.
+	require.Empty(t, ts.module.DiagnosticsStates())
+
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -411,7 +414,7 @@ func createRemoteConfigPath(product data.Product, id string, data []byte) string
 
 func getRcTesterEnv(rcHost string, rcPort int, tmpDir string) []string {
 	return []string{
-		fmt.Sprintf("DD_AGENT_HOST=%s", rcHost),
+		"DD_AGENT_HOST=" + rcHost,
 		fmt.Sprintf("DD_AGENT_PORT=%d", rcPort),
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
 		"DD_REMOTE_CONFIGURATION_ENABLED=true",
@@ -492,7 +495,7 @@ func startSampleServiceWithDocker(
 	require.NoError(t, tarFile.Close())
 
 	containerTag := strings.ReplaceAll(strings.ReplaceAll(cfg.tmpDir, "/", "_"), ":", "_")
-	containerName := fmt.Sprintf("dyninst-e2e:%s", containerTag)
+	containerName := "dyninst-e2e:" + containerTag
 	// Build the docker image.
 	dockerBuildCmd := exec.Command("docker", "image", "import", tarPath, containerName)
 	out, err := dockerBuildCmd.CombinedOutput()

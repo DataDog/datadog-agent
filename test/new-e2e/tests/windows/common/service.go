@@ -7,11 +7,12 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Service API constants
@@ -78,7 +79,7 @@ func (s *ServiceConfig) UnmarshalJSON(b []byte) error {
 // FetchUserSID fetches the SID for the service user
 func (s *ServiceConfig) FetchUserSID(host *components.RemoteHost) error {
 	if s.UserName == "" {
-		return fmt.Errorf("UserName is not set")
+		return errors.New("UserName is not set")
 	}
 	var err error
 	sid, err := GetServiceAliasSID(s.UserName)
@@ -225,7 +226,7 @@ func GetServicePID(host *components.RemoteHost, service string) (int, error) {
 
 // GetServiceImagePath returns the image path (command line) of the service
 func GetServiceImagePath(host *components.RemoteHost, service string) (string, error) {
-	return GetRegistryValue(host, fmt.Sprintf("HKLM:\\SYSTEM\\CurrentControlSet\\Services\\%s", service), "ImagePath")
+	return GetRegistryValue(host, "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\"+service, "ImagePath")
 }
 
 // IsUserModeServiceType returns true if the service is a user mode service

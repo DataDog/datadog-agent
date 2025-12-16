@@ -8,9 +8,11 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -206,7 +209,8 @@ func initTelemetry() {
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
-	if deps.Config.GetBool("use_dogstatsd") {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
@@ -450,7 +454,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+		return errors.New("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s.packetsIn = packetsChannel
@@ -465,7 +469,7 @@ func (s *server) start(context.Context) error {
 	forwardHost := s.config.GetString("statsd_forward_host")
 	forwardPort := s.config.GetInt("statsd_forward_port")
 	if forwardHost != "" && forwardPort != 0 {
-		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
+		forwardAddress := net.JoinHostPort(forwardHost, strconv.Itoa(forwardPort))
 		con, err := net.Dial("udp", forwardAddress)
 		if err != nil {
 			s.log.Warnf("Could not connect to statsd forward host : %s", err)

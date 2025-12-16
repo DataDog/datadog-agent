@@ -80,7 +80,7 @@ func genQueryPart[T string | int](vals []T, formatVal func(T) (string, error)) (
 }
 
 func formatSourcePart(source string) (string, error) {
-	part := fmt.Sprintf("@Name=%s", xpathQuoteString(source))
+	part := "@Name=" + xpathQuoteString(source)
 	return part, nil
 }
 

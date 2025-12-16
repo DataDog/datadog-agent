@@ -28,9 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -82,7 +82,7 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 
 // validationCommandMarker is a command that can be appended to all validation commands
 // to identify them in the output, which can be useful to later force retries. Retries
-// are controlled in test/new-e2e/pkg/utils/infra/retriable_errors.go, and the way to
+// are controlled in test/e2e-framework/testing/utils/infra/retriable_errors.go, and the way to
 // identify them are based on the pulumi logs. This command will be echoed to the output
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
@@ -116,6 +116,19 @@ agents:
           value: "true"
         - name: DD_GPU_USE_SP_PROCESS_METRICS
           value: "true"
+`
+
+const ddAgentSetup = `#!/bin/bash
+# /var/run/datadog directory is necessary for UDS socket creation
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog
+
+# Agent must be in the docker group to be able to open and read
+# container info from the docker socket.
+sudo groupadd -f -r docker
+sudo usermod -a -G docker dd-agent
 `
 
 const dockerPullMaxRetries = 3
@@ -152,6 +165,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
 			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithUserData(ddAgentSetup),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -327,7 +341,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		return nil
 	}, nil)
 
-	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 
 	return provisioner
 }
@@ -365,7 +379,7 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("docker pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
 			&command.Args{
@@ -401,7 +415,7 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("crictl pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("crictl pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{

@@ -6,6 +6,7 @@
 package secretsimpl
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -243,7 +244,7 @@ func TestResolveNoCommand(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	// since we didn't set any command this should return without any error
@@ -258,7 +259,7 @@ func TestResolveSecretError(t *testing.T) {
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	_, err := resolver.Resolve(testConf, "test", "", "")
@@ -796,11 +797,6 @@ func TestRefreshModes(t *testing.T) {
 		resolver.apiKeyFailureRefreshInterval = 100 * time.Millisecond
 		resolver.lastThrottledRefresh = time.Time{}
 		resolver.startRefreshRoutine(nil)
-		defer func() {
-			if resolver.ticker != nil {
-				resolver.ticker.Stop()
-			}
-		}()
 
 		calls.Store(0)
 
@@ -822,9 +818,6 @@ func TestRefreshModes(t *testing.T) {
 
 	t.Run("feature disabled drops all refreshes", func(t *testing.T) {
 		resolver.apiKeyFailureRefreshInterval = 0
-		if resolver.ticker == nil {
-			resolver.startRefreshRoutine(nil)
-		}
 
 		calls.Store(0)
 		resolver.Refresh(false)
@@ -907,7 +900,6 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
 				changeDetected <- struct{}{}
 			})
-			require.NotNil(t, resolver.ticker)
 
 			if tc.scatter {
 				// The set random seed has a the scatterDuration is 6.477027098s
@@ -981,8 +973,10 @@ func TestScatterWithSmallRandomValue(t *testing.T) {
 	// NOTE: clock and ticker are not mocked, as the mock ticker doesn't fail on a
 	// zero parameter the way a real ticker does
 	r := rand.New(&alwaysZeroSource{})
-	resolver.startRefreshRoutine(r)
-	require.NotNil(t, resolver.ticker)
+	ticker := resolver.setupRefreshInterval(r)
+	require.NotNil(t, ticker)
+	require.True(t, resolver.scatterDuration > 0)
+
 }
 
 // helper to read number of rows in the audit file

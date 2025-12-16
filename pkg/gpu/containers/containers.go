@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -30,6 +31,7 @@ var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	dockerInspectTimeout       = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -66,13 +68,24 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
-	// We can't use container.EnvVars as it doesn't contain the environment variables
-	// added by the container runtime. We need to get them from the main PID environment.
+	// We can't use container.EnvVars as it doesn't contain the environment
+	// variables added by the container runtime, we only get those defined by
+	// the container image, and those can be overridden by the container
+	// runtime. We need to get them from the main PID environment.
 	envVar, err := kernel.GetProcessEnvVariable(container.PID, kernel.ProcFSRoot(), nvidiaVisibleDevicesEnvVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s for container %s: %w", nvidiaVisibleDevicesEnvVar, container.ID, err)
+	if err == nil {
+		return strings.TrimSpace(envVar), nil
 	}
-	return strings.TrimSpace(envVar), nil
+
+	// If we have an error (e.g, the agent does not have permissions to inspect
+	// the process environment variables) fall back to the container runtime
+	// data
+	envVar, dockerErr := inspectDockerDevices(container)
+	if dockerErr == nil {
+		return strings.TrimSpace(envVar), nil
+	}
+
+	return "", errors.Join(err, dockerErr)
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
@@ -150,7 +163,7 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
 		_, isMigDevice := device.(*ddnvml.MIGDevice)
 		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
-			return nil, fmt.Errorf("MIG devices are not supported for GKE device plugin")
+			return nil, errors.New("MIG devices are not supported for GKE device plugin")
 		}
 	}
 

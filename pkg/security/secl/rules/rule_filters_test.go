@@ -39,6 +39,6 @@ func TestRuleIDFilter(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, policyOpts)
 	assert.Nil(t, err.ErrorOrNil())
 
-	assert.NotContains(t, rs.rules, "test1")
-	assert.Contains(t, rs.rules, "test2")
+	assert.NotContains(t, rs.ListRuleIDs(), "test1")
+	assert.Contains(t, rs.ListRuleIDs(), "test2")
 }

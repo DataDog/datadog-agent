@@ -495,7 +495,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	id := workload.ContainerID
+	id := workload.ContainerContext.ContainerID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -524,8 +524,8 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	if cgroup.ContainerID != "" {
-		r.Delete(cgroup.ContainerID)
+	if cgroup.ContainerContext.ContainerID != "" {
+		r.Delete(cgroup.ContainerContext.ContainerID)
 	}
 }
 

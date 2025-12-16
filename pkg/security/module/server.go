@@ -73,7 +73,6 @@ type pendingMsg struct {
 	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
-	skip            bool
 
 	sshSessionPatcher sshSessionPatcher
 }
@@ -88,7 +87,7 @@ func (p *pendingMsg) isResolved() bool {
 
 	if p.sshSessionPatcher != nil {
 		if err := p.sshSessionPatcher.IsResolved(); err != nil {
-			seclog.Debugf("ssh session not resolved: %v", err)
+			seclog.Tracef("ssh session not resolved: %v", err)
 			return false
 		}
 	}
@@ -247,10 +246,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.skip {
-			return true
-		}
-
 		if msg.retry >= maxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
@@ -338,10 +333,12 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
-				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
-					msg.skip = true
-					return false
+				if a.containerFilter != nil {
+					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+						// similar return value as if we had sent the message
+						return true
+					}
 				}
 
 				data, err := msg.toJSON()
@@ -567,7 +564,7 @@ func (a *APIServer) getStats() map[string]int64 {
 func (a *APIServer) SendStats() error {
 	// statistics about the number of dropped events
 	for ruleID, val := range a.getStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		tags := []string{"rule_id:" + ruleID}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
@@ -603,7 +600,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
 	if ruleSet == nil {
-		return nil, fmt.Errorf("failed to get loaded rule set")
+		return nil, errors.New("failed to get loaded rule set")
 	}
 
 	cfg := &pconfig.Config{

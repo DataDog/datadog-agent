@@ -8,6 +8,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -19,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
@@ -222,7 +223,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.13.7"
+	ExpectedPythonVersion3 = "3.13.10"
 	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
 	ExpectedUnloadedPython = "unused"
 )
@@ -273,7 +274,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
 			boundPort, _ = AssertPortBoundByService(c, client, "tcp", 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port tcp/8126 should be bound when APM is enabled")
+			err := errors.New("port tcp/8126 should be bound when APM is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
@@ -393,7 +394,7 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			ddMetadata, err := client.Host.Execute(fmt.Sprintf("readelf -p dd_metadata %s", file))
+			ddMetadata, err := client.Host.Execute("readelf -p dd_metadata " + file)
 			require.NoError(tt, err, "readelf should not error, file is %s", file)
 			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
@@ -405,10 +406,12 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
-		// TODO(ADP): Update this when we remove the need to set `use_dogstatsd` to `false` when ADP is enabled.
+		// `data_plane.enabled` controls whether or not ADP stays running, but `data_plane.dogstatsd.enabled` controls whether or not
+		// ADP takes over DSD traffic, which we want it to do so that our test case can have a meaningful assertion that ADP is running
+		// and accepting traffic.
 		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
 		require.NoError(tt, err)
-		err = client.SetConfig(configFilePath, "use_dogstatsd", "false")
+		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
@@ -418,7 +421,7 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
 			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port udp/8125 should be bound when ADP is enabled")
+			err := errors.New("port udp/8125 should be bound when ADP is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
 			}

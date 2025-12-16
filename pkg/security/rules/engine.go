@@ -261,8 +261,8 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 				return
 			case <-heartbeatTicker.C:
 				tags := []string{
-					fmt.Sprintf("version:%s", version.AgentVersion),
-					fmt.Sprintf("os:%s", runtime.GOOS),
+					"version:" + version.AgentVersion,
+					"os:" + runtime.GOOS,
 					constants.CardinalityTagPrefix + "none",
 				}
 
@@ -291,7 +291,7 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
-					tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+					tags = append(tags, "policies_version:"+version)
 				}
 				e.RUnlock()
 
@@ -440,7 +440,7 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
