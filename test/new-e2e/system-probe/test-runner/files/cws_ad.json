@@ -8,6 +8,9 @@
 			]
 		}
 	},
+	"additional_test_args": [
+		"-test.shuffle=on"
+	],
 	"additional_env_vars": [
 		"DEDICATED_ACTIVITY_DUMP_NODE=1"
 	]
