@@ -37,6 +37,37 @@ LINUX_LIBCRYPTO = "libcrypto.so"
 MACOS_LIBSSL = "libssl.dylib"
 MACOS_LIBCRYPTO = "libcrypto.dylib"
 
+# Common script to fix OPENSSLDIR, ENGINESDIR, MODULESDIR and other paths in binaries
+# Expects $LIBS to be set by caller to the list of libraries to patch
+# In case of OPENSSLDIR there is no additional slash between BUILD_TMPDIR and INSTALL_PREFIX,
+# but there is for ENGINESDIR and MODULESDIR.
+# TARGET value is a 200 symbols long placeholder that is easy to find and replace after the build.
+# It should be long enough to support most paths, but leave room for suffixes like /ssl/private.
+FIX_OPENSSL_PATHS = """
+    # Fix OpenSSL hardcoded paths in binaries
+    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
+    TARGET="##########################################################################################PLACEHOLDERDIRECTORY##########################################################################################"
+
+    # OPENSSLDIR: /ssl"
+    OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL private dir: /ssl/private
+    OLD_PATH="$${SANDBOX}/ssl/private" NEW_PATH="$${TARGET}/ssl/private" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL certs dir: /ssl/certs
+    OLD_PATH="$${SANDBOX}/ssl/certs" NEW_PATH="$${TARGET}/ssl/certs" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # SSL cert.pem: /ssl/cert.pem
+    OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
+    # ENGINESDIR: /lib/engines-3"
+    OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # MODULESDIR: /lib/ossl-modules"
+    OLD_PATH="$${SANDBOX}/lib/ossl-modules\\"" NEW_PATH="$${TARGET}/lib/ossl-modules\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+"""
+
 configure_make(
     name = "openssl",
     # TODO(team:agent-build): Find a better way to utilize more than 1 core
@@ -131,18 +162,19 @@ configure_make(
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
     postfix_script = select({
-        "@platforms//os:macos": "".join([
-                """
-                install_name_tool -id @rpath/{lib} \
-                        $$INSTALLDIR/lib/{lib}
-                for dep in $$(otool -L $$INSTALLDIR/lib/{lib} | grep 'sandbox.*execroot' | awk '{{print $$1}}'); do
-                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" \
-                            $$INSTALLDIR/lib/{lib};
+        "@platforms//os:macos": """
+            # Fix install names
+            for lib in libcrypto.dylib libssl.dylib; do
+                install_name_tool -id @rpath/$$lib $$INSTALLDIR/lib/$$lib
+                for dep in $$(otool -L $$INSTALLDIR/lib/$$lib | grep 'sandbox.*execroot' | awk '{print $$1}'); do
+                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
                 done
-                """.format(lib = lib)
-            for lib in ["libcrypto.dylib", "libssl.dylib"]
-        ]),
-        "//conditions:default": ""
+            done
+            LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
+        """ + FIX_OPENSSL_PATHS,
+        "//conditions:default": """
+            LIBS="$$INSTALLDIR/lib/libcrypto.so $$INSTALLDIR/lib/libssl.so"
+        """ + FIX_OPENSSL_PATHS,
     }),
 )
 
@@ -266,6 +298,25 @@ pkg_files(
     prefix = "lib",
 )
 
+filegroup(
+    name = "openssl_bin",
+    srcs = [":openssl"],
+    output_group = "openssl",
+)
+
+pkg_files(
+    name = "openssl_bin_file",
+    srcs = [":openssl_bin"],
+    prefix = "bin",
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
 pkg_install(
     name = "install",
     srcs = [
@@ -278,6 +329,7 @@ pkg_install(
             ":openssl_exe_file",
         ],
         "//conditions:default": [
+            ":openssl_bin_file",
             ":openssl_pkgconfig",
             ":openssl_bin_file",
         ],

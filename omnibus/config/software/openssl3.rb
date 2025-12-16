@@ -34,18 +34,15 @@ relative_path "openssl-#{version}"
 build do
   # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
   if !windows?
-    if ENV["AGENT_FLAVOR"] == "fips"
-      fips_flag = "--//:fips_mode=true"
-    else
-      # We could set here //:fips_mode=false, but it's not necessary because the default is false.
-      fips_flag = ""
-    end
-    command_on_repo_root "bazelisk run #{fips_flag} -- @openssl//:install --destdir=#{install_dir}/embedded"
+    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     lib_extension = if linux_target? then ".so" else ".dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
       " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
       " #{install_dir}/embedded/bin/openssl"
+    command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{install_dir}/embedded" \
+      " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+      " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
   end
 end
