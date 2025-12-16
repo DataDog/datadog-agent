@@ -19,9 +19,9 @@ if TYPE_CHECKING:
     default=None,
     help="Environment id to delete (interactive if not provided)",
 )
-@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+@click.option("--yes", "-y", is_flag=True, help="Auto-accept confirmation prompt")
 @pass_app
-def cmd(app: Application, *, id: str | None, force: bool) -> None:
+def cmd(app: Application, *, id: str | None, yes: bool) -> None:
     """
     Delete a lab environment.
 
@@ -65,7 +65,7 @@ def cmd(app: Application, *, id: str | None, force: bool) -> None:
                 app.display_info(f"  - {e.name} ({e.env_type})")
         return
 
-    if not force:
+    if not yes:
         if not click.confirm(f"Delete {env.env_type} environment '{id}'?"):
             app.display_info("Aborting.")
             return
