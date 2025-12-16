@@ -91,6 +91,7 @@ const (
 	setenvProbe                  probeFuncName = "uprobe__setenv"
 	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
 	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
+	cuLaunchKernelProbe          probeFuncName = "uprobe__cuLaunchKernel"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -202,7 +203,15 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 
 	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
-	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.ringBuffer, p.cfg, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(cudaEventConsumerDependencies{
+		sysCtx:         sysCtx,
+		cfg:            cfg,
+		telemetry:      deps.Telemetry,
+		processMonitor: deps.ProcessMonitor,
+		streamHandlers: p.streamHandlers,
+		eventHandler:   p.eventHandler,
+		ringFlusher:    p.ringBuffer,
+	})
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
@@ -288,10 +297,10 @@ func (p *Probe) initCOREGPU(cfg *config.Config) error {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
@@ -438,6 +447,7 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 				Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelProbe}},
 				},
 			},
 		},

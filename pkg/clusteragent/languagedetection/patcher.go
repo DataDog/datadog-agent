@@ -90,11 +90,11 @@ var (
 func Start(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
 
 	if patcher != nil {
-		return fmt.Errorf("can't start language detection patcher twice")
+		return errors.New("can't start language detection patcher twice")
 	}
 
 	if store == nil {
-		return fmt.Errorf("cannot initialize patcher with a nil workloadmeta store")
+		return errors.New("cannot initialize patcher with a nil workloadmeta store")
 	}
 
 	apiCl, err := apiserver.GetAPIClient()
@@ -265,7 +265,7 @@ func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.Name
 }
 
 func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
-	deploymentID := fmt.Sprintf("%s/%s", owner.Namespace, owner.Name)
+	deploymentID := owner.Namespace + "/" + owner.Name
 
 	// get the complete entity
 	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)

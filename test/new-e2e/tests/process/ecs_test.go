@@ -6,7 +6,7 @@
 package process
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,13 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
-	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type ECSEC2Suite struct {
@@ -42,19 +41,18 @@ func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFu
 			return err
 		}
 
-		params := ecs.GetProvisionerParams(
-			ecs.WithAwsEnv(&awsEnv),
-			ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
-			ecs.WithAgentOptions(
+		runParams := scenecs.GetRunParams(
+			scenecs.WithECSOptions(scenecs.WithLinuxNodeGroup()),
+			scenecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
-				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", fmt.Sprintf("%t", runInCoreAgent)),
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", strconv.FormatBool(runInCoreAgent)),
 			),
-			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+			scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				return cpustress.EcsAppDefinition(e, clusterArn)
 			}),
 		)
 
-		if err := ecs.Run(ctx, &env.ECS, params); err != nil {
+		if err := scenecs.RunWithEnv(ctx, awsEnv, &env.ECS, runParams); err != nil {
 			return err
 		}
 

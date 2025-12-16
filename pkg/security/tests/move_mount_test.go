@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func GetMountID(fd int) (uint64, error) {
 	}
 
 	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, fmt.Errorf("statx: kernel didn't fill STATX_MNT_ID")
+		return 0, errors.New("statx: kernel didn't fill STATX_MNT_ID")
 	}
 
 	return stx.Mnt_id, nil
@@ -254,7 +255,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("moved-attached-recursive-no-propagation", func(_ *testing.T) {
+	t.Run("moved-attached-recursive-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(te.fsmountfd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err == nil {
@@ -306,7 +307,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
+	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
 		allMounts := map[uint32]uint32{}
 
 		te, err := newTestEnvironment(false, t.TempDir())

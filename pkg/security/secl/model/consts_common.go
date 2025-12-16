@@ -65,8 +65,8 @@ const (
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
 
-	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
-	EventFlagsIsSnapshot
+	// EventFlagsFromReplay is true if the event is generated from a replay
+	EventFlagsFromReplay
 )
 
 const (
@@ -84,6 +84,18 @@ const (
 	IMDSIBMCloudProvider = "ibm"
 	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
 	IMDSOracleCloudProvider = "oracle"
+)
+
+// EventSource is the source of the event
+type EventSource = string
+
+const (
+	// EventSourceRuntime is used to report that the event is generated from a runtime
+	EventSourceRuntime EventSource = "runtime"
+	// EventSourceReplay is used to report that the event is generated from a replay
+	EventSourceReplay EventSource = "replay"
+	// EventSourceRelated is used to report that the event is generated from a related event
+	EventSourceRelated EventSource = "related"
 )
 
 var (

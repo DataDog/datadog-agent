@@ -130,7 +130,7 @@ type ActionDefinition struct {
 	CoreDump      *CoreDumpDefinition      `yaml:"coredump,omitempty" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash          *HashDefinition          `yaml:"hash,omitempty" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
 	Log           *LogDefinition           `yaml:"log,omitempty" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
-	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty" jsonschema:"oneof_required=NetworkFilterAction"`
 }
 
 // Name returns the name of the action
@@ -260,11 +260,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	if s.Inherited && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
 	if len(s.ScopeField) > 0 && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
 	return nil
@@ -471,7 +471,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 
 // MarshalJSON marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
-	if d == nil || d.Duration == 0 {
+	if d == nil {
 		return nil, nil
 	}
 	return json.Marshal(d.GetDuration())

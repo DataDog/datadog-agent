@@ -435,7 +435,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 
 			t.Setenv("DD_POD_NAME", "datadog-agent-cluster-agent-7dbf798595-tp9lg")
 			currentNs := common.GetMyNamespace()
-			id := fmt.Sprintf("%s/dpa-dca", currentNs)
+			id := currentNs + "/dpa-dca"
 
 			dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
 				TargetRef: tt.targetRef,
@@ -542,9 +542,9 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 	}
 
 	currentNs := common.GetMyNamespace()
-	dpaID := fmt.Sprintf("%s/dpa-0", currentNs)
-	dpa1ID := fmt.Sprintf("%s/dpa-1", currentNs)
-	dpa2ID := fmt.Sprintf("%s/dpa-2", currentNs)
+	dpaID := currentNs + "/dpa-0"
+	dpa1ID := currentNs + "/dpa-1"
+	dpa2ID := currentNs + "/dpa-2"
 
 	dpaTime := testTime.Add(-1 * time.Hour)
 	dpa1Time := testTime
@@ -554,6 +554,9 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 	dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-0", 1, dpaTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 	dpa1, dpaTyped1 := newFakePodAutoscaler(currentNs, "dpa-1", 1, dpa1Time, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 	dpa2, dpaTyped2 := newFakePodAutoscaler(currentNs, "dpa-2", 1, dpa2Time, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	// Setup scaler mock to handle any get calls during concurrent processing
+	f.scaler.On("get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&autoscalingv1.Scale{}, schema.GroupResource{}, nil).Maybe()
 
 	f.InformerObjects = append(f.InformerObjects, dpa, dpa1)
 	f.Objects = append(f.Objects, dpaTyped, dpaTyped1)
@@ -1119,7 +1122,7 @@ func TestGetActiveScalingSources(t *testing.T) {
 				Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
 				MainScalingValues: model.ScalingValues{
 					Horizontal:      nil,
-					HorizontalError: fmt.Errorf("test horizontal error"),
+					HorizontalError: errors.New("test horizontal error"),
 					Vertical: &model.VerticalScalingValues{
 						Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					},

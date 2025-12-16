@@ -1,5 +1,4 @@
 .bazel:build-deps:
-  extends: .bazel:defs
   rules:
     - !reference [ .except_mergequeue ]
     - when: on_success

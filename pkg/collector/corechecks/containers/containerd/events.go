@@ -9,6 +9,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -43,11 +44,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		var tags []string
-		if len(e.Extra) > 0 {
-			for k, v := range e.Extra {
-				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-			}
+		tags := make([]string, 0, len(e.Extra))
+		for k, v := range e.Extra {
+			tags = append(tags, k+":"+v)
 		}
 
 		alertType := event.AlertTypeInfo
@@ -62,7 +61,7 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 
 			eventType := getEventType(e.Topic)
 			if eventType != "" {
-				tags = append(tags, fmt.Sprintf("event_type:%s", eventType))
+				tags = append(tags, "event_type:"+eventType)
 			}
 
 			if split[2] == "oom" {
@@ -76,7 +75,7 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AlertType:      alertType,
-			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
+			AggregationKey: "containerd:" + e.Topic,
 			Text:           e.Message,
 			Ts:             e.Timestamp.Unix(),
 			Tags:           tags,
@@ -179,7 +178,7 @@ func (s *subscriber) run(ctx context.Context) error {
 	s.Lock()
 	if s.running {
 		s.Unlock()
-		return fmt.Errorf("subscriber is already running the event listener routine")
+		return errors.New("subscriber is already running the event listener routine")
 	}
 
 	excludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
@@ -405,7 +404,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				return nil
 			}
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
-			return fmt.Errorf("stopping Containerd event listener routine")
+			return errors.New("stopping Containerd event listener routine")
 		}
 	}
 }

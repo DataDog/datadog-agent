@@ -3,6 +3,7 @@ include:
   - .gitlab/packaging/common.yml
 
 .package_rpm_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -27,8 +28,6 @@ include:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-rpm.txt"
     OMNIBUS_EXTRA_ARGS: "--host-distribution=rhel"
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_rpm_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -205,6 +204,7 @@ installer_suse_rpm-arm64:
     DD_ENABLE_VPA: false
 
 .package_iot_rpm_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -229,8 +229,6 @@ installer_suse_rpm-arm64:
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
     DD_PROJECT: iot-agent
     OMNIBUS_EXTRA_ARGS: "--host-distribution=rhel"
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
   retry: 2
 
 iot_agent_rpm-x64:
@@ -279,8 +277,6 @@ iot_agent_suse-x64:
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_suse_amd64"
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 dogstatsd_rpm-x64:
   extends: [.package_rpm_common, .package_rpm_x86]

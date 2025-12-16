@@ -6,11 +6,12 @@
 package redis
 
 import (
+	"github.com/Masterminds/semver"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/Masterminds/semver"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apiextensions"
@@ -32,7 +33,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	kubeVersion, err := semver.NewVersion(e.KubernetesVersion())
+	kubeVersion, err := semver.NewVersion(utils.ParseKubernetesVersion(e.KubernetesVersion()))
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 	}
 
-	if withDatadogAutoscaling {
+	if withDatadogAutoscaling && e.AgentDeploy() {
 		ddm, err := apiextensions.NewCustomResource(e.Ctx(), "redis", &apiextensions.CustomResourceArgs{
 			ApiVersion: pulumi.String("datadoghq.com/v1alpha1"),
 			Kind:       pulumi.String("DatadogMetric"),

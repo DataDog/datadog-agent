@@ -11,11 +11,13 @@ package probe
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/netip"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
@@ -239,7 +242,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 	}
 
 	if ev.ProcessContext.ContainerContext.ContainerID != "" {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetContainerWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
 			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
 			ev.ProcessContext.ContainerContext.Resolved = true
 		}
@@ -390,16 +393,6 @@ func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SEL
 		e.BoolName = fh.resolvers.PathResolver.ResolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
-}
-
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFFieldHandlers) GetProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false, newEntryCb)
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
 }
 
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
@@ -634,14 +627,14 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 	return int(e.ExecTime.UnixNano())
 }
 
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFFieldHandlers) ResolveUserSessionContext(event *model.Event, evtCtx *model.UserSessionContext) {
-	if !evtCtx.Resolved {
-		id := evtCtx.ID
+// ResolveK8SUserSessionContext resolves and updates the provided user session context
+func (fh *EBPFFieldHandlers) ResolveK8SUserSessionContext(event *model.Event, evtCtx *model.K8SSessionContext) {
+	if !evtCtx.K8SResolved {
+		id := evtCtx.K8SSessionID
 		if id == 0 {
 			id = event.ProcessContext.UserSessionID
 		}
-		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(id)
+		ctx := fh.resolvers.UserSessionsResolver.ResolveK8SUserSession(id)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -742,20 +735,20 @@ func (fh *EBPFFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(event *model.
 }
 
 // ResolveK8SUsername resolves the k8s username of the event
-func (fh *EBPFFieldHandlers) ResolveK8SUsername(event *model.Event, evtCtx *model.UserSessionContext) string {
-	fh.ResolveUserSessionContext(event, evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SUsername(event *model.Event, evtCtx *model.K8SSessionContext) string {
+	fh.ResolveK8SUserSessionContext(event, evtCtx)
 	return evtCtx.K8SUsername
 }
 
 // ResolveK8SUID resolves the k8s UID of the event
-func (fh *EBPFFieldHandlers) ResolveK8SUID(event *model.Event, evtCtx *model.UserSessionContext) string {
-	fh.ResolveUserSessionContext(event, evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SUID(event *model.Event, evtCtx *model.K8SSessionContext) string {
+	fh.ResolveK8SUserSessionContext(event, evtCtx)
 	return evtCtx.K8SUID
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event
-func (fh *EBPFFieldHandlers) ResolveK8SGroups(event *model.Event, evtCtx *model.UserSessionContext) []string {
-	fh.ResolveUserSessionContext(event, evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SGroups(event *model.Event, evtCtx *model.K8SSessionContext) []string {
+	fh.ResolveK8SUserSessionContext(event, evtCtx)
 	return evtCtx.K8SGroups
 }
 
@@ -822,7 +815,11 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDema
 	if fh.onDemand == nil {
 		return ""
 	}
-	return fh.onDemand.getHookNameFromID(int(e.ID))
+	if len(e.Name) != 0 {
+		return e.Name
+	}
+	e.Name = fh.onDemand.getHookNameFromID(int(e.ID))
+	return e.Name
 }
 
 func resolveOnDemandArgStr(e *model.OnDemandEvent, index int) string {
@@ -977,7 +974,7 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *mode
 		h := sha256.New()
 		h.Write(e.RawFilter)
 		bs := h.Sum(nil)
-		e.FilterHash = fmt.Sprintf("%x", bs)
+		e.FilterHash = hex.EncodeToString(bs)
 		return e.FilterHash
 	}
 	return e.FilterHash
@@ -1040,11 +1037,59 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
+func (fh *EBPFFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.SSHSessionContext) net.IPNet {
 	return evtCtx.SSHClientIP
 }
 
-// ResolveSSHPort resolves the public key of the event
-func (fh *EBPFFieldHandlers) ResolveSSHPort(_ *model.Event, evtCtx *model.UserSessionContext) int {
-	return evtCtx.SSHPort
+// ResolveSSHClientPort resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHClientPort(_ *model.Event, evtCtx *model.SSHSessionContext) int {
+	return evtCtx.SSHClientPort
+}
+
+// ResolveSessionType resolves the session type of the event
+func (fh *EBPFFieldHandlers) ResolveSessionType(e *model.Event, evtCtx *model.UserSessionContext) int {
+	// Resolve K8S user session to have the ID if it exists
+	fh.ResolveK8SUserSessionContext(e, &evtCtx.K8SSessionContext)
+	var sessionType int
+	if evtCtx.K8SSessionID != 0 {
+		sessionType = int(usersession.UserSessionTypeK8S)
+	} else if evtCtx.SSHSessionID != 0 {
+		sessionType = int(usersession.UserSessionTypeSSH)
+	} else {
+		sessionType = int(usersession.UserSessionTypeUnknown)
+	}
+	evtCtx.SessionType = sessionType
+	return sessionType
+}
+
+// ResolveSessionID resolves the session id of the event
+func (fh *EBPFFieldHandlers) ResolveSessionID(e *model.Event, evtCtx *model.UserSessionContext) string {
+	// Resolve K8S user session to have the ID if it exists
+	fh.ResolveK8SUserSessionContext(e, &evtCtx.K8SSessionContext)
+	var sessionID string
+	if evtCtx.K8SSessionID != 0 {
+		sessionID = strconv.FormatUint(uint64(evtCtx.K8SSessionID), 16)
+	} else if evtCtx.SSHSessionID != 0 {
+		sessionID = strconv.FormatUint(uint64(evtCtx.SSHSessionID), 16)
+	} else {
+		sessionID = ""
+	}
+	evtCtx.ID = sessionID
+	return sessionID
+}
+
+// ResolveSessionIdentity resolves the user of the event
+func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *model.UserSessionContext) string {
+	// Resolve K8S user session to have the ID if it exists
+	fh.ResolveK8SUserSessionContext(e, &evtCtx.K8SSessionContext)
+	var sessionIdentity string
+	if evtCtx.K8SUsername != "" {
+		sessionIdentity = evtCtx.K8SUsername
+	} else if evtCtx.SSHClientPort != 0 {
+		sessionIdentity = fmt.Sprintf("%s:%d", evtCtx.SSHClientIP.String(), evtCtx.SSHClientPort)
+	} else {
+		sessionIdentity = e.ProcessContext.User
+	}
+	evtCtx.Identity = sessionIdentity
+	return sessionIdentity
 }

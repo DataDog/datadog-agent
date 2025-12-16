@@ -145,6 +145,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_OTELCOLLECTOR_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -591,7 +595,8 @@ namespace WixSetup.Datadog_Agent
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    }
+                    },
+                    new WixSharp.File(_agentBinaries.DatadogInterop)
             );
             var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
                  new Files($@"{InstallerSource}\bin\scripts\*")
@@ -630,7 +635,6 @@ namespace WixSetup.Datadog_Agent
                 },
                 agentBinDir,
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
-                new WixSharp.File(_agentBinaries.MSStoreApps),
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {
@@ -659,6 +663,7 @@ namespace WixSetup.Datadog_Agent
             if (_agentFlavor.FlavorName != Constants.FipsFlavor)
             {
                 targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.DdCompilePolicy));
             }
 
             return targetBinFolder;

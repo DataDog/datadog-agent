@@ -6,8 +6,9 @@
 package cloudservice
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -38,7 +39,15 @@ func (m *mockTraceProcessor) Process(p *api.Payload) {
 	m.lastPayload = p
 }
 
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Cloud Run Jobs are not supported on Windows")
+	}
+}
+
 func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
@@ -74,32 +83,37 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestCloudRunJobsGetOrigin(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
 	assert.Equal(t, "cloudrunjobs", service.GetOrigin())
 }
 
 func TestCloudRunJobsInit(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
 	assert.NoError(t, service.Init(nil))
 }
 
 func TestIsCloudRunJob(t *testing.T) {
+	skipOnWindows(t)
 	// Test when environment variable is set
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	assert.True(t, isCloudRunJob())
 }
 
 func TestIsCloudRunJobWhenNotSet(t *testing.T) {
+	skipOnWindows(t)
 	// This test runs in a clean environment where CLOUD_RUN_JOB is not set
 	assert.False(t, isCloudRunJob())
 }
 
 func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
+	skipOnWindows(t)
 	demux := createDemultiplexer(t)
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
@@ -113,7 +127,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:1")
+			require.Contains(t, sample.Tags, "succeeded:false")
 			foundShutdown = true
 		}
 	}
@@ -121,11 +135,12 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 }
 
 func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
+	skipOnWindows(t)
 	demux := createDemultiplexer(t)
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	jobs.Shutdown(agent, nil, nil)
 
@@ -134,7 +149,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:0")
+			require.Contains(t, sample.Tags, "succeeded:true")
 			foundShutdown = true
 		}
 	}
@@ -142,6 +157,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 }
 
 func TestCloudRunJobsSpanCreation(t *testing.T) {
+	skipOnWindows(t)
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
 		return map[string]string{
 			"project_id": "test-project",
@@ -170,6 +186,7 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 }
 
 func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
+	skipOnWindows(t)
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
 		return map[string]string{
 			"project_id": "test-project",
@@ -190,6 +207,7 @@ func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
 }
 
 func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
+	skipOnWindows(t)
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
 		return map[string]string{
 			"project_id": "test-project",
@@ -210,6 +228,7 @@ func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
+	skipOnWindows(t)
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
 		return map[string]string{
 			"project_id": "test-project",
@@ -224,7 +243,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 	jobs.Init(mockAgent)
 
 	// Simulate an error
-	testErr := fmt.Errorf("task failed")
+	testErr := errors.New("task failed")
 	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, testErr)
 
 	// Verify the span was submitted
@@ -240,6 +259,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
+	skipOnWindows(t)
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
 		return map[string]string{
 			"project_id": "test-project",
@@ -268,6 +288,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
+	skipOnWindows(t)
 	mockAgent := &mockTraceProcessor{}
 	jobs := &CloudRunJobs{}
 	// Don't call Init, so jobSpan remains nil

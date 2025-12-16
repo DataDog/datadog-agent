@@ -64,6 +64,7 @@ ALL_TAGS = {
     "sds",
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
@@ -101,6 +102,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
     "trivy",
@@ -325,6 +327,7 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
+        "installer": INSTALLER_TAGS.union(FIPS_TAGS),
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
