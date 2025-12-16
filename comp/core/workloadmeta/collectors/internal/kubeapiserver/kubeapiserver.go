@@ -234,10 +234,9 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			objectStores = append(objectStores, handlerRegistration)
 		}
 	}
+	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
 
 	go runStartupCheck(ctx, objectStores)
-
-	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
 
 	return nil
 }
@@ -255,7 +254,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
-	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 2*time.Second)
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 5*time.Second)
 	if err != nil {
 		log.Warnf("failed to collect cluster feature gates: %v", err)
 		featureGates = make(map[string]common.FeatureGate)
@@ -270,7 +269,7 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 		}
 	}
 
-	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 2*time.Second)
+	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 5*time.Second)
 	if err != nil {
 		log.Warnf("failed to collect cluster version: %v", err)
 	}
