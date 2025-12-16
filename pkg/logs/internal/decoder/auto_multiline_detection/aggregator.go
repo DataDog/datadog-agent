@@ -167,7 +167,7 @@ func (b *tagOnlyBucket) flush() []*message.Message {
 	// Tag all messages with group size
 	tag := fmt.Sprintf("auto_multiline_group_size:%d", b.lineCount)
 	for _, msg := range b.messages {
-		msg.ProcessingTags = append(msg.ProcessingTags, tag)
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, tag)
 	}
 
 	return b.messages

@@ -221,11 +221,11 @@ func TestAutoMultilineHandler_DetectionOnlyMode_SingleLineNotTagged(t *testing.T
 	// Verify single-line logs are NOT tagged
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [INFO] Single line log`), msg1.GetContent())
-	assert.Empty(t, msg1.ProcessingTags, "Single-line log should not have processing tags")
+	assert.Empty(t, msg1.ParsingExtra.Tags, "Single-line log should not have processing tags")
 
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`{"key":"value"}`), msg2.GetContent())
-	assert.Empty(t, msg2.ProcessingTags, "Single-line log should not have processing tags")
+	assert.Empty(t, msg2.ParsingExtra.Tags, "Single-line log should not have processing tags")
 
 	// Verify no more messages
 	select {
@@ -254,20 +254,20 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MultilineTagged(t *testing.T) {
 	// Verify all 3 lines of the multiline group are output separately with tags
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [ERROR] Exception occurred`), msg1.GetContent())
-	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:3", "First line should be tagged with group size")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:3", "First line should be tagged with group size")
 
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`  at com.example.MyClass.method1(MyClass.java:123)`), msg2.GetContent())
-	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:3", "Second line should be tagged with group size")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:3", "Second line should be tagged with group size")
 
 	msg3 := <-outputChan
 	assert.Equal(t, []byte(`  at com.example.MyClass.method2(MyClass.java:456)`), msg3.GetContent())
-	assert.Contains(t, msg3.ProcessingTags, "auto_multiline_group_size:3", "Third line should be tagged with group size")
+	assert.Contains(t, msg3.ParsingExtra.Tags, "auto_multiline_group_size:3", "Third line should be tagged with group size")
 
 	// Next single-line log should not be tagged
 	msg4 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:01 [INFO] Next log`), msg4.GetContent())
-	assert.Empty(t, msg4.ProcessingTags, "Single-line log should not have processing tags")
+	assert.Empty(t, msg4.ParsingExtra.Tags, "Single-line log should not have processing tags")
 }
 
 func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
@@ -287,11 +287,11 @@ func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
 	// Verify both lines are tagged with group size 2
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [ERROR] Error message`), msg1.GetContent())
-	assert.Contains(t, msg1.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`  continuation line`), msg2.GetContent())
-	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	// Verify no more messages
 	select {
@@ -320,21 +320,21 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MixedLogs(t *testing.T) {
 	// First single line - not tagged
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [INFO] Single line`), msg1.GetContent())
-	assert.Empty(t, msg1.ProcessingTags)
+	assert.Empty(t, msg1.ParsingExtra.Tags)
 
 	// Multiline group - both lines tagged
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:01 [ERROR] Start of multiline`), msg2.GetContent())
-	assert.Contains(t, msg2.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	msg3 := <-outputChan
 	assert.Equal(t, []byte(`  continuation`), msg3.GetContent())
-	assert.Contains(t, msg3.ProcessingTags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg3.ParsingExtra.Tags, "auto_multiline_group_size:2")
 
 	// Second single line - not tagged
 	msg4 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:02 [INFO] Another single line`), msg4.GetContent())
-	assert.Empty(t, msg4.ProcessingTags)
+	assert.Empty(t, msg4.ParsingExtra.Tags)
 }
 
 func TestAutoMultilineHandler_AggregationMode_CombinesLines(t *testing.T) {
