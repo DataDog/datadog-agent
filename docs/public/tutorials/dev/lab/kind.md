@@ -91,9 +91,7 @@ kubectl config use-context kind-dev
 kubectl get pods -n datadog
 
 # View agent status
-kubectl exec -it -n datadog \
-    $(kubectl get pods -n datadog -l app=datadog -o jsonpath='{.items[0].metadata.name}') \
-    -- agent status
+kubectl exec -n datadog daemonset/datadog-agent -- agent status
 
 # View agent logs
 kubectl logs -n datadog -l app=datadog -f
@@ -116,4 +114,3 @@ kubectl logs -n datadog -l app=datadog -f
 | `--with-security-agent` | Include security-agent in build |
 | `--devenv` | Developer environment ID for building |
 | `--force`, `-f` | Recreate cluster if exists |
-
