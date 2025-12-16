@@ -296,6 +296,8 @@ http_archive(
 http_archive(
     name = "dbus",
     files = {
+        # TODO(agent-build): ensure all the macros defined in these headers are actually needed
+        # Once cleaned, replace install dir occurences with a placeholder for replacement.
         "config-linux-x86_64.h": "//deps:dbus/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:dbus/config-linux-arm64.h",
         "BUILD.bazel": "//deps:dbus/dbus.BUILD.bazel",
