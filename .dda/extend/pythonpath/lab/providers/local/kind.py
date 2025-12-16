@@ -9,7 +9,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from lab.providers import BaseProvider, MissingPrerequisite, Option, ProviderConfig, ProviderOptions, register_provider
 
@@ -94,7 +94,9 @@ class KindProvider(BaseProvider):
         Option("--nodes-count", default=2, help="Number of nodes in the cluster"),
     ]
 
-    def check_prerequisites(self, app: Application, options: KindOptions) -> list[MissingPrerequisite]:
+    def check_prerequisites(self, app: Application, opts: ProviderOptions) -> list[MissingPrerequisite]:
+        # Keep the BaseProvider signature (ProviderOptions) and cast locally to our typed options.
+        options = cast(KindOptions, opts)
         missing: list[MissingPrerequisite] = []
 
         if not shutil.which("kind"):
@@ -125,7 +127,9 @@ class KindProvider(BaseProvider):
 
         return missing
 
-    def create(self, app: Application, options: KindOptions) -> dict[str, Any] | None:
+    def create(self, app: Application, opts: ProviderOptions) -> dict[str, Any] | None:
+        # Keep the BaseProvider signature (ProviderOptions) and cast locally to our typed options.
+        options = cast(KindOptions, opts)
         from lab.agent import build_local_image
         from lab.kind import cluster_exists, create_cluster, delete_cluster, load_image, show_cluster_info
 
@@ -162,13 +166,13 @@ class KindProvider(BaseProvider):
 
             app.display_info(f"Creating kind cluster '{name}' with Kubernetes {options.k8s_version}...")
 
-            kind_config = f"""
+            kind_config = """
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
 """
-            kind_config += "\n".join([f"- role: worker" for _ in range(options.nodes_count - 1)])
+            kind_config += "\n".join(["- role: worker" for _ in range(options.nodes_count - 1)])
             with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
                 f.write(kind_config)
                 config_path = f.name

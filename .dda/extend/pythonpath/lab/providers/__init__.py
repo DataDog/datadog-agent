@@ -163,7 +163,7 @@ class BaseProvider(ABC):
         ...
 
     @abstractmethod
-    def destroy(self, app: Application, name: str, *, force: bool = False) -> None:
+    def destroy(self, app: Application, name: str) -> None:
         """Destroy the environment. Storage cleanup is handled by dda lab delete."""
         ...
 
