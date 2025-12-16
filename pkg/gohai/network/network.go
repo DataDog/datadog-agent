@@ -109,7 +109,7 @@ func (netInfo *Info) AsJSON() (interface{}, []string, error) {
 
 func getMultiNetworkInfo() ([]Interface, error) {
 	multiNetworkInfo := []Interface{}
-	ifaces, err := net.Interfaces()
+	ifaces, err := netInterfaces()
 	if err != nil {
 		return multiNetworkInfo, err
 	}
