@@ -82,7 +82,7 @@ func newConnectivityDiagnostician(diagCfg diagnose.Config, log log.Component) *c
 	}
 }
 
-func (cd *connDiagnostician) init() diagnose.Diagnosis {
+func (cd *connDiagnostician) initDomainResolvers() diagnose.Diagnosis {
 	config := pkgconfigsetup.Datadog()
 	cd.client = getClient(config, 1, cd.log)
 
@@ -204,8 +204,12 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	diag := cd.checkEndpointURL(url, endpointInfo, apiKey)
 
 	// Detect if the connection may have failed because a FQDN was used, by checking if one with a PQDN succeeds
-	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().Get("convert_dd_site_fqdn.enabled") == true && URLhasFQDN(url) {
-		pqdnURL := URLwithPQDN(url)
+	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && URLhasFQDN(url) {
+		pqdnURL, err := URLwithPQDN(url)
+		if err != nil {
+			cd.log.Errorf("can't convert URL to PQDN: %s", err)
+			return diag
+		}
 		cd.log.Infof("The connection to %q with a FQDN failed; attempting to connect to %q", url, pqdnURL)
 
 		d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
@@ -223,10 +227,10 @@ func URLhasFQDN(u string) bool {
 	return err == nil && strings.HasSuffix(url.Hostname(), ".")
 }
 
-func URLwithPQDN(u string) string {
+func URLwithPQDN(u string) (string, error) {
 	url, err := url.Parse(u)
 	if err != nil {
-		panic("Route is not a valid URL")
+		return "", fmt.Errorf("Route is not a valid URL")
 	}
 
 	host := strings.TrimSuffix(url.Host, ".")
@@ -235,23 +239,19 @@ func URLwithPQDN(u string) string {
 	} else {
 		url.Host = host
 	}
-	return url.String()
+	return url.String(), nil
 }
 
 // Diagnose performs connectivity diagnosis
 func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
-	var diagnoses []diagnose.Diagnosis
 
 	connDiagnostician := newConnectivityDiagnostician(diagCfg, log)
-	diag := connDiagnostician.init()
+	diag := connDiagnostician.initDomainResolvers()
 	if diag.Status != diagnose.DiagnosisSuccess {
-		diagnoses = append(diagnoses, diag)
-		return diagnoses
+		return []diagnose.Diagnosis{diag}
 	}
 
-	diags := connDiagnostician.diagnose()
-	diagnoses = append(diagnoses, diags...)
-	return diagnoses
+	return connDiagnostician.diagnose()
 }
 
 func createDiagnosis(name string, logURL string, report string, err error) diagnose.Diagnosis {
