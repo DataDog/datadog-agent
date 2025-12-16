@@ -35,6 +35,8 @@ const (
 	Low MetricPriority = 0
 	// High priority level (10)
 	High MetricPriority = 10
+	// Higher priority level (20)
+	Higher MetricPriority = 20
 )
 
 // CollectorName is the name of the nvml sub-collectors
