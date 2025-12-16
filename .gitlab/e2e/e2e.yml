@@ -53,7 +53,7 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    - export DD_CIVISIBILITY_ENABLED=true
+    # - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
@@ -207,8 +207,6 @@ go_e2e_test_binaries:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
-    - agent_deb-x64-a7-fips
-    - windows_msi_and_bosh_zip_x64-a7-fips
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
@@ -616,6 +614,11 @@ new-e2e-discovery:
 
 new-e2e-process-ecs:
   extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]

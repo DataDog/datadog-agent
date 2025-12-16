@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -30,7 +31,8 @@ const (
 var (
 	jobNameRegex       = regexp.MustCompile(`[,\']+`)
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
-	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	workspaceNameRegex = regexp.MustCompile(`[^\p{L}\p{N}_:./-]+`)
+	dedupeUnderscores  = regexp.MustCompile(`_+`)
 	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
@@ -161,6 +163,43 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
+// normalizeWorkspaceName normalizes a workspace name to match Python's normalize_tags behavior:
+// 1. Convert to all lowercase unicode string
+// 2. Trim leading/trailing quotes
+// 3. Convert bad characters to underscores
+// 4. Dedupe contiguous underscores
+// 5. Remove initial underscores/digits such that the string starts with an alpha char
+// 6. Truncate to 200 characters
+// 7. Strip trailing underscores
+func normalizeWorkspaceName(value string) string {
+	if value == "" {
+		return ""
+	}
+	normalized := strings.ToLower(value)
+	normalized = strings.Trim(normalized, "\"'")
+	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
+	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
+
+	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
+		normalized = strings.TrimLeft(normalized, "_")
+		if len(normalized) > 0 && unicode.IsDigit([]rune(normalized)[0]) {
+			normalized = strings.TrimLeft(normalized, "_:0123456789")
+		}
+	}
+
+	if len(normalized) > 200 {
+		normalized = normalized[:200]
+	}
+	return strings.TrimRight(normalized, "_")
+}
+
+func prefixWithWorkspace(normalizedWorkspace, value string) string {
+	if normalizedWorkspace != "" {
+		return normalizedWorkspace + "-" + value
+	}
+	return value
+}
+
 func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
@@ -177,13 +216,13 @@ func setupCommonHostTags(s *common.Setup) {
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
 
+	// for legacy reasons, we keep databricks_workspace un-normalized and normalized in workspace
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
-	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
-		v = strings.ToLower(v)
-		v = strings.Trim(v, "\"'")
-		return workspaceNameRegex.ReplaceAllString(v, "_")
-	})
-	// No need to normalize workspace url:  metrics tags normalization allows the :/-, usually found in such url
+	var normalizedWorkspace string
+	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
+		normalizedWorkspace = normalizeWorkspaceName(workspace)
+		setClearHostTag(s, "workspace", normalizedWorkspace)
+	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -195,16 +234,18 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
-		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, jobID))
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	// Set databricks_cluster resource tag based on whether we're on a job cluster
 	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
 	if isJobCluster == "TRUE" && ok {
-		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
 	} else {
-		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+		if clusterID, ok := os.LookupEnv("DB_CLUSTER_ID"); ok {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
+		}
 	}
 
 	addCustomHostTags(s)
