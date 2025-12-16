@@ -1961,10 +1961,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
 
-	// SDS logs blocking mechanism
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
-	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
-
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 

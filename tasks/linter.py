@@ -70,7 +70,6 @@ def go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -125,7 +124,6 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        include_sds=include_sds,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
     )

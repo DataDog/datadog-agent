@@ -107,7 +107,6 @@ use (
 	pkg/logs/metrics
 	pkg/logs/pipeline
 	pkg/logs/processor
-	pkg/logs/sds
 	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface

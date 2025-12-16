@@ -139,7 +139,6 @@ def build(
     rtloader_root=None,
     python_home_3=None,
     exclude_rtloader=False,
-    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -207,7 +206,6 @@ def build(
                 flavor=flavor,
                 build_include=build_include,
                 build_exclude=build_exclude,
-                include_sds=include_sds,
             )
 
             all_tags |= set(build_tags)
