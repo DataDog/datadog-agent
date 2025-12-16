@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -36,21 +38,28 @@ func (cg *testCGroup) enter() error {
 	return os.WriteFile(cg.cgroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700)
 }
 
-func (cg *testCGroup) leave(t *testing.T) {
+func (cg *testCGroup) leave(t *testing.T) error {
+	var result error
 	if err := os.WriteFile("/sys/fs/cgroup"+cg.previousCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
+		result = multierror.Append(result, err)
 		if err := os.WriteFile("/sys/fs/cgroup/systemd"+cg.previousCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-			t.Log(err)
-			return
+			result = multierror.Append(result, err)
 		}
 	}
+	return result
 }
 
-func (cg *testCGroup) remove(t *testing.T) {
+func (cg *testCGroup) remove(t *testing.T) error {
+	var result error
 	if err := os.Remove(cg.cgroupPath); err != nil {
+		result = multierror.Append(result, err)
 		if content, err := os.ReadFile(cg.cgroupPath + "/cgroup.procs"); err == nil {
-			t.Logf("Processes in cgroup: %s", string(content))
+			result = multierror.Append(result, fmt.Errorf("processes in %s cgroup: %s", cg.cgroupPath+"/cgroup.procs", string(content)))
+		} else {
+			result = multierror.Append(result, fmt.Errorf("failed to read %s: %w", cg.cgroupPath+"/cgroup.procs", err))
 		}
 	}
+	return result
 }
 
 func (cg *testCGroup) create() error {
@@ -120,12 +129,20 @@ func TestCGroup(t *testing.T) {
 	if err := testCGroup.create(); err != nil {
 		t.Fatal(err)
 	}
-	defer testCGroup.remove(t)
+	t.Cleanup(func() {
+		if err := testCGroup.remove(t); err != nil {
+			t.Errorf("failed to remove cgroup: %v", err)
+		}
+	})
 
 	if err := testCGroup.enter(); err != nil {
 		t.Fatal(err)
 	}
-	defer testCGroup.leave(t)
+	t.Cleanup(func() {
+		if err := testCGroup.leave(t); err != nil {
+			t.Errorf("failed to leave cgroup: %v", err)
+		}
+	})
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -218,12 +235,20 @@ func TestCGroupSnapshot(t *testing.T) {
 	if err := testCGroup.create(); err != nil {
 		t.Fatal(err)
 	}
-	defer testCGroup.remove(t)
+	t.Cleanup(func() {
+		if err := testCGroup.remove(t); err != nil {
+			t.Errorf("failed to remove cgroup: %v", err)
+		}
+	})
 
 	if err := testCGroup.enter(); err != nil {
 		t.Fatal(err)
 	}
-	defer testCGroup.leave(t)
+	t.Cleanup(func() {
+		if err := testCGroup.leave(t); err != nil {
+			t.Errorf("failed to leave cgroup: %v", err)
+		}
+	})
 
 	executable, err := os.Executable()
 	if err != nil {
