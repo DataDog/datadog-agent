@@ -19,6 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	libraryinjection "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/library_injection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +36,10 @@ type Config struct {
 
 	// Instrumentation is the configuration for the autoinstrumentation logic
 	Instrumentation *InstrumentationConfig
+
+	// LibraryInjectionRegistry holds all available injection providers and handles provider selection.
+	// It supports per-pod override of the injection mode via annotation.
+	LibraryInjectionRegistry *libraryinjection.Registry
 
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
@@ -112,10 +117,18 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
+	// Create provider config
+	providerConfig := libraryinjection.ProviderConfig{
+		DefaultResourceRequirements: defaultResourceRequirements,
+		InitSecurityContext:         initSecurityContext,
+		ContainerFilter:             excludedContainerNamesContainerFilter,
+	}
+
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
 		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 		Instrumentation:               instrumentationConfig,
+		LibraryInjectionRegistry:      libraryinjection.NewRegistry(defaultInjectionMode(datadogConfig), providerConfig),
 		containerRegistry:             containerRegistry,
 		mutateUnlabelled:              mutateUnlabelled,
 		initResources:                 initResources,
@@ -126,6 +139,23 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 	}, nil
+}
+
+// defaultInjectionMode reads the injection mode from the config.
+// Valid values are "init_container" (default) and "csi"
+func defaultInjectionMode(datadogConfig config.Component) libraryinjection.InjectionMode {
+	modeStr := datadogConfig.GetString("apm_config.instrumentation.injection_mode")
+	switch modeStr {
+	case string(libraryinjection.InjectionModeCSI):
+		log.Info("Using CSI injection mode for APM auto-instrumentation")
+		return libraryinjection.InjectionModeCSI
+	case string(libraryinjection.InjectionModeInitContainer), "":
+		log.Info("Using init container injection mode for APM auto-instrumentation")
+		return libraryinjection.InjectionModeInitContainer
+	default:
+		log.Warnf("Unknown injection mode %q, falling back to init_container", modeStr)
+		return libraryinjection.InjectionModeInitContainer
+	}
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
@@ -177,6 +207,11 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
+	// InjectionMode determines the default method for injecting libraries into pods.
+	// Possible values: "init_container" (default) and "csi".
+	// This value is parsed separately in defaultInjectionMode() and not used directly from this struct.
+	// Full config key: apm_config.instrumentation.injection_mode
+	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

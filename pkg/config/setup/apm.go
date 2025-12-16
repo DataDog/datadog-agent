@@ -108,6 +108,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
+	// [Internal/Experimental] Injection mode for APM auto-instrumentation.
+	// Possible values: "init_container" (default), "csi", "image_volume"
+	// Empty string is treated as "init_container" for backwards compatibility.
+	config.BindEnvAndSetDefault("apm_config.instrumentation.injection_mode", "", "DD_APM_INSTRUMENTATION_INJECTION_MODE")
+
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")                                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
