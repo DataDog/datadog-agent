@@ -25,17 +25,12 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Filter only MSI packages
-	filterMsi := func(software *Entry) bool {
-		return strings.Contains(software.Source, "msi")
-	}
-
 	// Shows different ways to get the software inventory.
 	// This shows that the Programs provider for Get-Package is entirely based on the registry keys.
 	for _, tt := range []struct {
-		name     string
-		cmd      string
-		filterFn func(software *Entry) bool
+		name        string
+		cmd         string
+		collectorFn func() ([]*Entry, []*Warning, error)
 	}{
 		{
 			name: "Test against Get-Package with Programs provider",
@@ -44,6 +39,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			Select-Object Name, Version, FastPackageReference |
 			Sort-Object Name |
 			ConvertTo-Csv -NoTypeInformation`,
+			collectorFn: GetSoftwareInventory,
 		},
 		{
 			name: "Test against Get-Package with MSI provider",
@@ -52,7 +48,9 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			Select-Object Name, Version, FastPackageReference |
 			Sort-Object Name |
 			ConvertTo-Csv -NoTypeInformation`,
-			filterFn: filterMsi, // Only include MSI packages since we want to compare with the msi provider
+			collectorFn: func() ([]*Entry, []*Warning, error) {
+				return GetSoftwareInventoryWithCollectors([]Collector{&mSICollector{}})
+			},
 		},
 		{
 			name: "Test against regular Registry collection",
@@ -68,6 +66,9 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					Select-Object DisplayName, DisplayVersion, Publisher, InstallDate
 			}
 			$items | Sort-Object DisplayName | ConvertTo-Csv -NoTypeInformation`,
+			collectorFn: func() ([]*Entry, []*Warning, error) {
+				return GetSoftwareInventoryWithCollectors([]Collector{&registryCollector{}})
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			}
 
 			// Get our inventory
-			ourInventory, warnings, err := GetSoftwareInventory()
+			ourInventory, warnings, err := tt.collectorFn()
 
 			require.NoError(t, err)
 			if len(warnings) > 0 {
@@ -136,10 +137,6 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			// This allows us to compare versions and sources efficiently
 			ourSoftwareMap := make(map[string][]*Entry)
 			for _, software := range ourInventory {
-				if tt.filterFn != nil && !tt.filterFn(software) {
-					continue // Skip if filter function is provided and returns false
-				}
-
 				if _, exists := ourSoftwareMap[software.DisplayName]; !exists {
 					ourSoftwareMap[software.DisplayName] = []*Entry{software}
 				} else {
@@ -214,8 +211,39 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 
 			// Log results
 			if len(missingFromOurs) > 0 {
-				t.Errorf("Missing %d software entries that PowerShell found:\n%s",
-					len(missingFromOurs), strings.Join(missingFromOurs, "\n"))
+				// Check if we have privilege warnings indicating we couldn't access user hives
+				hasHiveMountFailure := false
+				for _, w := range warnings {
+					if strings.Contains(w.Message, "failed to mount hive") {
+						hasHiveMountFailure = true
+						break
+					}
+				}
+
+				if hasHiveMountFailure {
+					// Filter missing entries - we expect to miss HKCU entries when we can't mount hives
+					var hkcuMissing, otherMissing []string
+					for _, missing := range missingFromOurs {
+						if strings.Contains(missing, "hkcu32\\") || strings.Contains(missing, "hkcu64\\") {
+							hkcuMissing = append(hkcuMissing, missing)
+						} else {
+							otherMissing = append(otherMissing, missing)
+						}
+					}
+
+					if len(hkcuMissing) > 0 {
+						t.Logf("Note: Could not verify %d HKCU entries due to insufficient privileges to mount user hives (expected in containers). Missing entries:\n%s",
+							len(hkcuMissing), strings.Join(hkcuMissing, "\n"))
+					}
+
+					if len(otherMissing) > 0 {
+						t.Errorf("Missing %d software entries that PowerShell found:\n%s",
+							len(otherMissing), strings.Join(otherMissing, "\n"))
+					}
+				} else {
+					t.Errorf("Missing %d software entries that PowerShell found:\n%s",
+						len(missingFromOurs), strings.Join(missingFromOurs, "\n"))
+				}
 			}
 			if len(extraInOurs) > 0 {
 				t.Logf("Found %d extra software entries:\n%s",
@@ -242,7 +270,7 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	// Get PowerShell MS Store packages (doesn't include apps within the package)
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", `
 		$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8;
-		Get-AppxPackage -AllUsers |
+		$apps = Get-AppxPackage -AllUsers |
 		Where-Object {
 			-not $_.IsFramework -and
 			-not $_.IsResourcePackage -and
@@ -250,8 +278,12 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 			-not $_.IsBundle
 		} |
 		Select-Object Name, Version, Publisher, Architecture, PackageFamilyName |
-		Sort-Object Name |
-		ConvertTo-Json
+		Sort-Object Name;
+		if ($apps) {
+			$apps | ConvertTo-Json -AsArray  # Force array output even for single item
+		} else {
+			Write-Output "[]"  # Return empty array if no apps
+		}
 	`)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -266,9 +298,10 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	if len(jsonBytes) >= 3 && jsonBytes[0] == 0xEF && jsonBytes[1] == 0xBB && jsonBytes[2] == 0xBF {
 		jsonBytes = jsonBytes[3:]
 	}
-	err = json.Unmarshal(jsonBytes, &psApps)
-	require.NoError(t, err, "Failed to parse JSON output")
-
+	if len(jsonBytes) > 0 {
+		err = json.Unmarshal(jsonBytes, &psApps)
+		require.NoError(t, err, "Failed to parse JSON output")
+	}
 	// Build map: productCode -> []Entry
 	psInventory := []Entry{}
 	for _, app := range psApps {

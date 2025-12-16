@@ -10,7 +10,6 @@
 package webhook
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -69,7 +68,7 @@ func (w *Config) getTimeout() int32             { return w.timeout }
 func (w *Config) getFailurePolicy() string      { return w.failurePolicy }
 func (w *Config) getReinvocationPolicy() string { return w.reinvocationPolicy }
 func (w *Config) configName(suffix string) string {
-	name := strings.ReplaceAll(fmt.Sprintf("%s.%s", w.webhookName, suffix), "-", ".")
+	name := strings.ReplaceAll(w.webhookName+"."+suffix, "-", ".")
 	name = strings.ReplaceAll(name, "_", ".")
 	return name
 }

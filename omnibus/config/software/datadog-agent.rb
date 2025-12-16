@@ -72,10 +72,16 @@ build do
       end
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
     else
       msgoroot = "/usr/local/msgo"
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
     end
   end
 
@@ -141,7 +147,7 @@ build do
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
@@ -306,7 +312,7 @@ build do
         "#{install_dir}/embedded/bin/installer",
       ]
 
-      symbol = "_Cfunc_go_openssl"
+      symbol = "_Cfunc__mkcgo_OPENSSL"
       check_block = Proc.new { |binary, symbols|
         count = symbols.scan(symbol).count
         if count > 0
