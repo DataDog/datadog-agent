@@ -46,6 +46,11 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
 }
 
+// NextPipelineChanByTokenLength returns the next pipeline by token length
+func (p *mockProvider) NextPipelineChanByTokenLength(_ int) chan *message.Message {
+	return p.msgChan
+}
+
 // NextPipelineChanWithInstance returns the next pipeline
 func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")

@@ -47,6 +47,7 @@ type Provider interface {
 	Start()
 	Stop()
 	NextPipelineChan() chan *message.Message
+	NextPipelineChanByTokenLength(length int) chan *message.Message
 	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor)
 	// Flush flushes all pipeline contained in this Provider
@@ -270,6 +271,17 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 		return nil
 	}
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+	nextPipeline := p.pipelines[index]
+	return nextPipeline.InputChan
+}
+
+func (p *provider) NextPipelineChanByTokenLength(length int) chan *message.Message {
+	// TODO: Ensure it is not changing
+	pipelinesLen := len(p.pipelines)
+	if pipelinesLen == 0 {
+		return nil
+	}
+	index := uint32(length) % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }

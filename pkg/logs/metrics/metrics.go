@@ -13,6 +13,44 @@ import (
 )
 
 var (
+	// TlmDrainProcessed is the total number of processed logs by drain
+	TlmDrainProcessed = telemetry.NewCounter("logs", "drain_processed",
+		[]string{"drain_id"}, "Total number of processed logs by drain")
+	// TlmDrainClusters is the total number of drain clusters
+	TlmDrainClusters = telemetry.NewGauge("logs", "drain_clusters",
+		[]string{"drain_id"}, "Total number of drain clusters")
+	// TlmDrainClustersByService is the total number of drain clusters by service
+	TlmDrainClustersByService = telemetry.NewGauge("logs", "drain_clusters_by_service",
+		[]string{"service", "drain_id"}, "Total number of drain clusters by service")
+	// TlmDrainMemoryUsage is the total memory usage of drain clusters
+	TlmDrainMemoryUsage = telemetry.NewGauge("logs", "drain_memory_usage",
+		[]string{"drain_id"}, "Total memory usage of drain clusters")
+	// TODO: Remove
+	// TlmDrainClustersRatio is the total number of drain clusters relative to the total number of logs
+	TlmDrainClustersRatio = telemetry.NewGauge("logs", "drain_clusters_ratio",
+		[]string{"drain_id"}, "Total number of drain clusters relative to the total number of logs")
+	// TlmDrainMaxClusterSize is the max cluster size for drain clusters
+	TlmDrainMaxClusterSize = telemetry.NewGauge("logs", "drain_clusters_max_size",
+		[]string{"drain_id"}, "Max cluster size for drain clusters")
+	// TODO: Remove
+	// TlmDrainMaxClusterRatio is the max cluster size for drain clusters relative to the total number of logs
+	TlmDrainMaxClusterRatio = telemetry.NewGauge("logs", "drain_clusters_max_ratio",
+		[]string{"drain_id"}, "Max cluster size for drain clusters relative to the total number of logs")
+	// TlmDrainHistClusterSize is the histogram of cluster size for drain clusters (relative)
+	TlmDrainHistClusterSize = telemetry.NewHistogram("logs", "drain_clusters_hist_size",
+		[]string{"drain_id"}, "Histogram of cluster size for drain clusters (relative)", []float64{0, 1, 2, 4, 6, 8, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100})
+	// TlmDrainProcessTime is the average drain process time for each log
+	TlmDrainProcessTime = telemetry.NewGauge("logs", "drain_process_time",
+		[]string{"drain_id"}, "Drain process time for each log (average)")
+	// TlmLogsProcessTime is the average logs process time for each log
+	TlmLogsProcessTime = telemetry.NewGauge("logs", "logs_process_time",
+		nil, "Logs process time for each log (average)")
+	// TlmDrainIgnored is the number of ignored logs by drain
+	TlmDrainIgnored = telemetry.NewCounter("logs", "drain_ignored",
+		[]string{"drain_id"}, "Total number of ignored logs by drain")
+	// TlmDrainClustersAboveThreshold is the number of clusters above the ignore threshold
+	TlmDrainClustersAboveThreshold = telemetry.NewGauge("logs", "drain_clusters_above_threshold",
+		[]string{"drain_id"}, "Total number of clusters above the ignore threshold")
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs

@@ -983,6 +983,8 @@ require (
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
 
+require github.com/faceair/drain v0.0.0-20220227014011-bcc52881b814
+
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
 	k8s.io/api => k8s.io/api v0.34.1

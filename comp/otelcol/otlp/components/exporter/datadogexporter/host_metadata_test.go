@@ -58,7 +58,10 @@ var _ pipeline.Provider = (*mockProvider)(nil)
 func (*mockProvider) Start()                                  {}
 func (*mockProvider) Stop()                                   {}
 func (*mockProvider) NextPipelineChan() chan *message.Message { return make(chan *message.Message, 10) }
-func (*mockProvider) GetOutputChan() chan *message.Message    { return make(chan *message.Message, 10) }
+func (*mockProvider) NextPipelineChanByTokenLength(_ int) chan *message.Message {
+	return make(chan *message.Message, 10)
+}
+func (*mockProvider) GetOutputChan() chan *message.Message { return make(chan *message.Message, 10) }
 func (*mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return make(chan *message.Message), metrics.NewCapacityMonitor("test", "test-instance")
 }
