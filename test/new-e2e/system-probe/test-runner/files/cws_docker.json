@@ -6,6 +6,7 @@
     },
     "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main",
     "additional_test_args": [
+        "-test.shuffle=on",
         "--env",
         "docker"
     ]

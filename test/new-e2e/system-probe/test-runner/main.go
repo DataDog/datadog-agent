@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -250,6 +251,12 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("test glob: %s", err)
 	}
+
+	// Randomize the order in which test packages are executed
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(testsuites), func(i, j int) {
+		testsuites[i], testsuites[j] = testsuites[j], testsuites[i]
+	})
 
 	jsonDir := filepath.Join(ciVisibility, "pkgjson")
 	jsonOutDir := filepath.Join(ciVisibility, "testjson")
