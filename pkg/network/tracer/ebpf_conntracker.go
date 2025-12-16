@@ -61,16 +61,17 @@ var conntrackerTelemetry = struct {
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
 
 type ebpfConntracker struct {
-	m            *manager.Manager
-	ctMap        *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	telemetryMap *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
-	rootNS       uint32
+	m                         *manager.Manager
+	ctMap                     *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
+	nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64]
+	telemetryMap              *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
+	rootNS                    uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 
@@ -141,6 +142,12 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
+	nfConntrackConfirmArgsMap, err := maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
+	if err != nil {
+		_ = m.Stop(manager.CleanAll)
+		return nil, fmt.Errorf("unable to get nfConntrackConfirmArgsMap: %w", err)
+	}
+
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
@@ -153,12 +160,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	e := &ebpfConntracker{
-		m:            m,
-		ctMap:        ctMap,
-		telemetryMap: telemetryMap,
-		rootNS:       rootNS,
-		stop:         make(chan struct{}),
-		isPrebuilt:   isPrebuilt,
+		m:                         m,
+		ctMap:                     ctMap,
+		nfConntrackConfirmArgsMap: nfConntrackConfirmArgsMap,
+		telemetryMap:              telemetryMap,
+		rootNS:                    rootNS,
+		stop:                      make(chan struct{}),
+		isPrebuilt:                isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -304,15 +312,10 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
-
-			return
 		}
-
-		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
-		return
+	} else {
+		conntrackerTelemetry.unregistersTotal.Inc()
 	}
-
-	conntrackerTelemetry.unregistersTotal.Inc()
 }
 
 func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
@@ -414,13 +417,21 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
+			{Name: probes.NFConntrackConfirmArgsMap},
 			{Name: probes.ConntrackTelemetryMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
+			// JMW do return probe before entry probe to avoid missing events JMW
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashInsert,
+					EBPFFuncName: probes.ConntrackConfirmReturn,
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmEntry,
 					UID:          "conntracker",
 				},
 			},
@@ -453,16 +464,20 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
+	opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
 	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
-		me := opts.MapSpecEditors[probes.ConntrackMap]
-		me.Type = ebpf.LRUHash
-		me.EditorFlag |= manager.EditType
-		opts.MapSpecEditors[probes.ConntrackMap] = me
+		// Apply LRU hash to all conntrack maps
+		for _, mapName := range []string{probes.ConntrackMap} {
+			me := opts.MapSpecEditors[mapName]
+			me.Type = ebpf.LRUHash
+			me.EditorFlag |= manager.EditType
+			opts.MapSpecEditors[mapName] = me
+		}
 	}
 
 	err = mgr.InitWithOptions(buf, &opts)
@@ -573,4 +588,15 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
+}
+
+// conntrackTupleToString converts a ConntrackTuple to a string for comparison
+func conntrackTupleToString(tuple *netebpf.ConntrackTuple) string {
+	return fmt.Sprintf("%s:%d->%s:%d[%d]",
+		tuple.SourceAddress().String(),
+		tuple.Sport,
+		tuple.DestAddress().String(),
+		tuple.Dport,
+		tuple.Netns,
+	)
 }
