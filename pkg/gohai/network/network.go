@@ -156,7 +156,7 @@ func getMultiNetworkInfo() ([]Interface, error) {
 }
 
 func externalIpv6Address() (string, error) {
-	ifaces, err := net.Interfaces()
+	ifaces, err := netInterfaces()
 
 	if err != nil {
 		return "", err
