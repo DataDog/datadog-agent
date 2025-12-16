@@ -189,30 +189,3 @@ def get_providers_by_category() -> dict[str, list[type[BaseProvider]]]:
         category = provider_cls.category
         by_category.setdefault(category, []).append(provider_cls)
     return by_category
-
-
-def _discover_providers() -> None:
-    """Auto-discover and import all provider modules to trigger registration."""
-    import importlib
-    from pathlib import Path
-
-    providers_dir = Path(__file__).parent
-
-    # Find all category subdirectories (local/, cloud/, etc.)
-    for category_dir in providers_dir.iterdir():
-        if not category_dir.is_dir() or category_dir.name.startswith("_"):
-            continue
-
-        # Import each provider module in the category
-        for provider_file in category_dir.glob("*.py"):
-            if provider_file.name.startswith("_"):
-                continue
-            module_name = f"lab.providers.{category_dir.name}.{provider_file.stem}"
-            try:
-                importlib.import_module(module_name)
-            except ImportError:
-                pass  # Skip modules that fail to import
-
-
-# Auto-discover providers on module load
-_discover_providers()
