@@ -37,6 +37,21 @@ func NewCompressor(kind string, level int) common.Compressor {
 	}
 }
 
+func NewTunedCompressor(
+	kind string,
+	level int,
+	strategy int,
+	chain int,
+	window int,
+	hash int,
+	searchlog int,
+	minmatch int,
+	numworkers int,
+) common.Compressor {
+	log.Error("invalid compression set")
+	return implnoop.New()
+}
+
 // NewNoopCompressor returns a new Noop Compressor. It does not do any
 // compression, but can be used to create a compressor that does at a later
 // point.

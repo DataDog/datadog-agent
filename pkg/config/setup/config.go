@@ -1595,6 +1595,16 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.validate", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 
+	config.BindEnvAndSetDefault("serializer_zstd_strategy", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_chain", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_window", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_hash", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_searchlog", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_minmatch", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_numworkers", 1)
+
+	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
+
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)

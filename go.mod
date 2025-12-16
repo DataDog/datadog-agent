@@ -1195,4 +1195,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
+	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20250919143036-26b0cfcd090a
 )
