@@ -61,7 +61,6 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
-    "sds",
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "sharedlibrarycheck",
@@ -359,7 +358,6 @@ def compute_build_tags_for_flavor(
     build_include: str | None,
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
-    include_sds: bool = False,
     platform: str | None = None,
 ):
     """
@@ -380,9 +378,6 @@ def compute_build_tags_for_flavor(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     list = get_build_tags(build_include, build_exclude)
-
-    if include_sds:
-        list.append("sds")
 
     return list
 
