@@ -56,7 +56,10 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 						},
 					},
 					DockerLabels: pulumi.StringMap{
-						"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:ec2\"]"),
+						"com.datadoghq.ad.tags":      pulumi.String("[\"ecs_launch_type:ec2\"]"),
+						"com.datadoghq.tags.service": pulumi.String("redis"),
+						"com.datadoghq.tags.env":     pulumi.String("e2e-test"),
+						"com.datadoghq.tags.version": pulumi.String("1.0"),
 					},
 					Command: pulumi.StringArray{
 						pulumi.String("--loglevel"),

@@ -50,7 +50,10 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 			},
 		},
 		DockerLabels: pulumi.StringMap{
-			"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:fargate\"]"),
+			"com.datadoghq.ad.tags":      pulumi.String("[\"ecs_launch_type:fargate\"]"),
+			"com.datadoghq.tags.service": pulumi.String("redis-fargate"),
+			"com.datadoghq.tags.env":     pulumi.String("e2e-test"),
+			"com.datadoghq.tags.version": pulumi.String("1.0"),
 		},
 		Cpu:       pulumi.IntPtr(0),
 		Essential: pulumi.BoolPtr(true),
