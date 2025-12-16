@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/collector/pdata/plog"
-	semconv "go.opentelemetry.io/otel/semconv/v1.5.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 // ToLogs converts a RUM payload to OpenTelemetry Logs

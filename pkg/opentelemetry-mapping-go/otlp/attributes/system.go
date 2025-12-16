@@ -17,7 +17,7 @@ package attributes
 import (
 	"fmt"
 
-	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 type systemAttributes struct {

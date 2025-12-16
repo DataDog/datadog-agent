@@ -6,8 +6,7 @@
 package transform
 
 import (
-	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -41,30 +40,30 @@ const (
 )
 
 func obfuscateOTelDBAttributes(o *obfuscate.Obfuscator, q, oq string, span *pb.Span) {
-	dbStatement, ok := traceutil.GetMeta(span, string(semconv.DBStatementKey))
+	dbStatement, ok := traceutil.GetMeta(span, "db.statement")
 	if ok && dbStatement == q {
 		// dbStatement matches the query, we can reuse the ObfuscatedQuery
-		traceutil.SetMeta(span, string(semconv.DBStatementKey), oq)
+		traceutil.SetMeta(span, "db.statement", oq)
 	} else if ok {
 		// dbStatement differs from the query, obfuscate separately
 		val := TextNonParsable
 		if obfuscated, err := o.ObfuscateSQLStringForDBMS(dbStatement, span.Meta[TagDBMS]); err == nil {
 			val = obfuscated.Query
 		}
-		traceutil.SetMeta(span, string(semconv.DBStatementKey), val)
+		traceutil.SetMeta(span, "db.statement", val)
 	}
 
-	dbQuery, ok := traceutil.GetMeta(span, string(semconv126.DBQueryTextKey))
+	dbQuery, ok := traceutil.GetMeta(span, string(semconv.DBQueryTextKey))
 	if ok && dbQuery == q {
 		// dbQuery matches the query, we can reuse the ObfuscatedQuery
-		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), oq)
+		traceutil.SetMeta(span, string(semconv.DBQueryTextKey), oq)
 	} else if ok {
 		val := TextNonParsable
 		// dbQuery differs from the query, obfuscate separately
 		if obfuscated, err := o.ObfuscateSQLStringForDBMS(dbQuery, span.Meta[TagDBMS]); err == nil {
 			val = obfuscated.Query
 		}
-		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), val)
+		traceutil.SetMeta(span, string(semconv.DBQueryTextKey), val)
 	}
 }
 

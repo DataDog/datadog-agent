@@ -13,8 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
-	conventions22 "go.opentelemetry.io/otel/semconv/v1.22.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -24,7 +23,7 @@ import (
 
 var unifiedServiceTagMap = map[string][]string{
 	tags.Service: {string(conventions.ServiceNameKey)},
-	tags.Env:     {string(conventions.DeploymentEnvironmentKey), "deployment.environment.name"},
+	tags.Env:     {"deployment.environment", string(conventions.DeploymentEnvironmentNameKey)},
 	tags.Version: {string(conventions.ServiceVersionKey)},
 }
 
@@ -161,7 +160,7 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
 	}
-	if ociManifestDigest, ok := attrs.Get(string(conventions22.OciManifestDigestKey)); ok {
+	if ociManifestDigest, ok := attrs.Get(string(conventions.OCIManifestDigestKey)); ok {
 		splitImageID := strings.SplitN(ociManifestDigest.AsString(), "@sha256:", 2)
 		if len(splitImageID) == 2 {
 			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, fmt.Sprintf("sha256:%v", splitImageID[1])))

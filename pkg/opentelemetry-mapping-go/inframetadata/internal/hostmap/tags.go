@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 )
 
 var hostTagMapping = map[string]string{
-	string(conventions.DeploymentEnvironmentKey): "env",
+	"deployment.environment": "env",
 	string(conventions.K8SClusterNameKey):        "cluster_name",
 	string(conventions.CloudProviderKey):         "cloud_provider",
 	string(conventions.CloudRegionKey):           "region",

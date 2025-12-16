@@ -7,7 +7,7 @@
 package hostmap
 
 import (
-	conventions "go.opentelemetry.io/otel/semconv/v1.18.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 // Platform related OpenTelemetry Semantic Conventions for resource attributes.

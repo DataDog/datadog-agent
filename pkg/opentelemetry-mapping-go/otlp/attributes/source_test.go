@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils"
@@ -53,10 +53,10 @@ func TestSourceFromAttrs(t *testing.T) {
 				AttributeHost:                         testLiteralHost,
 				AttributeDatadogHostname:              testCustomName,
 				AttributeK8sNodeName:                  testNodeName,
-				string(conventions.K8SClusterNameKey): testClusterName,
-				string(conventions.ContainerIDKey):    testContainerID,
-				string(conventions.HostIDKey):         testHostID,
-				string(conventions.HostNameKey):       testHostName,
+				string(semconv.K8SClusterNameKey): testClusterName,
+				string(semconv.ContainerIDKey):    testContainerID,
+				string(semconv.HostIDKey):         testHostID,
+				string(semconv.HostNameKey):       testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testLiteralHost},
@@ -66,10 +66,10 @@ func TestSourceFromAttrs(t *testing.T) {
 			attrs: testutils.NewAttributeMap(map[string]string{
 				AttributeDatadogHostname:              testCustomName,
 				AttributeK8sNodeName:                  testNodeName,
-				string(conventions.K8SClusterNameKey): testClusterName,
-				string(conventions.ContainerIDKey):    testContainerID,
-				string(conventions.HostIDKey):         testHostID,
-				string(conventions.HostNameKey):       testHostName,
+				string(semconv.K8SClusterNameKey): testClusterName,
+				string(semconv.ContainerIDKey):    testContainerID,
+				string(semconv.HostIDKey):         testHostID,
+				string(semconv.HostNameKey):       testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testCustomName},
@@ -77,15 +77,15 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "container ID",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.ContainerIDKey): testContainerID,
+				string(semconv.ContainerIDKey): testContainerID,
 			}),
 		},
 		{
 			name: "AWS EC2",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.HostIDKey):        testHostID,
-				string(conventions.HostNameKey):      testHostName,
+				string(semconv.CloudProviderKey): semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.HostIDKey):        testHostID,
+				string(semconv.HostNameKey):      testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -93,12 +93,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "ECS Fargate",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):      conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.CloudPlatformKey):      conventions.CloudPlatformAWSECS.Value.AsString(),
-				string(conventions.AWSECSTaskARNKey):      "example-task-ARN",
-				string(conventions.AWSECSTaskFamilyKey):   "example-task-family",
-				string(conventions.AWSECSTaskRevisionKey): "example-task-revision",
-				string(conventions.AWSECSLaunchtypeKey):   conventions.AWSECSLaunchtypeFargate.Value.AsString(),
+				string(semconv.CloudProviderKey):      semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.CloudPlatformKey):      semconv.CloudPlatformAWSECS.Value.AsString(),
+				string(semconv.AWSECSTaskARNKey):      "example-task-ARN",
+				string(semconv.AWSECSTaskFamilyKey):   "example-task-family",
+				string(semconv.AWSECSTaskRevisionKey): "example-task-revision",
+				string(semconv.AWSECSLaunchtypeKey):   semconv.AWSECSLaunchtypeFargate.Value.AsString(),
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN"},
@@ -106,10 +106,10 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),
-				string(conventions.HostIDKey):         testHostID,
-				string(conventions.HostNameKey):       testGCPHostname,
-				string(conventions.CloudAccountIDKey): testCloudAccount,
+				string(semconv.CloudProviderKey):  semconv.CloudProviderGCP.Value.AsString(),
+				string(semconv.HostIDKey):         testHostID,
+				string(semconv.HostNameKey):       testGCPHostname,
+				string(semconv.CloudAccountIDKey): testCloudAccount,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testGCPIntegrationHostname},
@@ -117,17 +117,17 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "GCP, no account id",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderGCP.Value.AsString(),
-				string(conventions.HostIDKey):        testHostID,
-				string(conventions.HostNameKey):      testGCPHostname,
+				string(semconv.CloudProviderKey): semconv.CloudProviderGCP.Value.AsString(),
+				string(semconv.HostIDKey):        testHostID,
+				string(semconv.HostNameKey):      testGCPHostname,
 			}),
 		},
 		{
 			name: "azure",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.HostIDKey):        testHostID,
-				string(conventions.HostNameKey):      testHostName,
+				string(semconv.CloudProviderKey): semconv.CloudProviderAzure.Value.AsString(),
+				string(semconv.HostIDKey):        testHostID,
+				string(semconv.HostNameKey):      testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -135,8 +135,8 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "host id v. hostname",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.HostIDKey):   testHostID,
-				string(conventions.HostNameKey): testHostName,
+				string(semconv.HostIDKey):   testHostID,
+				string(semconv.HostNameKey): testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -174,7 +174,7 @@ func TestLiteralHostNonString(t *testing.T) {
 func TestGetClusterName(t *testing.T) {
 	// OpenTelemetry convention
 	attrs := testutils.NewAttributeMap(map[string]string{
-		string(conventions.K8SClusterNameKey): testClusterName,
+		string(semconv.K8SClusterNameKey): testClusterName,
 	})
 	cluster, ok := getClusterName(attrs)
 	assert.True(t, ok)
@@ -182,7 +182,7 @@ func TestGetClusterName(t *testing.T) {
 
 	// Azure
 	attrs = testutils.NewAttributeMap(map[string]string{
-		string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+		string(semconv.CloudProviderKey): semconv.CloudProviderAzure.Value.AsString(),
 		azure.AttributeResourceGroupName:     "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
 	})
 	cluster, ok = getClusterName(attrs)
@@ -191,7 +191,7 @@ func TestGetClusterName(t *testing.T) {
 
 	// AWS
 	attrs = testutils.NewAttributeMap(map[string]string{
-		string(conventions.CloudProviderKey):        conventions.CloudProviderAWS.Value.AsString(),
+		string(semconv.CloudProviderKey):        semconv.CloudProviderAWS.Value.AsString(),
 		"ec2.tag.kubernetes.io/cluster/clustername": "dummy_value",
 	})
 	cluster, ok = getClusterName(attrs)
@@ -208,10 +208,10 @@ func TestHostnameKubernetes(t *testing.T) {
 	// Node name and cluster name
 	attrs := testutils.NewAttributeMap(map[string]string{
 		AttributeK8sNodeName:                  testNodeName,
-		string(conventions.K8SClusterNameKey): testClusterName,
-		string(conventions.ContainerIDKey):    testContainerID,
-		string(conventions.HostIDKey):         testHostID,
-		string(conventions.HostNameKey):       testHostName,
+		string(semconv.K8SClusterNameKey): testClusterName,
+		string(semconv.ContainerIDKey):    testContainerID,
+		string(semconv.HostIDKey):         testHostID,
+		string(semconv.HostNameKey):       testHostName,
 	})
 	hostname, ok := hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -220,9 +220,9 @@ func TestHostnameKubernetes(t *testing.T) {
 	// Node name, no cluster name
 	attrs = testutils.NewAttributeMap(map[string]string{
 		AttributeK8sNodeName:               testNodeName,
-		string(conventions.ContainerIDKey): testContainerID,
-		string(conventions.HostIDKey):      testHostID,
-		string(conventions.HostNameKey):    testHostName,
+		string(semconv.ContainerIDKey): testContainerID,
+		string(semconv.HostIDKey):      testHostID,
+		string(semconv.HostNameKey):    testHostName,
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -231,10 +231,10 @@ func TestHostnameKubernetes(t *testing.T) {
 	// Node name, no cluster name, AWS EC2
 	attrs = testutils.NewAttributeMap(map[string]string{
 		AttributeK8sNodeName:                 testNodeName,
-		string(conventions.ContainerIDKey):   testContainerID,
-		string(conventions.HostIDKey):        testHostID,
-		string(conventions.HostNameKey):      testHostName,
-		string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
+		string(semconv.ContainerIDKey):   testContainerID,
+		string(semconv.HostIDKey):        testHostID,
+		string(semconv.HostNameKey):      testHostName,
+		string(semconv.CloudProviderKey): semconv.CloudProviderAWS.Value.AsString(),
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -242,10 +242,10 @@ func TestHostnameKubernetes(t *testing.T) {
 
 	// no node name, cluster name
 	attrs = testutils.NewAttributeMap(map[string]string{
-		string(conventions.K8SClusterNameKey): testClusterName,
-		string(conventions.ContainerIDKey):    testContainerID,
-		string(conventions.HostIDKey):         testHostID,
-		string(conventions.HostNameKey):       testHostName,
+		string(semconv.K8SClusterNameKey): testClusterName,
+		string(semconv.ContainerIDKey):    testContainerID,
+		string(semconv.HostIDKey):         testHostID,
+		string(semconv.HostNameKey):       testHostName,
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)

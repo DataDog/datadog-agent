@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 func TestProcessExtractTags(t *testing.T) {
@@ -33,7 +33,7 @@ func TestProcessExtractTags(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		fmt.Sprintf("%s:%s", string(conventions.ProcessExecutableNameKey), "otelcol"),
+		fmt.Sprintf("%s:%s", string(semconv.ProcessExecutableNameKey), "otelcol"),
 	}, pattrs.extractTags())
 
 	pattrs = processAttributes{
@@ -45,7 +45,7 @@ func TestProcessExtractTags(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		fmt.Sprintf("%s:%s", string(conventions.ProcessExecutablePathKey), "/usr/bin/cmd/otelcol"),
+		fmt.Sprintf("%s:%s", string(semconv.ProcessExecutablePathKey), "/usr/bin/cmd/otelcol"),
 	}, pattrs.extractTags())
 
 	pattrs = processAttributes{
@@ -56,7 +56,7 @@ func TestProcessExtractTags(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		fmt.Sprintf("%s:%s", string(conventions.ProcessCommandKey), "cmd/otelcol"),
+		fmt.Sprintf("%s:%s", string(semconv.ProcessCommandKey), "cmd/otelcol"),
 	}, pattrs.extractTags())
 
 	pattrs = processAttributes{
@@ -66,7 +66,7 @@ func TestProcessExtractTags(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		fmt.Sprintf("%s:%s", string(conventions.ProcessCommandLineKey), "cmd/otelcol --config=\"/path/to/config.yaml\""),
+		fmt.Sprintf("%s:%s", string(semconv.ProcessCommandLineKey), "cmd/otelcol --config=\"/path/to/config.yaml\""),
 	}, pattrs.extractTags())
 }
 

@@ -39,9 +39,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -342,7 +340,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	env := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogEnvironment)
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+		env = traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.DeploymentEnvironmentNameKey), "deployment.environment")
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
@@ -404,7 +402,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	_, env := transform.GetFirstFromMap(rattr, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+	_, env := transform.GetFirstFromMap(rattr, string(semconv.DeploymentEnvironmentNameKey), "deployment.environment")
 	lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
@@ -662,14 +660,14 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		if _, env := transform.GetFirstFromMap(span.Meta, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey)); env != "" {
+		if _, env := transform.GetFirstFromMap(span.Meta, string(semconv.DeploymentEnvironmentNameKey), "deployment.environment"); env != "" {
 			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := span.Meta["db.name"]; !ok {
-		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(in, res, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(in, res, false, string(semconv.DBNamespaceKey)); dbNamespace != "" {
 			transform.SetMetaOTLP(span, "db.name", dbNamespace)
 		}
 	}
@@ -678,14 +676,14 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
-		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
+		transform.SetMetaOTLP(span, string(semconv.OTelScopeNameKey), lib.Name())
 	}
 	if lib.Version() != "" {
-		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryVersionKey), lib.Version())
+		transform.SetMetaOTLP(span, string(semconv.OTelScopeVersionKey), lib.Version())
 	}
-	transform.SetMetaOTLP(span, string(semconv117.OtelStatusCodeKey), in.Status().Code().String())
+	transform.SetMetaOTLP(span, string(semconv.OTelStatusCodeKey), in.Status().Code().String())
 	if msg := in.Status().Message(); msg != "" {
-		transform.SetMetaOTLP(span, string(semconv117.OtelStatusDescriptionKey), msg)
+		transform.SetMetaOTLP(span, string(semconv.OTelStatusDescriptionKey), msg)
 	}
 	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
@@ -738,9 +736,9 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + route
 		}
 		return m
-	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
+	} else if m := meta["messaging.operation.type"]; m != "" {
 		// use the messaging operation
-		if _, dest := transform.GetFirstFromMap(meta, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+		if _, dest := transform.GetFirstFromMap(meta, "messaging.destination.name", string(semconv.MessagingDestinationNameKey)); dest != "" {
 			return m + " " + dest
 		}
 		return m
@@ -751,10 +749,10 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
-	} else if typ := meta[string(semconv117.GraphqlOperationTypeKey)]; typ != "" {
+	} else if typ := meta[string(semconv.GraphQLOperationTypeKey)]; typ != "" {
 		// Enrich GraphQL query resource names.
 		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-		if name := meta[string(semconv117.GraphqlOperationNameKey)]; name != "" {
+		if name := meta[string(semconv.GraphQLOperationNameKey)]; name != "" {
 			return typ + " " + name
 		}
 		return typ

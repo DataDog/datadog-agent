@@ -12,9 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/attribute"
-	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -162,7 +160,7 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		typ = "http"
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
+		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, "db.system")
 		if db == "" {
 			break
 		}
@@ -192,7 +190,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	case ptrace.SpanKindServer:
 		typ = "web"
 	case ptrace.SpanKindClient:
-		db := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.DBSystemKey))
+		db := GetOTelAttrFromEitherMap(sattr, rattr, true, "db.system")
 		if db == "" {
 			typ = "http"
 		} else {
@@ -228,16 +226,16 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRequestMethodKey), "http.request.method", "http.method"); m != "" {
 			// use the HTTP method + route (if available)
 			resName = m
 			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationTypeKey), "messaging.operation"); m != "" {
 			resName = m
 			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationNameKey), "messaging.destination"); dest != "" {
 				resName = resName + " " + dest
 			}
 		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
@@ -247,11 +245,11 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 				// ...and service if available
 				resName = resName + " " + svc
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.GraphQLOperationTypeKey)); m != "" {
 			// Enrich GraphQL query resource names.
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.GraphQLOperationNameKey)); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -280,7 +278,7 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.HTTPRequestMethodKey), "http.request.method", "http.method"); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
@@ -294,10 +292,10 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingOperationKey)); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingOperationTypeKey), "messaging.operation"); m != "" {
 		resName = m
 		// use the messaging operation
-		if dest := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+		if dest := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingDestinationNameKey), "messaging.destination"); dest != "" {
 			resName = resName + " " + dest
 		}
 		return
@@ -315,22 +313,22 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 
 	// Enrich GraphQL query resource names.
 	// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.GraphQLOperationTypeKey)); m != "" {
 		resName = m
-		if name := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+		if name := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.GraphQLOperationNameKey)); name != "" {
 			resName = resName + " " + name
 		}
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.DBSystemKey)); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "db.system"); m != "" {
 		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
 		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.DBStatementKey)); dbStatement != "" {
+		if dbStatement := GetOTelAttrFromEitherMap(sattr, rattr, false, "db.statement"); dbStatement != "" {
 			resName = dbStatement
 			return
 		}
-		if dbQuery := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv126.DBQueryTextKey)); dbQuery != "" {
+		if dbQuery := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.DBQueryTextKey)); dbQuery != "" {
 			resName = dbQuery
 			return
 		}
@@ -356,7 +354,7 @@ func GetOTelOperationNameV2(
 	isServer := span.Kind() == ptrace.SpanKindServer
 
 	// http
-	if method := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", string(semconv.HTTPMethodKey)); method != "" {
+	if method := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", string(semconv.HTTPRequestMethodKey)); method != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -366,13 +364,13 @@ func GetOTelOperationNameV2(
 	}
 
 	// database
-	if v := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.DBSystemKey)); v != "" && isClient {
+	if v := GetOTelAttrFromEitherMap(sattr, rattr, true, "db.system"); v != "" && isClient {
 		return v + ".query"
 	}
 
 	// messaging
 	system := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.MessagingSystemKey))
-	op := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.MessagingOperationKey))
+	op := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.MessagingOperationTypeKey))
 	if system != "" && op != "" {
 		switch span.Kind() {
 		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:

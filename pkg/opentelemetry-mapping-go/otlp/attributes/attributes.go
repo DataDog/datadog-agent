@@ -21,10 +21,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
-	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
-	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -40,48 +37,49 @@ var (
 	coreMapping = map[string]string{
 		// Datadog conventions
 		// https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
-		string(semconv1_6_1.DeploymentEnvironmentKey):    "env",
-		string(semconv1_27.ServiceNameKey):               "service",
-		string(semconv1_27.ServiceVersionKey):            "version",
-		string(semconv1_27.DeploymentEnvironmentNameKey): "env",
+		"deployment.environment":                    "env",
+		string(semconv.ServiceNameKey):              "service",
+		string(semconv.ServiceVersionKey):           "version",
+		string(semconv.DeploymentEnvironmentNameKey): "env",
 	}
 
 	// ContainerMappings defines the mapping between OpenTelemetry semantic conventions
 	// and Datadog Agent conventions for containers.
 	ContainerMappings = map[string]string{
 		// Containers
-		string(semconv1_27.ContainerIDKey):        "container_id",
-		string(semconv1_27.ContainerNameKey):      "container_name",
-		string(semconv1_27.ContainerImageNameKey): "image_name",
-		string(semconv1_6_1.ContainerImageTagKey): "image_tag",
-		string(semconv1_27.ContainerRuntimeKey):   "runtime",
+		string(semconv.ContainerIDKey):        "container_id",
+		string(semconv.ContainerNameKey):      "container_name",
+		string(semconv.ContainerImageNameKey): "image_name",
+		string(semconv.ContainerImageTagsKey): "image_tag",
+		"container.image.tag":                 "image_tag", // Deprecated v1.6.1 key for backwards compatibility
+		"container.runtime":                   "runtime",
 
 		// Cloud conventions
 		// https://www.datadoghq.com/blog/tagging-best-practices/
-		string(semconv1_27.CloudProviderKey):         "cloud_provider",
-		string(semconv1_27.CloudRegionKey):           "region",
-		string(semconv1_27.CloudAvailabilityZoneKey): "zone",
+		string(semconv.CloudProviderKey):         "cloud_provider",
+		string(semconv.CloudRegionKey):           "region",
+		string(semconv.CloudAvailabilityZoneKey): "zone",
 
 		// ECS conventions
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/tagger/collectors/ecs_extract.go
-		string(semconv1_27.AWSECSTaskFamilyKey):   "task_family",
-		string(semconv1_27.AWSECSTaskARNKey):      "task_arn",
-		string(semconv1_27.AWSECSClusterARNKey):   "ecs_cluster_name",
-		string(semconv1_27.AWSECSTaskRevisionKey): "task_version",
-		string(semconv1_27.AWSECSContainerARNKey): "ecs_container_name",
+		string(semconv.AWSECSTaskFamilyKey):   "task_family",
+		string(semconv.AWSECSTaskARNKey):      "task_arn",
+		string(semconv.AWSECSClusterARNKey):   "ecs_cluster_name",
+		string(semconv.AWSECSTaskRevisionKey): "task_version",
+		string(semconv.AWSECSContainerARNKey): "ecs_container_name",
 
 		// Kubernetes resource name (via semantic conventions)
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/util/kubernetes/const.go
-		string(semconv1_27.K8SContainerNameKey):   "kube_container_name",
-		string(semconv1_27.K8SClusterNameKey):     "kube_cluster_name",
-		string(semconv1_27.K8SDeploymentNameKey):  "kube_deployment",
-		string(semconv1_27.K8SReplicaSetNameKey):  "kube_replica_set",
-		string(semconv1_27.K8SStatefulSetNameKey): "kube_stateful_set",
-		string(semconv1_27.K8SDaemonSetNameKey):   "kube_daemon_set",
-		string(semconv1_27.K8SJobNameKey):         "kube_job",
-		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
-		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
-		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv.K8SContainerNameKey):   "kube_container_name",
+		string(semconv.K8SClusterNameKey):     "kube_cluster_name",
+		string(semconv.K8SDeploymentNameKey):  "kube_deployment",
+		string(semconv.K8SReplicaSetNameKey):  "kube_replica_set",
+		string(semconv.K8SStatefulSetNameKey): "kube_stateful_set",
+		string(semconv.K8SDaemonSetNameKey):   "kube_daemon_set",
+		string(semconv.K8SJobNameKey):         "kube_job",
+		string(semconv.K8SCronJobNameKey):     "kube_cronjob",
+		string(semconv.K8SNamespaceNameKey):   "kube_namespace",
+		string(semconv.K8SPodNameKey):         "pod_name",
 	}
 
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
@@ -181,17 +179,18 @@ var (
 	// HTTPMappings defines the mapping between OpenTelemetry semantic conventions
 	// and Datadog Agent conventions for HTTP attributes.
 	HTTPMappings = map[string]string{
-		string(semconv1_27.ClientAddressKey):          "http.client_ip",
-		string(semconv1_27.HTTPResponseBodySizeKey):   "http.response.content_length",
-		string(semconv1_27.HTTPResponseStatusCodeKey): "http.status_code",
-		string(semconv1_27.HTTPRequestBodySizeKey):    "http.request.content_length",
-		"http.request.header.referrer":                "http.referrer",
-		string(semconv1_27.HTTPRequestMethodKey):      "http.method",
-		string(semconv1_27.HTTPRouteKey):              "http.route",
-		string(semconv1_27.NetworkProtocolVersionKey): "http.version",
-		string(semconv1_27.ServerAddressKey):          "http.server_name",
-		string(semconv1_27.URLFullKey):                "http.url",
-		string(semconv1_27.UserAgentOriginalKey):      "http.useragent",
+		string(semconv.ClientAddressKey):          "http.client_ip",
+		string(semconv.HTTPResponseBodySizeKey):   "http.response.content_length",
+		string(semconv.HTTPResponseStatusCodeKey): "http.status_code",
+		"http.status_code":                        "http.status_code", // Deprecated v1.17.0 key for backwards compatibility
+		string(semconv.HTTPRequestBodySizeKey):    "http.request.content_length",
+		"http.request.header.referrer":            "http.referrer",
+		string(semconv.HTTPRequestMethodKey):      "http.method",
+		string(semconv.HTTPRouteKey):              "http.route",
+		string(semconv.NetworkProtocolVersionKey): "http.version",
+		string(semconv.ServerAddressKey):          "http.server_name",
+		string(semconv.URLFullKey):                "http.url",
+		string(semconv.UserAgentOriginalKey):      "http.useragent",
 	}
 )
 
@@ -206,21 +205,21 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 	attrs.Range(func(key string, value pcommon.Value) bool {
 		switch key {
 		// Process attributes
-		case string(semconv1_27.ProcessExecutableNameKey):
+		case string(semconv.ProcessExecutableNameKey):
 			processAttributes.ExecutableName = value.Str()
-		case string(semconv1_27.ProcessExecutablePathKey):
+		case string(semconv.ProcessExecutablePathKey):
 			processAttributes.ExecutablePath = value.Str()
-		case string(semconv1_27.ProcessCommandKey):
+		case string(semconv.ProcessCommandKey):
 			processAttributes.Command = value.Str()
-		case string(semconv1_27.ProcessCommandLineKey):
+		case string(semconv.ProcessCommandLineKey):
 			processAttributes.CommandLine = value.Str()
-		case string(semconv1_27.ProcessPIDKey):
+		case string(semconv.ProcessPIDKey):
 			processAttributes.PID = value.Int()
-		case string(semconv1_27.ProcessOwnerKey):
+		case string(semconv.ProcessOwnerKey):
 			processAttributes.Owner = value.Str()
 
 		// System attributes
-		case string(semconv1_27.OSTypeKey):
+		case string(semconv.OSTypeKey):
 			systemAttributes.OSType = value.Str()
 		}
 
@@ -258,9 +257,9 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 	// originID is always empty. Container ID is preferred over Kubernetes pod UID.
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
-	if containerID, ok := attrs.Get(string(semconv1_6_1.ContainerIDKey)); ok {
+	if containerID, ok := attrs.Get(string(semconv.ContainerIDKey)); ok {
 		originID = "container_id://" + containerID.AsString()
-	} else if podUID, ok := attrs.Get(string(semconv1_6_1.K8SPodUIDKey)); ok {
+	} else if podUID, ok := attrs.Get(string(semconv.K8SPodUIDKey)); ok {
 		originID = "kubernetes_pod_uid://" + podUID.AsString()
 	}
 	return
@@ -355,7 +354,7 @@ func GetOperationName(
 	isServer := spanKind == ptrace.SpanKindServer
 
 	// http
-	if method := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.HTTPRequestMethodKey), string(semconv1_12.HTTPMethodKey)); method != "" {
+	if method := GetOTelAttrVal(signalAttrs, false, string(semconv.HTTPRequestMethodKey), string(semconv.HTTPRequestMethodKey)); method != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -365,13 +364,13 @@ func GetOperationName(
 	}
 
 	// database
-	if v := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.DBSystemKey)); v != "" && isClient {
+	if v := GetOTelAttrVal(signalAttrs, true, "db.system"); v != "" && isClient {
 		return v + ".query"
 	}
 
 	// messaging
-	system := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.MessagingSystemKey))
-	op := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.MessagingOperationKey))
+	system := GetOTelAttrVal(signalAttrs, true, string(semconv.MessagingSystemKey))
+	op := GetOTelAttrVal(signalAttrs, true, string(semconv.MessagingOperationTypeKey))
 	if system != "" && op != "" {
 		switch spanKind {
 		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
@@ -380,12 +379,12 @@ func GetOperationName(
 	}
 
 	// RPC & AWS
-	rpcValue := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.RPCSystemKey))
+	rpcValue := GetOTelAttrVal(signalAttrs, true, string(semconv.RPCSystemKey))
 	isRPC := rpcValue != ""
 	isAws := isRPC && (rpcValue == "aws-api")
 	// AWS client
 	if isAws && isClient {
-		if service := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.RPCServiceKey)); service != "" {
+		if service := GetOTelAttrVal(signalAttrs, true, string(semconv.RPCServiceKey)); service != "" {
 			return "aws." + service + ".request"
 		}
 		return "aws.client.request"
@@ -401,14 +400,14 @@ func GetOperationName(
 	}
 
 	// FAAS client
-	provider := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.FaaSInvokedProviderKey))
-	invokedName := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.FaaSInvokedNameKey))
+	provider := GetOTelAttrVal(signalAttrs, true, string(semconv.FaaSInvokedProviderKey))
+	invokedName := GetOTelAttrVal(signalAttrs, true, string(semconv.FaaSInvokedNameKey))
 	if provider != "" && invokedName != "" && isClient {
 		return provider + "." + invokedName + ".invoke"
 	}
 
 	// FAAS server
-	trigger := GetOTelAttrVal(signalAttrs, true, string(semconv1_12.FaaSTriggerKey))
+	trigger := GetOTelAttrVal(signalAttrs, true, string(semconv.FaaSTriggerKey))
 	if trigger != "" && isServer {
 		return trigger + ".invoke"
 	}
@@ -450,7 +449,7 @@ func GetResourceName(signalAttrs pcommon.Map, spanKind ptrace.SpanKind, fallback
 		return
 	}
 
-	if m := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.HTTPRequestMethodKey), string(semconv1_12.HTTPMethodKey)); m != "" {
+	if m := GetOTelAttrVal(signalAttrs, false, string(semconv.HTTPRequestMethodKey), string(semconv.HTTPRequestMethodKey)); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
@@ -458,30 +457,30 @@ func GetResourceName(signalAttrs pcommon.Map, spanKind ptrace.SpanKind, fallback
 		resName = m
 		switch spanKind {
 		case ptrace.SpanKindServer:
-			if route := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.HTTPRouteKey)); route != "" {
+			if route := GetOTelAttrVal(signalAttrs, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
 		case ptrace.SpanKindClient:
-			if template := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.URLTemplateKey)); template != "" {
+			if template := GetOTelAttrVal(signalAttrs, false, string(semconv.URLTemplateKey)); template != "" {
 				resName = resName + " " + template
 			}
 		}
 		return
 	}
 
-	if m := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.MessagingOperationKey)); m != "" {
+	if m := GetOTelAttrVal(signalAttrs, false, string(semconv.MessagingOperationTypeKey)); m != "" {
 		resName = m
 		// use the messaging operation
-		if dest := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.MessagingDestinationKey), string(semconv1_17.MessagingDestinationNameKey)); dest != "" {
+		if dest := GetOTelAttrVal(signalAttrs, false, string(semconv.MessagingDestinationNameKey), string(semconv.MessagingDestinationNameKey)); dest != "" {
 			resName = resName + " " + dest
 		}
 		return
 	}
 
-	if m := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.RPCMethodKey)); m != "" {
+	if m := GetOTelAttrVal(signalAttrs, false, string(semconv.RPCMethodKey)); m != "" {
 		resName = m
 		// use the RPC method
-		if svc := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.RPCServiceKey)); svc != "" {
+		if svc := GetOTelAttrVal(signalAttrs, false, string(semconv.RPCServiceKey)); svc != "" {
 			// ...and service if available
 			resName = resName + " " + svc
 		}
@@ -490,23 +489,19 @@ func GetResourceName(signalAttrs pcommon.Map, spanKind ptrace.SpanKind, fallback
 
 	// Enrich GraphQL query resource names.
 	// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-	if m := GetOTelAttrVal(signalAttrs, false, string(semconv1_17.GraphqlOperationTypeKey)); m != "" {
+	if m := GetOTelAttrVal(signalAttrs, false, string(semconv.GraphQLOperationTypeKey)); m != "" {
 		resName = m
-		if name := GetOTelAttrVal(signalAttrs, false, string(semconv1_17.GraphqlOperationNameKey)); name != "" {
+		if name := GetOTelAttrVal(signalAttrs, false, string(semconv.GraphQLOperationNameKey)); name != "" {
 			resName = resName + " " + name
 		}
 		return
 	}
 
-	if m := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.DBSystemKey)); m != "" {
+	if m := GetOTelAttrVal(signalAttrs, false, "db.system"); m != "" {
 		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
 		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrVal(signalAttrs, false, string(semconv1_12.DBStatementKey)); dbStatement != "" {
+		if dbStatement := GetOTelAttrVal(signalAttrs, false, string(semconv.DBQueryTextKey), "db.statement"); dbStatement != "" {
 			resName = dbStatement
-			return
-		}
-		if dbQuery := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.DBQueryTextKey)); dbQuery != "" {
-			resName = dbQuery
 			return
 		}
 	}
@@ -518,7 +513,7 @@ func GetResourceName(signalAttrs pcommon.Map, spanKind ptrace.SpanKind, fallback
 // GetService returns the DD service name based on OTel resource attributes.
 func GetService(resourceAttrs pcommon.Map, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrVal(resourceAttrs, false, string(semconv1_12.ServiceNameKey))
+	svc := GetOTelAttrVal(resourceAttrs, false, string(semconv.ServiceNameKey))
 	if svc == "" {
 		svc = DefaultServiceName
 	}
@@ -537,7 +532,7 @@ func GetService(resourceAttrs pcommon.Map, normalize bool) string {
 
 // GetEnv returns the environment based on OTel resource attributes.
 func GetEnv(resourceAttrs pcommon.Map) string {
-	if env := GetOTelAttrVal(resourceAttrs, true, string(semconv1_27.DeploymentEnvironmentNameKey), string(semconv1_12.DeploymentEnvironmentKey)); env != "" {
+	if env := GetOTelAttrVal(resourceAttrs, true, string(semconv.DeploymentEnvironmentNameKey), "deployment.environment"); env != "" {
 		return env
 	}
 	return DefaultEnvName
@@ -553,7 +548,7 @@ func GetSpanType(spanKind ptrace.SpanKind, signalattrs pcommon.Map) string {
 	case ptrace.SpanKindServer:
 		return "web"
 	case ptrace.SpanKindClient:
-		db := GetOTelAttrVal(signalattrs, true, string(semconv1_6_1.DBSystemKey))
+		db := GetOTelAttrVal(signalattrs, true, "db.system")
 		if db == "" {
 			return "http"
 		}
@@ -575,7 +570,7 @@ func getDBSpanType(dbType string) string {
 
 // GetVersion returns the version based on OTel resource attributes
 func GetVersion(resourceAttrs pcommon.Map) string {
-	if version := GetOTelAttrVal(resourceAttrs, true, string(semconv1_12.ServiceVersionKey)); version != "" {
+	if version := GetOTelAttrVal(resourceAttrs, true, string(semconv.ServiceVersionKey)); version != "" {
 		return version
 	}
 	return ""
@@ -583,13 +578,14 @@ func GetVersion(resourceAttrs pcommon.Map) string {
 
 // GetStatusCode returns the HTTP status code based on OTel signal attributes.
 func GetStatusCode(signalAttrs pcommon.Map) uint32 {
-	if code, ok := signalAttrs.Get(string(semconv1_17.HTTPStatusCodeKey)); ok {
+	if code, ok := signalAttrs.Get(string(semconv.HTTPResponseStatusCodeKey)); ok {
 		if code.Type() != pcommon.ValueTypeInt {
 			return 0
 		}
 		return uint32(code.Int())
 	}
-	if code, ok := signalAttrs.Get(string(semconv1_27.HTTPResponseStatusCodeKey)); ok {
+	// Check deprecated v1.17.0 key for backwards compatibility
+	if code, ok := signalAttrs.Get("http.status_code"); ok {
 		if code.Type() != pcommon.ValueTypeInt {
 			return 0
 		}
@@ -600,7 +596,7 @@ func GetStatusCode(signalAttrs pcommon.Map) uint32 {
 
 // GetContainerID returns the container ID based on OTel resource attributes.
 func GetContainerID(resourceAttrs pcommon.Map) string {
-	if cid := GetOTelAttrVal(resourceAttrs, true, string(semconv1_27.ContainerIDKey)); cid != "" {
+	if cid := GetOTelAttrVal(resourceAttrs, true, string(semconv.ContainerIDKey)); cid != "" {
 		return cid
 	}
 	return ""

@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/metric/noop"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -42,9 +42,9 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	res := rspan.Resource()
 	for k, v := range map[string]string{
 		string(semconv.ServiceNameKey):           "svc",
-		string(semconv.DeploymentEnvironmentKey): "tracer_env",
-		string(semconv.DBSystemKey):              "mysql",
-		string(semconv.DBStatementKey): `
+		string(semconv.DeploymentEnvironmentNameKey): "tracer_env",
+		"db.system":              "mysql",
+		"db.statement": `
 		SELECT
     	u.id,
 			u.name,
@@ -128,7 +128,7 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	res := rspan.Resource()
 	for k, v := range map[string]string{
 		string(semconv.ServiceNameKey):           "svc",
-		string(semconv.DeploymentEnvironmentKey): "tracer_env",
+		"deployment.environment": "tracer_env",
 		string(semconv.ContainerIDKey):           "test_cid",
 		string(semconv.K8SClusterNameKey):        "test_cluster",
 		"az":                                     "my-az",

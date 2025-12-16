@@ -13,9 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -39,7 +37,7 @@ func TestIndexOTelSpans(t *testing.T) {
 	rattrs := res1.Attributes()
 	rattrs.PutStr(string(semconv.HostNameKey), "host1")
 	rattrs.PutStr(string(semconv.ServiceNameKey), "svc1")
-	rattrs.PutStr(string(semconv.DeploymentEnvironmentKey), "env1")
+	rattrs.PutStr("deployment.environment", "env1")
 
 	sspan1 := rspan1.ScopeSpans().AppendEmpty()
 	scope1 := sspan1.Scope()
@@ -65,7 +63,7 @@ func TestIndexOTelSpans(t *testing.T) {
 	rattrs = res2.Attributes()
 	rattrs.PutStr(string(semconv.HostNameKey), "host2")
 	rattrs.PutStr(string(semconv.ServiceNameKey), "svc2")
-	rattrs.PutStr(string(semconv.DeploymentEnvironmentKey), "env2")
+	rattrs.PutStr("deployment.environment", "env2")
 
 	sspan2 := rspan2.ScopeSpans().AppendEmpty()
 	scope2 := sspan2.Scope()
@@ -178,43 +176,43 @@ func TestGetOTelSpanType(t *testing.T) {
 		{
 			name:     "redis span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): "redis"},
+			rattrs:   map[string]string{"db.system": "redis"},
 			expected: attributes.SpanTypeRedis,
 		},
 		{
 			name:     "memcached span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): "memcached"},
+			rattrs:   map[string]string{"db.system": "memcached"},
 			expected: attributes.SpanTypeMemcached,
 		},
 		{
 			name:     "sql db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemPostgreSQL.Value.AsString()},
+			rattrs:   map[string]string{"db.system": "postgresql"},
 			expected: attributes.SpanTypeSQL,
 		},
 		{
 			name:     "elastic db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemElasticsearch.Value.AsString()},
+			rattrs:   map[string]string{"db.system": "elasticsearch"},
 			expected: attributes.SpanTypeElasticsearch,
 		},
 		{
 			name:     "opensearch db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv117.DBSystemOpensearch.Value.AsString()},
+			rattrs:   map[string]string{"db.system": "opensearch"},
 			expected: attributes.SpanTypeOpenSearch,
 		},
 		{
 			name:     "cassandra db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemCassandra.Value.AsString()},
+			rattrs:   map[string]string{"db.system": "cassandra"},
 			expected: attributes.SpanTypeCassandra,
 		},
 		{
 			name:     "other db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemCouchDB.Value.AsString()},
+			rattrs:   map[string]string{"db.system": "couchdb"},
 			expected: attributes.SpanTypeDB,
 		},
 		{
@@ -422,7 +420,7 @@ func TestGetOTelResource(t *testing.T) {
 		},
 		{
 			name:       "HTTP method and route resource",
-			sattrs:     map[string]string{string(semconv.HTTPMethodKey): "GET", string(semconv.HTTPRouteKey): "/"},
+			sattrs:     map[string]string{"http.method": "GET", string(semconv.HTTPRouteKey): "/"},
 			expectedV1: "GET /",
 			expectedV2: "GET",
 		},
@@ -457,8 +455,8 @@ func TestGetOTelResource(t *testing.T) {
 		{
 			name: "SQL statement resource",
 			rattrs: map[string]string{
-				string(semconv.DBSystemKey):    "mysql",
-				string(semconv.DBStatementKey): "SELECT * FROM table WHERE id = 12345",
+				"db.system": "mysql",
+				"db.statement":              "SELECT * FROM table WHERE id = 12345",
 			},
 			sattrs:     map[string]string{"span.name": "span_name"},
 			expectedV1: "span_name",
@@ -467,8 +465,8 @@ func TestGetOTelResource(t *testing.T) {
 		{
 			name: "Redis command resource",
 			rattrs: map[string]string{
-				string(semconv.DBSystemKey):       "redis",
-				string(semconv126.DBQueryTextKey): "SET key value",
+				"db.system":   "redis",
+				string(semconv.DBQueryTextKey): "SET key value",
 			},
 			sattrs:     map[string]string{"span.name": "span_name"},
 			expectedV1: "span_name",
@@ -630,8 +628,8 @@ func TestGetOTelContainerTags(t *testing.T) {
 	res.Attributes().PutStr(string(semconv.ContainerIDKey), "cid")
 	res.Attributes().PutStr(string(semconv.ContainerNameKey), "cname")
 	res.Attributes().PutStr(string(semconv.ContainerImageNameKey), "ciname")
-	res.Attributes().PutStr(string(semconv.ContainerImageTagKey), "citag")
+	res.Attributes().PutStr("container.image.tag", "citag")
 	res.Attributes().PutStr("az", "my-az")
-	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", string(semconv.ContainerIDKey), string(semconv.ContainerNameKey), string(semconv.ContainerImageNameKey), string(semconv.ContainerImageTagKey)}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
+	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", string(semconv.ContainerIDKey), string(semconv.ContainerNameKey), string(semconv.ContainerImageNameKey), string(semconv.ContainerImageTagsKey)}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
 }

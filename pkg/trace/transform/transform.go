@@ -17,8 +17,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -255,7 +254,7 @@ func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]stri
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogEnvironment)
 	if env == "" && !ignoreMissingDatadogFields {
-		env = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+		env = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.DeploymentEnvironmentNameKey), "deployment.environment")
 	}
 	return env
 }
@@ -315,13 +314,13 @@ func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingData
 	} else if incomingCode, ok := rattr.Get(KeyDatadogHTTPStatusCode); ok {
 		return uint32(incomingCode.Int())
 	} else if !ignoreMissingDatadogFields {
-		if code, ok := sattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
+		if code, ok := sattr.Get("http.status_code"); ok {
 			return uint32(code.Int())
 		}
 		if code, ok := sattr.Get("http.response.status_code"); ok {
 			return uint32(code.Int())
 		}
-		if code, ok := rattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
+		if code, ok := rattr.Get("http.status_code"); ok {
 			return uint32(code.Int())
 		}
 		if code, ok := rattr.Get("http.response.status_code"); ok {
@@ -411,14 +410,14 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
 	if lib.Name() != "" {
-		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
+		ddspan.Meta[string(semconv.OTelScopeNameKey)] = lib.Name()
 	}
 	if lib.Version() != "" {
-		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
+		ddspan.Meta[string(semconv.OTelScopeVersionKey)] = lib.Version()
 	}
-	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()
+	ddspan.Meta[string(semconv.OTelStatusCodeKey)] = otelspan.Status().Code().String()
 	if msg := otelspan.Status().Message(); msg != "" {
-		ddspan.Meta[string(semconv.OtelStatusDescriptionKey)] = msg
+		ddspan.Meta[string(semconv.OTelStatusDescriptionKey)] = msg
 	}
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
@@ -445,7 +444,7 @@ func OtelSpanToDDSpan(
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv.DBNamespaceKey)); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace
 		}
 	}

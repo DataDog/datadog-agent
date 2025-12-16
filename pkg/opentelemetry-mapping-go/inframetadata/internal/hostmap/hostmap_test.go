@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	conventions "go.opentelemetry.io/otel/semconv/v1.18.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/testutils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
@@ -147,14 +147,14 @@ func TestUpdate(t *testing.T) {
 		{
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.CloudRegionKey):           "us-east-1",
-				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
-				string(conventions.HostIDKey):                "host-1-hostid",
-				string(conventions.HostNameKey):              "host-1-hostname",
-				string(conventions.OSDescriptionKey):         "Fedora Linux",
-				string(conventions.OSTypeKey):                conventions.OSTypeLinux.Value.AsString(),
-				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				string(semconv.CloudProviderKey):         semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.CloudRegionKey):           "us-east-1",
+				string(semconv.CloudAvailabilityZoneKey): "us-east-1c",
+				string(semconv.HostIDKey):                "host-1-hostid",
+				string(semconv.HostNameKey):              "host-1-hostname",
+				string(semconv.OSDescriptionKey):         "Fedora Linux",
+				string(semconv.OSTypeKey):                semconv.OSTypeLinux.Value.AsString(),
+				string(semconv.HostArchKey):              semconv.HostArchAMD64.Value.AsString(),
 				attributeKernelName:                          "GNU/Linux",
 				attributeKernelRelease:                       "5.19.0-43-generic",
 				attributeKernelVersion:                       "#44~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon May 22 13:39:36 UTC 2",
@@ -167,7 +167,7 @@ func TestUpdate(t *testing.T) {
 				attributeHostIP:                              []any{"192.168.1.140", "fe80::abc2:4a28:737a:609e"},
 				attributeHostMAC:                             []any{"AC-DE-48-23-45-67", "AC-DE-48-23-45-67-01-9F"},
 				"datadog.host.tag.foo":                       "bar",
-				string(conventions.DeploymentEnvironmentKey): "prod",
+				"deployment.environment": "prod",
 			},
 			metric:          BuildMetric[int64](metricSystemCPUPhysicalCount, 32),
 			expectedChanged: true,
@@ -176,14 +176,14 @@ func TestUpdate(t *testing.T) {
 			// Same as #1, but missing some attributes
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.CloudRegionKey):           "us-east-1",
-				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
-				string(conventions.HostIDKey):                "host-1-hostid",
-				string(conventions.HostNameKey):              "host-1-hostname",
-				string(conventions.OSDescriptionKey):         "Fedora Linux",
+				string(semconv.CloudProviderKey):         semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.CloudRegionKey):           "us-east-1",
+				string(semconv.CloudAvailabilityZoneKey): "us-east-1c",
+				string(semconv.HostIDKey):                "host-1-hostid",
+				string(semconv.HostNameKey):              "host-1-hostname",
+				string(semconv.OSDescriptionKey):         "Fedora Linux",
 				"datadog.host.tag.foo":                       "bar",
-				string(conventions.DeploymentEnvironmentKey): "prod",
+				"deployment.environment": "prod",
 			},
 			metric:          BuildMetric[float64](metricSystemCPUFrequency, 400_000_005.5),
 			expectedChanged: false,
@@ -192,18 +192,18 @@ func TestUpdate(t *testing.T) {
 			// Same as #1 but wrong type and an update
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.CloudRegionKey):           "us-east-1",
-				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
-				string(conventions.HostIDKey):                "host-1-hostid",
-				string(conventions.HostNameKey):              "host-1-hostname",
-				string(conventions.OSDescriptionKey):         true, // wrong type
-				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				string(semconv.CloudProviderKey):         semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.CloudRegionKey):           "us-east-1",
+				string(semconv.CloudAvailabilityZoneKey): "us-east-1c",
+				string(semconv.HostIDKey):                "host-1-hostid",
+				string(semconv.HostNameKey):              "host-1-hostname",
+				string(semconv.OSDescriptionKey):         true, // wrong type
+				string(semconv.HostArchKey):              semconv.HostArchAMD64.Value.AsString(),
 				attributeKernelName:                          "GNU/Linux",
 				attributeKernelRelease:                       "5.19.0-43-generic",
 				attributeKernelVersion:                       "#82~18.04.1-Ubuntu SMP Fri Apr 16 15:10:02 UTC 2021", // changed
 				"datadog.host.tag.foo":                       "baz",                                                 // changed
-				string(conventions.DeploymentEnvironmentKey): "prod",
+				"deployment.environment": "prod",
 			},
 			expectedChanged: true,
 			expectedErrs:    []string{"\"os.description\" has type \"Bool\", expected type \"Str\" instead"},
@@ -212,17 +212,17 @@ func TestUpdate(t *testing.T) {
 			// Same as #1 but wrong type in two places and no update
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
-				string(conventions.CloudRegionKey):           "us-east-1",
-				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
-				string(conventions.HostIDKey):                "host-1-hostid",
-				string(conventions.HostNameKey):              "host-1-hostname",
-				string(conventions.OSDescriptionKey):         true, // wrong type
-				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				string(semconv.CloudProviderKey):         semconv.CloudProviderAWS.Value.AsString(),
+				string(semconv.CloudRegionKey):           "us-east-1",
+				string(semconv.CloudAvailabilityZoneKey): "us-east-1c",
+				string(semconv.HostIDKey):                "host-1-hostid",
+				string(semconv.HostNameKey):              "host-1-hostname",
+				string(semconv.OSDescriptionKey):         true, // wrong type
+				string(semconv.HostArchKey):              semconv.HostArchAMD64.Value.AsString(),
 				attributeKernelName:                          false, // wrong type
 				attributeKernelRelease:                       "5.19.0-43-generic",
 				"datadog.host.tag.foo":                       "baz",
-				string(conventions.DeploymentEnvironmentKey): "prod",
+				"deployment.environment": "prod",
 			},
 			expectedChanged: false,
 			expectedErrs: []string{
@@ -234,10 +234,10 @@ func TestUpdate(t *testing.T) {
 			// Different host, partial information, on Azure
 			hostname: "host-2-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.HostIDKey):        "host-2-hostid",
-				string(conventions.HostNameKey):      "host-2-hostname",
-				string(conventions.HostArchKey):      conventions.HostArchARM64.Value.AsString(),
+				string(semconv.CloudProviderKey): semconv.CloudProviderAzure.Value.AsString(),
+				string(semconv.HostIDKey):        "host-2-hostid",
+				string(semconv.HostNameKey):      "host-2-hostname",
+				string(semconv.HostArchKey):      semconv.HostArchARM64.Value.AsString(),
 				"deployment.environment.name":        "staging",
 				"datadog.host.aliases":               []any{"host-2-hostid-alias-1", "host-2-hostid-alias-2"},
 			},
@@ -247,10 +247,10 @@ func TestUpdate(t *testing.T) {
 			// Same host, new aliases
 			hostname: "host-2-hostid",
 			attributes: map[string]any{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.HostIDKey):        "host-2-hostid",
-				string(conventions.HostNameKey):      "host-2-hostname",
-				string(conventions.HostArchKey):      conventions.HostArchARM64.Value.AsString(),
+				string(semconv.CloudProviderKey): semconv.CloudProviderAzure.Value.AsString(),
+				string(semconv.HostIDKey):        "host-2-hostid",
+				string(semconv.HostNameKey):      "host-2-hostname",
+				string(semconv.HostArchKey):      semconv.HostArchARM64.Value.AsString(),
 				"deployment.environment.name":        "staging",
 				"datadog.host.aliases":               []any{"host-2-hostid-alias-1", "host-2-hostid-alias-2", "host-2-hostid-alias-3"},
 			},

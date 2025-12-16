@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.37.0"
 )
 
 const (

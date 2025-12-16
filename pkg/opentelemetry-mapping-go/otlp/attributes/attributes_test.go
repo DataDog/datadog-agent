@@ -18,31 +18,28 @@ import (
 	"fmt"
 	"testing"
 
-	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
-	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 func TestTagsFromAttributes(t *testing.T) {
 	attributeMap := map[string]interface{}{
-		string(semconv127.ProcessExecutableNameKey):     "otelcol",
-		string(semconv127.ProcessExecutablePathKey):     "/usr/bin/cmd/otelcol",
-		string(semconv127.ProcessCommandKey):            "cmd/otelcol",
-		string(semconv127.ProcessCommandLineKey):        "cmd/otelcol --config=\"/path/to/config.yaml\"",
-		string(semconv127.ProcessPIDKey):                1,
-		string(semconv127.ProcessOwnerKey):              "root",
-		string(semconv127.OSTypeKey):                    "linux",
-		string(semconv127.K8SDaemonSetNameKey):          "daemon_set_name",
-		string(semconv127.AWSECSClusterARNKey):          "cluster_arn",
-		string(semconv127.ContainerRuntimeKey):          "cro",
+		string(semconv.ProcessExecutableNameKey):     "otelcol",
+		string(semconv.ProcessExecutablePathKey):     "/usr/bin/cmd/otelcol",
+		string(semconv.ProcessCommandKey):            "cmd/otelcol",
+		string(semconv.ProcessCommandLineKey):        "cmd/otelcol --config=\"/path/to/config.yaml\"",
+		string(semconv.ProcessPIDKey):                1,
+		string(semconv.ProcessOwnerKey):              "root",
+		string(semconv.OSTypeKey):                    "linux",
+		string(semconv.K8SDaemonSetNameKey):          "daemon_set_name",
+		string(semconv.AWSECSClusterARNKey):          "cluster_arn",
+		"container.runtime":          "cro",
 		"tags.datadoghq.com/service":                    "service_name",
-		string(semconv127.DeploymentEnvironmentNameKey): "prod",
-		string(semconv127.ContainerNameKey):             "custom",
+		string(semconv.DeploymentEnvironmentNameKey): "prod",
+		string(semconv.ContainerNameKey):             "custom",
 		"datadog.container.tag.custom.team":             "otel",
 		"kube_cronjob":                                  "cron",
 	}
@@ -50,8 +47,8 @@ func TestTagsFromAttributes(t *testing.T) {
 	attrs.FromRaw(attributeMap)
 
 	assert.ElementsMatch(t, []string{
-		fmt.Sprintf("%s:%s", string(semconv127.ProcessExecutableNameKey), "otelcol"),
-		fmt.Sprintf("%s:%s", string(semconv127.OSTypeKey), "linux"),
+		fmt.Sprintf("%s:%s", string(semconv.ProcessExecutableNameKey), "otelcol"),
+		fmt.Sprintf("%s:%s", string(semconv.OSTypeKey), "linux"),
 		fmt.Sprintf("%s:%s", "kube_daemon_set", "daemon_set_name"),
 		fmt.Sprintf("%s:%s", "ecs_cluster_name", "cluster_arn"),
 		fmt.Sprintf("%s:%s", "service", "service_name"),
@@ -80,19 +77,19 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		attributes := pcommon.NewMap()
 		err := attributes.FromRaw(map[string]interface{}{
-			string(semconv127.ContainerNameKey):         "sample_app",
-			string(conventions.ContainerImageTagKey):    "sample_app_image_tag",
-			string(semconv127.ContainerRuntimeKey):      "cro",
-			string(semconv127.K8SContainerNameKey):      "kube_sample_app",
-			string(semconv127.K8SReplicaSetNameKey):     "sample_replica_set",
-			string(semconv127.K8SDaemonSetNameKey):      "sample_daemonset_name",
-			string(semconv127.K8SPodNameKey):            "sample_pod_name",
-			string(semconv127.CloudProviderKey):         "sample_cloud_provider",
-			string(semconv127.CloudRegionKey):           "sample_region",
-			string(semconv127.CloudAvailabilityZoneKey): "sample_zone",
-			string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
-			string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
-			string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+			string(semconv.ContainerNameKey):         "sample_app",
+			"container.image.tag":    "sample_app_image_tag",
+			"container.runtime":      "cro",
+			string(semconv.K8SContainerNameKey):      "kube_sample_app",
+			string(semconv.K8SReplicaSetNameKey):     "sample_replica_set",
+			string(semconv.K8SDaemonSetNameKey):      "sample_daemonset_name",
+			string(semconv.K8SPodNameKey):            "sample_pod_name",
+			string(semconv.CloudProviderKey):         "sample_cloud_provider",
+			string(semconv.CloudRegionKey):           "sample_region",
+			string(semconv.CloudAvailabilityZoneKey): "sample_zone",
+			string(semconv.AWSECSTaskFamilyKey):      "sample_task_family",
+			string(semconv.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
+			string(semconv.AWSECSContainerARNKey):    "sample_ecs_container_name",
 			"datadog.container.tag.custom.team":         "otel",
 		})
 		assert.NoError(t, err)
@@ -118,7 +115,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 	t.Run("conventions vs custom", func(t *testing.T) {
 		attributes := pcommon.NewMap()
 		err := attributes.FromRaw(map[string]interface{}{
-			string(semconv127.ContainerNameKey):    "ok",
+			string(semconv.ContainerNameKey):    "ok",
 			"datadog.container.tag.container_name": "nok",
 		})
 		assert.NoError(t, err)
@@ -148,19 +145,19 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 
 func TestContainerTagFromAttributes(t *testing.T) {
 	attributeMap := map[string]string{
-		string(semconv127.ContainerNameKey):         "sample_app",
-		string(conventions.ContainerImageTagKey):    "sample_app_image_tag",
-		string(semconv127.ContainerRuntimeKey):      "cro",
-		string(semconv127.K8SContainerNameKey):      "kube_sample_app",
-		string(semconv127.K8SReplicaSetNameKey):     "sample_replica_set",
-		string(semconv127.K8SDaemonSetNameKey):      "sample_daemonset_name",
-		string(semconv127.K8SPodNameKey):            "sample_pod_name",
-		string(semconv127.CloudProviderKey):         "sample_cloud_provider",
-		string(semconv127.CloudRegionKey):           "sample_region",
-		string(semconv127.CloudAvailabilityZoneKey): "sample_zone",
-		string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
-		string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
-		string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+		string(semconv.ContainerNameKey):         "sample_app",
+		"container.image.tag":    "sample_app_image_tag",
+		"container.runtime":      "cro",
+		string(semconv.K8SContainerNameKey):      "kube_sample_app",
+		string(semconv.K8SReplicaSetNameKey):     "sample_replica_set",
+		string(semconv.K8SDaemonSetNameKey):      "sample_daemonset_name",
+		string(semconv.K8SPodNameKey):            "sample_pod_name",
+		string(semconv.CloudProviderKey):         "sample_cloud_provider",
+		string(semconv.CloudRegionKey):           "sample_region",
+		string(semconv.CloudAvailabilityZoneKey): "sample_zone",
+		string(semconv.AWSECSTaskFamilyKey):      "sample_task_family",
+		string(semconv.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
+		string(semconv.AWSECSContainerARNKey):    "sample_ecs_container_name",
 		"custom_tag":                                "example_custom_tag",
 		"":                                          "empty_string_key",
 		"empty_string_val":                          "",
@@ -198,8 +195,8 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(conventions.ContainerIDKey): "container_id_goes_here",
-					string(conventions.K8SPodUIDKey):   "k8s_pod_uid_goes_here",
+					string(semconv.ContainerIDKey): "container_id_goes_here",
+					string(semconv.K8SPodUIDKey):   "k8s_pod_uid_goes_here",
 				})
 				return attributes
 			}(),
@@ -210,7 +207,7 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(conventions.ContainerIDKey): "container_id_goes_here",
+					string(semconv.ContainerIDKey): "container_id_goes_here",
 				})
 				return attributes
 			}(),
@@ -221,7 +218,7 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(semconv127.K8SPodUIDKey): "k8s_pod_uid_goes_here",
+					string(semconv.K8SPodUIDKey): "k8s_pod_uid_goes_here",
 				})
 				return attributes
 			}(),
@@ -260,7 +257,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "http.server.request",
 			spanKind: ptrace.SpanKindServer,
 			attrs: map[string]string{
-				string(semconv127.HTTPRequestMethodKey): "GET",
+				string(semconv.HTTPRequestMethodKey): "GET",
 			},
 			expected: "http.server.request",
 		},
@@ -268,7 +265,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "http.client.request",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv127.HTTPRequestMethodKey): "GET",
+				string(semconv.HTTPRequestMethodKey): "GET",
 			},
 			expected: "http.client.request",
 		},
@@ -276,7 +273,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "db.query",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.DBSystemKey): "redis",
+				"db.system": "redis",
 			},
 			expected: "redis.query",
 		},
@@ -284,8 +281,8 @@ func TestGetOperationName(t *testing.T) {
 			name:     "messaging.operation",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.MessagingSystemKey):    "kafka",
-				string(semconv1_12.MessagingOperationKey): "send",
+				string(semconv.MessagingSystemKey):    "kafka",
+				"messaging.operation.type": "send",
 			},
 			expected: "kafka.send",
 		},
@@ -293,7 +290,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "aws.client.request",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.RPCSystemKey): "aws-api",
+				string(semconv.RPCSystemKey): "aws-api",
 			},
 			expected: "aws.client.request",
 		},
@@ -301,8 +298,8 @@ func TestGetOperationName(t *testing.T) {
 			name:     "aws.service.request",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.RPCSystemKey):  "aws-api",
-				string(semconv1_12.RPCServiceKey): "lambda",
+				string(semconv.RPCSystemKey):  "aws-api",
+				string(semconv.RPCServiceKey): "lambda",
 			},
 			expected: "aws.lambda.request",
 		},
@@ -310,7 +307,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "grpc.client.request",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.RPCSystemKey): "grpc",
+				string(semconv.RPCSystemKey): "grpc",
 			},
 			expected: "grpc.client.request",
 		},
@@ -318,7 +315,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "grpc.server.request",
 			spanKind: ptrace.SpanKindServer,
 			attrs: map[string]string{
-				string(semconv1_12.RPCSystemKey): "grpc",
+				string(semconv.RPCSystemKey): "grpc",
 			},
 			expected: "grpc.server.request",
 		},
@@ -326,8 +323,8 @@ func TestGetOperationName(t *testing.T) {
 			name:     "faas.client.request",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.FaaSInvokedProviderKey): "gcp",
-				string(semconv1_12.FaaSInvokedNameKey):     "foo",
+				string(semconv.FaaSInvokedProviderKey): "gcp",
+				string(semconv.FaaSInvokedNameKey):     "foo",
 			},
 			expected: "gcp.foo.invoke",
 		},
@@ -335,7 +332,7 @@ func TestGetOperationName(t *testing.T) {
 			name:     "faas.server.request",
 			spanKind: ptrace.SpanKindServer,
 			attrs: map[string]string{
-				string(semconv1_12.FaaSTriggerKey): "timer",
+				string(semconv.FaaSTriggerKey): "timer",
 			},
 			expected: "timer.invoke",
 		},
@@ -406,8 +403,8 @@ func TestGetResourceName(t *testing.T) {
 			name:     "http - use HTTP route for server spans",
 			spanKind: ptrace.SpanKindServer,
 			attrs: map[string]string{
-				string(semconv127.HTTPRequestMethodKey): "GET",
-				string(semconv127.HTTPRouteKey):         "/",
+				string(semconv.HTTPRequestMethodKey): "GET",
+				string(semconv.HTTPRouteKey):         "/",
 			},
 			expected: "GET /",
 		},
@@ -415,8 +412,8 @@ func TestGetResourceName(t *testing.T) {
 			name:     "http - use HTTP template for client spans",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv127.HTTPRequestMethodKey): "GET",
-				string(semconv127.URLTemplateKey):       "http://example.com/path?query=value",
+				string(semconv.HTTPRequestMethodKey): "GET",
+				string(semconv.URLTemplateKey):       "http://example.com/path?query=value",
 			},
 			expected: "GET http://example.com/path?query=value",
 		},
@@ -424,16 +421,16 @@ func TestGetResourceName(t *testing.T) {
 			name:     "messaging operation",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.MessagingOperationKey):   "send",
-				string(semconv1_12.MessagingDestinationKey): "example.com",
+				"messaging.operation.type":   "send",
+				"messaging.destination.name": "example.com",
 			},
 			expected: "send example.com",
 		}, {
 			name:     "rpc",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.RPCMethodKey):  "get",
-				string(semconv1_12.RPCServiceKey): "example.com",
+				string(semconv.RPCMethodKey):  "get",
+				string(semconv.RPCServiceKey): "example.com",
 			},
 			expected: "get example.com",
 		},
@@ -441,8 +438,8 @@ func TestGetResourceName(t *testing.T) {
 			name:     "graphql",
 			spanKind: ptrace.SpanKindServer,
 			attrs: map[string]string{
-				string(semconv1_17.GraphqlOperationTypeKey): "query",
-				string(semconv1_17.GraphqlOperationNameKey): "myQuery",
+				string(semconv.GraphQLOperationTypeKey): "query",
+				string(semconv.GraphQLOperationNameKey): "myQuery",
 			},
 			expected: "query myQuery",
 		},
@@ -450,8 +447,8 @@ func TestGetResourceName(t *testing.T) {
 			name:     "db statement (old convention)",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.DBSystemKey):    "redis",
-				string(semconv1_12.DBStatementKey): "SELECT * FROM resource",
+				"db.system":    "redis",
+				"db.statement": "SELECT * FROM resource",
 			},
 			expected: "SELECT * FROM resource",
 		},
@@ -459,8 +456,8 @@ func TestGetResourceName(t *testing.T) {
 			name:     "db query",
 			spanKind: ptrace.SpanKindClient,
 			attrs: map[string]string{
-				string(semconv1_12.DBSystemKey):   "redis",
-				string(semconv127.DBQueryTextKey): "SELECT * FROM resource",
+				"db.system":   "redis",
+				string(semconv.DBQueryTextKey): "SELECT * FROM resource",
 			},
 			expected: "SELECT * FROM resource",
 		},
@@ -492,27 +489,27 @@ func TestGetEnv(t *testing.T) {
 		{
 			name: "deployment.environment.name",
 			attrs: map[string]string{
-				string(semconv127.DeploymentEnvironmentNameKey): "prod",
+				string(semconv.DeploymentEnvironmentNameKey): "prod",
 			},
 			expected: "prod",
 		},
 		{
 			name: "deployment.environment",
 			attrs: map[string]string{
-				string(semconv1_17.DeploymentEnvironmentKey): "prod",
+				"deployment.environment": "prod",
 			},
 			expected: "prod",
 		}, {
 			name: "newer convention takes precedence",
 			attrs: map[string]string{
-				string(semconv127.DeploymentEnvironmentNameKey): "prod-127",
-				string(semconv1_17.DeploymentEnvironmentKey):    "prod-117",
+				string(semconv.DeploymentEnvironmentNameKey): "prod-127",
+				"deployment.environment":    "prod-117",
 			},
 			expected: "prod-127",
 		},
 		{
 			name:     "normalization",
-			attrs:    map[string]string{string(semconv127.DeploymentEnvironmentNameKey): "  ENV "},
+			attrs:    map[string]string{string(semconv.DeploymentEnvironmentNameKey): "  ENV "},
 			expected: "_env",
 		},
 		{
@@ -522,7 +519,7 @@ func TestGetEnv(t *testing.T) {
 		{
 			name: "default if explicitly empty",
 			attrs: map[string]string{
-				string(semconv127.DeploymentEnvironmentNameKey): "",
+				string(semconv.DeploymentEnvironmentNameKey): "",
 			},
 			expected: DefaultEnvName,
 		},
@@ -571,13 +568,13 @@ func TestGetSpanType(t *testing.T) {
 		{
 			name:     "client span, db.system",
 			spanKind: ptrace.SpanKindClient,
-			attrs:    map[string]string{string(conventions.DBSystemKey): "redis"},
+			attrs:    map[string]string{"db.system": "redis"},
 			expected: "redis",
 		},
 		{
 			name:     "client span, db.system not in known types",
 			spanKind: ptrace.SpanKindClient,
-			attrs:    map[string]string{string(conventions.DBSystemKey): "other"},
+			attrs:    map[string]string{"db.system": "other"},
 			expected: "db",
 		},
 	}
@@ -600,7 +597,7 @@ func TestGetVersion(t *testing.T) {
 	}{
 		{
 			name:     "service.version",
-			attrs:    map[string]string{string(semconv127.ServiceVersionKey): "1.0.0"},
+			attrs:    map[string]string{string(semconv.ServiceVersionKey): "1.0.0"},
 			expected: "1.0.0",
 		},
 		{
@@ -628,12 +625,12 @@ func TestGetStatusCode(t *testing.T) {
 	}{
 		{
 			name:     "http.status_code",
-			attrs:    map[string]int{string(semconv1_17.HTTPStatusCodeKey): 200},
+			attrs:    map[string]int{"http.status_code": 200},
 			expected: 200,
 		},
 		{
 			name:     "http.response.status_code",
-			attrs:    map[string]int{string(semconv127.HTTPResponseStatusCodeKey): 200},
+			attrs:    map[string]int{string(semconv.HTTPResponseStatusCodeKey): 200},
 			expected: 200,
 		},
 		{
@@ -661,7 +658,7 @@ func TestGetContainerID(t *testing.T) {
 	}{
 		{
 			name:     "container.id",
-			attrs:    map[string]string{string(semconv127.ContainerIDKey): "test-container-id"},
+			attrs:    map[string]string{string(semconv.ContainerIDKey): "test-container-id"},
 			expected: "test-container-id",
 		},
 		{

@@ -30,7 +30,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	semconv16 "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv16 "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"

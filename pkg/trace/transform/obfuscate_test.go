@@ -10,8 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -55,23 +54,23 @@ func TestObfuscateSQLSpan(t *testing.T) {
 		span := &pb.Span{
 			Resource: query,
 			Meta: map[string]string{
-				string(semconv.DBStatementKey): query,
+				"db.statement": query,
 			},
 		}
 		oq, err := ObfuscateSQLSpan(o, span)
 		require.NoError(t, err)
 		require.NotNil(t, oq)
 		// Both resource and db.statement should be obfuscated the same way
-		assert.Equal(t, span.Resource, span.Meta[string(semconv.DBStatementKey)])
+		assert.Equal(t, span.Resource, span.Meta["db.statement"])
 		assert.Equal(t, "SELECT * FROM orders WHERE status = ?", span.Resource)
-		assert.Equal(t, "SELECT * FROM orders WHERE status = ?", span.Meta[string(semconv.DBStatementKey)])
+		assert.Equal(t, "SELECT * FROM orders WHERE status = ?", span.Meta["db.statement"])
 	})
 
 	t.Run("with OTel db.statement different from resource", func(t *testing.T) {
 		span := &pb.Span{
 			Resource: "SELECT name FROM orders WHERE id = 1",
 			Meta: map[string]string{
-				string(semconv.DBStatementKey): "SELECT email FROM users WHERE id = 2",
+				"db.statement": "SELECT email FROM users WHERE id = 2",
 			},
 		}
 		oq, err := ObfuscateSQLSpan(o, span)
@@ -79,7 +78,7 @@ func TestObfuscateSQLSpan(t *testing.T) {
 		require.NotNil(t, oq)
 		// Resource and db.statement should be obfuscated independently
 		assert.Equal(t, "SELECT name FROM orders WHERE id = ?", span.Resource)
-		assert.Equal(t, "SELECT email FROM users WHERE id = ?", span.Meta[string(semconv.DBStatementKey)])
+		assert.Equal(t, "SELECT email FROM users WHERE id = ?", span.Meta["db.statement"])
 	})
 
 	t.Run("with OTel db.query.text matching resource", func(t *testing.T) {
@@ -87,23 +86,23 @@ func TestObfuscateSQLSpan(t *testing.T) {
 		span := &pb.Span{
 			Resource: query,
 			Meta: map[string]string{
-				string(semconv126.DBQueryTextKey): query,
+				string(semconv.DBQueryTextKey): query,
 			},
 		}
 		oq, err := ObfuscateSQLSpan(o, span)
 		require.NoError(t, err)
 		require.NotNil(t, oq)
 		// Both resource and db.query.text should be obfuscated the same way
-		assert.Equal(t, span.Resource, span.Meta[string(semconv126.DBQueryTextKey)])
+		assert.Equal(t, span.Resource, span.Meta[string(semconv.DBQueryTextKey)])
 		assert.Equal(t, "SELECT * FROM products WHERE price > ?", span.Resource)
-		assert.Equal(t, "SELECT * FROM products WHERE price > ?", span.Meta[string(semconv126.DBQueryTextKey)])
+		assert.Equal(t, "SELECT * FROM products WHERE price > ?", span.Meta[string(semconv.DBQueryTextKey)])
 	})
 
 	t.Run("with OTel db.query.text different from resource", func(t *testing.T) {
 		span := &pb.Span{
 			Resource: "SELECT name FROM orders WHERE id = 1",
 			Meta: map[string]string{
-				string(semconv126.DBQueryTextKey): "SELECT title FROM products WHERE id = 2",
+				string(semconv.DBQueryTextKey): "SELECT title FROM products WHERE id = 2",
 			},
 		}
 		oq, err := ObfuscateSQLSpan(o, span)
@@ -111,7 +110,7 @@ func TestObfuscateSQLSpan(t *testing.T) {
 		require.NotNil(t, oq)
 		// Resource and db.query.text should be obfuscated independently
 		assert.Equal(t, "SELECT name FROM orders WHERE id = ?", span.Resource)
-		assert.Equal(t, "SELECT title FROM products WHERE id = ?", span.Meta[string(semconv126.DBQueryTextKey)])
+		assert.Equal(t, "SELECT title FROM products WHERE id = ?", span.Meta[string(semconv.DBQueryTextKey)])
 	})
 
 }
