@@ -48,7 +48,7 @@ func TestCalculateBucketStart(t *testing.T) {
 
 func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -83,7 +83,7 @@ func TestBucketSampling(t *testing.T) {
 
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -151,7 +151,7 @@ func TestContextSampling(t *testing.T) {
 
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -284,7 +284,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 	var (
 		sampler = testTimeSampler(store)
-		matcher = strings.NewMatcher([]string{}, false, map[string][]string{})
+		matcher = strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -353,7 +353,7 @@ func TestSketch(t *testing.T) {
 
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -400,7 +400,7 @@ func TestSketchBucketSampling(t *testing.T) {
 
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -454,7 +454,7 @@ func TestSketchContextSampling(t *testing.T) {
 
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -514,7 +514,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 
 func testFlushMissingContext(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
@@ -546,7 +546,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 	matcher := strings.NewMatcher([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
-	}, false, map[string][]string{})
+	}, false, map[string]strings.TagMatcher{})
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
@@ -593,7 +593,7 @@ func TestFlushFilterList(t *testing.T) {
 
 func TestForcedFlush(t *testing.T) {
 	sampler := testTimeSampler(tags.NewStore(false, "test"))
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	testMetric1 := &metrics.MetricSample{
 		Name:       "test.count1",
 		Value:      1,
@@ -670,7 +670,7 @@ func TestForcedFlush(t *testing.T) {
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",

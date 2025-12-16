@@ -17,7 +17,7 @@ import (
 
 func benchmarkContextResolver(numContexts int, b *testing.B) {
 	var samples []metrics.MetricSample
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 
 	for i := 0; i < numContexts; i++ {
 		samples = append(samples, metrics.MetricSample{

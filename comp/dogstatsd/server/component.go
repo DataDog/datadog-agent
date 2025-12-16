@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"go.uber.org/fx"
 )
 
@@ -30,7 +31,7 @@ type Component interface {
 	UDPLocalAddr() string
 
 	// SetFilterList sets the filterlist to apply when parsing metrics from the DogStatsD listener.
-	SetFilterList([]string, bool, map[string][]string)
+	SetFilterList([]string, bool, map[string]utilstrings.TagMatcher)
 }
 
 // Mock implements mock-specific methods.

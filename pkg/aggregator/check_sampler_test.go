@@ -37,7 +37,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -101,7 +101,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -156,7 +156,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -224,7 +224,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
 		Value:           4.0,
@@ -304,7 +304,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
 		Value:           4.0,
@@ -361,7 +361,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
 		Value:           6.0,
@@ -443,7 +443,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
 		Value:      4.0,
@@ -480,7 +480,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -516,7 +516,7 @@ func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "custom.metric.one",
 		Value:      50.0,
@@ -592,7 +592,7 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
-	matcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false, map[string][]string{})
+	matcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false, map[string]strings.TagMatcher{})
 	mSample1 := metrics.MetricSample{
 		Name:       "custom.distribution.one",
 		Value:      10.0,

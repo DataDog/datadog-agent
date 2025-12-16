@@ -16,12 +16,19 @@ import (
 type Matcher struct {
 	data        []string
 	matchPrefix bool
-	tags        map[string][]string
+	tags        map[string]TagMatcher
+}
+
+type TagMatcher struct {
+	Tags []string
+	// If Negated == false, we keep only the provided tags (allow list).
+	// If Negated == true, we strip the provided tags (deny list).
+	Negated bool
 }
 
 // NewMatcher creates a new strings matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
-func NewMatcher(data []string, matchPrefix bool, tags map[string][]string) Matcher {
+func NewMatcher(data []string, matchPrefix bool, tags map[string]TagMatcher) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -41,7 +48,7 @@ func NewMatcher(data []string, matchPrefix bool, tags map[string][]string) Match
 
 	// Ensure all tags are sorted
 	for _, v := range tags {
-		sort.Strings(v)
+		sort.Strings(v.Tags)
 	}
 
 	// Invariants for data:
@@ -97,40 +104,6 @@ func (m *Matcher) ShouldStripTags(name string) (TagMatcher, bool) {
 	return tags, ok
 }
 
-type TagMatcher []string
-
-// StripTagsMut removes the configured tag from the given tags.
-// Returns the stripped tags and a boolean that is true if any tags
-// were actually removed.
-// NOTE, this mutates the passed in tag list and does not allocate a new
-// array. If the tags are coming from a cached store of tags, use
-// StripTags instead
-func (tm TagMatcher) StripTagsMut(tags []string) ([]string, bool) {
-	stripped := false
-	idx := 0
-	for _, tag := range tags {
-		tagNamePos := strings.Index(tag, ":")
-		if tagNamePos == 0 {
-			// Invalid tag
-			continue
-		}
-		if tagNamePos < 0 {
-			tagNamePos = len(tag)
-		}
-
-		tagName := tag[:tagNamePos]
-		if !slices.Contains(tm, tagName) {
-			tags[idx] = tag
-			idx++
-		} else {
-			stripped = true
-		}
-	}
-	tags = tags[0:idx]
-
-	return tags, stripped
-}
-
 // tagName extracts the tag name portion from the tag.
 func tagName(tag string) string {
 	tagNamePos := strings.Index(tag, ":")
@@ -145,6 +118,30 @@ func tagName(tag string) string {
 	return tag[:tagNamePos]
 }
 
+// StripTagsMut removes the configured tag from the given tags.
+// Returns the stripped tags and a boolean that is true if any tags
+// were actually removed.
+// NOTE, this mutates the passed in tag list and does not allocate a new
+// array. If the tags are coming from a cached store of tags, use
+// StripTags instead
+func (tm TagMatcher) StripTagsMut(tags []string) ([]string, bool) {
+	stripped := false
+	idx := 0
+	for _, tag := range tags {
+		tagName := tagName(tag)
+		pos := sort.SearchStrings(tm.Tags, tagName)
+		if (pos < len(tm.Tags) && tm.Tags[pos] == tagName) != tm.Negated {
+			tags[idx] = tag
+			idx++
+		} else {
+			stripped = true
+		}
+	}
+	tags = tags[0:idx]
+
+	return tags, stripped
+}
+
 // StripTags removes the configured tag from the given tags.
 // Returns the stripped tags and a boolean that is true if any tags
 // were actually removed.
@@ -154,7 +151,9 @@ func (tm TagMatcher) StripTags(tags []string) ([]string, bool) {
 	stripped := false
 	idx := 0
 	for _, tag := range tags {
-		if !slices.Contains(tm, tagName(tag)) {
+		tagName := tagName(tag)
+		pos := sort.SearchStrings(tm.Tags, tagName)
+		if (pos < len(tm.Tags) && tm.Tags[pos] == tagName) != tm.Negated {
 			idx++
 		} else {
 			stripped = true
@@ -166,7 +165,9 @@ func (tm TagMatcher) StripTags(tags []string) ([]string, bool) {
 		// A tag needs to be stripped, create a new list
 		result := append([]string{}, tags[0:idx]...)
 		for _, tag := range tags[idx:] {
-			if !slices.Contains(tm, tagName(tag)) {
+			tagName := tagName(tag)
+			pos := sort.SearchStrings(tm.Tags, tagName)
+			if (pos < len(tm.Tags) && tm.Tags[pos] == tagName) != tm.Negated {
 				result = append(result, tag)
 			}
 		}

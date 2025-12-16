@@ -108,7 +108,7 @@ type cachedOriginCounter struct {
 type localFilterListConfig struct {
 	metricNames []string
 	matchPrefix bool
-	tags        map[string][]string
+	tags        map[string]utilstrings.TagMatcher
 }
 
 // Server represent a Dogstatsd server
@@ -544,7 +544,7 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 // SetFilterList updates the metric names filter on all running worker.
-func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[string][]string) {
+func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[string]utilstrings.TagMatcher) {
 	s.log.Debugf("SetFilterList with %d metrics, %d metrics with tags", len(metricNames), len(tags))
 
 	// we will use two different filterlists:
@@ -637,7 +637,7 @@ func (s *server) handleMessages() {
 		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
 
-	tagFilterList := s.config.GetStringMapStringSlice("tag_filterlist")
+	tagFilterList := s.loadTagFilterList()
 
 	s.localFilterListConfig = localFilterListConfig{
 		metricNames: filterlist,
@@ -645,6 +645,33 @@ func (s *server) handleMessages() {
 		tags:        tagFilterList,
 	}
 	s.restoreFilterListFromLocalConfig()
+}
+
+func (s *server) loadTagFilterList() map[string]utilstrings.TagMatcher {
+	tagFilterListInterface := s.config.GetStringMap("tag_filterlist")
+	tagFilterList := make(map[string]utilstrings.TagMatcher, len(tagFilterListInterface))
+	for metricName, tags := range tagFilterListInterface {
+		// Tags can be configured as a simple array of tags - default to negated.
+		arr, ok := tags.([]string)
+		if ok {
+			tagFilterList[metricName] = utilstrings.TagMatcher{
+				Tags:    arr,
+				Negated: true,
+			}
+		} else {
+			// Or tags can be configured as an object with fields:
+			// tags - array of tags
+			// negated - boolean to indicate negated.
+			tag, ok := tags.(utilstrings.TagMatcher)
+			if ok {
+				tagFilterList[metricName] = tag
+			} else {
+				s.log.Errorf("invalid configuration for `tag_filterlist` %s", metricName)
+
+			}
+		}
+	}
+	return tagFilterList
 }
 
 func (s *server) restoreFilterListFromLocalConfig() {

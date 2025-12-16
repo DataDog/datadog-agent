@@ -100,7 +100,7 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		s.tlmFilterListSize.Set(float64(len(metricNames)))
 
 		// TODO This should come from RC too.
-		tagFilterList := s.config.GetStringMapStringSlice("tag_filterlist")
+		tagFilterList := s.loadTagFilterList()
 		s.SetFilterList(metricNames, false, tagFilterList)
 	} else {
 		// special case: if the metric names list is empty, fallback to local
