@@ -6,7 +6,7 @@ visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio"
 
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
-bazel_dep(name = "package_metadata", version = "0.0.6")
+bazel_dep(name = "package_metadata", version = "0.0.7")
 
 # Instead of the canonical rules_license, we use the version from supply-chain.
 # This allows mixing both old and new license rules during the multi-year
@@ -31,11 +31,11 @@ bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
-# Temporary until a future rules_pkg release
-git_override(
+# Temporary until rules_pkg 1.2.0 is in BCR
+archive_override(
     module_name = "rules_pkg",
-    commit = "46bd2689886984c2b77d6005595f351e404dfa57",
-    remote = "https://github.com/bazelbuild/rules_pkg",
+    sha256 = "b5c9184a23bb0bcff241981fd9d9e2a97638a1374c9953bb1808836ce711f990",
+    urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.2.0/rules_pkg-1.2.0.tar.gz"],
 )
 
 #########################
@@ -177,6 +177,11 @@ include("//deps/openssl3:openssl3.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/secret_connector:secret_connector.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.

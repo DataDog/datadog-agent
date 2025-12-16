@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The NTP check now submits the ``ntp.offset`` metric using the timestamp
+    returned by the NTP server rather than the local system clock. This restores
+    the behavior present in Agent v5 and prevents incorrect metric alignment
+    when host clocks are skewed.

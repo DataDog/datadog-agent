@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -22,7 +23,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.45.0-1"
 	databricksJavaTracerVersion = "1.55.0-1"
-	databricksAgentVersion      = "7.71.1-1"
+	databricksAgentVersion      = "7.72.3-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -30,7 +31,8 @@ const (
 var (
 	jobNameRegex       = regexp.MustCompile(`[,\']+`)
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
-	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	workspaceNameRegex = regexp.MustCompile(`[^\p{L}\p{N}_:./-]+`)
+	dedupeUnderscores  = regexp.MustCompile(`_+`)
 	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
@@ -49,6 +51,32 @@ var (
 		{
 			Type:    "file",
 			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+	}
+	driverLogsStandardAccessMode = []config.IntegrationConfigLogs{
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/*.log",
+			Source:                 "driver_logs",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/stderr",
+			Source:                 "driver_stderr",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:    "file",
+			Path:    "/var/log/databricks_privileged/stdout",
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
@@ -135,6 +163,43 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
+// normalizeWorkspaceName normalizes a workspace name to match Python's normalize_tags behavior:
+// 1. Convert to all lowercase unicode string
+// 2. Trim leading/trailing quotes
+// 3. Convert bad characters to underscores
+// 4. Dedupe contiguous underscores
+// 5. Remove initial underscores/digits such that the string starts with an alpha char
+// 6. Truncate to 200 characters
+// 7. Strip trailing underscores
+func normalizeWorkspaceName(value string) string {
+	if value == "" {
+		return ""
+	}
+	normalized := strings.ToLower(value)
+	normalized = strings.Trim(normalized, "\"'")
+	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
+	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
+
+	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
+		normalized = strings.TrimLeft(normalized, "_")
+		if len(normalized) > 0 && unicode.IsDigit([]rune(normalized)[0]) {
+			normalized = strings.TrimLeft(normalized, "_:0123456789")
+		}
+	}
+
+	if len(normalized) > 200 {
+		normalized = normalized[:200]
+	}
+	return strings.TrimRight(normalized, "_")
+}
+
+func prefixWithWorkspace(normalizedWorkspace, value string) string {
+	if normalizedWorkspace != "" {
+		return normalizedWorkspace + "-" + value
+	}
+	return value
+}
+
 func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
@@ -151,13 +216,13 @@ func setupCommonHostTags(s *common.Setup) {
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
 
+	// for legacy reasons, we keep databricks_workspace un-normalized and normalized in workspace
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
-	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
-		v = strings.ToLower(v)
-		v = strings.Trim(v, "\"'")
-		return workspaceNameRegex.ReplaceAllString(v, "_")
-	})
-	// No need to normalize workspace url:  metrics tags normalization allows the :/-, usually found in such url
+	var normalizedWorkspace string
+	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
+		normalizedWorkspace = normalizeWorkspaceName(workspace)
+		setClearHostTag(s, "workspace", normalizedWorkspace)
+	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -169,16 +234,18 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
-		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, jobID))
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	// Set databricks_cluster resource tag based on whether we're on a job cluster
 	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
 	if isJobCluster == "TRUE" && ok {
-		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
 	} else {
-		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+		if clusterID, ok := os.LookupEnv("DB_CLUSTER_ID"); ok {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
+		}
 	}
 
 	addCustomHostTags(s)
@@ -251,6 +318,29 @@ func setupGPUIntegration(s *common.Setup) {
 	s.DelayedAgentRestartConfig.LogFile = restartLogFile
 }
 
+func setupPrivilegedLogs(s *common.Setup) {
+	s.Out.WriteString("Setting up privileged logs with system probe for standard access mode\n")
+	s.Span.SetTag("host_tag_set.privileged_logs_enabled", "true")
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
+
+	if err := os.MkdirAll("/var/log/databricks_privileged", 0755); err != nil {
+		log.Warnf("Failed to create /var/log/databricks_privileged directory: %v", err)
+		return
+	}
+	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
+		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
+		return
+	}
+	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks_privileged")
+	if err != nil {
+		log.Warnf("Failed to mount driver logs: %v", err)
+	}
+}
+
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
@@ -258,8 +348,15 @@ func setupDatabricksDriver(s *common.Setup) {
 	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
-		sparkIntegration.Logs = driverLogs
-		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+			sparkIntegration.Logs = driverLogsStandardAccessMode
+			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
+		} else {
+			sparkIntegration.Logs = driverLogs
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -284,6 +381,10 @@ func setupDatabricksWorker(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
 		sparkIntegration.Instances = []any{

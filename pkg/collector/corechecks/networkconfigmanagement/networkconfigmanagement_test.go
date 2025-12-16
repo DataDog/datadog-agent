@@ -312,12 +312,13 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection refused")
 }
 
-func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
+func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	check := createTestCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
+	t.Cleanup(profile.ResetProfilesPath)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
@@ -331,7 +332,7 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 	err = check.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "command execution failed")
+	assert.Contains(t, err.Error(), "unable to find matching profile for device 10.0.0.1")
 	assert.True(t, mockClient.Closed, "Remote client should be closed even on failure")
 }
 
