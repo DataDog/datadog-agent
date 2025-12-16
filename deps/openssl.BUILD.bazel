@@ -259,29 +259,6 @@ filegroup(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
-filegroup(
-    name = "openssl_bin",
-    srcs = [":openssl"],
-    output_group = "openssl",
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
-)
-
-pkg_files(
-    name = "openssl_bin_file",
-    srcs = [":openssl_bin"],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "bin",
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
-)
-
 pkg_files(
     name = "dll_a",
     srcs = [
@@ -331,7 +308,6 @@ pkg_install(
         "//conditions:default": [
             ":openssl_bin_file",
             ":openssl_pkgconfig",
-            ":openssl_bin_file",
         ],
     }),
 )
