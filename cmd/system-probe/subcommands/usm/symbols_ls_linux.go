@@ -18,29 +18,24 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // makeSymbolsLsCommand returns the "usm symbols ls" cobra command.
-func makeSymbolsLsCommand(globalParams *command.GlobalParams) *cobra.Command {
+func makeSymbolsLsCommand(_ *command.GlobalParams) *cobra.Command {
 	var dynamic bool
 
-	cmd := makeOneShotCommand(
-		globalParams,
-		"ls",
-		"List symbols from binary files",
-		func(sysprobeconfig sysconfigcomponent.Component, params *command.GlobalParams) error {
-			return runSymbolsLs(sysprobeconfig, params, dynamic)
+	cmd := &cobra.Command{
+		Use:   "ls <binary-file>",
+		Short: "List symbols from binary files",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return runSymbolsLs(args[0], dynamic)
 		},
-	)
+	}
 
 	cmd.Flags().BoolVar(&dynamic, "dynamic", false,
 		"Display dynamic symbols instead of static symbols")
-
-	// symbols ls takes a file path as argument
-	cmd.Args = cobra.MinimumNArgs(1)
-	cmd.Use = "ls [flags] <binary-file>"
 
 	return cmd
 }
@@ -51,23 +46,7 @@ type indexedSymbol struct {
 }
 
 // runSymbolsLs is the main implementation of the symbols ls command.
-func runSymbolsLs(_ sysconfigcomponent.Component, _ *command.GlobalParams, dynamic bool) error {
-	// Get the file path from cobra args
-	// Note: cobra.Command.Args validation ensures we have at least 1 arg
-	args := os.Args
-
-	// Find the file path argument (last non-flag argument)
-	var filePath string
-	for i := len(args) - 1; i >= 0; i-- {
-		if args[i][0] != '-' && i > 0 {
-			filePath = args[i]
-			break
-		}
-	}
-
-	if filePath == "" {
-		return fmt.Errorf("no binary file specified")
-	}
+func runSymbolsLs(filePath string, dynamic bool) error {
 
 	// Open the ELF file
 	elfFile, err := safeelf.Open(filePath)
