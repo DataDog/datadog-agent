@@ -72,8 +72,6 @@ func (t *Tailer) forwardMessages() {
 			origin.SetTags(output.ParsingExtra.Tags)
 			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 			msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-			// Copy ProcessingTags from decoder output (e.g., auto multiline detection tags)
-			msg.ProcessingTags = output.ProcessingTags
 			t.outputChan <- msg
 		}
 	}

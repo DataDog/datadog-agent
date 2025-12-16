@@ -400,10 +400,7 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-	msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-	// Copy ProcessingTags from decoder output (e.g., auto multiline detection tags)
-	msg.ProcessingTags = output.ProcessingTags
-	return msg
+	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
 }
 
 // forward forwards decoded messages to the next pipeline,
