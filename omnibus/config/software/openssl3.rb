@@ -33,7 +33,8 @@ relative_path "openssl-#{version}"
 
 build do
   # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
-  if !windows?
+  # Also, excluding openssl build for FIPS as it will be built as part of the FIPS provider.
+  if !windows? && !fips_mode?
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     lib_extension = if linux_target? then ".so" else ".dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \

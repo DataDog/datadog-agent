@@ -32,5 +32,12 @@ build do
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
         " #{install_dir}/embedded/lib/ossl-modules/fips.so" \
+        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+        " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
+        " #{install_dir}/embedded/bin/openssl"
+      command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{install_dir}/embedded" \
+        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
     end
 end
