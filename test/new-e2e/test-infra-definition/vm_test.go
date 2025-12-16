@@ -14,9 +14,10 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -52,6 +53,7 @@ type vmTestCase struct {
 }
 
 func TestVMSuite(t *testing.T) {
+	t.Log("Trying to log something")
 	testCases := []vmTestCase{
 		{
 			testName:    "testWithAMI",
