@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 func TestPayloadsBuilderV3(t *testing.T) {
@@ -347,4 +348,143 @@ func TestPayloadsBuilderV3_Tags(t *testing.T) {
 	require.Contains(t, payload, "t2")
 	require.Contains(t, payload, "t3")
 	require.Contains(t, payload, "t4")
+}
+
+func TestPayloadsBuilderV3_Sketch(t *testing.T) {
+	r := assert.New(t)
+	const ts = 1756737057
+
+	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
+	sketches := metrics.SketchSeriesList{
+		{
+			Name:    "serie1",
+			NoIndex: true,
+			Points:  pointsOf(ts, 0, 0),
+		}, {
+			Name:    "serie2",
+			NoIndex: false,
+			Tags:    tags,
+			Points:  pointsOf(ts, -1, 0, 1),
+		}, {
+			Name:    "serie3",
+			NoIndex: false,
+			Tags:    tags,
+			Host:    "test.example",
+			Source:  metrics.MetricSourceDogstatsd,
+			Points:  pointsOf(ts, 0.5, -0.5),
+		}, {
+			Name:    "serie4",
+			NoIndex: true,
+			Host:    "test.example",
+			Source:  metrics.MetricSourceCassandra,
+			Points:  pointsOf(ts, 3.14159, 2.71),
+		},
+	}
+
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	require.NoError(t, err)
+
+	for _, sk := range sketches {
+		r.NoError(pb.writeSketch(sk))
+	}
+	r.NoError(pb.finishPayload())
+	r.NotEmpty(pipelineContext.payloads)
+
+	r.Equal([]byte{
+		// metricData
+		3<<3 | 2, 247, 1,
+
+		// dictNameStr
+		1<<3 | 2, 28,
+		/* 1 */ 6, 0x73, 0x65, 0x72, 0x69, 0x65, 0x31, // "serie1"
+		/* 2 */ 6, 0x73, 0x65, 0x72, 0x69, 0x65, 0x32, // "serie2"
+		/* 3 */ 6, 0x73, 0x65, 0x72, 0x69, 0x65, 0x33, // "serie3"
+		/* 4 */ 6, 0x73, 0x65, 0x72, 0x69, 0x65, 0x34, // "serie4"
+
+		// dictTagsStr
+		2<<3 | 2, 16,
+		/* 2 */ 3, 0x62, 0x61, 0x72, // "bar"
+		/* 1 */ 3, 0x66, 0x6f, 0x6f, // "foo"
+		/* 4 */ 3, 0x65, 0x65, 0x6b, // "eek"
+		/* 3 */ 3, 0x6f, 0x6f, 0x6b, // "ook"
+
+		// dictTagsets
+		3<<3 | 2, 7,
+		/* 1 */ 4, 0x2, 0x2,
+		/* 2 */ 6, 0x1, 0x8, 0x02,
+
+		// dictResourceStr
+		4<<3 | 2, 18,
+		/* 1 */ 4, 0x68, 0x6f, 0x73, 0x74,
+		/* 2 */ 12, 0x74, 0x65, 0x73, 0x74, 0x2e, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+		// dictResourcesLen
+		5<<3 | 2, 1, 0x1,
+		// dictResourceType
+		6<<3 | 2, 1, 0x2,
+		// dictResourceName
+		7<<3 | 2, 1, 0x4,
+
+		// dictOrigin
+		9<<3 | 2, 9,
+		/* 1 */ 10, 0, 0,
+		/* 2 */ 10, 10, 0,
+		/* 3 */ 10, 11, 28,
+
+		// type
+		10<<3 | 2, 6, 0x84, 0x2, 0x14, 0x24, 0xb4, 0x2,
+		// nameRef
+		11<<3 | 2, 4, 2, 2, 2, 2,
+		// tagsRef
+		12<<3 | 2, 4, 0, 4, 0, 3,
+		// resourcesRef
+		13<<3 | 2, 4, 0, 0, 2, 0,
+		// interval
+		14<<3 | 2, 4, 0, 0, 0, 0,
+		// numPoints
+		15<<3 | 2, 4, 1, 1, 1, 1,
+		// timestamp
+		16<<3 | 2, 1, 8, 0xc2, 0xb8, 0xad, 0x8b, 0xd, 0, 0, 0,
+		// valueSint64
+		17<<3 | 2, 1, 7,
+		4,          // sketch 0 cnt
+		0, 1, 2, 6, // sketch 1 sum, min, max, cnt
+		4, // sketch 2 cnt
+		4, // sketch 3 cnt
+
+		// valueFloat32
+		18<<3 | 2, 1, 12, 0, 0, 0, 0, 0, 0, 0, 191, 0, 0, 0, 63,
+		// valueFloat64
+		19<<3 | 2, 1, 24,
+		14, 103, 126, 53, 7, 104, 23, 64, // list(pack('<ddd', 3.14159 + 2.71, 2.71, 3.14159))
+		174, 71, 225, 122, 20, 174, 5, 64,
+		110, 134, 27, 240, 249, 33, 9, 64,
+
+		// sketchNumBins
+		20<<3 | 2, 1, 4, 1, 3, 2, 2,
+		// sketchBinKeys
+		21<<3 | 2, 1, 14,
+		0,
+		243, 20, 244, 20, 244, 20,
+		153, 20, 180, 40,
+		244, 21, 20,
+
+		// sketchBinCnts
+		22<<3 | 2, 1, 8, 2, 1, 1, 1, 1, 1, 1, 1,
+		// sourceTypeNameRef
+		23<<3 | 2, 1, 4, 0, 0, 0, 0,
+		// originRef
+		24<<3 | 2, 1, 4, 2, 0, 2, 2,
+	}, pipelineContext.payloads[0].GetContent())
+}
+
+func pointsOf(ts int64, v ...float64) []metrics.SketchPoint {
+	s := &quantile.Sketch{}
+	s.InsertMany(quantile.Default(), v)
+	return []metrics.SketchPoint{{Ts: ts, Sketch: s}}
 }
