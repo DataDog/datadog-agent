@@ -53,7 +53,7 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    - export DD_CIVISIBILITY_ENABLED=true
+    # - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
