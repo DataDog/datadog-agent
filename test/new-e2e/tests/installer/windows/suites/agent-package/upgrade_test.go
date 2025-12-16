@@ -109,7 +109,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
-	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
