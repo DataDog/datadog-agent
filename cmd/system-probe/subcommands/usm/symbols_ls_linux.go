@@ -152,6 +152,10 @@ func runSymbolsLs(_ sysconfigcomponent.Component, _ *command.GlobalParams, dynam
 	return nil
 }
 
+const (
+	sizeOfUint16 = 2
+)
+
 // getSymbolVersions extracts version information for dynamic symbols.
 // Returns a map from symbol index to version string (e.g., "@GLIBC_2.17").
 func getSymbolVersions(elfFile *safeelf.File) map[int]string {
@@ -214,9 +218,9 @@ func getSymbolVersions(elfFile *safeelf.File) map[int]string {
 	// Map each symbol to its version
 	// Note: DynamicSymbols() skips the null symbol at index 0, but .gnu.version includes it
 	// So .gnu.version[0] is for null, .gnu.version[1] is for DynamicSymbols()[0], etc.
-	for i := 0; i < len(versionData)/2; i++ {
+	for i := 0; i < len(versionData)/sizeOfUint16; i++ {
 		// Each entry is 2 bytes (uint16)
-		versionIdx := uint16(versionData[i*2]) | (uint16(versionData[i*2+1]) << 8)
+		versionIdx := uint16(versionData[i*sizeOfUint16]) | (uint16(versionData[i*sizeOfUint16+1]) << 8)
 
 		// Version index 0 and 1 are special (local and global)
 		if versionIdx > 1 {
