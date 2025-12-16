@@ -163,7 +163,7 @@ func createDNSFilters(dnsMonitoringPorts []int) ([]driver.FilterDefinition, erro
 			Size:           driver.FilterDefinitionSize,
 			FilterLayer:    driver.LayerTransport,
 			Af:             windows.AF_INET,
-			RemotePort:     uint16(p),
+			RemotePort:     uint64(p),
 			InterfaceIndex: uint64(0),
 			Direction:      driver.DirectionOutbound,
 		})
@@ -173,7 +173,7 @@ func createDNSFilters(dnsMonitoringPorts []int) ([]driver.FilterDefinition, erro
 			Size:           driver.FilterDefinitionSize,
 			FilterLayer:    driver.LayerTransport,
 			Af:             windows.AF_INET,
-			RemotePort:     uint16(p),
+			RemotePort:     uint64(p),
 			InterfaceIndex: uint64(0),
 			Direction:      driver.DirectionInbound,
 		})

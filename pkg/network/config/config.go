@@ -258,8 +258,8 @@ func New() *Config {
 		DNSInspection:       !cfg.GetBool(sysconfig.FullKeyPath(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_stats")),
 		CollectLocalDNS:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_local_dns")),
-		CollectDNSDomains: cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
-		MaxDNSStats:       cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
+		CollectDNSDomains:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(sysconfig.FullKeyPath(spNS, "dns_timeout_in_s"))) * time.Second,
 

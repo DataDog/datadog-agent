@@ -188,10 +188,10 @@ func buildIPv4Packet(proto uint8, srcPort, dstPort uint16) []byte {
 	packet[13] = 0x00 // IPv4
 
 	// IPv4 header (20 bytes, starting at offset 14)
-	packet[14] = 0x45           // version=4, IHL=5 (20 bytes)
-	packet[23] = proto          // Protocol (TCP=6, UDP=17)
-	packet[20] = 0              // Fragment offset = 0 (no fragmentation)
-	packet[21] = 0              // Fragment offset (low bits)
+	packet[14] = 0x45  // version=4, IHL=5 (20 bytes)
+	packet[23] = proto // Protocol (TCP=6, UDP=17)
+	packet[20] = 0     // Fragment offset = 0 (no fragmentation)
+	packet[21] = 0     // Fragment offset (low bits)
 
 	// TCP/UDP ports start at offset 14 + 20 = 34
 	binary.BigEndian.PutUint16(packet[34:36], srcPort)
@@ -208,8 +208,8 @@ func buildIPv6Packet(proto uint8, srcPort, dstPort uint16) []byte {
 	packet[13] = 0xdd // IPv6
 
 	// IPv6 header (40 bytes, starting at offset 14)
-	packet[14] = 0x60          // version=6
-	packet[20] = proto         // Next Header (TCP=6, UDP=17)
+	packet[14] = 0x60  // version=6
+	packet[20] = proto // Next Header (TCP=6, UDP=17)
 
 	// TCP/UDP ports start at offset 14 + 40 = 54
 	binary.BigEndian.PutUint16(packet[54:56], srcPort)
