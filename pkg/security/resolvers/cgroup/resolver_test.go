@@ -44,9 +44,9 @@ func createTestResolver(t *testing.T) (*Resolver, *MockCGroupFS) {
 	return resolver, mockCGroupFS
 }
 
-// createTestProcess creates a ProcessCacheEntry for testing
-func createTestProcess(pid, ppid uint32, containerID containerutils.ContainerID) *model.ProcessCacheEntry {
-	process := &model.ProcessCacheEntry{
+// createTestProcessCacheEntry creates a ProcessCacheEntry for testing
+func createTestProcessCacheEntry(pid, ppid uint32, containerID containerutils.ContainerID) *model.ProcessCacheEntry {
+	pce := &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
 				PIDContext: model.PIDContext{
@@ -68,12 +68,12 @@ func createTestProcess(pid, ppid uint32, containerID containerutils.ContainerID)
 			},
 		},
 	}
-	return process
+	return pce
 }
 
 func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	expectedContext := utils.CGroupContext{
 		CGroupID:          "test-cgroup-id",
@@ -89,13 +89,13 @@ func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 		nil,
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	cgroupContext, containerContext, result := resolver.ResolveFromFallback(pce)
 
 	assert.True(t, result)
-	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), process.CGroup.CGroupID)
-	assert.Equal(t, uint32(42), process.CGroup.CGroupFile.MountID)
-	assert.Equal(t, uint64(9876), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("container-123"), process.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), cgroupContext.CGroupID)
+	assert.Equal(t, uint32(42), cgroupContext.CGroupFile.MountID)
+	assert.Equal(t, uint64(9876), cgroupContext.CGroupFile.Inode)
+	assert.Equal(t, containerutils.ContainerID("container-123"), containerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }
@@ -104,7 +104,7 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
 
 	// Test case 1: PPid equals Pid
-	process1 := createTestProcess(1234, 1234, "")
+	pce1 := createTestProcessCacheEntry(1234, 1234, "")
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
 		containerutils.ContainerID(""),
 		utils.CGroupContext{},
@@ -112,11 +112,11 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	result1 := resolver.resolvePidCgroupFallback(process1)
+	_, _, result1 := resolver.ResolveFromFallback(pce1)
 	assert.False(t, result1)
 
 	// Test case 2: PPid is 0
-	process2 := createTestProcess(1234, 0, "")
+	pce2 := createTestProcessCacheEntry(1234, 0, "")
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
 		containerutils.ContainerID(""),
 		utils.CGroupContext{},
@@ -124,7 +124,7 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	result2 := resolver.resolvePidCgroupFallback(process2)
+	_, _, result2 := resolver.ResolveFromFallback(pce2)
 	assert.False(t, result2)
 
 	mockFS.AssertExpectations(t)
@@ -132,7 +132,7 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 
 func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	// Add parent cgroup to history
 	parentInode := uint64(9999)
@@ -157,12 +157,12 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	cgroupContext, _, result := resolver.ResolveFromFallback(pce)
 
 	assert.True(t, result)
-	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), process.CGroup.CGroupID)
-	assert.Equal(t, uint32(123), process.CGroup.CGroupFile.MountID)
-	assert.Equal(t, parentInode, process.CGroup.CGroupFile.Inode)
+	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cgroupContext.CGroupID)
+	assert.Equal(t, uint32(123), cgroupContext.CGroupFile.MountID)
+	assert.Equal(t, parentInode, cgroupContext.CGroupFile.Inode)
 	// Note: containerutils.FindContainerID would be called here, but we can't easily mock it
 	// in this example as it's a package function
 
@@ -171,7 +171,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 
 func TestResolvePidCgroupFallback_SuccessFromParentProc(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	expectedContext := utils.CGroupContext{
 		CGroupID:          "parent-cgroup-id",
@@ -195,20 +195,20 @@ func TestResolvePidCgroupFallback_SuccessFromParentProc(t *testing.T) {
 		nil,
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	cgroupContext, containerContext, result := resolver.ResolveFromFallback(pce)
 
 	assert.True(t, result)
-	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), process.CGroup.CGroupID)
-	assert.Equal(t, uint32(567), process.CGroup.CGroupFile.MountID)
-	assert.Equal(t, uint64(8888), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("parent-container-456"), process.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cgroupContext.CGroupID)
+	assert.Equal(t, uint32(567), cgroupContext.CGroupFile.MountID)
+	assert.Equal(t, uint64(8888), cgroupContext.CGroupFile.Inode)
+	assert.Equal(t, containerutils.ContainerID("parent-container-456"), containerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }
 
 func TestResolvePidCgroupFallback_CompleteFailure(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	// Mock failed direct resolution
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
@@ -226,20 +226,20 @@ func TestResolvePidCgroupFallback_CompleteFailure(t *testing.T) {
 		errors.New("parent not found"),
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	cgroupContext, _, result := resolver.ResolveFromFallback(pce)
 
 	assert.False(t, result)
 	// Process should remain unchanged
-	assert.Equal(t, containerutils.CGroupID(""), process.CGroup.CGroupID)
-	assert.Equal(t, uint32(0), process.CGroup.CGroupFile.MountID)
-	assert.Equal(t, uint64(0), process.CGroup.CGroupFile.Inode)
+	assert.Equal(t, containerutils.CGroupID(""), cgroupContext.CGroupID)
+	assert.Equal(t, uint32(0), cgroupContext.CGroupFile.MountID)
+	assert.Equal(t, uint64(0), cgroupContext.CGroupFile.Inode)
 
 	mockFS.AssertExpectations(t)
 }
 
 func TestResolvePidCgroupFallback_HistoryFoundButCgroupMissing(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	// Add parent to history but not to cgroups cache
 	resolver.history.Add(uint32(5678), uint64(9999))
@@ -266,20 +266,20 @@ func TestResolvePidCgroupFallback_HistoryFoundButCgroupMissing(t *testing.T) {
 		nil,
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	cgroupContext, containerContext, result := resolver.ResolveFromFallback(pce)
 
 	assert.True(t, result)
-	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), process.CGroup.CGroupID)
-	assert.Equal(t, uint32(789), process.CGroup.CGroupFile.MountID)
-	assert.Equal(t, uint64(7777), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), process.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cgroupContext.CGroupID)
+	assert.Equal(t, uint32(789), cgroupContext.CGroupFile.MountID)
+	assert.Equal(t, uint64(7777), cgroupContext.CGroupFile.Inode)
+	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), containerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }
 
 func TestResolvePidCgroupFallback_EmptyCGroupIDIgnored(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
-	process := createTestProcess(1234, 5678, "")
+	pce := createTestProcessCacheEntry(1234, 5678, "")
 
 	// Mock resolution that returns empty CGroupID (should be ignored)
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
@@ -301,7 +301,7 @@ func TestResolvePidCgroupFallback_EmptyCGroupIDIgnored(t *testing.T) {
 		errors.New("parent not found"),
 	)
 
-	result := resolver.resolvePidCgroupFallback(process)
+	_, _, result := resolver.ResolveFromFallback(pce)
 
 	assert.False(t, result)
 	mockFS.AssertExpectations(t)

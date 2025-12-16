@@ -177,8 +177,22 @@ type CGroupContext struct {
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
+// IsResolved returns true if the cgroup context is resolved
+func (cg *CGroupContext) IsResolved() bool {
+	return cg.CGroupID != "" || !cg.IsNull()
+}
+
+func (cg *CGroupContext) IsNull() bool {
+	return cg.CGroupFile.IsNull()
+}
+
+// Equals returns true if the cgroup context is equal to the other cgroup context
+func (cg *CGroupContext) Equals(cg2 CGroupContext) bool {
+	return cg.CGroupFile.Equals(cg2.CGroupFile)
+}
+
 // Merge two cgroup context
-func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
+func (cg *CGroupContext) Merge(cg2 CGroupContext) {
 	if cg.CGroupID == "" {
 		cg.CGroupID = cg2.CGroupID
 	}
@@ -862,6 +876,11 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// Equals returns true if the path key is equal to the other path key
+func (pk *PathKey) Equals(pk2 PathKey) bool {
+	return pk.Inode == pk2.Inode && pk.MountID == pk2.MountID
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
