@@ -250,6 +250,8 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -493,6 +495,8 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		func(_ *env.Env) installer.Installer { return pm },
 		testEnv,
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
