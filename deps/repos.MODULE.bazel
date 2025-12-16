@@ -316,3 +316,13 @@ http_archive(
     },
 )
 
+http_archive(
+    name = "krb5",
+    url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
+    strip_prefix = "krb5-1.21.3",
+    files = {
+        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
+    },
+)
+
