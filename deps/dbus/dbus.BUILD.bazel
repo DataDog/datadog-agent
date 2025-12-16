@@ -63,7 +63,7 @@ expand_template(
 )
 
 cc_library(
-    name = "libdbus",
+    name = "dbus-1",
     srcs = [
         "dbus/dbus-address.c",
         "dbus/dbus-auth.c",
@@ -152,7 +152,7 @@ expand_template(
 
 pkg_files(
     name = "lib_files",
-    srcs = [":libdbus"],
+    srcs = [":dbus-1"],
     prefix = "lib/",
 )
 
