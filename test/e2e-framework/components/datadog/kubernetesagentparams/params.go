@@ -219,13 +219,11 @@ datadog:
 
 func WithOTelAgentGateway() func(*Params) error {
 	return func(p *Params) error {
-		p.OTelAgent = true
+		p.OTelAgentGateway = true
 		otelAgentGatewayValues := `
 otelAgentGateway:
   enabled: true
-  replicas: 1
-  nodeSelector:
-    gateway: "true"`
+  replicas: 1`
 
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(otelAgentGatewayValues))
 		return nil

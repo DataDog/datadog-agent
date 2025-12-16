@@ -42,6 +42,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			OTelAgent:                      params.OTelAgent,
 			OTelAgentGateway:               params.OTelAgentGateway,
 			OTelConfig:                     params.OTelConfig,
+			OTelGatewayConfig:              params.OTelGatewayConfig,
 			GKEAutopilot:                   params.GKEAutopilot,
 			FIPS:                           params.FIPS,
 			JMX:                            params.JMX,

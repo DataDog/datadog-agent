@@ -57,7 +57,7 @@ agents:
 }
 
 var gatewayParams = utils.IAParams{
-	InfraAttributes: true,
+	InfraAttributes: false,
 	EKS:             false,
 	Cardinality:     types.LowCardinality,
 }
@@ -88,4 +88,8 @@ func (s *gatewayTestSuite) TestHosts() {
 
 func (s *gatewayTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
+}
+
+func (s *gatewayTestSuite) TestOTelGatewayInstalled() {
+	utils.TestOTelGatewayInstalled(s)
 }

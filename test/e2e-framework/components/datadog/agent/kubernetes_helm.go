@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.135.4"
+	HelmVersion = "3.155.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -164,6 +164,8 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	if args.GKEAutopilot {
 		values = buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result)
+	} else if args.OTelAgentGateway {
+		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, false, args.FIPS)
 	} else {
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS)
 	}

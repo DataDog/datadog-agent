@@ -47,6 +47,12 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
 
+// TestOTelGatewayInstalled checks that the OTel Gateway collector is installed in the test suite
+func TestOTelGatewayInstalled(s OTelTestSuite) {
+	agent := getGatewayPod(s)
+	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent-gateway")
+}
+
 var otelFlareFilesCommon = []string{
 	"otel/otel-response.json",
 	"otel/otel-flare/customer.cfg",
@@ -180,6 +186,15 @@ func TestOTelRemoteConfigPayload(s OTelTestSuite, providedCfg string, fullCfg st
 func getAgentPod(s OTelTestSuite) corev1.Pod {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), res.Items)
+	return res.Items[0]
+}
+
+func getGatewayPod(s OTelTestSuite) corev1.Pod {
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", "dda-linux-datadog-otel-agent-gateway").String(),
 	})
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), res.Items)
