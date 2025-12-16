@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 typedef struct {
-    bool found;
     char *modelIdentifier;
     char *modelNumber;
     char *productName;
