@@ -8,6 +8,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -107,6 +108,7 @@ type batchAck struct {
 type streamWorker struct {
 	// Configuration
 	workerID            string
+	pipelineName        string // Pipeline name for per-pipeline metrics
 	destinationsContext *client.DestinationsContext
 
 	// Pipeline integration
@@ -148,6 +150,7 @@ type streamWorker struct {
 // newStreamWorker creates a new gRPC stream worker
 func newStreamWorker(
 	workerID string,
+	pipelineName string,
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
@@ -156,13 +159,14 @@ func newStreamWorker(
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
 ) *streamWorker {
-	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
+	return newStreamWorkerWithClock(workerID, pipelineName, inputChan, destinationsCtx, conn, client, sink,
 		endpoint, streamLifetime, clock.New(), nil)
 }
 
 // newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
 func newStreamWorkerWithClock(
 	workerID string,
+	pipelineName string,
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
@@ -188,6 +192,7 @@ func newStreamWorkerWithClock(
 
 	worker := &streamWorker{
 		workerID:            workerID,
+		pipelineName:        pipelineName,
 		destinationsContext: destinationsCtx,
 		inputChan:           inputChan,
 		outputChan:          nil,
@@ -277,6 +282,8 @@ func (s *streamWorker) supervisorLoop() {
 		case sendChan <- nextBatch:
 			// Only happens if inflight hasUnSent() and streamState is active
 			// Successfully queued batch to sender goroutine
+			payload := s.inflight.nextToSend() // Get payload before markSent moves the pointer
+			s.trackBatchSentMetrics(payload)
 			s.inflight.markSent()
 
 		case ack := <-s.batchAckCh:
@@ -374,6 +381,9 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 			// TODO: other general metrics to update?
 		}
 	}
+
+	// Update state size metric after state changes are applied
+	s.updateStateSizeMetric()
 
 	// If in Draining state and all acks received, transition to Connecting
 	if s.streamState == draining && !s.inflight.hasUnacked() {
@@ -526,6 +536,9 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 		// This call won't block because it's buffered channel's first write
 		s.batchToSendCh <- createBatch(serialized, 0)
 	}
+
+	// Track initial state size on stream start
+	s.updateStateSizeMetric()
 }
 
 // asyncCreateNewStream creates a new gRPC stream asynchronously
@@ -675,7 +688,7 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
-				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
+				s.handleIrrecoverableError(fmt.Sprintf("protocol: code=%v, message=%s", st.Code(), st.Message()), streamInfo)
 				return
 			default:
 				// All other non-OK statuses: signal stream failure
@@ -744,4 +757,32 @@ func createStoppedTimer(clk clock.Clock, d time.Duration) *clock.Timer {
 		<-t.C
 	}
 	return t
+}
+
+// updateStateSizeMetric updates the state size gauge with the current snapshot size
+func (s *streamWorker) updateStateSizeMetric() {
+	stateSize := s.inflight.getSnapshotSize()
+	TlmStateSize.Set(float64(stateSize), s.pipelineName)
+}
+
+// trackBatchSentMetrics records per-stream metrics when a batch is sent
+func (s *streamWorker) trackBatchSentMetrics(payload *message.Payload) {
+	if payload == nil || payload.StatefulExtra == nil {
+		return
+	}
+
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	if !ok {
+		return
+	}
+
+	stats := extra.Stats
+
+	// Track per-stream metrics
+	TlmStreamPatternLogCount.Add(float64(stats.PatternLogCount), s.workerID)
+	TlmStreamPatternLogBytes.Add(float64(stats.PatternLogBytes), s.workerID)
+	TlmStreamStateChangeCount.Add(float64(stats.StateChangeCount), s.workerID)
+	TlmStreamStateChangeBytes.Add(float64(stats.StateChangeBytes), s.workerID)
+	TlmStreamBatchCount.Inc(s.workerID)
+	TlmStreamDatumsPerBatch.Observe(float64(stats.TotalDatumCount), s.workerID)
 }

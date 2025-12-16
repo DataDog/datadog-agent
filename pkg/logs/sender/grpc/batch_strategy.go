@@ -21,14 +21,62 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Buckets for datum count per batch histogram
+var datumCountBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000}
+
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_grpc_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+
+	// =========================================================================
+	// Per-Pipeline Metrics (tagged by "pipeline")
+	// =========================================================================
+
+	// TlmStateSize is the current size of the snapshot state in bytes (patterns + dict entries)
+	TlmStateSize = telemetry.NewGauge("logs_sender_grpc", "state_size_bytes", []string{"pipeline"}, "Current size of the snapshot state in bytes")
+
+	// Pattern state metrics
+	TlmPatternsAdded       = telemetry.NewCounter("logs_sender_grpc", "patterns_added_total", []string{"pipeline"}, "Total number of patterns added to state")
+	TlmPatternsRemoved     = telemetry.NewCounter("logs_sender_grpc", "patterns_removed_total", []string{"pipeline"}, "Total number of patterns removed from state")
+	TlmPatternBytesAdded   = telemetry.NewCounter("logs_sender_grpc", "pattern_bytes_added_total", []string{"pipeline"}, "Total bytes of patterns added to state")
+	TlmPatternBytesRemoved = telemetry.NewCounter("logs_sender_grpc", "pattern_bytes_removed_total", []string{"pipeline"}, "Total bytes of patterns removed from state")
+
+	// Token (dict entry) state metrics
+	TlmTokensAdded       = telemetry.NewCounter("logs_sender_grpc", "tokens_added_total", []string{"pipeline"}, "Total number of tokens (dict entries) added to state")
+	TlmTokensRemoved     = telemetry.NewCounter("logs_sender_grpc", "tokens_removed_total", []string{"pipeline"}, "Total number of tokens (dict entries) removed from state")
+	TlmTokenBytesAdded   = telemetry.NewCounter("logs_sender_grpc", "token_bytes_added_total", []string{"pipeline"}, "Total bytes of tokens (dict entries) added to state")
+	TlmTokenBytesRemoved = telemetry.NewCounter("logs_sender_grpc", "token_bytes_removed_total", []string{"pipeline"}, "Total bytes of tokens (dict entries) removed from state")
+
+	// Log bytes metrics (per pipeline)
+	TlmPatternLogBytes  = telemetry.NewCounter("logs_sender_grpc", "pattern_log_bytes_total", []string{"pipeline"}, "Total bytes of pattern-based logs sent")
+	TlmRawLogBytes      = telemetry.NewCounter("logs_sender_grpc", "raw_log_bytes_total", []string{"pipeline"}, "Total bytes of raw logs sent")
+	TlmStateChangeBytes = telemetry.NewCounter("logs_sender_grpc", "state_change_bytes_total", []string{"pipeline"}, "Total bytes of state changes sent")
+
+	// =========================================================================
+	// Per-Stream Metrics (tagged by "stream")
+	// =========================================================================
+
+	TlmStreamPatternLogCount  = telemetry.NewCounter("logs_sender_grpc", "stream_pattern_logs_total", []string{"stream"}, "Total number of pattern-based logs sent per stream")
+	TlmStreamPatternLogBytes  = telemetry.NewCounter("logs_sender_grpc", "stream_pattern_log_bytes_total", []string{"stream"}, "Total bytes of pattern-based logs sent per stream")
+	TlmStreamStateChangeCount = telemetry.NewCounter("logs_sender_grpc", "stream_state_changes_total", []string{"stream"}, "Total number of state changes sent per stream")
+	TlmStreamStateChangeBytes = telemetry.NewCounter("logs_sender_grpc", "stream_state_change_bytes_total", []string{"stream"}, "Total bytes of state changes sent per stream")
+	TlmStreamBatchCount       = telemetry.NewCounter("logs_sender_grpc", "stream_batches_total", []string{"stream"}, "Total number of batches sent per stream")
+	TlmStreamDatumsPerBatch   = telemetry.NewHistogram("logs_sender_grpc", "stream_datums_per_batch", []string{"stream"}, "Number of datums per batch sent per stream", datumCountBuckets)
 )
+
+// BatchStats holds statistics about a batch for telemetry purposes
+type BatchStats struct {
+	PatternLogCount  int // Number of pattern-based logs in the batch
+	PatternLogBytes  int // Total bytes of pattern-based logs
+	StateChangeCount int // Number of state changes (pattern/token add/remove)
+	StateChangeBytes int // Total bytes of state changes
+	TotalDatumCount  int // Total number of datums in the batch
+}
 
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
 	StateChanges []*statefulpb.Datum
+	Stats        BatchStats // Batch statistics for per-stream telemetry
 }
 
 // isStateDatum returns true if the datum represents a state change
@@ -213,12 +261,17 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		unencodedSize += msgMeta.RawDataLen
 	}
 
-	// Extract all state changes from this batch for snapshot management
+	// Extract state changes and track per-pipeline metrics
 	var stateChanges []*statefulpb.Datum
+	var stats BatchStats
+	stats.TotalDatumCount = len(grpcDatums)
+
 	for _, datum := range grpcDatums {
 		if isStateDatum(datum) {
 			stateChanges = append(stateChanges, datum)
 		}
+		// Track per-pipeline metrics and accumulate batch stats
+		s.trackDatumMetrics(datum, &stats)
 	}
 
 	// Create DatumSequence and marshal to bytes
@@ -247,14 +300,89 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		UnencodedSize: unencodedSize,
 	}
 
-	// Store batch-level state changes in payload
-	if len(stateChanges) > 0 {
-		p.StatefulExtra = &StatefulExtra{
-			StateChanges: stateChanges,
-		}
+	// Store batch-level state changes and stats in payload
+	p.StatefulExtra = &StatefulExtra{
+		StateChanges: stateChanges,
+		Stats:        stats,
 	}
 
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
 	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+}
+
+// trackDatumMetrics records per-pipeline telemetry metrics and accumulates batch stats
+func (s *batchStrategy) trackDatumMetrics(datum *statefulpb.Datum, stats *BatchStats) {
+	switch d := datum.Data.(type) {
+	case *statefulpb.Datum_DictEntryDefine:
+		// Token (dict entry) added
+		size := 8 + len(d.DictEntryDefine.Value) // ID (8 bytes) + value length
+		TlmTokensAdded.Inc(s.pipelineName)
+		TlmTokenBytesAdded.Add(float64(size), s.pipelineName)
+		TlmStateChangeBytes.Add(float64(size), s.pipelineName)
+		stats.StateChangeCount++
+		stats.StateChangeBytes += size
+
+	case *statefulpb.Datum_DictEntryDelete:
+		// Token (dict entry) removed - size is just the ID
+		size := 8
+		TlmTokensRemoved.Inc(s.pipelineName)
+		TlmTokenBytesRemoved.Add(float64(size), s.pipelineName)
+		TlmStateChangeBytes.Add(float64(size), s.pipelineName)
+		stats.StateChangeCount++
+		stats.StateChangeBytes += size
+
+	case *statefulpb.Datum_PatternDefine:
+		// Pattern added
+		size := 8 + len(d.PatternDefine.Template) + 4 + (len(d.PatternDefine.PosList) * 4)
+		TlmPatternsAdded.Inc(s.pipelineName)
+		TlmPatternBytesAdded.Add(float64(size), s.pipelineName)
+		TlmStateChangeBytes.Add(float64(size), s.pipelineName)
+		stats.StateChangeCount++
+		stats.StateChangeBytes += size
+
+	case *statefulpb.Datum_PatternDelete:
+		// Pattern removed - size is just the ID
+		size := 8
+		TlmPatternsRemoved.Inc(s.pipelineName)
+		TlmPatternBytesRemoved.Add(float64(size), s.pipelineName)
+		TlmStateChangeBytes.Add(float64(size), s.pipelineName)
+		stats.StateChangeCount++
+		stats.StateChangeBytes += size
+
+	case *statefulpb.Datum_Logs:
+		logData := d.Logs
+		switch content := logData.Content.(type) {
+		case *statefulpb.Log_Raw:
+			// Raw log
+			size := len(content.Raw)
+			TlmRawLogBytes.Add(float64(size), s.pipelineName)
+
+		case *statefulpb.Log_Structured:
+			// Pattern-based log
+			size := 8 // pattern_id
+			for _, dv := range content.Structured.DynamicValues {
+				size += estimateDynamicValueSize(dv)
+			}
+			TlmPatternLogBytes.Add(float64(size), s.pipelineName)
+			stats.PatternLogCount++
+			stats.PatternLogBytes += size
+		}
+	}
+}
+
+// estimateDynamicValueSize returns the estimated size of a DynamicValue in bytes
+func estimateDynamicValueSize(dv *statefulpb.DynamicValue) int {
+	switch v := dv.Value.(type) {
+	case *statefulpb.DynamicValue_IntValue:
+		return 8
+	case *statefulpb.DynamicValue_FloatValue:
+		return 8
+	case *statefulpb.DynamicValue_StringValue:
+		return len(v.StringValue)
+	case *statefulpb.DynamicValue_DictIndex:
+		return 8
+	default:
+		return 0
+	}
 }
