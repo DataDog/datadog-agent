@@ -838,6 +838,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
+		if event.ProcessCacheEntry != nil {
+			event.ProcessCacheEntry.Release()
+		}
 		p.putBackPoolEvent(event)
 	}
 }
@@ -1050,9 +1053,6 @@ func (p *EBPFProbe) getPoolEvent() *model.Event {
 var relatedEventZeroer = model.NewEventZeroer()
 
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	if event.ProcessCacheEntry != nil {
-		event.ProcessCacheEntry.Release()
-	}
 	relatedEventZeroer(event)
 	p.eventPool.Put(event)
 }
@@ -1378,7 +1378,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
-		resolveTargetProcessContext(event, p, newEntryCb)
+		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1496,7 +1496,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			tags = append(tags, "service:"+service)
 		}
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
 			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 		)
 		return false
@@ -1552,15 +1552,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
-		// resolve target process context
-		var pce *model.ProcessCacheEntry
-		if event.Setrlimit.TargetPid > 0 {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, 0, false, newEntryCb)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
-		}
-		event.Setrlimit.Target = &pce.ProcessContext
+		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p, newEntryCb)
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1751,15 +1743,15 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 	return true
 }
 
-func resolveTargetProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) {
+func resolveTargetProcessContext(pid uint32, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
-	if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
+	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
+		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
 	}
 	if pce == nil {
-		pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
 	}
-	event.Signal.Target = &pce.ProcessContext
+	return &pce.ProcessContext
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
