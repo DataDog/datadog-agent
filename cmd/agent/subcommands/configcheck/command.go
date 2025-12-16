@@ -86,7 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
 	configCheckCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
-	configCheckCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json")
+	configCheckCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
 
 	return []*cobra.Command{configCheckCommand}
 }
