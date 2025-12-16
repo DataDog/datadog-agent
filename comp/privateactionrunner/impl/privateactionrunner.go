@@ -60,6 +60,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	runner := &privateactionrunnerImpl{
 		WorkflowRunner: r,
 	}
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: runner.Start,
+		OnStop:  runner.Stop,
+	})
 	return Provides{
 		Comp: runner,
 	}, nil

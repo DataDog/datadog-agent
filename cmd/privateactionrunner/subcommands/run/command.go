@@ -7,12 +7,6 @@
 package run
 
 import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -25,7 +19,6 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
@@ -49,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(run,
+			return fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
 					LogParams:    log.ForOneShot("PRIV-ACTION", "info", true)}),
@@ -74,34 +67,4 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	return []*cobra.Command{runCmd}
-}
-
-// run starts the main loop.
-func run(log log.Component, config config.Component, par privateactionrunner.Component) error {
-	log.Infof("Starting Private Action Runner v%v", version.AgentVersion)
-
-	// Check if private action runner is enabled
-	if !config.GetBool("privateactionrunner.enabled") {
-		log.Info("Private Action Runner not enabled. exiting")
-		return nil
-	}
-	ctx := context.Background()
-	err := par.Start(ctx)
-	if err != nil {
-		_ = log.Errorf("Failed to start private action runner: %v", err)
-		return err
-	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	<-sigChan
-	shutdownCtx, shutdownRelease := context.WithTimeout(ctx, time.Duration(10)*time.Second)
-	defer shutdownRelease()
-	err = par.Stop(shutdownCtx)
-	if err != nil {
-		_ = log.Errorf("Failed to stop private action runner: %v", err)
-		return err
-	}
-	log.Info("Private Action Runner stopped")
-	return nil
 }
