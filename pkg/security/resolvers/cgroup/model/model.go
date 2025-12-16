@@ -27,26 +27,24 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pids ...uint32) *CacheEntry {
-	newCGroup := CacheEntry{
+func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pid uint32) *CacheEntry {
+	cacheEntry := CacheEntry{
 		Deleted:          atomic.NewBool(false),
 		ContainerContext: containerContext,
 		CGroupContext:    cgroupContext,
 		PIDs:             make(map[uint32]bool, 10),
 	}
+	cacheEntry.PIDs[pid] = true
 
 	// should not happen but added as a safe-guard to avoid overriding
 	// a Releasable pointer which would cause Releasable callbacks to not be called
-	if newCGroup.ContainerContext.Releasable == nil {
+	if cacheEntry.ContainerContext.Releasable == nil {
 		// we need this here because the newCGroup entry will be propagated back to both the cgroup resolver
 		// and the process cache entry upon context context resolution
-		newCGroup.ContainerContext.Releasable = &model.Releasable{}
+		cacheEntry.ContainerContext.Releasable = &model.Releasable{}
 	}
 
-	for _, pid := range pids {
-		newCGroup.PIDs[pid] = true
-	}
-	return &newCGroup
+	return &cacheEntry
 }
 
 // GetPIDs returns the list of pids for the current workload

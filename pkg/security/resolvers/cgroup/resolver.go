@@ -141,15 +141,15 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 	return cr, nil
 }
 
-// Start starts the goroutine of the SBOM resolver
+// Start starts the cgroup resolver
 func (cr *Resolver) Start(_ context.Context) {
 }
 
-func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
-	cr.cgroups.Remove(cgroup.CGroupContext.CGroupFile.Inode)
-	cr.hostWorkloads.Remove(cgroup.CGroupContext.CGroupID)
-	if cgroup.ContainerContext.ContainerID != "" {
-		cr.containerWorkloads.Remove(cgroup.ContainerContext.ContainerID)
+func (cr *Resolver) removeCgroup(cacheEntry *cgroupModel.CacheEntry) {
+	cr.cgroups.Remove(cacheEntry.CGroupContext.CGroupFile.Inode)
+	cr.hostWorkloads.Remove(cacheEntry.CGroupContext.CGroupID)
+	if cacheEntry.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Remove(cacheEntry.ContainerContext.ContainerID)
 	}
 	cr.deletedCgroups.Inc()
 }
@@ -183,9 +183,9 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 }
 
 // currentCgroup already locked
-func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
+func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCacheEntry *cgroupModel.CacheEntry) {
 	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
-		if cgroup.CGroupContext.CGroupFile.Inode == currentCgroup.CGroupContext.CGroupFile.Inode {
+		if cgroup.CGroupContext.CGroupFile.Inode == currentCacheEntry.CGroupContext.CGroupFile.Inode {
 			return false
 		}
 		cgroup.Lock()
@@ -203,113 +203,144 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 	})
 }
 
-func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
+func (cr *Resolver) pushNewCacheEntry(pce *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext, process.CGroup, process.Pid)
+	cacheEntry := cgroupModel.NewCacheEntry(pce.ContainerContext, pce.CGroup, pce.Pid)
 
 	// add the new CGroup to the cache
-	if process.ContainerContext.ContainerID != "" {
-		cr.containerWorkloads.Add(process.ContainerContext.ContainerID, newCGroup)
+	if pce.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Add(pce.ContainerContext.ContainerID, cacheEntry)
 	} else {
-		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
+		cr.hostWorkloads.Add(pce.CGroup.CGroupID, cacheEntry)
 	}
 	// Cache a copy instead of a pointer to avoid race conditions
-	cgroupCopy := process.CGroup
-	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
+	cgroupCopy := pce.CGroup
+	cr.cgroups.Add(pce.CGroup.CGroupFile.Inode, &cgroupCopy)
 
-	cr.NotifyListeners(CGroupCreated, newCGroup)
+	cr.NotifyListeners(CGroupCreated, cacheEntry)
 	cr.addedCgroups.Inc()
 }
 
 // returns false if the fallback failed
-func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) bool {
+func (cr *Resolver) resolveFromFallback(pce *model.ProcessCacheEntry) (model.CGroupContext, model.ContainerContext, bool) {
 	// it should not happen, but we have to fallback in this case
-	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(process.Pid, process.Pid)
+	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(pce.Pid, pce.Pid)
 	if err == nil && cgroup.CGroupID != "" {
-		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
-		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
-		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerContext.ContainerID = cid
-		seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
-		return true
+		cgroupContext := model.CGroupContext{
+			CGroupFile: model.PathKey{
+				MountID: cgroup.CGroupFileMountID,
+				Inode:   cgroup.CGroupFileInode,
+			},
+			CGroupID: cgroup.CGroupID,
+		}
+		containerContext := model.ContainerContext{
+			ContainerID: cid,
+			CreatedAt:   uint64(pce.ExecTime.UnixNano()),
+		}
+		return cgroupContext, containerContext, true
 	}
 
 	// fallback can fail for short lived processes, in this case we try to assign the parent cgroup
-	if process.PPid == process.Pid || process.PPid <= 0 {
-		seclog.Infof("Failed to fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
-		return false
+	if pce.PPid == pce.Pid || pce.PPid <= 0 {
+		seclog.Infof("Failed to fallback to resolve cgroup for %d, missing parend PPID: %d", pce.Pid, pce.PPid)
+		return model.CGroupContext{}, model.ContainerContext{}, false
 	}
 
-	inode, found := cr.history.Get(process.PPid)
+	inode, found := cr.history.Get(pce.PPid)
 	if found {
 		cgroup, found := cr.cgroups.Get(inode)
 		if found {
-			process.CGroup.CGroupFile.MountID = cgroup.CGroupFile.MountID
-			process.CGroup.CGroupFile.Inode = cgroup.CGroupFile.Inode
-			process.CGroup.CGroupID = cgroup.CGroupID
-			process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
-			seclog.Infof("Fallback to resolve cgroup for pid %d from parent: %d", process.Pid, process.PPid)
-			return true
+			cgroupContext := model.CGroupContext{
+				CGroupFile: model.PathKey{
+					MountID: cgroup.CGroupFile.MountID,
+					Inode:   cgroup.CGroupFile.Inode,
+				},
+				CGroupID: cgroup.CGroupID,
+			}
+			containerContext := model.ContainerContext{
+				ContainerID: containerutils.FindContainerID(cgroup.CGroupID),
+				CreatedAt:   uint64(pce.ExecTime.UnixNano()),
+			}
+			seclog.Infof("Fallback to resolve cgroup for pid %d from parent: %d", pce.Pid, pce.PPid)
+			return cgroupContext, containerContext, true
 		}
 	}
 
 	// last try, fallback on proc for the parent
-	cid, cgroup, _, err = cr.cgroupFS.FindCGroupContext(process.PPid, process.PPid)
+	cid, cgroup, _, err = cr.cgroupFS.FindCGroupContext(pce.PPid, pce.PPid)
 	if err == nil && cgroup.CGroupID != "" {
-		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
-		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
-		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerContext.ContainerID = cid
-		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
-		return true
+		cgroupContext := model.CGroupContext{
+			CGroupFile: model.PathKey{
+				MountID: cgroup.CGroupFileMountID,
+				Inode:   cgroup.CGroupFileInode,
+			},
+			CGroupID: cgroup.CGroupID,
+		}
+		containerContext := model.ContainerContext{
+			ContainerID: cid,
+			CreatedAt:   uint64(pce.ExecTime.UnixNano()),
+		}
+		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", pce.PPid, cgroup.CGroupID)
+		return cgroupContext, containerContext, true
 	}
 
 	if err == nil {
 		err = errors.New("FindCGroupContext returned an empty cgroup")
 	}
-	seclog.Infof("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
-	return false
+	seclog.Infof("Failed to add pid %d, error on fallback to resolve its cgroup: %v", pce.Pid, err)
+	return model.CGroupContext{}, model.ContainerContext{}, false
+}
+
+// ResolveFromFallback resolves the cgroup context from the fallback mechanism
+func (cr *Resolver) ResolveFromFallback(pce *model.ProcessCacheEntry) (model.CGroupContext, model.ContainerContext, bool) {
+	cgroupContext, containerContext, ok := cr.resolveFromFallback(pce)
+	if ok {
+		cr.fallbackSucceed.Inc()
+	} else {
+		cr.fallbackFailed.Inc()
+	}
+
+	return cgroupContext, containerContext, ok
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
-func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
+func (cr *Resolver) AddPID(pce *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	if process.CGroup.CGroupID == "" || process.CGroup.CGroupFile.Inode == 0 {
+	if !pce.CGroup.IsResolved() {
 		cr.addPidCgroupAbsent.Inc()
-		if !cr.resolvePidCgroupFallback(process) {
-			// all fallback failed :/
-			cr.fallbackFailed.Inc()
-			return
-		}
-		cr.fallbackSucceed.Inc()
+		return
 	} else {
 		cr.addPidCgroupPresent.Inc()
 	}
 
 	// push pid:cgroup pair to an history cache for fallbacks for short lived processes
-	cr.history.Add(process.Pid, process.CGroup.CGroupFile.Inode)
+	cr.history.Add(pce.Pid, pce.CGroup.CGroupFile.Inode)
 
-	found := false
-	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
-		cgroup.Lock()
-		if cgroup.CGroupContext.CGroupFile.Inode == process.CGroup.CGroupFile.Inode {
-			cgroup.PIDs[process.Pid] = true
-			found = true
-		} else if _, exist := cgroup.PIDs[process.Pid]; exist {
-			delete(cgroup.PIDs, process.Pid)
-			if len(cgroup.PIDs) == 0 {
-				cr.syncOrDeleteCgroup(cgroup, process.Pid)
+	cacheEntryFound := false
+	cr.iterate(func(cacheEntry *cgroupModel.CacheEntry) bool {
+		cacheEntry.Lock()
+		if cacheEntry.CGroupContext.Equals(pce.CGroup) {
+			// if the cgroup context is the same, add the pid to the cache entry
+			cacheEntry.PIDs[pce.Pid] = true
+			cacheEntryFound = true
+		} else if _, exist := cacheEntry.PIDs[pce.Pid]; exist {
+			// the cgroup context is different, but the pid is already present in the cache entry, remove it.
+			// it means that the process has been migrated to a different cgroup.
+			delete(cacheEntry.PIDs, pce.Pid)
+			if len(cacheEntry.PIDs) == 0 {
+				// try to sync the cgroup with the pid in order to detect the migration.
+				cr.syncOrDeleteCgroup(cacheEntry, pce.Pid)
 			}
 		}
-		cgroup.Unlock()
+		cacheEntry.Unlock()
 		return false
 	})
 
-	if !found {
-		cr.pushNewCacheEntry(process)
+	if !cacheEntryFound {
+		cr.pushNewCacheEntry(pce)
 	}
 }
 
