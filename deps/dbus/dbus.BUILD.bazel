@@ -114,7 +114,7 @@ cc_library(
         "dbus/dbus-userdb.c",
         ":copy_config_h",
         ":dbus_arch_deps_h",
-    ] + glob(["dbus/*.h"]),
+    ] + glob(["dbus/*.h"], exclude=PUBLIC_HEADERS),
     hdrs = PUBLIC_HEADERS,
     local_defines = [
         "_GNU_SOURCE",
