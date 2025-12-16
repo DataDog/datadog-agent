@@ -121,7 +121,7 @@ func sandboxDefault() environmentDefault {
 			defaultARMInstanceType:         "t4g.medium",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
-			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
+			defaultInternalRegistry:        "registry.datadoghq.com", // TODO: revert to 669783387624.dkr.ecr.us-east-1.amazonaws.com after 1 month
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
 			useMacosCompatibleSubnets:      false,
 
