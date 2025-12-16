@@ -239,7 +239,7 @@ func (ac *AutoConfig) refreshConfig(origin string) {
 		return
 	}
 
-	ac.logs.Infof("Found config using recently refreshed secret %v. Refreshing config(s).", origin)
+	ac.logs.Infof("Found config (%v) using recently refreshed secret. Refreshing config(s).", rawConfig.Name)
 	ac.processRemovedConfigs([]integration.Config{rawConfig})
 	changes := ac.processNewConfig(rawConfig)
 	ac.applyChanges(changes)

@@ -54,7 +54,7 @@ func TestKindSuite(t *testing.T) {
 			),
 			scenkind.WithDeployArgoRollout(),
 			scenkind.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return redis.K8sAppDefinitionWithPassword(e, kubeProvider, "secret-refresh-workload", "redis-with-secret")
+				return redis.K8sAppDefinitionWithPassword(e, kubeProvider, "workload-secret-refresh", "redis-with-secret")
 			}),
 		),
 	)))
@@ -157,18 +157,18 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 }
 
-// TestAutodiscoveryCheckSecretRefresh tests that when a secret used by a check is updated,
+// TestAutodiscoveryRefreshesCheckSecrets tests that when a secret used by a check is updated,
 // the check configuration is refreshed to use the new secret value.
-func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
+func (suite *kindSuite) TestAutodiscoveryRefreshesCheckSecrets() {
 	ctx := suite.T().Context()
-	namespace := "secret-refresh-workload"
+	namespace := "workload-secret-refresh"
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{
 				`^container_name:redis$`,
-				`^kube_namespace:secret-refresh-workload$`,
+				`^kube_namespace:workload-secret-refresh$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -176,7 +176,7 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^kube_namespace:secret-refresh-workload$`,
+				`^kube_namespace:workload-secret-refresh$`,
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -212,7 +212,7 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 
 	// Wait for the deployment to be ready before flushing the fake intake
 	suite.T().Log("Waiting for redis deployment to be ready after update.")
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+	suite.Require().EventuallyWithT(func(c *assert.CollectT) {
 		updatedDeployment, err := k8sClient.AppsV1().Deployments(namespace).Get(ctx, "redis-with-secret", metav1.GetOptions{})
 		if !assert.NoError(c, err) {
 			c.Errorf("failed to get deployment redis-with-secret in namespace %s: %v", namespace, err)
@@ -220,13 +220,13 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 		}
 
 		// Check that the deployment has completed its rollout
-		if updatedDeployment.Status.AvailableReplicas == 0 {
+		if !assert.NotEqual(c, updatedDeployment.Status.AvailableReplicas, 0) {
 			c.Errorf("deployment redis-with-secret has 0 available replicas")
 			return
 		}
 
 		// Check that the observed generation matches the desired generation
-		if updatedDeployment.Status.ObservedGeneration != updatedDeployment.Generation {
+		if !assert.NotEqual(c, updatedDeployment.Status.ObservedGeneration, updatedDeployment.Generation) {
 			c.Errorf("deployment redis-with-secret is still rolling out (observedGeneration: %d, generation: %d)",
 				updatedDeployment.Status.ObservedGeneration, updatedDeployment.Generation)
 		}
@@ -236,12 +236,14 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 	err = suite.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	suite.Require().NoError(err, "Failed to reset fake intake")
 
+	// Should continue to receive redis metrics when check secret is refreshed. It refresh fails then metrics
+	// will stop because of failed authentication.
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{
 				`^container_name:redis$`,
-				`^kube_namespace:secret-refresh-workload$`,
+				`^kube_namespace:workload-secret-refresh$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -249,7 +251,7 @@ func (suite *kindSuite) TestAutodiscoveryCheckSecretRefresh() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^kube_namespace:secret-refresh-workload$`,
+				`^kube_namespace:workload-secret-refresh$`,
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
