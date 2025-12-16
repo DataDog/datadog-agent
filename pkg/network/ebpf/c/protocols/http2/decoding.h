@@ -902,6 +902,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
 
     __u8 interesting_headers = 0;
 
+    // Initialize the per-tuple dynamic counter once before processing frames
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
         goto delete_iteration;
@@ -938,6 +939,19 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
                 current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
             } else {
+                continue;
+            }
+        }
+
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                // HEADERS+PRIORITY - skip PRIORITY bytes, adjust frame length
+                pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
+                current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+            } else {
+                // PRIORITY-only frame - no header data to process
                 continue;
             }
         }
@@ -1019,6 +1033,12 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         goto next;
     }
 
+    // If there is nothing left to track for this tuple, retire the counter entry.
+    if (dynamic_counter->previous >= dynamic_counter->value) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
+        goto next;
+    }
+
     // We're checking if the difference between the current value of the dynamic global table, to the previous index we
     // cleaned, is bigger than our threshold. If so, we need to clean the table.
     if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
@@ -1043,6 +1063,11 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
         // Incrementing the previous index.
         dynamic_counter->previous++;
+    }
+
+    // If we caught up during this run, drop the counter to avoid lingering entries.
+    if (dynamic_counter->previous >= dynamic_counter->value) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
     }
 
 next:
