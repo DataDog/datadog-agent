@@ -8,7 +8,7 @@
 package tracer
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -277,7 +277,7 @@ func TestProcessCacheGet(t *testing.T) {
 	}
 
 	for i, te := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			p, ok := pc.Get(1234, te.ts)
 			assert.Equal(t, te.ok, ok)
 			if !te.ok {

@@ -13,6 +13,7 @@ package fakeevtapi
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -38,11 +39,11 @@ func (api *API) EvtSubscribe(
 	Flags uint) (evtapi.EventResultSetHandle, error) {
 
 	if Query != "" && Query != "*" {
-		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support query syntax")
+		return evtapi.EventResultSetHandle(0), errors.New("Fake API does not support query syntax")
 	}
 
 	if Session != evtapi.EventSessionHandle(0) {
-		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support remote sessions")
+		return evtapi.EventResultSetHandle(0), errors.New("Fake API does not support remote sessions")
 	}
 
 	// ensure channel exists
@@ -79,7 +80,7 @@ func (api *API) EvtSubscribe(
 		} else {
 			// bookmarked event is no longer in the log
 			if Flags&evtapi.EvtSubscribeStrict == evtapi.EvtSubscribeStrict {
-				return evtapi.EventResultSetHandle(0), fmt.Errorf("bookmark not found and Strict flag set")
+				return evtapi.EventResultSetHandle(0), errors.New("bookmark not found and Strict flag set")
 			}
 			// MSDN says
 			// If you do not include the EvtSubscribeStrict flag and the bookmarked event does not exist,
@@ -102,7 +103,7 @@ func (api *API) EvtSubscribe(
 	}
 
 	api.addSubscription(sub)
-	evtlog.subscriptions[sub.handle] = sub
+	evtlog.addSubscriptionWithHandle(sub.handle, sub)
 	return sub.handle, nil
 }
 
@@ -117,11 +118,11 @@ func (api *API) EvtQuery(
 	// For the fake implementation, we'll reuse the subscription logic
 	// but return immediately instead of setting up event notification
 	if Query != "" && Query != "*" && !strings.HasPrefix(Query, "<QueryList>") {
-		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support query syntax")
+		return evtapi.EventResultSetHandle(0), errors.New("Fake API does not support query syntax")
 	}
 
 	if Session != evtapi.EventSessionHandle(0) {
-		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support remote sessions")
+		return evtapi.EventResultSetHandle(0), errors.New("Fake API does not support remote sessions")
 	}
 
 	// For multi-channel queries (XML QueryList), just use the first channel for now
@@ -254,13 +255,13 @@ func (api *API) EvtClose(h windows.Handle) {
 	// is handle a bookmark?
 	bookmark, err := api.getBookmarkByHandle(evtapi.EventBookmarkHandle(h))
 	if err == nil {
-		delete(api.bookmarkHandles, bookmark.handle)
+		api.deleteBookmark(bookmark.handle)
 		return
 	}
 	// is handle an event?
 	event, err := api.getEventRecordByHandle(evtapi.EventRecordHandle(h))
 	if err == nil {
-		delete(api.eventHandles, event.handle)
+		api.deleteEventRecord(event.handle)
 		return
 	}
 	// TODO
@@ -268,11 +269,11 @@ func (api *API) EvtClose(h windows.Handle) {
 	sub, err := api.getSubscriptionByHandle(evtapi.EventResultSetHandle(h))
 	if err == nil {
 		eventLog, err := api.getEventLog(sub.channel)
-		if err != nil {
-			return
+		if err == nil {
+			api.deleteSubscription(sub.handle)
+			eventLog.deleteSubscription(sub.handle)
 		}
-		delete(eventLog.subscriptions, sub.handle)
-		delete(api.subscriptions, sub.handle)
+
 		return
 	}
 }
@@ -359,15 +360,14 @@ func (api *API) EvtRenderBookmark(b evtapi.EventBookmarkHandle) ([]uint16, error
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
 func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle, error) {
 	// find the log the source is registered to
-	for _, log := range api.eventLogs {
-		_, ok := log.sources[SourceName]
-		if ok {
-			// Create a handle
-			h := evtapi.EventSourceHandle(api.nextHandle.Inc())
-			api.sourceHandles[h] = log.name
-			return h, nil
-		}
+	logName, ok := api.tryGetEventLogName(SourceName)
+	if ok {
+		// Create a handle
+		h := evtapi.EventSourceHandle(api.nextHandle.Inc())
+		api.addEventSourceWithHandle(h, logName)
+		return h, nil
 	}
+
 	return evtapi.EventSourceHandle(0), fmt.Errorf("Event source %s not found", SourceName)
 }
 
@@ -445,12 +445,12 @@ func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error
 	re := regexp.MustCompile(`RecordId="(\d+)"`)
 	match := re.FindStringSubmatch(xml)
 	if len(match) != 2 {
-		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+		return evtapi.EventBookmarkHandle(0), errors.New("invalid bookmark XML")
 	}
 	recordID := match[1]
 	recordIDUint, err := strconv.ParseUint(recordID, 10, 64)
 	if err != nil {
-		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+		return evtapi.EventBookmarkHandle(0), errors.New("invalid bookmark XML")
 	}
 	b.eventRecordID = uint(recordIDUint)
 	api.addBookmark(&b)
@@ -483,13 +483,13 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
 func (api *API) EvtCreateRenderContext(_ []string, _ uint) (evtapi.EventRenderContextHandle, error) {
-	return evtapi.EventRenderContextHandle(0), fmt.Errorf("not implemented")
+	return evtapi.EventRenderContextHandle(0), errors.New("not implemented")
 }
 
 // EvtRenderEventValues is a fake of EvtRender with EvtRenderEventValues
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
 func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 // EvtOpenPublisherMetadata fake
@@ -498,7 +498,7 @@ func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi
 func (api *API) EvtOpenPublisherMetadata(
 	_ string,
 	_ string) (evtapi.EventPublisherMetadataHandle, error) {
-	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
+	return evtapi.EventPublisherMetadataHandle(0), errors.New("not implemented")
 }
 
 // EvtFormatMessage fake
@@ -510,7 +510,7 @@ func (api *API) EvtFormatMessage(
 	_ uint,
 	_ evtapi.EvtVariantValues,
 	_ uint) (string, error) {
-	return "", fmt.Errorf("not implemented")
+	return "", errors.New("not implemented")
 }
 
 // EvtOpenSession fake
@@ -523,5 +523,5 @@ func (api *API) EvtOpenSession(
 	_ string,
 	_ uint,
 ) (evtapi.EventSessionHandle, error) {
-	return evtapi.EventSessionHandle(0), fmt.Errorf("not implemented")
+	return evtapi.EventSessionHandle(0), errors.New("not implemented")
 }

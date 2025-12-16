@@ -8,7 +8,7 @@ package iisconfig
 
 import (
 	"encoding/xml"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,7 +63,7 @@ func NewDynamicIISConfig() (*DynamicIISConfig, error) {
 // Start config watcher
 func (iiscfg *DynamicIISConfig) Start() error {
 	if iiscfg == nil {
-		return fmt.Errorf("Null config")
+		return errors.New("Null config")
 	}
 	// set the filepath
 	err := iiscfg.watcher.Add(iiscfg.path)

@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -31,6 +33,10 @@ type sink struct {
 	service      string
 	logUploader  LogsUploader
 	tree         *bufferTree
+
+	// Probes is an ordered list of probes. The event header's probe_id is an
+	// index into this list.
+	probes []*ir.Probe
 }
 
 var _ dispatcher.Sink = &sink{}
@@ -39,7 +45,10 @@ var _ dispatcher.Sink = &sink{}
 // about them and we don't want to bail out completely.
 var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
-var noMatchingEventLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
+var noMatchingEventLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingBufferFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingCallMapFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingCallCountExceededLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	defer func() {
@@ -56,6 +65,24 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	evHeader, err := msgEvent.Header()
 	if err != nil {
 		return fmt.Errorf("error getting event header: %w", err)
+	}
+
+	recordEventPairingIssue := func(
+		stats *atomic.Uint64, limiter *rate.Limiter, issueMsg string,
+	) {
+		stats.Add(1)
+		var probeID string
+		if int(evHeader.Probe_id) < len(s.probes) {
+			probeID = s.probes[evHeader.Probe_id].GetID()
+		} else {
+			probeID = fmt.Sprintf("unknown probeID %d", evHeader.Probe_id)
+		}
+		const format = "event pairing issue for probe %s: %s"
+		if limiter.Allow() {
+			log.Infof(format, probeID, issueMsg)
+		} else {
+			log.Tracef(format, probeID, issueMsg)
+		}
 	}
 	var entryEvent, returnEvent output.Event
 	switch output.EventPairingExpectation(evHeader.Event_pairing_expectation) {
@@ -90,6 +117,12 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			stackByteDepth: evHeader.Stack_byte_depth,
 			probeID:        evHeader.Probe_id,
 		}, msg) {
+			// Record stack PCs for later use when the return event arrives.
+			// This works around a bug where the return event may need the PCs
+			// but doesn't have them.
+			if stackPCs, err := msgEvent.StackPCs(); err == nil {
+				s.decoder.ReportStackPCs(evHeader.Stack_hash, slices.Clone(stackPCs))
+			}
 			msg = dispatcher.Message{} // prevent release
 			return nil
 		}
@@ -98,10 +131,27 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		// it directly.
 		evHeader.Event_pairing_expectation =
 			uint8(output.EventPairingExpectationBufferFull)
-		fallthrough
-	case output.EventPairingExpectationNone,
-		output.EventPairingExpectationCallMapFull,
-		output.EventPairingExpectationCallCountExceeded:
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingBufferFull,
+			eventPairingBufferFullLogLimiter,
+			"userspace buffer capacity exceeded",
+		)
+		entryEvent = msgEvent
+	case output.EventPairingExpectationCallMapFull:
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingCallMapFull,
+			eventPairingCallMapFullLogLimiter,
+			"call map capacity exceeded",
+		)
+		entryEvent = msgEvent
+	case output.EventPairingExpectationCallCountExceeded:
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingCallCountExceeded,
+			eventPairingCallCountExceededLogLimiter,
+			"maximum call count exceeded",
+		)
+		entryEvent = msgEvent
+	case output.EventPairingExpectationNone:
 		entryEvent = msgEvent
 	default:
 		return fmt.Errorf("unknown event pairing expectation: %d", evHeader.Event_pairing_expectation)

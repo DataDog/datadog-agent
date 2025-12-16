@@ -9,6 +9,7 @@ package procutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -34,6 +35,14 @@ var counterPaths = []string{
 	pdhutil.CounterAllProcessIOReadBytesPerSec,
 	pdhutil.CounterAllProcessIOWriteBytesPerSec,
 }
+
+// Global variables for getPIDs buffer scaling - exposed for testing
+var (
+	// InitialPIDBufferSize is the initial size of the buffer used to retrieve PIDs
+	InitialPIDBufferSize uint32 = 1024
+	// PIDBufferIncrement is how much to increase the buffer size when it's too small
+	PIDBufferIncrement uint32 = 1024
+)
 
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(...Option) Probe {
@@ -294,7 +303,7 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 }
 
 func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, fmt.Errorf("probe(Windows): StatsWithPermByPID is not implemented")
+	return nil, errors.New("probe(Windows): StatsWithPermByPID is not implemented")
 }
 
 func (p *probe) getProc(instance string) *Process {
@@ -461,18 +470,20 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 
 func getPIDs() ([]int32, error) {
 	var read uint32
-	var psSize uint32 = 1024
+	var psSize = InitialPIDBufferSize
+	const dwordSize uint32 = 4
 
 	for {
 		buf := make([]uint32, psSize)
 		if err := windows.EnumProcesses(buf, &read); err != nil {
 			return nil, err
 		}
-		if uint32(len(buf)) == read {
-			psSize += 1024
+		if uint32(len(buf)*int(dwordSize)) == read {
+			psSize += PIDBufferIncrement
 			continue
 		}
-		pids := make([]int32, read)
+		// read is a number of bytes, so we need to divide by the size of a DWORD to get the number of PIDs
+		pids := make([]int32, read/dwordSize)
 		for i := range pids {
 			pids[i] = int32(buf[i])
 		}

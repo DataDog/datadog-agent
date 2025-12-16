@@ -138,7 +138,7 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 	results, err := session.Get(oids)
 	if err != nil {
 		fetchErr := newFetchError(scalarOid, oids, snmpGet, err)
-		log.Debugf(fetchErr.Error())
+		log.Debug(fetchErr.Error())
 		return nil, fetchErr
 	}
 	if log.ShouldLog(log.DebugLvl) {

@@ -456,9 +456,14 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			".us2.datadoghq.com",
 			true,
 		},
-		{ // arbitrary site
+		{ // Arbitrary site
 			"https://app.xx9.datadoghq.com",
 			".xx9.datadoghq.com",
+			true,
+		},
+		{ // Arbitrary long-named site
+			"https://app.xxxx99.datadoghq.com",
+			".xxxx99.datadoghq.com",
 			true,
 		},
 		{ // Custom DD URL: leave unchanged

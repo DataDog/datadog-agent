@@ -12,11 +12,14 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 )
 
@@ -35,6 +38,8 @@ type Module interface {
 type FactoryDependencies struct {
 	fx.In
 
+	CoreConfig  config.Component
+	Log         log.Component
 	WMeta       workloadmeta.Component
 	Tagger      tagger.Component
 	Telemetry   telemetry.Component
@@ -42,4 +47,5 @@ type FactoryDependencies struct {
 	Statsd      ddgostatsd.ClientInterface
 	Hostname    hostname.Component
 	Ipc         ipc.Component
+	Traceroute  traceroute.Component
 }

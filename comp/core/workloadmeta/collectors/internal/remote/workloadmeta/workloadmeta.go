@@ -8,7 +8,7 @@ package workloadmeta
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 
 	"go.uber.org/fx"
@@ -98,7 +98,7 @@ type streamHandler struct {
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	if filterHasUnsupportedKind(deps.Params.Filter) {
-		return workloadmeta.CollectorProvider{}, fmt.Errorf("the filter specified contains unsupported kinds")
+		return workloadmeta.CollectorProvider{}, errors.New("the filter specified contains unsupported kinds")
 	}
 
 	return workloadmeta.CollectorProvider{
@@ -147,7 +147,7 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
-		return nil, fmt.Errorf("incorrect response type")
+		return nil, errors.New("incorrect response type")
 	}
 	var collectorEvents []workloadmeta.CollectorEvent
 

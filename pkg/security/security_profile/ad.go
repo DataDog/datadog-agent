@@ -367,12 +367,12 @@ func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
 	// Try to get workload from cgroup resolver
 	if ad.Profile.Metadata.ContainerID != "" {
 		// Container workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkload(ad.Profile.Metadata.ContainerID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetContainerWorkload(ad.Profile.Metadata.ContainerID); found {
 			pids = workload.GetPIDs()
 		}
 	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
 		// Host workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkloadByCGroupID(ad.Profile.Metadata.CGroupContext.CGroupID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetHostWorkload(ad.Profile.Metadata.CGroupContext.CGroupID); found {
 			pids = workload.GetPIDs()
 		}
 	}
@@ -523,12 +523,12 @@ workloadLoop:
 		defaultConfig := m.getDefaultLoadConfig()
 
 		// if not a container, check we should trace it
-		if workloads[0].ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		if workloads[0].ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
 			continue
 		}
 
-		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
-			seclog.Warnf("%v", err)
+		if err := m.startDumpWithConfig(workloads[0].ContainerContext.ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
+			seclog.Debugf("%v", err)
 		}
 	}
 }
@@ -544,7 +544,7 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 			Arch:              utils.RuntimeArch(),
 
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			Name:              "activity-dump-" + utils.RandString(10),
 			ProtobufVersion:   profile.ProtobufVersion,
 			DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
 			ContainerID:       containerID,
@@ -640,7 +640,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	}
 
 	if err := m.startDumpWithConfig(event.ContainerContext.ContainerID, event.CGroupContext, event.ConfigCookie, event.Config); err != nil {
-		seclog.Warnf("%v", err)
+		seclog.Debugf("%v", err)
 	}
 }
 
@@ -677,7 +677,7 @@ func (m *Manager) syncTracedCgroups() {
 
 		if err = m.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, mark for deletion
-			seclog.Warnf("config not found for inode (%v): %v", cgroupInode, err)
+			seclog.Debugf("config not found for inode (%v): %v", cgroupInode, err)
 			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 			continue
 		}

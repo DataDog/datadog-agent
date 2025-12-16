@@ -22,8 +22,8 @@ import (
 	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
-	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 const (
@@ -46,6 +46,12 @@ const (
 	// UDP connection type
 	UDP ConnectionType = 1
 )
+
+// ConnectionTypeFromString is a map from a lowercase string to ConnectionType
+var ConnectionTypeFromString = map[string]ConnectionType{
+	"tcp": TCP,
+	"udp": UDP,
+}
 
 var (
 	tcpLabels = map[string]string{"ip_proto": TCP.String()}
@@ -115,10 +121,17 @@ type BufferedData struct {
 	buffer *ClientBuffer
 }
 
+// ContainerID uniquely represents a container. Nil represents the host.
+type ContainerID = *intern.Value
+
+// ResolvConf is an interned string representing the contents of resolv.conf
+type ResolvConf = *utilintern.StringValue
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]dns.Hostname
+	ResolvConfs                 map[ContainerID]ResolvConf
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32
@@ -259,7 +272,7 @@ type ConnectionStats struct {
 	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
-	CertInfo unique.Handle[ssluprobes.CertInfo]
+	CertInfo unique.Handle[CertInfo]
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint16]uint32
@@ -303,7 +316,7 @@ type IPTranslation struct {
 }
 
 func (c ConnectionStats) String() string {
-	return ConnectionSummary(&c, nil)
+	return connectionSummary(&c, nil)
 }
 
 // IsExpired returns whether the connection is expired according to the provided time and timeout.
@@ -324,7 +337,7 @@ func (c ConnectionStats) IsEmpty() bool {
 
 // HasCertInfo returns whether the connection has a TLS cert associated
 func (c ConnectionStats) HasCertInfo() bool {
-	return c.CertInfo != unique.Handle[ssluprobes.CertInfo]{}
+	return c.CertInfo != unique.Handle[CertInfo]{}
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice
@@ -390,8 +403,8 @@ func BeautifyKey(key string) string {
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
 
-// ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
+// connectionSummary returns a string summarizing a connection
+func connectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,

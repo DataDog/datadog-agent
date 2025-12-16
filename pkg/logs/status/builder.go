@@ -8,7 +8,7 @@ package status
 
 import (
 	"expvar"
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,13 +198,13 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 // getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
 func (b *Builder) getMetricsStatus() map[string]string {
 	var metrics = make(map[string]string)
-	metrics["LogsProcessed"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value())
-	metrics["LogsSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsSent").(*expvar.Int).Value())
-	metrics["BytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("BytesSent").(*expvar.Int).Value())
-	metrics["RetryCount"] = fmt.Sprintf("%v", b.logsExpVars.Get("RetryCount").(*expvar.Int).Value())
+	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
+	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
+	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
+	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
-	metrics["EncodedBytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value())
-	metrics["LogsTruncated"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value())
+	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
+	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
 	return metrics
 }
 

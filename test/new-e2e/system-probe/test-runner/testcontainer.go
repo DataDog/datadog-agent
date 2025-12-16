@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 const containerName = "kmt-test-container"
@@ -28,6 +29,7 @@ func newTestContainer(image, bpfDir string) *testContainer {
 }
 
 func (ctc *testContainer) runDockerCmd(args []string) error {
+	fmt.Printf("running: docker %s", strings.Join(args, " "))
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -58,7 +60,7 @@ func (ctc *testContainer) start() error {
 		"/etc/group:/etc/group",
 		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
 		"/opt/kmt-ramfs:/opt/kmt-ramfs",
-		fmt.Sprintf("%s:/opt/bpf", ctc.bpfDir),
+		ctc.bpfDir + ":/opt/bpf",
 	}
 	for _, mount := range mounts {
 		args = append(args, "-v", mount)

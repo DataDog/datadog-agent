@@ -9,9 +9,10 @@ package dogstatsdreplay
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type dogstatsdreplayNixTest struct {
@@ -23,14 +24,15 @@ func TestLinuxDogstatsdReplaySuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogstatsdreplayNixTest{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(`
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(`
 log_level: DEBUG
 dogstatsd_non_local_traffic: true
 dogstatsd_tag_cardinality: high
 dogstatsd_origin_detection: true
 `),
+				),
 			),
-		),
-	))
+		)))
 }

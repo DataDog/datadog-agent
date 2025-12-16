@@ -102,6 +102,9 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
+			return enc.WriteToken(jsontext.String("@duration"))
+		}),
 	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
@@ -328,6 +331,15 @@ func makeOperationMarshaler(
 			}
 			return json.MarshalEncode(enc, locationWithKind{
 				Kind: "LocationOp",
+				Op:   op,
+			}, json.WithMarshalers(marshalers))
+		case *ir.DereferenceOp:
+			type dereferenceWithKind struct {
+				Kind string            `json:"__kind"`
+				Op   *ir.DereferenceOp `json:",inline"`
+			}
+			return json.MarshalEncode(enc, dereferenceWithKind{
+				Kind: "DereferenceOp",
 				Op:   op,
 			}, json.WithMarshalers(marshalers))
 		default:

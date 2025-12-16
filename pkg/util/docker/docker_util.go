@@ -336,7 +336,7 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
 	if cerrdefs.IsNotFound(err) {
-		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
+		return container, dderrors.NewNotFound("docker container " + id)
 	}
 	if err != nil {
 		return container, err
@@ -413,7 +413,7 @@ func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) (
 		}
 	}
 	if pidIdx == -1 {
-		return nil, fmt.Errorf("unable to locate PID index into returned process slice")
+		return nil, errors.New("unable to locate PID index into returned process slice")
 	}
 
 	// Create slice large enough to hold each PID

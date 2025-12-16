@@ -45,14 +45,14 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "libyaml_so",
+    name = "yaml",
     deps = [":libyaml"],
     visibility = ["//visibility:public"],
 )
 
 so_symlink(
     name = "lib_files",
-    src = ":libyaml_so",
+    src = ":yaml",
     libname = "libyaml",
     version = VERSION,
 )

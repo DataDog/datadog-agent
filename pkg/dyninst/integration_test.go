@@ -144,7 +144,6 @@ func testDyninst(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
 		real module.ProcessSubscriber,
@@ -155,6 +154,7 @@ func testDyninst(
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
+	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
@@ -301,6 +301,7 @@ func runIntegrationTestSuite(
 		})
 	}
 	probes := testprogs.MustGetProbeDefinitions(t, service)
+	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error

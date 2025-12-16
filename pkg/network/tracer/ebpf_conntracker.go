@@ -441,7 +441,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 
 	pid, err := kernel.RootNSPID()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get system-probe pid in root pid namespace")
+		return nil, errors.New("failed to get system-probe pid in root pid namespace")
 	}
 
 	opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{

@@ -105,7 +105,16 @@ func TestDdTags(t *testing.T) {
 }
 
 func TestWithoutHighCardinalityTags(t *testing.T) {
-	tags := map[string]string{"key1": "value1", "key2": "value2", "container_id": "abc", "replica_name": "abc"}
+	tags := map[string]string{
+		"key1":                "value1",
+		"key2":                "value2",
+		"container_id":        "abc",
+		"replica_name":        "abc",
+		"gcrj.execution_name": "exec-123",
+		"gcrj.task_index":     "0",
+		"gcrj.task_attempt":   "1",
+		"gcrj.task_count":     "10",
+	}
 	filteredTags := WithoutHighCardinalityTags(tags)
 	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, filteredTags)
 }

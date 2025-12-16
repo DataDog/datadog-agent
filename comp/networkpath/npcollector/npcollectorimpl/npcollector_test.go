@@ -10,6 +10,7 @@ package npcollectorimpl
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,19 +23,18 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go4.org/netipx"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -47,7 +47,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -85,6 +85,14 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(logs, "Stop NpCollector"), logs)
 }
 
+type tracerouteRunner struct {
+	fn func(context.Context, config.Config) (payload.NetworkPath, error)
+}
+
+func (t *tracerouteRunner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+	return t.fn(ctx, cfg)
+}
+
 func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
@@ -93,16 +101,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_devices.namespace":                        "my-ns1",
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
-
-	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
-	npCollector.epForwarder = mockEpForwarder
-
-	app.RequireStart()
-
-	assert.True(t, npCollector.running)
-
-	npCollector.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{
@@ -231,7 +230,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			}
 		}
 		return p, nil
-	}
+	}}
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, tr)
+
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	npCollector.epForwarder = mockEpForwarder
+
+	app.RequireStart()
+
+	assert.True(t, npCollector.running)
 
 	// EXPECT
 	// language=json
@@ -244,6 +251,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -321,6 +331,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -435,13 +448,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_devices.namespace":                        "my-ns1",
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
-
-	app.RequireStart()
-
-	assert.True(t, npCollector.running)
-
-	npCollector.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond) // simulate slow processing time, to test for panic
 		return payload.NetworkPath{
 			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
@@ -468,7 +475,12 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 				},
 			},
 		}, nil
-	}
+	}}
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, tr)
+
+	app.RequireStart()
+
+	assert.True(t, npCollector.running)
 
 	// WHEN
 	conns := &model.Connections{}
@@ -499,7 +511,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 	conns := &model.Connections{
 		Conns: []*model.Connection{
@@ -543,13 +555,13 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
+	assert.Equal(t, 1000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -563,7 +575,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 		"network_devices.namespace":                      "ns1",
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 2, npCollector.workers)
@@ -991,7 +1003,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stats := &teststatsd.Client{}
-			_, npCollector := newTestNpCollector(t, tt.agentConfigs, stats)
+			_, npCollector := newTestNpCollector(t, tt.agentConfigs, stats, nil)
 			if tt.noInputChan {
 				npCollector.pathtestInputChan = nil
 			}
@@ -1045,7 +1057,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -1107,7 +1119,7 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 				"network_path.connections_monitoring.enabled": true,
 			}
 			stats := &teststatsd.Client{}
-			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
@@ -1144,7 +1156,7 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 		"network_path.collector.workers":              6,
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 	npCollector.TimeNowFn = mockTimeNow
 
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
@@ -1173,7 +1185,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 		"network_path.collector.flush_interval":       "100ms",
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 	defer npCollector.stop()
 
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
@@ -1210,7 +1222,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	utillog.SetupLogger(l, "debug")
 	defer w.Flush()
 
-	app, npCollector := newTestNpCollector(b, agentConfigs, &teststatsd.Client{})
+	app, npCollector := newTestNpCollector(b, agentConfigs, &teststatsd.Client{}, nil)
 
 	// TEST START
 	app.RequireStart()
@@ -1240,7 +1252,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -1337,7 +1349,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		"network_path.connections_monitoring.enabled":           true,
 		"network_path.collector.reverse_dns_enrichment.enabled": false,
 	}
-	_, npCollector = newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector = newTestNpCollector(t, agentConfigs, stats, nil)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -1383,7 +1395,7 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 	// WHEN
 	path := payload.NetworkPath{
@@ -1418,7 +1430,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 	stats := &teststatsd.Client{}
-	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 	tts := []struct {
 		description string
@@ -1482,7 +1494,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
 		name                   string
 		conn                   *model.Connection
-		vpcSubnets             []*net.IPNet
+		vpcSubnets             []netip.Prefix
 		domain                 string
 		shouldSchedule         bool
 		subnetSkipped          bool
@@ -1579,7 +1591,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1591,7 +1603,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1603,7 +1615,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1619,7 +1631,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					ReplDstIP:   "10.1.2.3",
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1636,7 +1648,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					// ReplDstIP is the empty string
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1815,7 +1827,7 @@ network_path:
 				"network_path.collector.monitor_ip_without_domain":    tt.monitorIPWithoutDomain,
 			}
 			stats := &teststatsd.Client{}
-			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets, tt.domain))
 
@@ -1833,9 +1845,9 @@ network_path:
 	}
 }
 
-func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	assert.Nil(t, err)
+func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
+	ipNet, err := netip.ParsePrefix(cidr)
+	assert.NoError(t, err)
 	return ipNet
 }
 
@@ -1878,7 +1890,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 				"network_path.collector.disable_intra_vpc_collection": true,
 			}
 			stats := &teststatsd.Client{}
-			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
 			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil, "abc"))
 

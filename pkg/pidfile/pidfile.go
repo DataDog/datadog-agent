@@ -34,7 +34,7 @@ func WritePID(pidFilePath string) error {
 	}
 
 	// write current pid in it
-	pidStr := fmt.Sprintf("%d", os.Getpid())
+	pidStr := strconv.Itoa(os.Getpid())
 	if err := os.WriteFile(pidFilePath, []byte(pidStr), 0644); err != nil {
 		return err
 	}

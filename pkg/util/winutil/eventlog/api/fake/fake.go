@@ -29,6 +29,12 @@ type API struct {
 	eventHandles    map[evtapi.EventRecordHandle]*eventRecord
 	sourceHandles   map[evtapi.EventSourceHandle]string
 	bookmarkHandles map[evtapi.EventBookmarkHandle]*bookmark
+
+	muEventLogs       sync.RWMutex
+	muSubscriptions   sync.RWMutex
+	muEventHandles    sync.RWMutex
+	muSourceHandles   sync.RWMutex
+	muBookmarkHandles sync.RWMutex
 }
 
 type eventLog struct {
@@ -42,6 +48,8 @@ type eventLog struct {
 
 	// For notifying of new events
 	subscriptions map[evtapi.EventResultSetHandle]*subscription
+
+	muSubscriptions sync.RWMutex
 }
 
 type eventSource struct {
@@ -128,22 +136,40 @@ func newEventRecord(Type uint, category uint, eventID uint, userSID *windows.SID
 func (api *API) addSubscription(sub *subscription) {
 	h := api.nextHandle.Inc()
 	sub.handle = evtapi.EventResultSetHandle(h)
+
+	api.muSubscriptions.Lock()
+	defer api.muSubscriptions.Unlock()
 	api.subscriptions[sub.handle] = sub
 }
 
 func (api *API) addEventRecord(event *eventRecord) {
 	h := api.nextHandle.Inc()
 	event.handle = evtapi.EventRecordHandle(h)
+
+	api.muEventHandles.Lock()
+	defer api.muEventHandles.Unlock()
 	api.eventHandles[event.handle] = event
 }
 
 func (api *API) addBookmark(bookmark *bookmark) {
 	h := api.nextHandle.Inc()
 	bookmark.handle = evtapi.EventBookmarkHandle(h)
+
+	api.muBookmarkHandles.Lock()
+	defer api.muBookmarkHandles.Unlock()
 	api.bookmarkHandles[bookmark.handle] = bookmark
 }
 
+func (api *API) addEventSourceWithHandle(eventHandle evtapi.EventSourceHandle, logName string) {
+	api.muSourceHandles.Lock()
+	defer api.muSourceHandles.Unlock()
+	api.sourceHandles[eventHandle] = logName
+}
+
 func (api *API) getSubscriptionByHandle(subHandle evtapi.EventResultSetHandle) (*subscription, error) {
+	api.muSubscriptions.RLock()
+	defer api.muSubscriptions.RUnlock()
+
 	v, ok := api.subscriptions[subHandle]
 	if !ok {
 		return nil, fmt.Errorf("Subscription not found: %#x", subHandle)
@@ -152,6 +178,9 @@ func (api *API) getSubscriptionByHandle(subHandle evtapi.EventResultSetHandle) (
 }
 
 func (api *API) getEventRecordByHandle(eventHandle evtapi.EventRecordHandle) (*eventRecord, error) {
+	api.muEventHandles.RLock()
+	defer api.muEventHandles.RUnlock()
+
 	v, ok := api.eventHandles[eventHandle]
 	if !ok {
 		return nil, fmt.Errorf("Event not found: %#x", eventHandle)
@@ -160,6 +189,9 @@ func (api *API) getEventRecordByHandle(eventHandle evtapi.EventRecordHandle) (*e
 }
 
 func (api *API) getBookmarkByHandle(bookmarkHandle evtapi.EventBookmarkHandle) (*bookmark, error) {
+	api.muBookmarkHandles.RLock()
+	defer api.muBookmarkHandles.RUnlock()
+
 	v, ok := api.bookmarkHandles[bookmarkHandle]
 	if !ok {
 		return nil, fmt.Errorf("Bookmark not found: %#x", bookmarkHandle)
@@ -168,6 +200,9 @@ func (api *API) getBookmarkByHandle(bookmarkHandle evtapi.EventBookmarkHandle) (
 }
 
 func (api *API) getEventLog(name string) (*eventLog, error) {
+	api.muEventLogs.RLock()
+	defer api.muEventLogs.RUnlock()
+
 	v, ok := api.eventLogs[name]
 	if !ok {
 		return nil, fmt.Errorf("The Log name \"%v\" does not exist", name)
@@ -177,7 +212,7 @@ func (api *API) getEventLog(name string) (*eventLog, error) {
 
 func (api *API) getEventSourceByHandle(sourceHandle evtapi.EventSourceHandle) (*eventLog, error) {
 	// lookup name using handle
-	v, ok := api.sourceHandles[sourceHandle]
+	v, ok := api.tryGetEventSource(sourceHandle)
 	if !ok {
 		return nil, fmt.Errorf("Invalid source handle: %#x", sourceHandle)
 	}
@@ -185,13 +220,94 @@ func (api *API) getEventSourceByHandle(sourceHandle evtapi.EventSourceHandle) (*
 	return api.getEventLog(v)
 }
 
+func (api *API) tryGetEventSource(sourceHandle evtapi.EventSourceHandle) (string, bool) {
+	api.muSourceHandles.RLock()
+	defer api.muSourceHandles.RUnlock()
+	v, ok := api.sourceHandles[sourceHandle]
+	return v, ok
+}
+
+func (api *API) tryGetEventLogName(sourceID string) (string, bool) {
+	api.muEventLogs.RLock()
+	defer api.muEventLogs.RUnlock()
+
+	for _, log := range api.eventLogs {
+		if log.hasEventSource(sourceID) {
+			return log.name, true
+		}
+	}
+
+	return "", false
+}
+
 func (api *API) addEventLog(eventLog *eventLog) {
+	api.muEventLogs.Lock()
+	defer api.muEventLogs.Unlock()
 	api.eventLogs[eventLog.name] = eventLog
+}
+
+func (api *API) deleteBookmark(h evtapi.EventBookmarkHandle) {
+	api.muBookmarkHandles.Lock()
+	defer api.muBookmarkHandles.Unlock()
+	delete(api.bookmarkHandles, h)
+}
+
+func (api *API) deleteEventRecord(h evtapi.EventRecordHandle) {
+	api.muEventHandles.Lock()
+	defer api.muEventHandles.Unlock()
+	delete(api.eventHandles, h)
+}
+
+func (api *API) deleteSubscription(h evtapi.EventResultSetHandle) {
+	api.muSubscriptions.Lock()
+	defer api.muSubscriptions.Unlock()
+	delete(api.subscriptions, h)
+}
+
+func (e *eventLog) addSubscriptionWithHandle(eventHandle evtapi.EventResultSetHandle, sub *subscription) {
+	e.muSubscriptions.Lock()
+	defer e.muSubscriptions.Unlock()
+	e.subscriptions[eventHandle] = sub
+}
+
+func (e *eventLog) deleteSubscription(h evtapi.EventResultSetHandle) {
+	e.muSubscriptions.Lock()
+	defer e.muSubscriptions.Unlock()
+	delete(e.subscriptions, h)
 }
 
 func (e *eventLog) addEventRecord(event *eventRecord) {
 	event.RecordID = uint(e.nextRecordID.Inc())
 	e.events = append(e.events, event)
+}
+
+func (e *eventLog) hasEventSource(sourceID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, ok := e.sources[sourceID]
+	return ok
+}
+
+func (e *eventLog) addNewEventSource(logName string, sourceID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if _, exists := e.sources[sourceID]; exists {
+		return false
+	}
+
+	var s eventSource
+	s.name = sourceID
+	s.logName = logName
+	e.sources[sourceID] = &s
+	return true
+}
+
+func (e *eventLog) deleteEventSource(sourceID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.sources, sourceID)
+
 }
 
 func (e *eventLog) reportEvent(
@@ -212,6 +328,9 @@ func (e *eventLog) reportEvent(
 		Strings,
 		RawData)
 	e.addEventRecord(event)
+
+	e.muSubscriptions.RLock()
+	defer e.muSubscriptions.RUnlock()
 
 	// notify subscriptions
 	for _, sub := range e.subscriptions {

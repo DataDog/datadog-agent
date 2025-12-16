@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"testing"
@@ -138,6 +139,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -152,7 +154,7 @@ func TestGetPayload(t *testing.T) {
 			Tags:       []string{"env:prod"},
 		})
 		// Register an error
-		src.Status.Error(fmt.Errorf("No such file or directory"))
+		src.Status.Error(errors.New("No such file or directory"))
 		logSources.AddSource(src)
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
@@ -160,6 +162,7 @@ func TestGetPayload(t *testing.T) {
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

@@ -638,7 +638,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		IMDSIPv4: parseIMDSIPv4(),
 
 		// event
-		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_gprc_server"),
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
 
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
@@ -711,12 +711,12 @@ func isRemoteConfigEnabled() bool {
 
 // IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
 // it's based on the configuration itself, but will default on true if
-// running on fargate
+// running in sidecar mode
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
-	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
-		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+	// by default in sidecar mode, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsSidecar() {
+		seclog.Infof("Sidecar instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
 

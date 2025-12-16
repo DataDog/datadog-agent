@@ -13,10 +13,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-
-	// we need this import for the seelog custom 'ShortFilePath' custom formater. We should migrate them to
-	// pkg/util/log
-	_ "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // tbWriter is an implementation of io.Writer that sends lines to

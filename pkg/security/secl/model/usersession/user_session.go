@@ -6,28 +6,27 @@
 // Package usersession holds model related to the user session context
 package usersession
 
-var (
-	// UserSessionTypes are the supported user session types
-	UserSessionTypes = map[string]Type{
-		"unknown": 0,
-		"k8s":     1,
-		"ssh":     2,
-	}
+const (
+	// UserSessionTypeUnknown is the unknown user session type
+	UserSessionTypeUnknown Type = iota
+	// UserSessionTypeK8S is the k8s user session type
+	UserSessionTypeK8S
+	// UserSessionTypeSSH is the ssh user session type
+	UserSessionTypeSSH
+)
 
-	// UserSessionTypeStrings is used to
-	UserSessionTypeStrings = map[Type]string{}
+// SSHAuthMethodConstants are the supported SSH authentication methods
+const (
+	// SSHAuthMethodUnknown is the unknown SSH authentication method
+	SSHAuthMethodUnknown AuthType = iota
+	// SSHAuthMethodPassword is the password SSH authentication method
+	SSHAuthMethodPassword
+	// SSHAuthMethodPublicKey is the public key SSH authentication method
+	SSHAuthMethodPublicKey
 )
 
 // Type is used to identify the User Session type
 type Type uint8
 
-func (ust Type) String() string {
-	return UserSessionTypeStrings[ust]
-}
-
-// InitUserSessionTypes initializes internal structures for parsing Type values
-func InitUserSessionTypes() {
-	for k, v := range UserSessionTypes {
-		UserSessionTypeStrings[v] = k
-	}
-}
+// AuthType is used to identify the SSH authentication method
+type AuthType uint8

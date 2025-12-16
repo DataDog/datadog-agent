@@ -12,10 +12,9 @@ import (
 	"os"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
-
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func createCELExcludeProgram(name string, rules string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {

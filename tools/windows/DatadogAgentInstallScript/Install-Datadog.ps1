@@ -6,11 +6,6 @@
 $SCRIPT_VERSION = "1.2.1"
 $GENERAL_ERROR_CODE = 1
 
-# Set some defaults if not provided
-if (-Not $env:DD_REMOTE_UPDATES) {
-   $env:DD_REMOTE_UPDATES = "false"
-}
-
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
    # Craft the URL to the installer executable

@@ -8,7 +8,6 @@
 package cloudfoundry
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -381,7 +380,7 @@ func TestADIdentifier(t *testing.T) {
 			expected: "4321/flask-app/instance-guid",
 		},
 	} {
-		t.Run(fmt.Sprintf("svcName=%s", tc.svcName), func(t *testing.T) {
+		t.Run("svcName="+tc.svcName, func(t *testing.T) {
 			var i ADIdentifier
 			if tc.aLRP == nil {
 				i = NewADNonContainerIdentifier(tc.dLRP, tc.svcName)

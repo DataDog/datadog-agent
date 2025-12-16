@@ -9,13 +9,14 @@
 package user
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // ErrRootRequired is the error returned when an operation requires Administrator privileges.
-var ErrRootRequired = fmt.Errorf("operation requires Administrator privileges")
+var ErrRootRequired = errors.New("operation requires Administrator privileges")
 
 // IsRoot returns true if token has Administrators group enabled
 func IsRoot() bool {

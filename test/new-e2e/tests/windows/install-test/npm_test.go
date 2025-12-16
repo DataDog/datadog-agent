@@ -6,11 +6,10 @@
 package installtest
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -216,14 +215,14 @@ func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPac
 		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 	}
 	installOpts = append(installOpts, options...)
-	if !s.Run(fmt.Sprintf("upgrade to %s", agentPackage.AgentVersion()), func() {
+	if !s.Run("upgrade to "+agentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(host, installOpts...)
 		s.Require().NoError(err, "should upgrade to agent %s", agentPackage.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}
 
-	if !s.Run(fmt.Sprintf("test %s", agentPackage.AgentVersion()), func() {
+	if !s.Run("test "+agentPackage.AgentVersion(), func() {
 		client := s.NewTestClientForHost(host)
 		RequireAgentVersionRunningWithNoErrors(s.T(), client, agentPackage.AgentVersion())
 	}) {

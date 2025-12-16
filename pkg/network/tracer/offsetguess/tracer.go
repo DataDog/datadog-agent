@@ -318,7 +318,7 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	if len(udpAddrs) > 0 {
 		return udpAddrs, nil
 	}
-	return nil, fmt.Errorf("no IPv6 link local address found")
+	return nil, errors.New("no IPv6 link local address found")
 }
 
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
@@ -906,7 +906,7 @@ func newTracerEventGenerator(flowi6 bool) (*tracerEventGenerator, error) {
 
 	// port 0 means we let the kernel choose a free port
 	var err error
-	addr := fmt.Sprintf("%s:0", listenIPv4)
+	addr := listenIPv4 + ":0"
 	eg.listener, err = net.Listen("tcp4", addr)
 	if err != nil {
 		return nil, err
@@ -978,7 +978,7 @@ func (e *tracerEventGenerator) Generate(status GuessWhat, expected *fieldValues)
 			return err
 		}
 
-		bindAddress := fmt.Sprintf("[%s]:9092", addr.String())
+		bindAddress := "[" + addr.String() + "]:9092"
 
 		// Since we connect to a random IP, this will most likely fail. In the unlikely case where it connects
 		// successfully, we close the connection to avoid a leak.
@@ -1091,7 +1091,7 @@ func acceptHandler(l net.Listener) {
 func TCPGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
-		return nil, fmt.Errorf("not a TCPConn")
+		return nil, errors.New("not a TCPConn")
 	}
 
 	sysc, err := tcpConn.SyscallConn()

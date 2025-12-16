@@ -8,7 +8,7 @@
 package ebpf
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -78,7 +78,7 @@ func TestBTFTelemetry(t *testing.T) {
 func curDir() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("unable to get current file build path")
+		return "", errors.New("unable to get current file build path")
 	}
 
 	buildDir := filepath.Dir(file)

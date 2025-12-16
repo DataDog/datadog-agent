@@ -8,7 +8,7 @@
 package corechecks
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -170,7 +170,7 @@ func TestLongRunningCheckWrapperRun(t *testing.T) {
 
 	t.Run("Returning an error if GetSender fails while already running", func(t *testing.T) {
 		mockCheck := newMockLongRunningCheck()
-		expectedErr := fmt.Errorf("failed to get sender")
+		expectedErr := errors.New("failed to get sender")
 		mockCheck.On("GetSender").Return(nil, expectedErr)
 
 		wrapper := NewLongRunningCheckWrapper(mockCheck)

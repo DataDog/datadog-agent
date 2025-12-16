@@ -295,7 +295,7 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 		devnull.Close()
 	}
 
-	testCgroupName := fmt.Sprintf("test-detach-device-programs-%s", utils.RandString(10))
+	testCgroupName := "test-detach-device-programs-" + utils.RandString(10)
 	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
 	moveSelfToCgroup(t, testCgroupName)
 
@@ -382,7 +382,7 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 		devnull.Close()
 	}
 
-	testCgroupName := fmt.Sprintf("test-cgroup-device-allow-%s", utils.RandString(10))
+	testCgroupName := "test-cgroup-device-allow-" + utils.RandString(10)
 	moveSelfToCgroup(t, testCgroupName)
 
 	// Test that /dev/null is still accessible after moving to cgroup
@@ -428,7 +428,7 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
 
-	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
+	testCgroupName := "test-get-cgroup-for-process-" + utils.RandString(10)
 	moveSelfToCgroup(t, testCgroupName)
 
 	currentCgroup, err = getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
@@ -448,13 +448,13 @@ func TestGetAbsoluteCgroupV1ForProcess(t *testing.T) {
 	}
 
 	mainCgroup := testutil.FakeCgroup{
-		Name:   fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10)),
+		Name:   "test-parent-cgroup-" + utils.RandString(10),
 		PIDs:   []int{mainPid},
 		Parent: &rootCgroup,
 	}
 
 	siblingCgroup := testutil.FakeCgroup{
-		Name:   fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10)),
+		Name:   "test-sibling-cgroup-" + utils.RandString(10),
 		PIDs:   []int{siblingPid},
 		Parent: &rootCgroup,
 	}
@@ -498,12 +498,12 @@ func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
 	}
 
 	parentCgroup := testutil.FakeCgroup{
-		Name: fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10)),
+		Name: "test-parent-cgroup-" + utils.RandString(10),
 		PIDs: []int{},
 	}
 
 	childCgroup := testutil.FakeCgroup{
-		Name:                        fmt.Sprintf("test-child-cgroup-%s", utils.RandString(10)),
+		Name:                        "test-child-cgroup-" + utils.RandString(10),
 		Parent:                      &parentCgroup,
 		PIDs:                        []int{pid},
 		IsContainerRoot:             true,
@@ -511,7 +511,7 @@ func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
 	}
 
 	siblingCgroup := testutil.FakeCgroup{
-		Name:                        fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10)),
+		Name:                        "test-sibling-cgroup-" + utils.RandString(10),
 		Parent:                      &parentCgroup,
 		PIDs:                        []int{siblingProc},
 		VisibleInContainerNamespace: true,

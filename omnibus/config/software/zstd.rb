@@ -28,7 +28,7 @@ source url: "https://github.com/facebook/zstd/releases/download/v#{version}/zstd
 relative_path "zstd-#{version}"
 
 build do
-  command_on_repo_root "bazelisk run -- @zstd//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @zstd//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libzstd.pc" \
     " #{install_dir}/embedded/lib/libzstd.so"

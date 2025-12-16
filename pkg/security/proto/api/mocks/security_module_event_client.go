@@ -7,7 +7,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	grpc "google.golang.org/grpc"
 
@@ -28,7 +28,7 @@ func (_m *SecurityModuleEventClient) EXPECT() *SecurityModuleEventClient_Expecte
 }
 
 // GetActivityDumpStream provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleEventClient) GetActivityDumpStream(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error) {
+func (_m *SecurityModuleEventClient) GetActivityDumpStream(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -44,10 +44,10 @@ func (_m *SecurityModuleEventClient) GetActivityDumpStream(ctx context.Context, 
 
 	var r0 grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *empty.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *empty.Empty, ...grpc.CallOption) grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
@@ -55,7 +55,7 @@ func (_m *SecurityModuleEventClient) GetActivityDumpStream(ctx context.Context, 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *empty.Empty, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -71,14 +71,14 @@ type SecurityModuleEventClient_GetActivityDumpStream_Call struct {
 
 // GetActivityDumpStream is a helper method to define mock.On call
 //   - ctx context.Context
-//   - in *empty.Empty
+//   - in *emptypb.Empty
 //   - opts ...grpc.CallOption
 func (_e *SecurityModuleEventClient_Expecter) GetActivityDumpStream(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleEventClient_GetActivityDumpStream_Call {
 	return &SecurityModuleEventClient_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream",
 		append([]interface{}{ctx, in}, opts...)...)}
 }
 
-func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) Run(run func(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetActivityDumpStream_Call {
+func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) Run(run func(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetActivityDumpStream_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]grpc.CallOption, len(args)-2)
 		for i, a := range args[2:] {
@@ -86,7 +86,7 @@ func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) Run(run func(ctx
 				variadicArgs[i] = a.(grpc.CallOption)
 			}
 		}
-		run(args[0].(context.Context), args[1].(*empty.Empty), variadicArgs...)
+		run(args[0].(context.Context), args[1].(*emptypb.Empty), variadicArgs...)
 	})
 	return _c
 }
@@ -96,13 +96,13 @@ func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) Return(_a0 grpc.
 	return _c
 }
 
-func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) RunAndReturn(run func(context.Context, *empty.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)) *SecurityModuleEventClient_GetActivityDumpStream_Call {
+func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) RunAndReturn(run func(context.Context, *emptypb.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)) *SecurityModuleEventClient_GetActivityDumpStream_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetEventStream provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleEventClient) GetEventStream(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error) {
+func (_m *SecurityModuleEventClient) GetEventStream(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -118,10 +118,10 @@ func (_m *SecurityModuleEventClient) GetEventStream(ctx context.Context, in *emp
 
 	var r0 grpc.ServerStreamingClient[api.SecurityEventMessage]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *empty.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *empty.Empty, ...grpc.CallOption) grpc.ServerStreamingClient[api.SecurityEventMessage]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) grpc.ServerStreamingClient[api.SecurityEventMessage]); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
@@ -129,7 +129,7 @@ func (_m *SecurityModuleEventClient) GetEventStream(ctx context.Context, in *emp
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *empty.Empty, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *emptypb.Empty, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -145,14 +145,14 @@ type SecurityModuleEventClient_GetEventStream_Call struct {
 
 // GetEventStream is a helper method to define mock.On call
 //   - ctx context.Context
-//   - in *empty.Empty
+//   - in *emptypb.Empty
 //   - opts ...grpc.CallOption
 func (_e *SecurityModuleEventClient_Expecter) GetEventStream(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleEventClient_GetEventStream_Call {
 	return &SecurityModuleEventClient_GetEventStream_Call{Call: _e.mock.On("GetEventStream",
 		append([]interface{}{ctx, in}, opts...)...)}
 }
 
-func (_c *SecurityModuleEventClient_GetEventStream_Call) Run(run func(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetEventStream_Call {
+func (_c *SecurityModuleEventClient_GetEventStream_Call) Run(run func(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetEventStream_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]grpc.CallOption, len(args)-2)
 		for i, a := range args[2:] {
@@ -160,7 +160,7 @@ func (_c *SecurityModuleEventClient_GetEventStream_Call) Run(run func(ctx contex
 				variadicArgs[i] = a.(grpc.CallOption)
 			}
 		}
-		run(args[0].(context.Context), args[1].(*empty.Empty), variadicArgs...)
+		run(args[0].(context.Context), args[1].(*emptypb.Empty), variadicArgs...)
 	})
 	return _c
 }
@@ -170,7 +170,7 @@ func (_c *SecurityModuleEventClient_GetEventStream_Call) Return(_a0 grpc.ServerS
 	return _c
 }
 
-func (_c *SecurityModuleEventClient_GetEventStream_Call) RunAndReturn(run func(context.Context, *empty.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error)) *SecurityModuleEventClient_GetEventStream_Call {
+func (_c *SecurityModuleEventClient_GetEventStream_Call) RunAndReturn(run func(context.Context, *emptypb.Empty, ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error)) *SecurityModuleEventClient_GetEventStream_Call {
 	_c.Call.Return(run)
 	return _c
 }

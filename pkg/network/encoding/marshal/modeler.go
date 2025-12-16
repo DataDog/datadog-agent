@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -23,12 +24,13 @@ var (
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	usmEncoders  []USMEncoder
-	dnsFormatter *dnsFormatter
-	ipc          ipCache
-	routeIndex   map[network.Via]RouteIdx
-	tagsSet      *network.TagsSet
-	sysProbePid  uint32
+	usmEncoders         []USMEncoder
+	dnsFormatter        *dnsFormatter
+	resolvConfFormatter *resolvConfFormatter
+	ipc                 ipCache
+	routeIndex          map[network.Via]RouteIdx
+	tagsSet             *network.TagsSet
+	sysProbePid         uint32
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -43,12 +45,13 @@ func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, err
 		return nil, fmt.Errorf("failed to get root namespace PID: %w", err)
 	}
 	return &ConnectionsModeler{
-		usmEncoders:  InitializeUSMEncoders(conns),
-		ipc:          ipc,
-		dnsFormatter: newDNSFormatter(conns, ipc),
-		routeIndex:   make(map[network.Via]RouteIdx),
-		tagsSet:      network.NewTagsSet(),
-		sysProbePid:  uint32(nspid),
+		usmEncoders:         InitializeUSMEncoders(conns),
+		ipc:                 ipc,
+		dnsFormatter:        newDNSFormatter(conns, ipc),
+		resolvConfFormatter: newResolvConfFormatter(conns),
+		routeIndex:          make(map[network.Via]RouteIdx),
+		tagsSet:             network.NewTagsSet(),
+		sysProbePid:         uint32(nspid),
 	}, nil
 }
 
@@ -71,7 +74,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.tagsSet, c.sysProbePid)
+			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.resolvConfFormatter, c.tagsSet, c.sysProbePid)
 		})
 	}
 
@@ -107,6 +110,8 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 	}
 
 	c.dnsFormatter.FormatDNS(builder)
+
+	c.resolvConfFormatter.FormatResolvConfs(builder)
 
 	for _, tag := range c.tagsSet.GetStrings() {
 		builder.AddTags(tag)

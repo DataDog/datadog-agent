@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_buildimages_version, get_test_infra_def_version
+from tasks.libs.ciproviders.gitlab_api import get_buildimages_version
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch, is_agent6
 from tasks.libs.releasing.documentation import _stringify_config
@@ -36,12 +36,11 @@ UNFREEZE_REPO_AGENT = "datadog-agent"
 INTERNAL_DEPS_REPOS = ["omnibus-ruby"]
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
-UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-buildimages", "test-infra-definitions"]
+UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-buildimages"]
 DEFAULT_BRANCHES = {
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent": "main",
     "datadog-agent-buildimages": get_buildimages_version(),
-    "test-infra-definitions": get_test_infra_def_version(),
 }
 DEFAULT_BRANCHES_AGENT6 = {
     "omnibus-ruby": "6.53.x",
@@ -144,7 +143,7 @@ def _update_release_json_entry(
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
     print(f"Windows DDPROCMON's SHA256 is {windows_ddprocmon_shasum}")
 
-    new_version_config = OrderedDict()
+    new_version_config = {}
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
     new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
@@ -157,6 +156,12 @@ def _update_release_json_entry(
     new_version_config["WINDOWS_DDPROCMON_VERSION"] = windows_ddprocmon_version
     new_version_config["WINDOWS_DDPROCMON_SHASUM"] = windows_ddprocmon_shasum
 
+    # TODO Agent Delivery: Check with AMP how we handle ADP in that file during the release process
+    # Add all the other keys from the previous entry that are not explicitly set here
+    for key in release_json[RELEASE_JSON_DEPENDENCIES]:
+        if key not in new_version_config:
+            new_version_config[key] = release_json[RELEASE_JSON_DEPENDENCIES][key]
+
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
 
@@ -165,7 +170,7 @@ def _update_release_json_entry(
         new_release_json[key] = value
 
     # Then update the entry
-    new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(new_version_config)
+    new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(OrderedDict(sorted(new_version_config.items())))
 
     return new_release_json
 

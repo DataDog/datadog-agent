@@ -3,17 +3,13 @@
   "operation": "getmember",
   "argument": [
     {
-      "getmember": [
-        {
-          "getmember": [
-            {
-              "ref": "self"
-            },
-            "field1"
-          ]
+      "Base": {
+        "Base": {
+          "Ref": "self"
         },
-        "field2"
-      ]
+        "Member": "field1"
+      },
+      "Member": "field2"
     },
     "name"
   ],

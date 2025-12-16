@@ -11,6 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -24,6 +25,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -39,6 +41,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -98,7 +104,7 @@ type PythonCheckLoader struct {
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger, filter)
+	collectoraggregator.InitializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil
@@ -127,7 +133,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if rtloader == nil {
-		return nil, fmt.Errorf("python is not initialized")
+		return nil, errors.New("python is not initialized")
 	}
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
@@ -163,9 +169,9 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
-		defer C._free(unsafe.Pointer(moduleName))
+		defer C.call_free(unsafe.Pointer(moduleName))
 		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
-			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
+			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
 			}
 			break
@@ -176,7 +182,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
 		} else {
 			log.Debugf("Unable to load python module - %s", name)
-			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s", name))
+			loadErrors = append(loadErrors, "unable to load python module "+name)
 		}
 	}
 
@@ -192,7 +198,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	// TrackedCStrings untracked by memory tracker currently
 	versionAttr := TrackedCString("__version__")
-	defer C._free(unsafe.Pointer(versionAttr))
+	defer C.call_free(unsafe.Pointer(versionAttr))
 	// get_attr_string allocation tracked by memory tracker
 	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
@@ -209,7 +215,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
-		defer C._free(unsafe.Pointer(fileAttr))
+		defer C.call_free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
 			goCheckFilePath = C.GoString(checkFilePath)
@@ -226,7 +232,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var haSupported C.bool
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
-		defer C._free(unsafe.Pointer(haSupportedAttr))
+		defer C.call_free(unsafe.Pointer(haSupportedAttr))
 		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
@@ -241,7 +247,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	configSource := config.Source
 	if instanceIndex >= 0 {
-		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+		configSource = configSource + "[" + strconv.Itoa(instanceIndex) + "]"
 	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
@@ -322,8 +328,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 	// add a serie to the aggregator to be sent on every flush
 	tags := []string{
-		fmt.Sprintf("status:%s", status),
-		fmt.Sprintf("check_name:%s", checkName),
+		"status:" + status,
+		"check_name:" + checkName,
 	}
 	tags = append(tags, agentVersionTags...)
 	aggregator.AddRecurrentSeries(&metrics.Serie{

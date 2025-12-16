@@ -186,6 +186,6 @@ func main() {
 		}
 	}
 
-	rootCmd := command.MakeCommand(subcommands.SecurityAgentSubcommands())
+	rootCmd := command.MakeCommand(subcommands.SecurityAgentSubcommands)
 	os.Exit(runcmd.Run(rootCmd))
 }

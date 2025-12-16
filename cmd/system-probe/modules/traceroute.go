@@ -18,9 +18,9 @@ import (
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
+	traceroutecomp "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +29,7 @@ import (
 func init() { registerModule(Traceroute) }
 
 type traceroute struct {
-	runner *runner.Runner
+	runner traceroutecomp.Component
 }
 
 var (
@@ -39,13 +39,8 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	runner, err := runner.New(deps.Telemetry, deps.Hostname)
-	if err != nil {
-		return &traceroute{}, err
-	}
-
 	return &traceroute{
-		runner: runner,
+		runner: deps.Traceroute,
 	}, nil
 }
 
@@ -74,7 +69,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		// Run traceroute
-		path, err := t.runner.RunTraceroute(context.Background(), cfg)
+		path, err := t.runner.Run(context.Background(), cfg)
 		if err != nil {
 			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error()))
 			return

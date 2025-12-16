@@ -46,11 +46,10 @@ func (e eventProgramLoaded) String() string {
 type eventProgramLoadingFailed struct {
 	baseEvent
 	programID ir.ProgramID
-	err       error
 }
 
 func (e eventProgramLoadingFailed) String() string {
-	return fmt.Sprintf("eventProgramLoadingFailed{programID: %v, err: %v}", e.programID, e.err)
+	return fmt.Sprintf("eventProgramLoadingFailed{programID: %v}", e.programID)
 }
 
 type eventProgramAttached struct {
@@ -72,13 +71,12 @@ type eventProgramAttachingFailed struct {
 	baseEvent
 	programID ir.ProgramID
 	processID ProcessID
-	err       error
 }
 
 func (e eventProgramAttachingFailed) String() string {
 	return fmt.Sprintf(
-		"eventProgramAttachingFailed{programID: %v, processID: %v, err: %v}",
-		e.programID, e.processID, e.err,
+		"eventProgramAttachingFailed{programID: %v, processID: %v}",
+		e.programID, e.processID,
 	)
 }
 
@@ -123,4 +121,12 @@ type eventGetMetrics struct {
 
 func (e eventGetMetrics) String() string {
 	return "eventGetMetrics{}"
+}
+
+type eventHeartbeatCheck struct {
+	baseEvent
+}
+
+func (e eventHeartbeatCheck) String() string {
+	return "eventHeartbeatCheck{}"
 }

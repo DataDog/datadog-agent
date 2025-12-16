@@ -1,0 +1,46 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog
+spec:
+  global:
+    clusterName: gadget-dev
+    kubelet:
+      tlsVerify: false
+    credentials:
+      apiKey: '00000000000000000000000000000000'
+      appKey: '00000000000000000000000000000000'
+  override:
+    nodeAgent:
+      image:
+        # localhost/ prefix required - operator prepends default registry without it
+        name: localhost/datadog-agent:local
+        pullPolicy: Never
+  features:
+    logCollection:
+      enabled: true
+    liveProcessCollection:
+      enabled: true
+    liveContainerCollection:
+      enabled: true
+    processDiscovery:
+      enabled: true
+    oomKill:
+      enabled: true
+    tcpQueueLength:
+      enabled: true
+    ebpfCheck:
+      enabled: true
+    apm:
+      enabled: true
+    cspm:
+      enabled: true
+    cws:
+      enabled: true
+    npm:
+      enabled: true
+    usm:
+      enabled: true
+    dogstatsd:
+      unixDomainSocketConfig:
+        enabled: true

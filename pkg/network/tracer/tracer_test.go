@@ -930,7 +930,7 @@ type UDPServer struct {
 
 func (s *UDPServer) Run(payloadSize int) error {
 	if s.network == "" {
-		return fmt.Errorf("must set network for UDPServer.Run()")
+		return errors.New("must set network for UDPServer.Run()")
 	}
 	var err error
 	var ln net.PacketConn
@@ -990,7 +990,7 @@ func (s *UDPServer) Shutdown() {
 
 func dialUDP(network, address string) (net.Conn, error) {
 	if network == "" {
-		return nil, fmt.Errorf("must set network to dialUDP")
+		return nil, errors.New("must set network to dialUDP")
 	}
 	conn, err := net.DialTimeout(network, address, 50*time.Millisecond)
 	if err != nil {

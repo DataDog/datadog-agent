@@ -11,6 +11,7 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -37,7 +38,7 @@ import (
 var (
 	// ErrNoNetworkNamespaceHandle is used to indicate that we haven't resolved a handle for the requested network
 	// namespace yet.
-	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
+	ErrNoNetworkNamespaceHandle = errors.New("no network namespace handle")
 
 	// lonelyNamespaceTimeout is the timeout past which a lonely network namespace is expired
 	lonelyNamespaceTimeout = 30 * time.Second

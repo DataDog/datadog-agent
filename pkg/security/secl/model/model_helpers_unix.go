@@ -260,7 +260,6 @@ type MountSource = uint32
 const (
 	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
 )
 
@@ -268,7 +267,6 @@ const (
 var MountSources = [...]string{
 	"unknown",
 	"mount_id",
-	"device",
 	"snapshot",
 }
 
@@ -378,8 +376,8 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 	return nil
 }
 
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
+// ResolveK8SUserSessionContext resolves and updates the provided user session context
+func (dfh *FakeFieldHandlers) ResolveK8SUserSessionContext(_ *Event, _ *K8SSessionContext) {}
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
 func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
@@ -405,7 +403,7 @@ const (
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(evtCtx *UserSessionContext)
+	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }

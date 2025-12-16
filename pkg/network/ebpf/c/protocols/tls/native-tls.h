@@ -360,15 +360,19 @@ SEC("uprobe/SSL_shutdown")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%p", pid_tgid, ssl_ctx);
-    conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
-    if (t == NULL) {
+    ssl_ctx_pid_tgid_t key = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_ctx,
+    };
+    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &key);
+    if (ssl_sock == NULL) {
         return 0;
     }
-
-    // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-    tls_finish(ctx, t, false);
-
+    conn_tuple_t tup = ssl_sock->tup;
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &key);
+    if (tup.dport != 0 && tup.sport != 0) {
+        tls_finish(ctx, &tup, false);
+    }
     return 0;
 }
 
@@ -525,14 +529,19 @@ cleanup:
 static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
-    conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
-    if (t == NULL) {
+    ssl_ctx_pid_tgid_t key = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_session,
+    };
+    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &key);
+    if (ssl_sock == NULL) {
         return;
     }
-
-    // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
-    tls_finish(ctx, t, false);
+    conn_tuple_t tup = ssl_sock->tup;
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &key);
+    if (tup.dport != 0 && tup.sport != 0) {
+        tls_finish(ctx, &tup, false);
+    }
 }
 
 // int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)

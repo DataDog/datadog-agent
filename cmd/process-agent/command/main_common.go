@@ -20,11 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -35,7 +38,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -44,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -65,7 +69,6 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -129,6 +132,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide core components
 		core.Bundle(),
+		hostnameimpl.Module(),
 		secretsfx.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
@@ -140,6 +144,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
 
+		remotetraceroute.Module(),
 		// Provide network path bundle
 		networkpath.Bundle(),
 
@@ -171,13 +176,13 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provide workloadfilter module
-		workloadfilterfx.Module(),
+		remoteWorkloadfilterfx.Module(),
 
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
 		fxutil.FxAgentBase(),
-		logging.EnableFxLoggingOnDebug[logcomp.Component](),
+		fxinstrumentation.Module(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -220,6 +225,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 		settingsimpl.Module(),
 		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
 	)
 
 	err := app.Start(ctx)

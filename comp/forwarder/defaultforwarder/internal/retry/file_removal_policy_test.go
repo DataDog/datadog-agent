@@ -88,12 +88,12 @@ func createFile(a *assert.Assertions, root string, filename string) string {
 
 func getRemainingFiles(a *assert.Assertions, folder string) []string {
 	var files []string
-	a.NoError(filepath.Walk(folder,
-		func(p string, info os.FileInfo, err error) error {
+	a.NoError(filepath.WalkDir(folder,
+		func(p string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if info.Mode().IsRegular() {
+			if d.Type().IsRegular() {
 				files = append(files, p)
 			}
 			return nil

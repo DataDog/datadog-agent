@@ -76,7 +76,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		collectedByDefault := false
 		if c.filteringEnabled {
 			if !shouldCollectByDefault(ev) {
-				source = fmt.Sprintf("%s_%s", source, customEventSourceSuffix)
+				source = source + "_" + customEventSourceSuffix
 			} else {
 				collectedByDefault = true
 			}
@@ -136,15 +136,15 @@ func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.Ob
 
 	// Hardcoded tags
 	tagsAccumulator.Append(
-		fmt.Sprintf("source_component:%s", ev.Source.Component),
+		"source_component:"+ev.Source.Component,
 		"orchestrator:kubernetes",
-		fmt.Sprintf("reporting_controller:%s", ev.ReportingController),
-		fmt.Sprintf("event_reason:%s", ev.Reason),
+		"reporting_controller:"+ev.ReportingController,
+		"event_reason:"+ev.Reason,
 	)
 
 	// Specific providerID tag
 	if hostInfo.providerID != "" {
-		tagsAccumulator.Append(fmt.Sprintf("host_provider_id:%s", hostInfo.providerID))
+		tagsAccumulator.Append("host_provider_id:" + hostInfo.providerID)
 	}
 
 	// Tags from the involved object, including tags from object namespace

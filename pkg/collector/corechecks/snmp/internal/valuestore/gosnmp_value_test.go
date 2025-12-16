@@ -6,7 +6,7 @@
 package valuestore
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -109,7 +109,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: IPAddress should be string type but got type `<nil>` and value `<nil>`"),
+			errors.New("oid .1.2.3: IPAddress should be string type but got type `<nil>` and value `<nil>`"),
 		},
 		{
 			"Null",
@@ -120,7 +120,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: invalid type: Null"),
+			errors.New("oid .1.2.3: invalid type: Null"),
 		},
 		{
 			"Counter32",
@@ -208,7 +208,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: invalid type: NoSuchObject"),
+			errors.New("oid .1.2.3: invalid type: NoSuchObject"),
 		},
 		{
 			"NoSuchInstance",
@@ -219,7 +219,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: invalid type: NoSuchInstance"),
+			errors.New("oid .1.2.3: invalid type: NoSuchInstance"),
 		},
 		{
 			"gosnmp.OctetString with wrong type",
@@ -230,7 +230,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: OctetString/BitString should be []byte type but got type `float64` and value `1`"),
+			errors.New("oid .1.2.3: OctetString/BitString should be []byte type but got type `float64` and value `1`"),
 		},
 		{
 			"gosnmp.OpaqueFloat with wrong type",
@@ -241,7 +241,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: OpaqueFloat should be float32 type but got type `string` and value `abc`"),
+			errors.New("oid .1.2.3: OpaqueFloat should be float32 type but got type `string` and value `abc`"),
 		},
 		{
 			"gosnmp.OpaqueDouble with wrong type",
@@ -252,7 +252,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: OpaqueDouble should be float64 type but got type `string` and value `abc`"),
+			errors.New("oid .1.2.3: OpaqueDouble should be float64 type but got type `string` and value `abc`"),
 		},
 		{
 			"gosnmp.ObjectIdentifier with wrong type",
@@ -263,7 +263,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			},
 			"1.2.3",
 			ResultValue{},
-			fmt.Errorf("oid .1.2.3: ObjectIdentifier should be string type but got type `int` and value `1`"),
+			errors.New("oid .1.2.3: ObjectIdentifier should be string type but got type `int` and value `1`"),
 		},
 	}
 	for _, tt := range tests {

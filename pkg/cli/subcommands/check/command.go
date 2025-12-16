@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -63,6 +65,8 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -71,6 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -163,6 +168,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				secretsfx.Module(),
 
 				// workloadmeta setup
@@ -204,6 +210,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
+				remotetraceroute.Module(),
 			)
 		},
 	}
@@ -259,6 +266,7 @@ func run(
 	telemetry telemetry.Component,
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
+	traceroute traceroute.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -291,10 +299,14 @@ func run(
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
+
+	if config.GetBool("shared_library_check.enabled") {
+		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
 
 	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -455,7 +467,7 @@ func run(
 				}
 			}
 		}
-		return fmt.Errorf("no valid check found")
+		return errors.New("no valid check found")
 	}
 
 	if len(cs) > 1 {
@@ -690,7 +702,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryFrames != "" {
 		profileMemoryFrames, err := strconv.Atoi(cliParams.profileMemoryFrames)
 		if err != nil {
-			return fmt.Errorf("--m-frames must be an integer")
+			return errors.New("--m-frames must be an integer")
 		}
 		initConfig["profile_memory_frames"] = profileMemoryFrames
 	}
@@ -698,7 +710,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryGC != "" {
 		profileMemoryGC, err := strconv.Atoi(cliParams.profileMemoryGC)
 		if err != nil {
-			return fmt.Errorf("--m-gc must be an integer")
+			return errors.New("--m-gc must be an integer")
 		}
 
 		initConfig["profile_memory_gc"] = profileMemoryGC
@@ -707,11 +719,11 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryCombine != "" {
 		profileMemoryCombine, err := strconv.Atoi(cliParams.profileMemoryCombine)
 		if err != nil {
-			return fmt.Errorf("--m-combine must be an integer")
+			return errors.New("--m-combine must be an integer")
 		}
 
 		if profileMemoryCombine != 0 && cliParams.profileMemorySort == "traceback" {
-			return fmt.Errorf("--m-combine cannot be sorted (--m-sort) by traceback")
+			return errors.New("--m-combine cannot be sorted (--m-sort) by traceback")
 		}
 
 		initConfig["profile_memory_combine"] = profileMemoryCombine
@@ -719,7 +731,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 
 	if cliParams.profileMemorySort != "" {
 		if cliParams.profileMemorySort != "lineno" && cliParams.profileMemorySort != "filename" && cliParams.profileMemorySort != "traceback" {
-			return fmt.Errorf("--m-sort must one of: lineno | filename | traceback")
+			return errors.New("--m-sort must one of: lineno | filename | traceback")
 		}
 		initConfig["profile_memory_sort"] = cliParams.profileMemorySort
 	}
@@ -727,14 +739,14 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryLimit != "" {
 		profileMemoryLimit, err := strconv.Atoi(cliParams.profileMemoryLimit)
 		if err != nil {
-			return fmt.Errorf("--m-limit must be an integer")
+			return errors.New("--m-limit must be an integer")
 		}
 		initConfig["profile_memory_limit"] = profileMemoryLimit
 	}
 
 	if cliParams.profileMemoryDiff != "" {
 		if cliParams.profileMemoryDiff != "absolute" && cliParams.profileMemoryDiff != "positive" {
-			return fmt.Errorf("--m-diff must one of: absolute | positive")
+			return errors.New("--m-diff must one of: absolute | positive")
 		}
 		initConfig["profile_memory_diff"] = cliParams.profileMemoryDiff
 	}
@@ -750,7 +762,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryVerbose != "" {
 		profileMemoryVerbose, err := strconv.Atoi(cliParams.profileMemoryVerbose)
 		if err != nil {
-			return fmt.Errorf("--m-verbose must be an integer")
+			return errors.New("--m-verbose must be an integer")
 		}
 		initConfig["profile_memory_verbose"] = profileMemoryVerbose
 	}

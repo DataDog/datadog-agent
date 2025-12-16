@@ -307,6 +307,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
 		var fingerprint *types.Fingerprint
 		var err error
+
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
@@ -317,6 +318,14 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
+			}
+		} else {
+			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
+			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
+				fingerprint = &types.Fingerprint{
+					Value:  types.InvalidFingerprintValue,
+					Config: fpConfig,
+				}
 			}
 		}
 
@@ -406,6 +415,14 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			if err != nil || !fingerprint.ValidFingerprint() {
 				continue
 			}
+		} else {
+			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
+			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
+				fingerprint = &types.Fingerprint{
+					Value:  types.InvalidFingerprintValue,
+					Config: fpConfig,
+				}
+			}
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
@@ -487,6 +504,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		CapacityMonitor: monitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		Rotated:         true,
 		FileOpener:      s.fileOpener,
 	}
@@ -498,6 +516,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	tailer := tailer.NewTailer(tailerOptions)
+	addFingerprintConfigToTailerInfo(tailer)
 
 	var offset int64
 	var whence int
@@ -614,6 +633,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		FileOpener:      s.fileOpener,
 	}
 
@@ -623,7 +643,9 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
 	}
 
-	return tailer.NewTailer(tailerOptions)
+	t := tailer.NewTailer(tailerOptions)
+	addFingerprintConfigToTailerInfo(t)
+	return t
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
@@ -634,7 +656,25 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	} else {
 		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
 	}
-	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
+	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
+	addFingerprintConfigToTailerInfo(newTailer)
+
+	return newTailer
+}
+
+// addFingerprintConfigToTailerInfo adds fingerprint configuration info to the tailer's status display
+// using the configuration actually supplied to the tailer (from its fingerprint)
+func addFingerprintConfigToTailerInfo(t *tailer.Tailer) {
+	// Pull the actual config from the tailer's fingerprint
+	var config *types.FingerprintConfig
+	fingerprint := t.GetFingerprint()
+	if fingerprint != nil && fingerprint.Config != nil {
+		config = fingerprint.Config
+	}
+
+	// Always register config info, even if nil - the Info() method handles nil gracefully
+	configInfo := tailer.NewFingerprintConfigInfo(config)
+	t.GetInfo().Register(configInfo)
 }
 
 // CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage

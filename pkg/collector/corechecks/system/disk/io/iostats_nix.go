@@ -8,7 +8,6 @@
 package io
 
 import (
-	"fmt"
 	"math"
 	"regexp"
 	"time"
@@ -94,11 +93,11 @@ func (c *IOCheck) nixIO() error {
 		}
 
 		tags := []string{}
-		tags = append(tags, fmt.Sprintf("device:%s", device))
-		tags = append(tags, fmt.Sprintf("device_name:%s", device))
+		tags = append(tags, "device:"+device)
+		tags = append(tags, "device_name:"+device)
 
 		if ioStats.Label != "" {
-			tags = append(tags, fmt.Sprintf("device_label:%s", ioStats.Label))
+			tags = append(tags, "device_label:"+ioStats.Label)
 		}
 
 		sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)

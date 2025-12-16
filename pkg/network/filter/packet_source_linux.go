@@ -9,6 +9,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -83,7 +84,7 @@ func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 		case OptSnapLen:
 			snapLen = int(o)
 			if snapLen <= 0 || snapLen > 65536 {
-				return nil, fmt.Errorf("snap len should be between 0 and 65536")
+				return nil, errors.New("snap len should be between 0 and 65536")
 			}
 		default:
 			return nil, fmt.Errorf("unknown option %+v", opt)
@@ -125,11 +126,11 @@ func (p *AFPacketSource) SetEbpf(filter *manager.Probe) error {
 	// Note the filter attachment itself is triggered by the ebpf.Manager
 	f := reflect.ValueOf(p.TPacket).Elem().FieldByName("fd")
 	if !f.IsValid() {
-		return fmt.Errorf("could not find fd field in TPacket object")
+		return errors.New("could not find fd field in TPacket object")
 	}
 
 	if !f.CanInt() {
-		return fmt.Errorf("fd TPacket field is not an int")
+		return errors.New("fd TPacket field is not an int")
 	}
 
 	filter.SocketFD = int(f.Int())
@@ -267,7 +268,7 @@ func afpacketComputeSize(targetSize, snaplen, pageSize int) (frameSize, blockSiz
 
 	numBlocks = targetSize / blockSize
 	if numBlocks == 0 {
-		return 0, 0, 0, fmt.Errorf("buffer size is too small")
+		return 0, 0, 0, errors.New("buffer size is too small")
 	}
 
 	blockSizeInc := blockSize

@@ -23,7 +23,7 @@ NON_RELEASING_TEAMS = {
     '@iglendd',  # Not a team but he's in the codeowners file
     'sdlc-security',
     'data-jobs-monitoring',
-    'serverless-aws',
+    'serverless-azure-gcp',
     'apm-ecosystems-performance',
 }
 

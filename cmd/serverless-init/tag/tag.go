@@ -22,6 +22,19 @@ const (
 	enableBackendTraceStatsEnvVar = "DD_SERVERLESS_INIT_ENABLE_BACKEND_TRACE_STATS"
 )
 
+// highCardinalityTags is a set of tag keys that should be excluded from metrics
+var highCardinalityTags = map[string]struct{}{
+	"container_id":        {},
+	"gcr.container_id":    {},
+	"gcrfx.container_id":  {},
+	"replica_name":        {},
+	"aca.replica.name":    {},
+	"gcrj.execution_name": {},
+	"gcrj.task_index":     {},
+	"gcrj.task_attempt":   {},
+	"gcrj.task_count":     {},
+}
+
 // TagPair contains a pair of tag key and value
 //
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -74,15 +87,11 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	return tagsMap
 }
 
-// WithoutHihCardinalityTags creates a new tag map without high cardinality tags we use on traces
+// WithoutHighCardinalityTags creates a new tag map without high cardinality tags we use on traces
 func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if k != "container_id" &&
-			k != "gcr.container_id" &&
-			k != "gcrfx.container_id" &&
-			k != "replica_name" &&
-			k != "aca.replica.name" {
+		if _, isHighCardinality := highCardinalityTags[k]; !isHighCardinality {
 			newTags[k] = v
 		}
 	}

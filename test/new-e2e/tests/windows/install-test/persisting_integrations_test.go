@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
@@ -45,7 +45,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -68,7 +68,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	s.Require().NoError(err, "should install pip package")
 
 	// upgrade to test agent
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -126,7 +126,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -151,7 +151,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 
 	// upgrade to test agent
 	// with the integrations persistence flag disabled
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -254,7 +254,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -350,7 +350,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -417,7 +417,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// upgrade again without failure
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -455,7 +455,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -483,7 +483,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	)
 
 	// upgrade to test agent
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -560,7 +560,7 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	s.Require().NoError(err, "should show pip package")
 
 	// check to make sure it is installed
-	packageCheck := fmt.Sprintf("Name: %s", packageToCheck)
+	packageCheck := "Name: " + packageToCheck
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 

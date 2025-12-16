@@ -32,10 +32,12 @@ int main(int argc, char **argv) {
 
     cudaSetDevice(device);
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
+    cuLaunchKernel((void *)0x1234, 1, 2, 3, 4, 5, 6, 10, (void*)stream, NULL, NULL);
     void *ptr;
     cudaMalloc(&ptr, 100);
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
+    cuStreamSynchronize(stream);
 
     // Sleep for 10ms to ensure that there's time separating the first span and next
     // spans
@@ -50,6 +52,7 @@ int main(int argc, char **argv) {
     cudaEventDestroy(event);
 
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
+
     cudaDeviceSynchronize();
 
     setenv("CUDA_VISIBLE_DEVICES", "42", 1);

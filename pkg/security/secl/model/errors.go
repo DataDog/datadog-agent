@@ -80,6 +80,9 @@ var ErrNoProcessContext = errors.New("process context not resolved")
 // ErrFailedDNSPacketDecoding defines a dns packet that failed to be decoded
 var ErrFailedDNSPacketDecoding = errors.New("dns packet couldn't be decoded")
 
+// ErrCycleInProcessLineage is returned when a cycle is detected in the process lineage
+var ErrCycleInProcessLineage = errors.New("cycle detected in process lineage")
+
 // ErrProcessBrokenLineage returned when a process lineage is broken
 type ErrProcessBrokenLineage struct {
 	Err error

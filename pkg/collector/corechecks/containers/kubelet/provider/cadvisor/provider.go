@@ -11,7 +11,6 @@ Package cadvisor exposes a metric provider to handle metrics exposed by the /met
 package cadvisor
 
 import (
-	"fmt"
 	"math"
 	"strings"
 
@@ -184,7 +183,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+				tags = append(tags, label+":"+string(value))
 			}
 		}
 
@@ -227,7 +226,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+				tags = append(tags, label+":"+string(value))
 			}
 		}
 
@@ -274,7 +273,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 
 		for _, label := range labels {
 			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+				tags = append(tags, label+":"+string(value))
 			}
 		}
 
@@ -419,7 +418,7 @@ func (p *Provider) getContainerName(labels model.Metric) string {
 func (p *Provider) getKubeContainerNameTag(labels model.Metric) string {
 	containerName := p.getContainerName(labels)
 	if containerName != "" {
-		return fmt.Sprintf("kube_container_name:%s", containerName)
+		return "kube_container_name:" + containerName
 	}
 	return ""
 }

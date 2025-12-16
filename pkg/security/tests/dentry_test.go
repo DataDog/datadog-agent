@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -28,10 +29,7 @@ func TestDentryPathERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent
-	var basename string
-	for i := 0; i < model.MaxSegmentLength; i++ {
-		basename += "a"
-	}
+	basename := strings.Repeat("a", model.MaxSegmentLength)
 	rule := &rules.RuleDefinition{
 		ID:         "test_erpc_path_rule",
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
@@ -95,10 +93,7 @@ func TestDentryPathMap(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent
-	var basename string
-	for i := 0; i < model.MaxSegmentLength; i++ {
-		basename += "a"
-	}
+	basename := strings.Repeat("a", model.MaxSegmentLength)
 	rule := &rules.RuleDefinition{
 		ID:         "test_map_path_rule",
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
@@ -162,10 +157,7 @@ func TestDentryName(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent
-	var basename string
-	for i := 0; i < model.MaxSegmentLength; i++ {
-		basename += "a"
-	}
+	basename := strings.Repeat("a", model.MaxSegmentLength)
 	rule := &rules.RuleDefinition{
 		ID:         "test_dentry_name_rule",
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,

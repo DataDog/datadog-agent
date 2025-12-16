@@ -7,6 +7,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -55,6 +56,7 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	watchdogWarningTimeout  time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -66,18 +68,19 @@ func NewWorker(
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil checksTracker")
+		return nil, errors.New("worker cannot initialize using a nil checksTracker")
 	}
 
 	if pendingChecksChan == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil pendingChecksChan")
+		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
 	}
 
 	if shouldAddCheckStatsFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil shouldAddCheckStatsFunc")
+		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
 	}
 
 	return newWorkerWithOptions(
@@ -89,6 +92,7 @@ func NewWorker(
 		senderManager.GetDefaultSender,
 		haAgent,
 		pollingInterval,
+		watchdogWarningTimeout,
 	)
 }
 
@@ -104,10 +108,11 @@ func newWorkerWithOptions(
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil getDefaultSenderFunc")
+		return nil, errors.New("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
@@ -122,6 +127,7 @@ func newWorkerWithOptions(
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
+		watchdogWarningTimeout:  watchdogWarningTimeout,
 	}, nil
 }
 
@@ -152,6 +158,13 @@ func (w *Worker) Run() {
 			continue
 		}
 
+		var watchdogTimer *time.Timer
+		if w.watchdogWarningTimeout > 0 {
+			watchdogTimer = time.AfterFunc(w.watchdogWarningTimeout, func() {
+				log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+			})
+		}
+
 		checkStartTime := time.Now()
 
 		checkLogger.CheckStarted()
@@ -175,7 +188,7 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())
@@ -218,6 +231,10 @@ func (w *Worker) Run() {
 		}
 
 		checkLogger.CheckFinished()
+
+		if watchdogTimer != nil {
+			watchdogTimer.Stop()
+		}
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)

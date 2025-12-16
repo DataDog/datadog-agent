@@ -60,6 +60,7 @@ type collectorConfig struct {
 	clearCacheOnClose   bool
 	maxCacheSize        int
 	computeDependencies bool
+	simplifyBomRefs     bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -157,6 +158,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/containers/**",
 			"/var/lib/docker/**",
 			"/var/lib/kubelet/pods/**",
+			"/var/lib/kubelet/plugins/**/globalmount/**",
 			"/var/lib/libvirt/**",
 			"/var/lib/snapd/**",
 			"/var/log/**",
@@ -222,6 +224,7 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
+			simplifyBomRefs:     cfg.GetBool("sbom.simplify_bom_refs"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
@@ -378,7 +381,10 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, 
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return newReport(id, trivyReport, c.marshaler, c.config.computeDependencies)
+	return newReport(id, trivyReport, c.marshaler, reportOptions{
+		dependencies:    c.config.computeDependencies,
+		simplifyBomRefs: c.config.simplifyBomRefs,
+	})
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {

@@ -11,8 +11,6 @@ import (
 	"io"
 	"strings"
 	"time"
-
-	mapstructure "github.com/go-viper/mapstructure/v2"
 )
 
 // ErrConfigFileNotFound is an error for when the config file is not found
@@ -35,6 +33,9 @@ const (
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
 	// SetWithoutSource.
 	SourceUnknown Source = "unknown"
+	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
+	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
+	SourceInfraMode Source = "infra-mode"
 	// SourceFile are the values loaded from configuration file.
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
@@ -60,6 +61,7 @@ const (
 var Sources = []Source{
 	SourceDefault,
 	SourceUnknown,
+	SourceInfraMode,
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
@@ -75,13 +77,14 @@ var sourcesPriority = map[Source]int{
 	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
-	SourceFile:               2,
-	SourceEnvVar:             3,
-	SourceFleetPolicies:      4,
-	SourceAgentRuntime:       5,
-	SourceLocalConfigProcess: 6,
-	SourceRC:                 7,
-	SourceCLI:                8,
+	SourceInfraMode:          2,
+	SourceFile:               3,
+	SourceEnvVar:             4,
+	SourceFleetPolicies:      5,
+	SourceAgentRuntime:       6,
+	SourceLocalConfigProcess: 7,
+	SourceRC:                 8,
+	SourceCLI:                9,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -170,13 +173,12 @@ type Reader interface {
 	//
 	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
 	IsSet(key string) bool
-	// IsConfigured returns true if a setting exists, has a value and doesn't come from the defaults (ie: was
-	// configured by the user). If a setting is configured by the user with the same value than the defaults this
-	// method will still return true as it tests the source of a setting not its value.
+	// IsConfigured returns true if a setting is configured by the user. This means that either:
+	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
+	//  2. The key is for an inner node, and one of its children IsConfigured
 	IsConfigured(key string) bool
-
-	// UnmarshalKey Unmarshal a configuration key into a struct
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
+	// HasSection returns true if the key is for a non-leaf setting that is defined by the user
+	HasSection(key string) bool
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
@@ -260,8 +262,6 @@ type Setup interface {
 // Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
-
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error

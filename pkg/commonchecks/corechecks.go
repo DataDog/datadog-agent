@@ -16,7 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
@@ -49,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
@@ -67,7 +70,8 @@ import (
 
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
-	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component,
+	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
+	traceroute traceroute.Component,
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
@@ -76,8 +80,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())
-	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient))
-	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
+	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient, snmpScanManager))
+	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry, traceroute))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
@@ -124,6 +128,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
+	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

@@ -4,9 +4,14 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 
 name 'ddot'
-package_name 'datadog-agent-ddot'
+if fips_mode?
+  package_name 'datadog-fips-agent-ddot'
+else
+  package_name 'datadog-agent-ddot'
+end
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -163,9 +168,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager do_package
+  skip_packager do_package || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
 end
 
 # all flavors use the same package scripts

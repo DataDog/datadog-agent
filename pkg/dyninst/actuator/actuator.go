@@ -19,6 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CircuitBreakerConfig configures the circuit breaker for enforcing probe CPU limits.
+type CircuitBreakerConfig struct {
+	// Interval is the interval at which probe CPU usage is checked.
+	Interval time.Duration
+	// PerProbeCPULimit is the limit on mean CPUs/s usage per core per probe within the interval.
+	PerProbeCPULimit float64
+	// AllProbesCPULimit is the limit on mean CPUs/s usage per core for all probes within the interval.
+	AllProbesCPULimit float64
+	// InterruptOverhead is the estimate of the cost of an interrupt incurred on every probe hit.
+	InterruptOverhead time.Duration
+}
+
 // Actuator manages dynamic instrumentation for processes. It coordinates IR
 // generation, eBPF compilation, program loading, and attachment.
 type Actuator struct {
@@ -57,8 +69,7 @@ func (a *Actuator) Stats() map[string]any {
 }
 
 // NewActuator creates a new Actuator instance.
-// The actuator must be started with Start() before use.
-func NewActuator() *Actuator {
+func NewActuator(breakerCfg CircuitBreakerConfig) *Actuator {
 	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
@@ -68,9 +79,13 @@ func NewActuator() *Actuator {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(eventCh, shuttingDownCh)
+		a.runEventProcessor(breakerCfg, eventCh, shuttingDownCh)
 	}()
-
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.heartbeatLoop(breakerCfg.Interval)
+	}()
 	return a
 }
 
@@ -103,9 +118,11 @@ func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
 func (a *Actuator) runEventProcessor(
-	eventCh <-chan event, shuttingDownCh chan<- struct{},
+	breakerCfg CircuitBreakerConfig,
+	eventCh <-chan event,
+	shuttingDownCh chan<- struct{},
 ) {
-	state := newState()
+	state := newState(breakerCfg)
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
@@ -121,6 +138,23 @@ func (a *Actuator) runEventProcessor(
 			// because it will deadlock. Note that if we're already shutting
 			// down, this will be a no-op.
 			go a.shutdown(fmt.Errorf("event handling error: %w", err))
+		}
+	}
+}
+
+func (a *Actuator) heartbeatLoop(interval time.Duration) {
+	heartbeat := time.NewTicker(interval)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-a.shuttingDown:
+			return
+		case <-heartbeat.C:
+			select {
+			case <-a.shuttingDown:
+				return
+			case a.events <- eventHeartbeatCheck{}:
+			}
 		}
 	}
 }
@@ -150,7 +184,6 @@ func (a *effects) loadProgram(
 		if runtimePtr == nil {
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
-				err:       fmt.Errorf("actuator runtime not initialized"),
 			})
 			return
 		}
@@ -161,7 +194,6 @@ func (a *effects) loadProgram(
 		if err != nil {
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
-				err:       err,
 			})
 			return
 		}
@@ -198,7 +230,6 @@ func (a *effects) attachToProcess(
 		if err != nil {
 			a.sendEvent(eventProgramAttachingFailed{
 				programID: loaded.programID,
-				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 			return
 		}
@@ -216,11 +247,11 @@ func (a *effects) attachToProcess(
 var detachLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 // detachFromProcess detaches a program from a process.
-func (a *effects) detachFromProcess(ap *attachedProgram) {
+func (a *effects) detachFromProcess(ap *attachedProgram, failure error) {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		if err := ap.attachedProgram.Detach(); err != nil {
+		if err := ap.attachedProgram.Detach(failure); err != nil {
 			if detachLogLimiter.Allow() {
 				log.Errorf(
 					"failed to detach program %v from process %v: %v",

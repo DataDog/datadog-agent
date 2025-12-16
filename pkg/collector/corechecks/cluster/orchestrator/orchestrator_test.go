@@ -340,3 +340,97 @@ extra_sync_timeout_seconds: 30
 		assert.Equal(t, []string{"custom:tag"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 }
+
+func TestOrchestratorCheck_IsLeader(t *testing.T) {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	t.Run("returns true when CLC runner with LeaderSkip enabled", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		// Configure as CLC runner with LeaderSkip
+		orchCheck.isCLCRunner = true
+		orchCheck.instance = &OrchestratorInstance{
+			LeaderSkip: true,
+		}
+
+		isLeader, err := orchCheck.IsLeader()
+		assert.True(t, isLeader)
+		assert.NoError(t, err)
+	})
+
+	t.Run("checks leader election when CLC runner but LeaderSkip disabled", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		// Configure as CLC runner but without LeaderSkip
+		orchCheck.isCLCRunner = true
+		orchCheck.instance = &OrchestratorInstance{
+			LeaderSkip: false,
+		}
+
+		// Leader election is not enabled
+		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+
+		isLeader, err := orchCheck.IsLeader()
+		assert.False(t, isLeader)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Leader Election not enabled")
+	})
+
+	t.Run("checks leader election when not CLC runner", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		// Configure as non-CLC runner
+		orchCheck.isCLCRunner = false
+		orchCheck.instance = &OrchestratorInstance{
+			LeaderSkip: false,
+		}
+
+		// Leader election is not enabled
+		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+
+		isLeader, err := orchCheck.IsLeader()
+		assert.False(t, isLeader)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Leader Election not enabled")
+	})
+
+	t.Run("returns error when leader election not enabled", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		orchCheck.isCLCRunner = false
+		orchCheck.instance = &OrchestratorInstance{}
+
+		// Explicitly disable leader election
+		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+
+		isLeader, err := orchCheck.IsLeader()
+		assert.False(t, isLeader)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Leader Election not enabled")
+	})
+
+	t.Run("skips leader election when both CLC runner and LeaderSkip are true", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		orchCheck.isCLCRunner = true
+		orchCheck.instance = &OrchestratorInstance{
+			LeaderSkip: true,
+		}
+
+		// Even if leader election is disabled, should still return true
+		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+
+		isLeader, err := orchCheck.IsLeader()
+		assert.True(t, isLeader)
+		assert.NoError(t, err)
+	})
+}

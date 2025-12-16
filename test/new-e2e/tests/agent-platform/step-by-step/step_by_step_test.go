@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +84,7 @@ func TestStepByStepScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test step by step on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
+		t.Run("test step by step on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			slice := strings.Split(osDesc.Version, "-")
@@ -107,7 +107,7 @@ func TestStepByStepScript(t *testing.T) {
 			e2e.Run(tt,
 				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osDesc: osDesc},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("step-by-step-test-%s-%s", platforms.PrettifyOsDescriptor(osDesc), *majorVersion)),
 			)
@@ -169,6 +169,10 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 			common.CheckCWSBehaviour(is.T(), VMclient)
 		}
 	}
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPEnabled(is.T(), VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPDisabled(is.T(), VMclient)
 
 	is.T().Run("remove the agent", func(tt *testing.T) {
 		_, err := VMclient.PkgManager.Remove(*flavorName)

@@ -19,9 +19,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/shirou/gopsutil/v4/process"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetpidFrom returns the current process ID from the given proc root
@@ -41,6 +42,10 @@ func Getpid() uint32 {
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+
+// ErrNoNSPid is returned when no NSpid field is found in the status file, useful to distinguish between
+// errors reading the file and the case where the field is not present, common for non-containerized processes.
+var ErrNoNSPid = errors.New("no NSpid field found")
 
 // NetNSPath represents a network namespace path
 type NetNSPath struct {
@@ -453,7 +458,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			return nspids, nil
 		}
 	}
-	return nil, fmt.Errorf("NSpid field not found")
+	return nil, ErrNoNSPid
 }
 
 // GetPidTasks returns the task IDs of a process
@@ -534,7 +539,7 @@ func GetTracerPid(pid uint32) (uint32, error) {
 			return uint32(tracerPid), nil
 		}
 	}
-	return 0, fmt.Errorf("TracerPid field not found")
+	return 0, errors.New("TracerPid field not found")
 }
 
 // FindTraceesByTracerPid returns the process list being trced by the given tracer host PID

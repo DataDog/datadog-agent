@@ -245,20 +245,20 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	// non-namespaced ones, or kubernetes_*. The latter two are now
 	// considered deprecated.
 	tagList := []string{
-		fmt.Sprintf("kube_kind:%s", involvedObject.Kind),
-		fmt.Sprintf("kube_name:%s", involvedObject.Name),
+		"kube_kind:" + involvedObject.Kind,
+		"kube_name:" + involvedObject.Name,
 
 		// DEPRECATED:
-		fmt.Sprintf("kubernetes_kind:%s", involvedObject.Kind),
-		fmt.Sprintf("name:%s", involvedObject.Name),
+		"kubernetes_kind:" + involvedObject.Kind,
+		"name:" + involvedObject.Name,
 	}
 
 	if involvedObject.Namespace != "" {
 		tagList = append(tagList,
-			fmt.Sprintf("kube_namespace:%s", involvedObject.Namespace),
+			"kube_namespace:"+involvedObject.Namespace,
 
 			// DEPRECATED:
-			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
+			"namespace:"+involvedObject.Namespace,
 		)
 
 		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
@@ -274,7 +274,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case podKind:
 		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID))
 	case deploymentKind:
-		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
+		entityID = types.NewEntityID(types.KubernetesDeployment, involvedObject.Namespace+"/"+involvedObject.Name)
 	default:
 		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
 		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, apiGroup)
@@ -395,7 +395,7 @@ func getKindTag(kind, name string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s:%s", tagName, name)
+	return tagName + ":" + name
 }
 
 func buildReadableKey(obj v1.ObjectReference) string {

@@ -56,7 +56,7 @@ func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.
 		}
 	}
 
-	link, err := os.Readlink(kernel.HostProc(fmt.Sprintf("%d", p.Pid), "ns/net"))
+	link, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "ns/net"))
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ type netIPEntry struct {
 }
 
 func parseNetIP(pid int32, suffix string) ([]netIPEntry, error) {
-	path := kernel.HostProc(fmt.Sprintf("%d", pid), suffix)
+	path := kernel.HostProc(strconv.Itoa(int(pid)), suffix)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

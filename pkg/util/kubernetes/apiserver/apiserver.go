@@ -194,13 +194,13 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 		case retry.OK:
 			return globalAPIClient, nil
 		case retry.PermaFail:
-			return nil, fmt.Errorf("Permanent failure while waiting for Kubernetes APIServer")
+			return nil, errors.New("Permanent failure while waiting for Kubernetes APIServer")
 		default:
 			sleepFor := globalAPIClient.initRetry.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("Context deadline reached while waiting for Kubernetes APIServer")
+				return nil, errors.New("Context deadline reached while waiting for Kubernetes APIServer")
 			case <-time.After(sleepFor):
 			}
 		}
@@ -386,7 +386,8 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
@@ -413,7 +414,7 @@ func (c *APIClient) connect() error {
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
-		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
+		return errors.New("cannot retrieve the version of the API server at the moment")
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
@@ -468,7 +469,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 		// we do not process event if we can't interact with the CM.
 		return "", time.Now(), err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if cmEvent.Data == nil {
 		cmEvent.Data = make(map[string]string)
 	}
@@ -481,7 +482,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	}
 	log.Tracef("%s is %q", token, tokenValue)
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
@@ -506,13 +507,13 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 	if err != nil {
 		return err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if tokenConfigMap.Data == nil {
 		tokenConfigMap.Data = make(map[string]string)
 	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
@@ -557,7 +558,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 
 	nodes, err := getNodeList(cl)
 	if err != nil {
-		stats.Errors = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
+		stats.Errors = "Failed to get nodes from the API server: " + err.Error()
 		return stats, err
 	}
 
@@ -603,9 +604,9 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
-	var metaList []string
-	for _, s := range serviceList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
+	metaList := make([]string, len(serviceList))
+	for i, s := range serviceList {
+		metaList[i] = "kube_service:" + s
 	}
 	return metaList, nil
 }
@@ -676,7 +677,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	}
 
 	if len(nodeList.Items) == 0 {
-		return "", fmt.Errorf("No node found")
+		return "", errors.New("No node found")
 	}
 
 	return nodeList.Items[0].Name, nil

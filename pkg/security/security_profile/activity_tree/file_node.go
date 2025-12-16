@@ -68,24 +68,24 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 }
 
 func (fn *FileNode) getNodeLabel(prefix string) string {
-	var label string
+	var builder strings.Builder
 	if prefix == "" {
-		label += tableHeader
-		label += "<TR>"
-		label += "<TD>Events</TD>"
-		label += "<TD>Hash count</TD>"
-		label += "<TD>File</TD>"
-		label += "<TD>Package</TD>"
-		label += "</TR>"
+		builder.WriteString(tableHeader)
+		builder.WriteString("<TR>")
+		builder.WriteString("<TD>Events</TD>")
+		builder.WriteString("<TD>Hash count</TD>")
+		builder.WriteString("<TD>File</TD>")
+		builder.WriteString("<TD>Package</TD>")
+		builder.WriteString("</TR>")
 	}
-	label += fn.buildNodeRow(prefix)
+	builder.WriteString(fn.buildNodeRow(prefix))
 	for _, child := range fn.Children {
-		label += child.getNodeLabel(prefix + "/" + fn.Name)
+		builder.WriteString(child.getNodeLabel(prefix + "/" + fn.Name))
 	}
 	if prefix == "" {
-		label += "</TABLE>>"
+		builder.WriteString("</TABLE>>")
 	}
-	return label
+	return builder.String()
 }
 
 func (fn *FileNode) buildNodeRow(prefix string) string {

@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -28,11 +28,11 @@ type windowsSecretSuite struct {
 
 func TestWindowsSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), ec2.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist")))))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		output := v.Env().Agent.Client.Secret()
@@ -44,7 +44,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), ec2.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe")))))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		output := v.Env().Agent.Client.Secret()
@@ -74,8 +74,9 @@ host_aliases:
 	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			awshost.WithAgentOptions(agentParams...),
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithAgentOptions(agentParams...)),
 		),
 	)
 
@@ -110,9 +111,10 @@ api_key: ENC[api_key]
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(agentParams...)),
-	)
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentParams...)),
+	))
 
 	status := v.Env().Agent.Client.Status()
 	assert.Contains(v.T(), status.Content, "API key ending with 23456")

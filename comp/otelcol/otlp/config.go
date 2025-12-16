@@ -9,6 +9,7 @@ package otlp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -34,7 +35,7 @@ func portToUint(v int) (port uint, err error) {
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	otlpReceiverConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
@@ -43,10 +44,15 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	tracesEnabled := cfg.GetBool(coreconfig.OTLPTracesEnabled)
 	logsEnabled := cfg.GetBool(coreconfig.OTLPLogsEnabled)
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
-		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
+		errs = append(errs, errors.New("at least one OTLP signal needs to be enabled"))
 	}
+
+	logsConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPLogs)
+
 	metricsConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPMetrics)
 	metricsConfigMap := metricsConfig.ToStringMap()
+
+	metricsBatchConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPMetricsBatch)
 
 	if _, ok := metricsConfigMap["apm_stats_receiver_addr"]; !ok {
 		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
@@ -64,12 +70,14 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpConfig.ToStringMap(),
+		OTLPReceiverConfig: otlpReceiverConfig.ToStringMap(),
 		TracePort:          tracePort,
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		LogsEnabled:        logsEnabled,
 		Metrics:            mc,
+		MetricsBatch:       metricsBatchConfig.ToStringMap(),
+		Logs:               logsConfig.ToStringMap(),
 		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }

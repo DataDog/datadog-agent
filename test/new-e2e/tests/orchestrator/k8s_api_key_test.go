@@ -16,8 +16,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed agent_api_key_values.yaml
@@ -35,10 +36,12 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 
 	// install the agent with old API key
 	suite.UpdateEnv(
-		awskubernetes.KindProvisioner(
-			awskubernetes.WithAgentOptions(
-				kubernetesagentparams.WithNamespace(namespace),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),
+		awskindvm.Provisioner(
+			awskindvm.WithRunOptions(
+				scenariokindvm.WithAgentOptions(
+					kubernetesagentparams.WithNamespace(namespace),
+					kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),
+				),
 			),
 		),
 	)

@@ -10,13 +10,13 @@ import (
 	_ "embed"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 func (v *windowsRuntimeSecretSuite) TestPullAWSSecret() {
@@ -28,10 +28,12 @@ secret_backend_config:
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithSkipAPIKeyInConfig(),
-				agentparams.WithAgentConfig(config),
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithAgentOptions(
+					agentparams.WithSkipAPIKeyInConfig(),
+					agentparams.WithAgentConfig(config),
+				),
 			),
 		),
 	)

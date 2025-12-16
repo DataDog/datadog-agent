@@ -19,3 +19,7 @@ func TestCgoAlignment_probeParams(t *testing.T) {
 func TestCgoAlignment_throttlerParams(t *testing.T) {
 	ebpftest.TestCgoAlignment[throttlerParams](t)
 }
+
+func TestCgoAlignment_stats(t *testing.T) {
+	ebpftest.TestCgoAlignment[stats](t)
+}

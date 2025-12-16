@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"regexp"
 	"time"
 	"unsafe"
@@ -80,6 +81,46 @@ const (
 	bioNewSocketArgsMap = "bio_new_socket_args"
 	fdBySSLBioMap       = "fd_by_ssl_bio"
 )
+
+// pidKeyedTLSMaps is the single source of truth for all TLS eBPF maps that use pid_tgid as keys.
+//
+// IMPORTANT: Map names must be unique within their first 15 characters due to kernel truncation
+// (BPF_OBJ_NAME_LEN - 1). The leak detection system searches maps by truncated names, so names
+// like "hash_map_name_10" and "hash_map_name_11" would collide as both truncate to "hash_map_name_1".
+//
+// When adding a new PID-keyed map:
+// 1. Add a new field to this struct with the map name as the value
+// 2. Ensure the name is unique within the first 15 characters
+// 3. Add the corresponding map cleaner field to sslProgram struct
+// 4. Initialize it in initAllMapCleaners() with uint64 key type
+// The GetPIDKeyedTLSMapNames() function will automatically include it via reflection.
+var pidKeyedTLSMaps = struct {
+	SSLReadArgs      string
+	SSLReadExArgs    string
+	SSLWriteArgs     string
+	SSLWriteExArgs   string
+	BioNewSocketArgs string
+	SSLCtxByPIDTGID  string
+}{
+	SSLReadArgs:      "ssl_read_args",
+	SSLReadExArgs:    "ssl_read_ex_args",
+	SSLWriteArgs:     "ssl_write_args",
+	SSLWriteExArgs:   "ssl_write_ex_args",
+	BioNewSocketArgs: "bio_new_socket_args",
+	SSLCtxByPIDTGID:  "ssl_ctx_by_pid_tgid",
+}
+
+// GetPIDKeyedTLSMapNames returns the names of all TLS eBPF maps that use pid_tgid as keys.
+// It uses reflection to extract all field values from pidKeyedTLSMaps struct.
+// This ensures the list is automatically kept in sync with the struct definition.
+func GetPIDKeyedTLSMapNames() []string {
+	v := reflect.ValueOf(pidKeyedTLSMaps)
+	names := make([]string, v.NumField())
+	for i := 0; i < v.NumField(); i++ {
+		names[i] = v.Field(i).String()
+	}
+	return names
+}
 
 var openSSLProbes = []manager.ProbesSelector{
 	&manager.BestEffort{
@@ -254,25 +295,25 @@ var sharedLibrariesMaps = []*manager.Map{
 		Name: sslCtxByTupleMap,
 	},
 	{
-		Name: sslReadArgsMap,
+		Name: pidKeyedTLSMaps.SSLReadArgs,
 	},
 	{
-		Name: sslReadExArgsMap,
+		Name: pidKeyedTLSMaps.SSLReadExArgs,
 	},
 	{
-		Name: sslWriteArgsMap,
+		Name: pidKeyedTLSMaps.SSLWriteArgs,
 	},
 	{
-		Name: sslWriteExArgsMap,
+		Name: pidKeyedTLSMaps.SSLWriteExArgs,
 	},
 	{
-		Name: bioNewSocketArgsMap,
+		Name: pidKeyedTLSMaps.BioNewSocketArgs,
 	},
 	{
 		Name: fdBySSLBioMap,
 	},
 	{
-		Name: sslCtxByPIDTGIDMap,
+		Name: pidKeyedTLSMaps.SSLCtxByPIDTGID,
 	},
 }
 
@@ -465,7 +506,7 @@ type sslProgram struct {
 	bioNewSocketArgsMapCleaner *ddebpf.MapCleaner[uint64, uint32]
 
 	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
-	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
+	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[http.SSLCtxPidTGID, http.SslSock]
 	sslCtxByTupleMapCleaner   *ddebpf.MapCleaner[http.ConnTuple, uint64]
 }
 
@@ -538,7 +579,7 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
+	options.MapSpecEditors[pidKeyedTLSMaps.SSLCtxByPIDTGID] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -570,37 +611,37 @@ func initMapCleaner[K, V interface{}](mgr *manager.Manager, mapName, attacherNam
 func (o *sslProgram) initAllMapCleaners() error {
 	var err error
 
-	o.sslReadArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadArgs](o.ebpfManager, sslReadArgsMap, UsmTLSAttacherName)
+	o.sslReadArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadArgs](o.ebpfManager, pidKeyedTLSMaps.SSLReadArgs, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.sslReadExArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadExArgs](o.ebpfManager, sslReadExArgsMap, UsmTLSAttacherName)
+	o.sslReadExArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadExArgs](o.ebpfManager, pidKeyedTLSMaps.SSLReadExArgs, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.sslWriteArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteArgs](o.ebpfManager, sslWriteArgsMap, UsmTLSAttacherName)
+	o.sslWriteArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteArgs](o.ebpfManager, pidKeyedTLSMaps.SSLWriteArgs, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.sslWriteExArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteExArgs](o.ebpfManager, sslWriteExArgsMap, UsmTLSAttacherName)
+	o.sslWriteExArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteExArgs](o.ebpfManager, pidKeyedTLSMaps.SSLWriteExArgs, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.bioNewSocketArgsMapCleaner, err = initMapCleaner[uint64, uint32](o.ebpfManager, bioNewSocketArgsMap, UsmTLSAttacherName)
+	o.bioNewSocketArgsMapCleaner, err = initMapCleaner[uint64, uint32](o.ebpfManager, pidKeyedTLSMaps.BioNewSocketArgs, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, sslCtxByPIDTGIDMap, UsmTLSAttacherName)
+	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, pidKeyedTLSMaps.SSLCtxByPIDTGID, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
 
-	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
+	o.sslSockByCtxMapCleaner, err = initMapCleaner[http.SSLCtxPidTGID, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
@@ -633,10 +674,10 @@ func (o *sslProgram) Stop() {
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
-	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
+	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key C.ssl_ctx_pid_tgid_t, value C.ssl_sock_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.ssl_ctx_pid_tgid_t', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
-		var key uintptr // C.void *
+		var key http.SSLCtxPidTGID
 		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
@@ -651,7 +692,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case sslReadArgsMap: // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
+	case pidKeyedTLSMaps.SSLReadArgs: // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -660,7 +701,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case sslReadExArgsMap: // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
+	case pidKeyedTLSMaps.SSLReadExArgs: // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -669,7 +710,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case sslWriteArgsMap: // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case pidKeyedTLSMaps.SSLWriteArgs: // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -678,7 +719,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case sslWriteExArgsMap: // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case pidKeyedTLSMaps.SSLWriteExArgs: // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -687,7 +728,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case bioNewSocketArgsMap: // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
+	case pidKeyedTLSMaps.BioNewSocketArgs: // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -705,7 +746,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case sslCtxByPIDTGIDMap: // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
+	case pidKeyedTLSMaps.SSLCtxByPIDTGID: // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -797,7 +838,7 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 	})
 
 	if err := o.deleteDeadPidsInSSLCtxMap(alivePIDs); err != nil {
-		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
+		log.Debugf("SSL map %q cleanup error: %v", pidKeyedTLSMaps.SSLCtxByPIDTGID, err)
 	}
 }
 
@@ -810,7 +851,7 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 	// These are contexts belonging to dead PIDs
 	sslCtxToClean := make(map[uint64]struct{})
 
-	// First pass: Clean ssl_ctx_by_pid_tgid map and collect dead SSL contexts
+	// First pass: Clean ssl_ctx_by_pid_tgid, ssl_sock_by_ctx map and collect dead SSL contexts
 	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, sslCtx uint64) bool {
 		pid := uint32(pidTgid >> 32)
 		if _, isAlive := alivePIDs[pid]; !isAlive {
@@ -820,10 +861,14 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 		return false
 	})
 
-	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
-	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
-		_, shouldClean := sslCtxToClean[sslCtx]
-		return shouldClean
+	// Second pass: Clean ssl_sock_by_ctx map and add more dead SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key http.SSLCtxPidTGID, _ http.SslSock) bool {
+		pid := uint32(key.Tgid >> 32)
+		if _, isAlive := alivePIDs[pid]; !isAlive {
+			sslCtxToClean[key.Ctx] = struct{}{}
+			return true
+		}
+		return false
 	})
 
 	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts

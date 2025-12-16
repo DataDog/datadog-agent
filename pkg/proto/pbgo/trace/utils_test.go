@@ -6,7 +6,6 @@
 package trace
 
 import (
-	fmt "fmt"
 	reflect "reflect"
 	"testing"
 )
@@ -29,7 +28,7 @@ func TestShallowCopy(t *testing.T) {
 				continue
 			}
 			if _, ok := spanCopiedFields[field.Name]; !ok {
-				panic(fmt.Sprintf("pkg/trace/pb/span_utils.go: ShallowCopy needs to be updated for new Span fields. Missing: %s", field.Name))
+				panic("pkg/trace/pb/span_utils.go: ShallowCopy needs to be updated for new Span fields. Missing: " + field.Name)
 			}
 		}
 	})
@@ -49,7 +48,7 @@ func TestShallowCopy(t *testing.T) {
 				continue
 			}
 			if _, ok := traceChunkCopiedFields[field.Name]; !ok {
-				panic(fmt.Sprintf("pkg/trace/pb/tracer_payload_utils.go: ShallowCopy needs to be updated for new TraceChunk fields. Missing: %s", field.Name))
+				panic("pkg/trace/pb/tracer_payload_utils.go: ShallowCopy needs to be updated for new TraceChunk fields. Missing: " + field.Name)
 			}
 		}
 	})

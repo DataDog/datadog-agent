@@ -47,7 +47,7 @@ func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations
 func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 
 	if e.wellKnown {
-		return fmt.Errorf("cannot enable provider on well-known session")
+		return errors.New("cannot enable provider on well-known session")
 	}
 	if _, ok := e.providers[providerGUID]; !ok {
 		// ConfigureProvider was not called prior, set the default configuration
@@ -66,7 +66,7 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 	 * allows you to send one or the other but not both.
 	 */
 	if len(cfg.EnabledIDs) > 0 && len(cfg.DisabledIDs) > 0 {
-		return fmt.Errorf("cannot enable and disable the same provider at the same time")
+		return errors.New("cannot enable and disable the same provider at the same time")
 	}
 	var enabledFilters *C.USHORT
 	var enabledFilterCount C.ULONG
@@ -259,7 +259,7 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	if f != nil {
 		f(&s.sessionConfig)
 		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
-			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+			return nil, errors.New("max buffers must be greater than or equal to min buffers")
 		}
 	}
 
@@ -300,7 +300,7 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 	if f != nil {
 		f(&s.sessionConfig)
 		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
-			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+			return nil, errors.New("max buffers must be greater than or equal to min buffers")
 		}
 	}
 

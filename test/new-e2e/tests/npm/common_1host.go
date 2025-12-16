@@ -12,9 +12,9 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,13 +139,18 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 		})
 
 		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
-		lenHostPayloads := len(hostPayloads)
-		if !assert.Equalf(c, len(hostPayloads[lenHostPayloads-2].Connections), 600, "can't found enough connections 600+") {
-			return
-		}
+		lastTwoPayloads := hostPayloads[len(hostPayloads)-2:]
 
-		cnx600PayloadTime := hostPayloads[lenHostPayloads-2].GetCollectedTime()
-		latestPayloadTime := hostPayloads[lenHostPayloads-1].GetCollectedTime()
+		totalConnections := 0
+		// the last two should have 600+ connections. The benchmark is set to send 1500 connections,
+		// so if the connections check happens to occur exactly at the same time as the benchmark,
+		// one side or the other will have 600+ connections.
+		for _, payload := range lastTwoPayloads {
+			totalConnections += len(payload.Connections)
+		}
+		assert.GreaterOrEqualf(c, totalConnections, 600, "can't find enough connections 600+")
+		cnx600PayloadTime := lastTwoPayloads[0].GetCollectedTime()
+		latestPayloadTime := lastTwoPayloads[1].GetCollectedTime()
 
 		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)

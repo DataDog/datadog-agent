@@ -13,17 +13,17 @@ import (
 
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 //go:embed fixtures/openssl-default.cnf
@@ -41,22 +41,24 @@ type LinuxFIPSComplianceSuite struct {
 
 func TestLinuxFIPSComplianceSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithFlavor("datadog-fips-agent"),
-			// Install custom check that reports the FIPS mode of Python
-			agentparams.WithFile(
-				`/etc/datadog-agent/checks.d/e2e_fips_test.py`,
-				fipsTestCheck,
-				true,
-			),
-			agentparams.WithFile(
-				`/etc/datadog-agent/conf.d/e2e_fips_test.yaml`,
-				`
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
+				agentparams.WithFlavor("datadog-fips-agent"),
+				// Install custom check that reports the FIPS mode of Python
+				agentparams.WithFile(
+					`/etc/datadog-agent/checks.d/e2e_fips_test.py`,
+					fipsTestCheck,
+					true,
+				),
+				agentparams.WithFile(
+					`/etc/datadog-agent/conf.d/e2e_fips_test.yaml`,
+					`
 init_config:
 instances: [{}]
 `,
-				false,
+					false,
+				),
 			),
 		),
 	)),
@@ -66,12 +68,8 @@ instances: [{}]
 }
 
 func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
-	_, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
-	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the environment variable GOFIPS=0 which would disable FIPS mode")
-
 	status := v.Env().RemoteHost.MustExecute("sudo datadog-agent status")
-	assert.NotContains(v.T(), status, "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
+	assert.NotContains(v.T(), status, "FIPS mode requested (requirefips tag set) but not available: OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
 	assert.Contains(v.T(), status, "FIPS Mode: enabled")
 }
@@ -82,7 +80,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available: OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
@@ -93,7 +91,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available: OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
@@ -120,11 +118,13 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 // this test check that the FIPS Agent processes are loaded with the FIPS OpenSSL libraries
 func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithFlavor("datadog-fips-agent"),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
+				agentparams.WithFlavor("datadog-fips-agent"),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+			),
 		),
 	))
 

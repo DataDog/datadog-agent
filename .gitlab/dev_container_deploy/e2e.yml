@@ -10,8 +10,7 @@ qa_agent:
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
-    - docker_build_agent7_windows1809
-    - docker_build_agent7_windows2022
+    - docker_build_agent7_windows
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-winltsc2022-amd64
@@ -27,7 +26,7 @@ qa_agent_fips:
   needs:
     - docker_build_fips_agent7
     - docker_build_fips_agent7_arm64
-    - docker_build_fips_agent7_windows2022_core
+    - docker_build_fips_agent7_windows
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-winltsc2022-servercore-amd64
@@ -43,8 +42,7 @@ qa_agent_jmx:
   needs:
     - docker_build_agent7_jmx
     - docker_build_agent7_jmx_arm64
-    - docker_build_agent7_windows1809_jmx
-    - docker_build_agent7_windows2022_jmx
+    - docker_build_agent7_windows
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-winltsc2022-amd64
@@ -60,7 +58,7 @@ qa_agent_fips_jmx:
   needs:
     - docker_build_fips_agent7_jmx
     - docker_build_fips_agent7_arm64_jmx
-    - docker_build_fips_agent7_windows2022_core_jmx
+    - docker_build_fips_agent7_windows
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-winltsc2022-servercore-amd64

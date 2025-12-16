@@ -256,7 +256,7 @@ func (ra *remoteAgentRegistry) start() {
 						}
 						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
 						// close the remote agent client and remove it from the registry
-						remoteAgentClient.close()
+						_ = remoteAgentClient.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}

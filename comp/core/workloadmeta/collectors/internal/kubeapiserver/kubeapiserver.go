@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -156,29 +155,13 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 // resourcesForAPMConfig returns the list of resources to collect metadata from
 // for the auto instrumentation configuration. Namespaces are collected in order
-// to utilize namespace labels for target based configuration.
+// to utilize namespace labels for target based configuration and to determine
+// pod security policies to apply to restricted namespaces.
 func resourcesForAPMConfig(cfg config.Reader) []string {
 	// If APM is not enabled, we don't need to collect any resources for the
 	// auto instrumentation configuration.
 	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
 	if !apmEnabled {
-		return nil
-	}
-
-	// Targets is a custom struct type, so we unmarshal it into an interface
-	// slice to avoid the import while still being able to check if it's empty.
-	// For simplicity, we enable the namespace collection if there are any
-	// targets defined and do not check if the targets actually require
-	// namespace labels.
-	targets := []interface{}{}
-	err := structure.UnmarshalKey(cfg, "apm_config.instrumentation.targets", &targets)
-	if err != nil {
-		log.Errorf("failed to unmarshal apm_config.instrumentation.targets: %v", err)
-		return nil
-	}
-
-	// If there are no targets, we don't need to collect any resources.
-	if len(targets) == 0 {
 		return nil
 	}
 

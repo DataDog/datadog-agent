@@ -847,7 +847,7 @@ func isHeaderTrue(key, value string) bool {
 	}
 	bval, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Debug("Non-boolean value %s found in header %s, defaulting to true", value, key)
+		log.Debugf("Non-boolean value %s found in header %s, defaulting to true", value, key)
 		return true
 	}
 	return bval

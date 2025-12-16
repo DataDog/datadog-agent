@@ -11,7 +11,6 @@ package module
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -512,7 +511,7 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				"..", "..", "..", "..",
 				"network", "usm", "testdata",
 				"site-packages", "ddtrace",
-				fmt.Sprintf("libssl.so.%s", runtime.GOARCH)),
+				"libssl.so."+runtime.GOARCH),
 			language: language.Python,
 		},
 		{
