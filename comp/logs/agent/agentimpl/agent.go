@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -134,6 +135,11 @@ type logAgent struct {
 
 	// make restart thread safe
 	restartMutex sync.Mutex
+
+	// HTTP retry state for TCP fallback recovery
+	httpRetryCtx    context.Context
+	httpRetryCancel context.CancelFunc
+	httpRetryMutex  sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -212,6 +218,21 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+
+	// Log which transport we're starting with
+	if endpoints.UseHTTP {
+		a.log.Infof("[TEST-TIME] Logs agent started using HTTP transport at %s", time.Now().Format(time.RFC3339))
+	} else {
+		a.log.Infof("[TEST-TIME] Logs agent started using TCP transport at %s", time.Now().Format(time.RFC3339))
+	}
+
+	// If we're currently sending over TCP, attempt restart over HTTP
+	if !endpoints.UseHTTP {
+		if os.Getenv("TEST_SMART_RECOVERY") == "1" {
+			a.log.Warn("TEST_SMART_RECOVERY enabled - forcing TCP start to test HTTP retry mechanism")
+		}
+		a.smartHTTPRestart()
+	}
 	return nil
 }
 
@@ -301,6 +322,9 @@ func (a *logAgent) stop(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Stopping logs-agent")
+
+	// Stop HTTP retry loop if running
+	a.stopHTTPRetry()
 
 	status.Clear()
 

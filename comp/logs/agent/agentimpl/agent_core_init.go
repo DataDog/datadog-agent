@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"os"
 	"time"
 
 	"github.com/spf13/afero"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -58,10 +60,44 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 // dependent on configuration and connectivity
 func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+
+	// TEST_SMART_RECOVERY: Force TCP start to test HTTP retry mechanism
+	// When set to "1", forces the agent to start with TCP even if HTTP is available,
+	// allowing the smart HTTP recovery mechanism to upgrade to HTTP
+	testSmartRecovery := os.Getenv("TEST_SMART_RECOVERY") == "1"
+
+	if testSmartRecovery {
+		// Force TCP start for testing - HTTP retry will attempt upgrade
+		httpConnectivity = config.HTTPConnectivityFailure
+	} else if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
+
+	// Publish HTTP connectivity check metric
+	if httpConnectivity == config.HTTPConnectivitySuccess {
+		metrics.TlmHTTPConnectivityCheck.Inc("success")
+	} else {
+		metrics.TlmHTTPConnectivityCheck.Inc("failure")
+	}
+
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+}
+
+// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only
+func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.Endpoints, error) {
+	return config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+}
+
+// checkHTTPConnectivityStatus performs an HTTP connectivity check and returns the status
+func checkHTTPConnectivityStatus(endpoint config.Endpoint, coreConfig model.Reader) config.HTTPConnectivity {
+	return http.CheckConnectivity(endpoint, coreConfig)
+}
+
+// buildHTTPEndpointsForRestart builds HTTP endpoints for restart without connectivity check
+// This is used when we've already verified HTTP connectivity and are upgrading from TCP
+func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, error) {
+	// Force HTTP endpoints since we already confirmed connectivity
+	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration

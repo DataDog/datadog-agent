@@ -1131,3 +1131,73 @@ func Test_parseAddressWithScheme(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTCPRequired(t *testing.T) {
+	tests := []struct {
+		name                string
+		forceTCP            bool
+		socks5Proxy         string
+		additionalEndpoints bool
+		expectedTCPRequired bool
+	}{
+		{
+			name:                "no TCP requirements",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: false,
+		},
+		{
+			name:                "force_use_tcp enabled",
+			forceTCP:            true,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "socks5 proxy set",
+			forceTCP:            false,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "additional endpoints configured",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "all TCP requirements set",
+			forceTCP:            true,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("api_key", "test-key")
+			cfg.SetWithoutSource("logs_config.force_use_tcp", tt.forceTCP)
+			cfg.SetWithoutSource("logs_config.socks5_proxy_address", tt.socks5Proxy)
+
+			if tt.additionalEndpoints {
+				cfg.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+					{
+						"host":    "additional-host.com",
+						"port":    10516,
+						"api_key": "additional-key",
+					},
+				})
+			}
+
+			result := IsTCPRequired(cfg)
+			if result != tt.expectedTCPRequired {
+				t.Errorf("IsTCPRequired() = %v, want %v", result, tt.expectedTCPRequired)
+			}
+		})
+	}
+}
