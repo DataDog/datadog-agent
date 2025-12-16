@@ -14,16 +14,25 @@ import (
 	"io"
 	"strings"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 )
 
-// MetricFamily represents a metric family that is returned by a prometheus endpoint
+// Metric is a set of labels for a sample.
+type Metric map[string]string
+
+// Sample represents a single metric data point.
+type Sample struct {
+	Metric    Metric
+	Value     float64
+	Timestamp int64 // milliseconds since epoch, 0 if not set
+}
+
+// MetricFamily represents a metric family that is returned by a prometheus endpoint.
 type MetricFamily struct {
 	Name    string
 	Type    string
-	Samples model.Vector
+	Samples []Sample
 }
 
 // trimMetricSuffix extracts the base metric name by removing known suffixes.
@@ -89,7 +98,7 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, erro
 				families[baseName] = &MetricFamily{
 					Name:    baseName,
 					Type:    strings.ToUpper(string(typ)),
-					Samples: make(model.Vector, 0, 8),
+					Samples: make([]Sample, 0, 8),
 				}
 			}
 
@@ -100,19 +109,19 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, erro
 			// Get metric name from __name__ label
 			fullName := lbls.Get(labels.MetricName)
 
-			// Convert labels to model.Metric
-			metric := make(model.Metric, lbls.Len())
+			// Convert labels to Metric
+			metric := make(Metric, lbls.Len())
 			lbls.Range(func(l labels.Label) {
-				metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
+				metric[l.Name] = l.Value
 			})
 
 			// Create sample
-			sample := &model.Sample{
+			sample := Sample{
 				Metric: metric,
-				Value:  model.SampleValue(value),
+				Value:  value,
 			}
 			if ts != nil {
-				sample.Timestamp = model.TimeFromUnixNano(*ts * 1e6)
+				sample.Timestamp = *ts
 			}
 
 			// Group by base metric name
@@ -123,7 +132,7 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, erro
 				family = &MetricFamily{
 					Name:    baseName,
 					Type:    "UNTYPED",
-					Samples: make(model.Vector, 0, 8),
+					Samples: make([]Sample, 0, 8),
 				}
 				families[baseName] = family
 			}
