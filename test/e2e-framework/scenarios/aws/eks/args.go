@@ -21,7 +21,9 @@ type Params struct {
 type Option = func(*Params) error
 
 func NewParams(options ...Option) (*Params, error) {
-	version := &Params{}
+	version := &Params{
+		UseAL2023Nodes: true,
+	}
 	return common.ApplyOption(version, options)
 }
 

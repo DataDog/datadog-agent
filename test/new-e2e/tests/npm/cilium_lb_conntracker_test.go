@@ -26,9 +26,10 @@ import (
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/istio"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type ciliumLBConntrackerTestSuite struct {
@@ -82,13 +83,14 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 	e2e.Run(t, suite,
 		e2e.WithStackName("stack-"+name),
 		e2e.WithProvisioner(
-			awskubernetes.KindProvisioner(
-				awskubernetes.WithName(name),
-				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
-				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
-				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
-				awskubernetes.WithWorkloadApp(npmToolsWorkload),
-			),
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithName(name),
+					scenkindvm.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
+					scenkindvm.WithWorkloadApp(httpBinServiceInstall),
+					scenkindvm.WithWorkloadApp(npmToolsWorkload),
+				)),
 		),
 	)
 }
