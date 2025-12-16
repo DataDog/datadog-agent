@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package run
 
 import (
@@ -13,24 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestPrivateActionRunnerRunCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
-		[]string{"run"},
-		run,
-		func(_ log.Component, _ config.Component, _ privateactionrunner.Component) {})
+	fxutil.TestRun(t, func() error {
+		commands := Commands(newGlobalParamsTest(t))
+		return commands[0].RunE(nil, []string{"run"})
+	})
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// Create minimal config for private action runner testing
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte(`
+	configPath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(configPath, []byte(`
 hostname: test
 privateactionrunner:
   enabled: false
@@ -41,6 +39,6 @@ api_key: test_key
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }
