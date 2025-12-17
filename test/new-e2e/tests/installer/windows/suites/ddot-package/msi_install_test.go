@@ -29,8 +29,21 @@ func TestAgentMSIInstallsDDOTPackage(t *testing.T) {
 		))
 }
 
+func (s *testAgentMSIInstallsDDOT) BeforeTest(_suiteName, testName string) {
+	s.BaseSuite.BeforeTest(_suiteName, testName)
+	s.T().Logf("=== BeforeTest Diagnostics for %s ===", testName)
+
+	// Log packages.db and installer state BEFORE the test starts
+	s.logPackagesDBFile("START of test")
+	s.logPackagesState("START of test")
+	s.logInstallerServiceState()
+}
+
 func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, testName string) {
 	s.T().Logf("=== AfterTest Diagnostics for %s ===", testName)
+
+	// Log packages.db file state BEFORE purge
+	s.logPackagesDBFile("BEFORE purge")
 
 	// Log package entries BEFORE purge
 	s.logPackagesState("BEFORE purge")
@@ -45,6 +58,9 @@ func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, testName string) {
 	if err != nil {
 		s.T().Logf("Purge error: %v", err)
 	}
+
+	// Log packages.db file state AFTER purge
+	s.logPackagesDBFile("AFTER purge")
 
 	// Log package entries AFTER purge
 	s.logPackagesState("AFTER purge")
@@ -96,6 +112,39 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 
 	// Assert: DDOT package directory removed
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(stableDir, "ddot package directory should be removed on uninstall when requested")
+}
+
+// logPackagesDBFile checks the packages.db file directly to see its state
+func (s *testAgentMSIInstallsDDOT) logPackagesDBFile(when string) {
+	s.T().Helper()
+	s.T().Logf("--- packages.db file state %s ---", when)
+
+	// Check if the file exists and get its metadata
+	output, err := s.Env().RemoteHost.Execute(
+		`$dbPath = 'C:\ProgramData\Datadog\Installer\packages\packages.db'
+		if (Test-Path $dbPath) {
+			$file = Get-Item $dbPath
+			Write-Output "EXISTS: $dbPath"
+			Write-Output "Size: $($file.Length) bytes"
+			Write-Output "LastWriteTime: $($file.LastWriteTime)"
+		} else {
+			Write-Output "NOT FOUND: $dbPath"
+		}`)
+	s.T().Logf("packages.db %s:\n%s", when, output)
+	if err != nil {
+		s.T().Logf("Error checking packages.db: %v", err)
+	}
+
+	// Also check if the packages directory exists and list its contents
+	output2, _ := s.Env().RemoteHost.Execute(
+		`$pkgDir = 'C:\ProgramData\Datadog\Installer\packages'
+		if (Test-Path $pkgDir) {
+			Write-Output "Packages directory contents:"
+			Get-ChildItem $pkgDir -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "  $_" }
+		} else {
+			Write-Output "Packages directory NOT FOUND: $pkgDir"
+		}`)
+	s.T().Logf("Packages directory %s:\n%s", when, output2)
 }
 
 // logPackagesState queries datadog-installer status to see which packages are registered in packages.db
