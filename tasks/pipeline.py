@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import yaml
+from click import Context
 from gitlab import GitlabError
 from gitlab.v4.objects import Project
 from invoke import task
@@ -14,6 +15,7 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
     get_gitlab_repo,
+    get_gitlab_token,
     gitlab_configuration_is_modified,
     refresh_pipeline,
 )
@@ -324,7 +326,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
-    repo = get_gitlab_repo(project_name)
+    token = get_gitlab_token(Context(), repo=project_name.split('/')[1])
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -349,7 +352,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     )
 
     try:
-        pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
+        pipeline = repo.trigger_pipeline(git_ref, token, variables=variables)
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
 
