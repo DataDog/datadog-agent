@@ -145,24 +145,48 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         # 1. Upload coverage reports to Codecov
-        $Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
-        & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "coverage upload failed $localErr"
+        try {
+            $oldEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Stop'
+
+            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN"
+            & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+            $localErr = $LASTEXITCODE
+            if($localErr -ne 0){
+                Write-Host -ForegroundColor Red "coverage upload failed $localErr"
+            }
+        }
+        catch {
+            # Non-fatal: print but do not fail the script
+            Write-Host -ForegroundColor Red "coverage upload failed (non-fatal): $($_.Exception.Message)"
+        }
+        finally {
+            $ErrorActionPreference = $oldEap
         }
     }
     if ($UploadTestResults) {
         # 2. Upload junit files
-        # Copy test files to c:\mnt for further gitlab upload
-        Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination C:\mnt
+        try {
+            $oldEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Stop'
+
+            # Copy test files to c:\mnt for further gitlab upload
+            Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination C:\mnt
+            }
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2"
+            & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
+            $localErr = $LASTEXITCODE
+            if($localErr -ne 0){
+                Write-Host -ForegroundColor Red "junit upload failed $localErr"
+            }
         }
-        $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
-        & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "junit upload failed $localErr"
+        catch {
+            # Non-fatal: print but do not fail the script
+            Write-Host -ForegroundColor Red "junit upload failed (non-fatal): $($_.Exception.Message)"
+        }
+        finally {
+            $ErrorActionPreference = $oldEap
         }
     }
 
