@@ -22,9 +22,9 @@ type CacheEntry struct {
 	sync.RWMutex
 	CGroupContext    model.CGroupContext
 	ContainerContext model.ContainerContext
+	Deleted          *atomic.Bool
 
-	Deleted *atomic.Bool
-	PIDs    map[uint32]bool
+	pids map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
@@ -37,7 +37,7 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.
 		CGroupContext: model.CGroupContext{
 			Releasable: &model.Releasable{},
 		},
-		PIDs: make(map[uint32]bool, 10),
+		pids: make(map[uint32]bool, 10),
 	}
 
 	if cgroupContext != nil {
@@ -45,7 +45,7 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.
 	}
 
 	for _, pid := range pids {
-		newCGroup.PIDs[pid] = true
+		newCGroup.pids[pid] = true
 	}
 	return &newCGroup
 }
@@ -55,9 +55,9 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	cgce.RLock()
 	defer cgce.RUnlock()
 
-	pids := make([]uint32, len(cgce.PIDs))
+	pids := make([]uint32, len(cgce.pids))
 	i := 0
-	for k := range cgce.PIDs {
+	for k := range cgce.pids {
 		pids[i] = k
 		i++
 	}
@@ -70,7 +70,7 @@ func (cgce *CacheEntry) RemovePID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	delete(cgce.PIDs, pid)
+	delete(cgce.pids, pid)
 }
 
 // AddPID adds a pid to the list of pids
@@ -78,5 +78,5 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs[pid] = true
+	cgce.pids[pid] = true
 }
