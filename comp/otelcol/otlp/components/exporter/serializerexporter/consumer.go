@@ -265,12 +265,12 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 	case ddot:
 		for host := range c.hosts {
 			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
-			coatGWEnvVarMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
 			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
-			coatGWEnvVarMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
 		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")
