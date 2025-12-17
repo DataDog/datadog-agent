@@ -75,6 +75,8 @@ func (m *complianceModule) handleError(writer http.ResponseWriter, request *http
 }
 
 func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, request *http.Request) {
+	log.Info("module compliance: handling /dbconfig request")
+
 	m.performedChecks.Add(1)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()

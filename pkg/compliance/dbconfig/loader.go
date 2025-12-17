@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/shirou/gopsutil/v4/process"
 	yaml "gopkg.in/yaml.v3"
@@ -37,10 +38,6 @@ const (
 // the given process.
 func GetProcResourceType(proc *process.Process) (types.ResourceType, bool) {
 	name, _ := proc.Name()
-	exe, _ := proc.Exe()
-	if name != filepath.Base(exe) {
-		return "", false
-	}
 	switch name {
 	case "postgres":
 		return types.ResourceTypeDbPostgresql, true
@@ -62,6 +59,7 @@ func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Proce
 	if !ok {
 		return "", nil, false
 	}
+	log.Infof("dbconfig: loading configuration for resource type %s (pid=%d)", resourceType, proc.Pid)
 	var conf *DBConfig
 	switch resourceType {
 	case types.ResourceTypeDbPostgresql:
@@ -82,6 +80,7 @@ func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Proce
 // LoadDBResourceFromPID loads and returns an optional DBResource associated
 // with the given process PID.
 func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
+	log.Infof("dbconfig: loading configuration (pid=%d)", pid)
 	proc, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
 		return nil, false
@@ -91,9 +90,14 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	if !ok {
 		return nil, false
 	}
+	if !checkProcExe(proc) {
+		log.Infof("dbconfig: could not check proc exe")
+		return nil, false
+	}
 
 	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
+	log.Infof("dbconfig: loading configuration (pid=%d, containerID=%s, hostroot=%s) (ok=%t)", pid, containerID, hostroot, ok)
 	if !ok || !filepath.IsAbs(hostroot) {
 		return nil, false
 	}
@@ -109,6 +113,7 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	default:
 		ok = false
 	}
+	log.Infof("dbconfig: loaded configuration (resourceType %s, pid=%d, containerID=%s, hostroot=%s) (ok=%t)", resourceType, pid, containerID, hostroot, ok)
 	if !ok || conf == nil {
 		return nil, false
 	}
@@ -119,12 +124,19 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	}, true
 }
 
+func checkProcExe(proc *process.Process) bool {
+	name, _ := proc.Name()
+	exe, _ := proc.Exe()
+	return name == filepath.Base(exe)
+}
+
 // LoadMongoDBConfig loads and extracts the MongoDB configuration data found
 // on the system.
 func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
 	configLocalPath := mongoDBConfigPath
 	result := newDBConfig(ctx, proc)
 	cmdline, _ := proc.CmdlineSlice()
+	log.Infof("dbconfig: proc %d with cmdline %v", proc.Pid, cmdline)
 	for i, arg := range cmdline {
 		if arg == "--config" && i+1 < len(cmdline) {
 			configLocalPath = filepath.Clean(cmdline[i+1])
@@ -143,12 +155,14 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 	})
 
 	root, err := os.OpenRoot(hostroot)
+	log.Infof("dbconfig: proc %d with hostroot %s (err=%v)", proc.Pid, hostroot, err)
 	if err != nil {
 		return nil, false
 	}
 	defer root.Close()
 
 	configRaw, fi, err := utils.ReadProcessFileLimit(proc, root, configLocalPath, maxFileSize)
+	log.Infof("dbconfig: proc %d with config at path %s (err=%v)", proc.Pid, configLocalPath, err)
 	if err != nil {
 		return nil, false
 	}

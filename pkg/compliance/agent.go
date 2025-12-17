@@ -458,10 +458,12 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			return
 		}
 		procs, err := process.ProcessesWithContext(ctx)
+		log.Infof("dbconfig: starting DB configuration export with %d processes (err=%v)", len(procs), err)
 		if err != nil {
 			continue
 		}
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
+		log.Info("dbconfig: groupped processes")
 		for keyGroup, proc := range groups {
 			if keyGroup.containerID != "" {
 				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
@@ -469,6 +471,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 				}
 			} else {
 				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
+				log.Infof("dbconfig: loaded configuration for resource type %s (ok=%t)", resourceType, ok)
 				if ok {
 					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
 					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
@@ -487,16 +490,19 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, contai
 	}
 
 	resource, err := a.opts.SysProbeClient.FetchDBConfig(ctx, pid)
+	log.Infof("dbconfig: fetched resource (err=%v resource=%t)", err, resource != nil)
 	if err != nil {
 		return err
 	}
-
 	if resource != nil {
 		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
 		dbResourceLog.Container = &CheckContainerMeta{
 			ContainerID: string(containerID),
 		}
+		log.Infof("dbconfig: reporting resource")
 		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
+	} else {
+		log.Info("dbconfig: resource was nil")
 	}
 	return nil
 }
