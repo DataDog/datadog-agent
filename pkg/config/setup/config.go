@@ -715,6 +715,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
 	config.BindEnvAndSetDefault("azure_metadata_timeout", 300)
+	config.BindEnvAndSetDefault("azure_metadata_api_version", "2021-02-01")
 
 	// IBM cloud
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.
