@@ -237,25 +237,25 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig               model.Config
-	instance                  *KSMConfig
-	allStores                 [][]cache.Store
-	telemetry                 *telemetryCache
-	tagger                    tagger.Component
-	cancel                    context.CancelFunc
-	isCLCRunner               bool
-	isRunningOnNodeAgent      bool
-	clusterIDTagValue         string
-	clusterNameTagValue       string
-	clusterNameRFC1123        string
-	metricNamesMapper         map[string]string
-	metricAggregators         map[string]metricAggregator
-	metricTransformers        map[string]metricTransformerFunc
-	metadataMetricsRegex      *regexp.Regexp
-	initRetry                 retry.Retrier
-	workloadmetaStore         workloadmeta.Component
-	rolloutTracker            *customresources.RolloutTracker
-	customResourceDiscoverer  *ksmDiscovery.CRDiscoverer
+	agentConfig                model.Config
+	instance                   *KSMConfig
+	allStores                  [][]cache.Store
+	telemetry                  *telemetryCache
+	tagger                     tagger.Component
+	cancel                     context.CancelFunc
+	isCLCRunner                bool
+	isRunningOnNodeAgent       bool
+	clusterIDTagValue          string
+	clusterNameTagValue        string
+	clusterNameRFC1123         string
+	metricNamesMapper          map[string]string
+	metricAggregators          map[string]metricAggregator
+	metricTransformers         map[string]metricTransformerFunc
+	metadataMetricsRegex       *regexp.Regexp
+	initRetry                  retry.Retrier
+	workloadmetaStore          workloadmeta.Component
+	rolloutTracker             *customresources.RolloutTracker
+	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
 }
 
