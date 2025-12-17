@@ -520,6 +520,13 @@ func TestUsageMetric_DDOT(t *testing.T) {
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric for GW deployments with DDOT",
 		),
+
+		DDOTGWEnvValue: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_env_var",
+			[]string{"version", "command", "host", "task_arn"},
+			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
+		),
 	}
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
@@ -578,6 +585,12 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expected float64) {
 			"datadog_agent_ddot_gateway_usage",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric for GW deployments with DDOT",
+		),
+		DDOTGWEnvValue: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_env_var",
+			[]string{"version", "command", "host", "task_arn"},
+			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
 		),
 	}
 

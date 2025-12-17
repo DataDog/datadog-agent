@@ -86,7 +86,7 @@ type SerializerConsumer interface {
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
-	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge)
+	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge)
 }
 
 type serializerConsumer struct {
@@ -231,9 +231,10 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
-	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge) {
+	gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge) {
 	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
+	gateWayEnvVar := gatewayUsage.EnvVarValue()
 	if enabled {
 		c.series = append(c.series, &metrics.Serie{
 			Name:           "datadog.otel.gateway",
@@ -247,18 +248,29 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 		value = 0
 	}
 
-	if coatUsageMetric == nil {
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "datadog.otel.gateway.env.var",
+		Points:         []metrics.Point{{Value: gateWayEnvVar, Ts: float64(time.Now().Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+
+	if coatGwUsageMetric == nil || coatGWEnvVarMetric == nil {
 		return
 	}
 
 	switch c.ipath {
 	case ddot:
 		for host := range c.hosts {
-			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+			coatGWEnvVarMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
-			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatGWEnvVarMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
 		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")
