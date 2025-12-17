@@ -138,11 +138,14 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
-			if isLeaf := knownKeys[currPath]; isLeaf {
-				// Not found but known, the setting must be valueless (defined by BindEnv or SetKnown)
+			isLeaf, isKnown := knownKeys[currPath]
+			if isLeaf {
+				// Not found but known, the leaf setting must be valueless (defined by BindEnv or SetKnown)
 				schemaChild = valuelessLeaf
 			} else {
-				warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
+				if !isKnown {
+					warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
+				}
 
 				// if the key is not defined in the schema, we can still add it to the destination
 				if value == nil || isScalar(value) || isSlice(value) {
