@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -42,9 +40,6 @@ type EBPFLessResolver struct {
 	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
 
-	// stats
-	cacheSize *atomic.Int64
-
 	processCacheEntryPool *Pool
 }
 
@@ -54,7 +49,6 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
 		opts:         *opts,
 		scrubber:     scrubber,
-		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
 	}
 
@@ -187,7 +181,6 @@ func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, fil
 
 func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	p.entryCache[key] = entry
-	p.cacheSize.Inc()
 }
 
 func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
