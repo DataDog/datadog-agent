@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
@@ -217,14 +218,15 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 	}
 
 	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
-		if _, ok := oldValue.(string); !ok {
+		oldValueStr, ok := oldValue.(string)
+		if !ok {
 			return
 		}
 
-		isEnc, _ := utils.IsEnc(oldValue.(string))
+		isEnc, _ := utils.IsEnc(oldValueStr)
 		// - An empty old value means this secret was initially resolved and isn't a refresh.
 		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
-		if oldValue == "" || isEnc {
+		if oldValueStr == "" || isEnc {
 			return
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
