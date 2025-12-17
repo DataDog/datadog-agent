@@ -174,6 +174,8 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 		err = s.installer.Install(ctx, url, nil)
 	}
 	if err != nil {
+		s.Out.WriteString(fmt.Sprintf("Error installing %s\n", name))
+		s.Out.WriteString(err.Error() + "\n")
 		return err
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
