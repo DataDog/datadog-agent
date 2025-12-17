@@ -86,8 +86,8 @@ func TestPutBackPoolEvent(t *testing.T) {
 
 		p.putBackPoolEvent(event)
 
-		// Verify that Release was called (since refCount was 1, coreRelease callback should be called)
-		assert.True(t, releaseCalled, "Release callback should have been called")
+		// Verify that Release was not called
+		assert.False(t, releaseCalled, "Release callback should not have been called")
 
 		// Get a new event from the pool (should be the one we just put back)
 		newEvent := p.getPoolEvent()

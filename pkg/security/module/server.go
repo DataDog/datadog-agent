@@ -73,7 +73,6 @@ type pendingMsg struct {
 	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
-	skip            bool
 
 	sshSessionPatcher sshSessionPatcher
 }
@@ -247,10 +246,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.skip {
-			return true
-		}
-
 		if msg.retry >= maxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
@@ -284,6 +279,12 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 				break
 			}
 		}
+	}
+}
+
+func (a *APIServer) updateMsgTrack(msg *api.SecurityEventMessage) {
+	if slices.Contains(events.AllSecInfoRuleIDs(), msg.RuleID) {
+		msg.Track = string(SecInfo)
 	}
 }
 
@@ -341,8 +342,8 @@ func (a *APIServer) start(ctx context.Context) {
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
 					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
-						msg.skip = true
-						return false
+						// similar return value as if we had sent the message
+						return true
 					}
 				}
 
@@ -522,6 +523,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
+		a.updateMsgTrack(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}

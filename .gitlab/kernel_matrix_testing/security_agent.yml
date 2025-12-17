@@ -113,8 +113,6 @@ upload_secagent_tests_arm64:
 .kmt_run_secagent_tests:
   extends: .kmt_run_secagent_tests_base
   allow_failure: true
-  variables:
-    RETRY: 0
 
 .kmt_run_secagent_tests_required:
   extends: .kmt_run_secagent_tests_base
