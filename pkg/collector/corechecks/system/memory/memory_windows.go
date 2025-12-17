@@ -7,8 +7,6 @@
 package memory
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
@@ -116,7 +114,7 @@ func (c *Check) Run() error {
 	pageFiles, errPaging := pagingFileMemory()
 	if errPaging == nil {
 		for _, pf := range pageFiles {
-			tag := []string{fmt.Sprintf("pagefile_path:%s", pf.Name)}
+			tag := []string{"pagefile_path:" + pf.Name}
 			sender.Gauge("system.paging.total", float64(pf.Total)/mbSize, "", tag)
 			sender.Gauge("system.paging.free", float64(pf.Available)/mbSize, "", tag)
 			sender.Gauge("system.paging.used", float64(pf.Used)/mbSize, "", tag)

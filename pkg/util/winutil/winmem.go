@@ -109,11 +109,11 @@ type memoryStatusEx struct {
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-enum_page_file_information
 type enumPageFileInformation struct {
-	cbSize     uint32
-	reserved   uint32
+	cbSize     uint32 //nolint:unused // Required for Windows API structure layout
+	reserved   uint32 //nolint:unused // Required for Windows API structure layout
 	totalSize  uint64
 	totalInUse uint64
-	peakUsage  uint64
+	peakUsage  uint64 //nolint:unused // Required for Windows API structure layout
 }
 
 // VirtualMemory returns virtual memory metrics for the machine
