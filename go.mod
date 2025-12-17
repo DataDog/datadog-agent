@@ -991,8 +991,8 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
-// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251106154236-a76e7d352d21
+// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060-no-buildinfo
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
