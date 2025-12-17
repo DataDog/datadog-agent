@@ -161,9 +161,9 @@ http_archive(
 
 http_archive(
     name = "nghttp2",
-    build_file = "//deps:nghttp2.BUILD.bazel",
     files = {
-        "config.h": "//deps/nghttp2:config.h",
+        "BUILD.bazel": "//deps:nghttp2/nghttp2.BUILD.bazel",
+        "config.h": "//deps:nghttp2/config.h",
     },
     sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
     strip_prefix = "nghttp2-1.58.0",
@@ -291,4 +291,18 @@ http_archive(
     sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
     strip_prefix = "libxslt-1.1.43",
     url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
+)
+
+http_archive(
+    name = "dbus",
+    files = {
+        # TODO(agent-build): ensure all the macros defined in these headers are actually needed
+        # Once cleaned, replace install dir occurences with a placeholder for replacement.
+        "config-linux-x86_64.h": "//deps:dbus/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:dbus/config-linux-arm64.h",
+        "BUILD.bazel": "//deps:dbus/dbus.BUILD.bazel",
+    },
+    sha256 = "0ba2a1a4b16afe7bceb2c07e9ce99a8c2c3508e5dec290dbb643384bd6beb7e2",
+    url = "https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz",
+    strip_prefix = "dbus-1.16.2",
 )
