@@ -563,7 +563,7 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc, p.opts.FilterStore)
 	if err != nil {
 		return err
 	}
