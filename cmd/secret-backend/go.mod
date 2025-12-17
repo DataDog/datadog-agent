@@ -389,6 +389,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
+exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -560,5 +562,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
 )
-
-exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
