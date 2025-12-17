@@ -21,11 +21,11 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func TestConverterInfraAttributes(t *testing.T) {
+func TestConverterCompleteInfraAttributesConfig(t *testing.T) {
 	yaml := fmt.Sprintf(`
 processors:
   %s:
-    enabled: true
+    allow_hostname_override: true
   otherProcessor: {}
 service:
   pipelines:
@@ -34,19 +34,39 @@ service:
         - %s
         - otherProcessor
 `, infraAttributesName(), infraAttributesName())
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"processors": map[string]any{
-			"otherProcessor": map[string]any{},
-		},
-		"service": map[string]any{
-			"pipelines": map[string]any{
-				"profiles": map[string]any{
-					"processors": []any{"otherProcessor"},
-				},
-			},
-		},
-	})
+	conf := readAsAgentModeFromYamlFile(t, yaml)
+
+	expected := agentModeRequiredConfig()
+	addProcessorToPipeline(expected, "otherProcessor", yamlNode{})
+
+	require.Equal(t, expected, conf)
+}
+
+func TestConverterIncompleteInfraAttributesConfig(t *testing.T) {
+	yaml := fmt.Sprintf(`
+processors:
+  %s:
+  otherProcessor: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+        - %s
+        - otherProcessor
+`, infraAttributesName(), infraAttributesName())
+	conf := readAsAgentModeFromYamlFile(t, yaml)
+
+	expected := agentModeRequiredConfig()
+	addProcessorToPipeline(expected, "otherProcessor", yamlNode{})
+
+	require.Equal(t, expected, conf)
+}
+
+func TestConverterInfraAttributesNoConfig(t *testing.T) {
+	yaml := ""
+	conf := readAsAgentModeFromYamlFile(t, yaml)
+	expected := agentModeRequiredConfig()
+	require.Equal(t, expected, conf)
 }
 
 func TestConverterNoInfraAttributes(t *testing.T) {
@@ -59,22 +79,70 @@ service:
       processors:
         - otherProcessor
 `
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"processors": map[string]any{
-			"otherProcessor": map[string]any{},
-		},
-		"service": map[string]any{
-			"pipelines": map[string]any{
-				"profiles": map[string]any{
-					"processors": []any{"otherProcessor"},
-				},
-			},
-		},
-	})
+	conf := readAsStandaloneModeFromYamlFile(t, yaml)
+
+	expected := standaloneModeRequiredConfig()
+	expected["processors"].(yamlNode)["otherProcessor"] = yamlNode{}
+	setProcessorsList(expected, "otherProcessor", resourceDetectionName())
+
+	require.Equal(t, expected, conf)
 }
 
-func TestConverterDDProfiling(t *testing.T) {
+func TestConverterAgentModeRemovesResourceDetection(t *testing.T) {
+	yaml := fmt.Sprintf(`
+processors:
+  %s:
+    detectors: [system]
+  otherProcessor: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+        - %s
+        - otherProcessor
+`, resourceDetectionName(), resourceDetectionName())
+	conf := readAsAgentModeFromYamlFile(t, yaml)
+
+	expected := agentModeRequiredConfig()
+	expected["processors"].(yamlNode)["otherProcessor"] = yamlNode{}
+	setProcessorsList(expected, "otherProcessor", infraAttributesName())
+
+	require.Equal(t, expected, conf)
+}
+
+func TestConverterStandaloneModeRemovesAgentComponents(t *testing.T) {
+	yaml := fmt.Sprintf(`
+processors:
+  %s:
+    allow_hostname_override: true
+  otherProcessor: {}
+extensions:
+  %s: {}
+  %s: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+        - %s
+        - otherProcessor
+  extensions: [%s, %s]
+`, infraAttributesName(), ddprofilingName(), hpflareName(),
+		infraAttributesName(), ddprofilingName(), hpflareName())
+	conf := readAsStandaloneModeFromYamlFile(t, yaml)
+
+	expected := standaloneModeRequiredConfig()
+	expected["processors"].(yamlNode)["otherProcessor"] = yamlNode{}
+	setProcessorsList(expected, "otherProcessor", resourceDetectionName())
+	// Input yaml has extensions (ddprofiling, hpflare) but converter removes them in standalone mode.
+	// Converter leaves empty map, not nil, so we must set it to yamlNode{} to match.
+	expected["extensions"] = yamlNode{}
+	// Similarly, service.extensions list becomes empty (not nil) after removing agent-only extensions.
+	expected["service"].(yamlNode)["extensions"] = []any{}
+
+	require.Equal(t, expected, conf)
+}
+
+func TestConverterDDProfilingInStandalone(t *testing.T) {
 	yaml := fmt.Sprintf(`
 extensions:
   %s: {}
@@ -82,16 +150,16 @@ service:
   extensions: [%s]
 `, ddprofilingName(), ddprofilingName())
 
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"extensions": map[string]any{},
-		"service": map[string]any{
-			"extensions": []any{},
-		},
-	})
+	conf := readAsStandaloneModeFromYamlFile(t, yaml)
+
+	expected := standaloneModeRequiredConfig()
+	expected["extensions"] = yamlNode{}
+	expected["service"].(yamlNode)["extensions"] = []any{}
+
+	require.Equal(t, expected, conf)
 }
 
-func TestConverterHPFlare(t *testing.T) {
+func TestConverterHPFlareInStandalone(t *testing.T) {
 	yaml := fmt.Sprintf(`
 extensions:
   %s: {}
@@ -99,13 +167,13 @@ service:
   extensions: [%s]
 `, hpflareName(), hpflareName())
 
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"extensions": map[string]any{},
-		"service": map[string]any{
-			"extensions": []any{},
-		},
-	})
+	conf := readAsStandaloneModeFromYamlFile(t, yaml)
+
+	expected := standaloneModeRequiredConfig()
+	expected["extensions"] = yamlNode{}
+	expected["service"].(yamlNode)["extensions"] = []any{}
+
+	require.Equal(t, expected, conf)
 }
 
 func TestConverterInfraAttributesName(t *testing.T) {
@@ -121,7 +189,18 @@ func getDefaultConfig(t *testing.T) string {
 	return string(configData)
 }
 
-func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
+func readAsAgentModeFromYamlFile(t *testing.T, yamlContent string) yamlNode {
+	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
+	require.NoError(t, err)
+	conf, err := confRetrieved.AsConf()
+	require.NoError(t, err)
+	converter := &converterWithAgent{}
+	err = converter.Convert(context.Background(), conf)
+	require.NoError(t, err)
+	return conf.ToStringMap()
+}
+
+func readAsStandaloneModeFromYamlFile(t *testing.T, yamlContent string) yamlNode {
 	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
 	require.NoError(t, err)
 	conf, err := confRetrieved.AsConf()
@@ -130,4 +209,31 @@ func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
 	err = converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 	return conf.ToStringMap()
+}
+
+// addProcessorToPipeline adds a processor to both the processors map and the profiles pipeline list.
+// The processor is appended to the end of the pipeline list.
+func addProcessorToPipeline(config yamlNode, name string, processorConfig yamlNode) yamlNode {
+	// Add to processors map
+	processors := config["processors"].(yamlNode)
+	processors[name] = processorConfig
+
+	// Append to pipeline list
+	service := config["service"].(yamlNode)
+	pipelines := service["pipelines"].(yamlNode)
+	profiles := pipelines["profiles"].(yamlNode)
+	processorList := profiles["processors"].([]any)
+	profiles["processors"] = append(processorList, name)
+
+	return config
+}
+
+// setProcessorsList sets the processors list in the profiles pipeline to the given processors.
+func setProcessorsList(config yamlNode, processors ...string) yamlNode {
+	processorList := make([]any, len(processors))
+	for i, p := range processors {
+		processorList[i] = p
+	}
+	config["service"].(yamlNode)["pipelines"].(yamlNode)["profiles"].(yamlNode)["processors"] = processorList
+	return config
 }
