@@ -69,14 +69,13 @@ func preprocessData(data []byte, filter []string) []byte {
 
 // ParseMetricsWithFilter parses prometheus-formatted metrics from the input data, ignoring lines which contain
 // text that matches the passed in filter.
-func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, error) {
+func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error) {
 	data = preprocessData(data, filter)
 
 	st := labels.NewSymbolTable()
 	parser := textparse.NewPromParser(data, st, false)
 
-	families := make(map[string]*MetricFamily)
-
+	var result []MetricFamily
 	var lbls labels.Labels
 
 	for {
@@ -90,24 +89,36 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, erro
 
 		switch entry {
 		case textparse.EntryType:
-			name, typ := parser.Type()
-			baseName := trimMetricSuffix(string(name))
-			if fam, ok := families[baseName]; ok {
-				fam.Type = strings.ToUpper(string(typ))
-			} else {
-				families[baseName] = &MetricFamily{
-					Name:    baseName,
-					Type:    strings.ToUpper(string(typ)),
-					Samples: make([]Sample, 0, 8),
-				}
+			// Discard previous family if it has no samples
+			if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
+				result = result[:len(result)-1]
 			}
+			name, typ := parser.Type()
+			result = append(result, MetricFamily{
+				Name:    string(name),
+				Type:    strings.ToUpper(string(typ)),
+				Samples: make([]Sample, 0, 8),
+			})
 
 		case textparse.EntrySeries:
 			_, ts, value := parser.Series()
 			parser.Labels(&lbls)
 
 			// Get metric name from __name__ label
-			fullName := lbls.Get(labels.MetricName)
+			name := trimMetricSuffix(lbls.Get(labels.MetricName))
+
+			// If no current family or name doesn't match, create a new UNTYPED family
+			if len(result) == 0 || result[len(result)-1].Name != name {
+				// Discard previous family if it has no samples
+				if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
+					result = result[:len(result)-1]
+				}
+				result = append(result, MetricFamily{
+					Name:    name,
+					Type:    "UNTYPED",
+					Samples: make([]Sample, 0, 8),
+				})
+			}
 
 			// Convert labels to Metric
 			metric := make(Metric, lbls.Len())
@@ -124,33 +135,19 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, erro
 				sample.Timestamp = *ts
 			}
 
-			// Group by base metric name
-			baseName := trimMetricSuffix(fullName)
-
-			family, exists := families[baseName]
-			if !exists {
-				family = &MetricFamily{
-					Name:    baseName,
-					Type:    "UNTYPED",
-					Samples: make([]Sample, 0, 8),
-				}
-				families[baseName] = family
-			}
-			family.Samples = append(family.Samples, sample)
+			result[len(result)-1].Samples = append(result[len(result)-1].Samples, sample)
 		}
 	}
 
-	result := make([]*MetricFamily, 0, len(families))
-	for _, fam := range families {
-		if len(fam.Samples) > 0 {
-			result = append(result, fam)
-		}
+	// Discard last family if it has no samples
+	if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
+		result = result[:len(result)-1]
 	}
 
 	return result, nil
 }
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
-func ParseMetrics(data []byte) ([]*MetricFamily, error) {
+func ParseMetrics(data []byte) ([]MetricFamily, error) {
 	return ParseMetricsWithFilter(data, nil)
 }

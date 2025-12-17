@@ -184,12 +184,13 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	}
 
 	// Report metrics
-	for _, metricFam := range metrics {
+	for i := range metrics {
+		metricFam := &metrics[i]
 		// Handle a Prometheus metric according to the following flow:
 		// - search `p.Config.metricMapping` for a prometheus.metric to datadog.metric mapping
 		// - call check method with the same name as the metric
 		// - log info if none of the above worked
-		if metricFam == nil || len(metricFam.Samples) == 0 {
+		if len(metricFam.Samples) == 0 {
 			continue
 		}
 		metricName := metricFam.Name

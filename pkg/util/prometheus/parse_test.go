@@ -241,10 +241,10 @@ func TestMetricsWithLeadingWhitespace(t *testing.T) {
 	}
 }
 
-func findFamily(families []*MetricFamily, name string) *MetricFamily {
-	for _, f := range families {
-		if f.Name == name {
-			return f
+func findFamily(families []MetricFamily, name string) *MetricFamily {
+	for i := range families {
+		if families[i].Name == name {
+			return &families[i]
 		}
 	}
 	return nil
