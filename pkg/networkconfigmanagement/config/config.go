@@ -137,14 +137,6 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	profileCache := &profile.Cache{}
-	// If profile is defined inline for the device, use that profile, otherwise it will have to attempt profiles later
-	if deviceInstance.Profile != "" {
-		p, err := profMap.GetProfile(deviceInstance.Profile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get profile %s: %w", deviceInstance.Profile, err)
-		}
-		profileCache = &profile.Cache{ProfileName: p.Name, Profile: p}
-	}
 
 	// Build the final context to send out
 	ncc := &NcmCheckContext{

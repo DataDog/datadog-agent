@@ -45,6 +45,12 @@ func init() {
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
+type sketchWriter interface {
+	writeSketch(sketch *metrics.SketchSeries) error
+	startPayload() error
+	finishPayload() error
+}
+
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress sketch series payloads across multiple pipelines. Each pipeline
 // defines a filter function and destination, enabling selective routing of
@@ -53,11 +59,21 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 	var err error
 
 	// Create payload builders for each pipeline
-	pbs := make([]*payloadsBuilder, 0, len(pipelines))
+	pbs := make([]sketchWriter, 0, len(pipelines))
 	for pipelineConfig, pipelineContext := range pipelines {
-		bufferContext := marshaler.NewBufferContext()
-		pb := newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
-		pbs = append(pbs, &pb)
+		var pb sketchWriter
+		if !pipelineConfig.V3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb = newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
+		} else {
+			pbv3, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			pb = pbv3
+		}
+
+		pbs = append(pbs, pb)
 
 		err = pb.startPayload()
 		if err != nil {
@@ -68,7 +84,7 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 	for sl.MoveNext() {
 		ss := sl.Current()
 		for i := range pbs {
-			err := pbs[i].marshal(ss)
+			err := pbs[i].writeSketch(ss)
 			if err != nil {
 				return err
 			}
@@ -92,9 +108,9 @@ func newPayloadsBuilder(
 	logger log.Component,
 	pipelineConfig PipelineConfig,
 	pipelineContext *PipelineContext,
-) payloadsBuilder {
+) *payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
-	pb := payloadsBuilder{
+	pb := &payloadsBuilder{
 		bufferContext: bufferContext,
 		strategy:      strategy,
 		compressor:    nil,
@@ -166,7 +182,7 @@ func (pb *payloadsBuilder) startPayload() error {
 	return nil
 }
 
-func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
+func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
