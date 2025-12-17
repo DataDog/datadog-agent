@@ -45,6 +45,18 @@ func PagefileMemory() (*winutil.PagefileStat, error) {
 	}, nil
 }
 
+func PagingFileMemory() ([]*winutil.PagingFileStat, error) {
+	return []*winutil.PagingFileStat{
+		{
+			Name:        "C:\\pagefile.sys",
+			Total:       120000,
+			Available:   90000,
+			Used:        30000,
+			UsedPercent: 50,
+		},
+	}, nil
+}
+
 func addDefaultQueryReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Cache Bytes", 3456789000.0)
 	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Committed Bytes", 2345678000.0)
@@ -56,6 +68,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	pageMemory = PagefileMemory
+	pagingFileMemory = PagingFileMemory
 
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	addDefaultQueryReturnValues()
@@ -83,12 +96,17 @@ func TestMemoryCheckWindows(t *testing.T) {
 	mock.On("Gauge", "system.mem.pagefile.used", 30000/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.pagefile.free", 90000/mbSize, "", []string(nil)).Return().Times(1)
 
+	mock.On("Gauge", "system.paging.total", 120000/mbSize, "", []string{"pagefile_path:C:\\pagefile.sys"}).Return().Times(1)
+	mock.On("Gauge", "system.paging.free", 90000/mbSize, "", []string{"pagefile_path:C:\\pagefile.sys"}).Return().Times(1)
+	mock.On("Gauge", "system.paging.used", 30000/mbSize, "", []string{"pagefile_path:C:\\pagefile.sys"}).Return().Times(1)
+	mock.On("Gauge", "system.paging.pct_free", 0.5, "", []string{"pagefile_path:C:\\pagefile.sys"}).Return().Times(1)
+
 	mock.On("Commit").Return().Times(1)
 
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 17)
+	mock.AssertNumberOfCalls(t, "Gauge", 21)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

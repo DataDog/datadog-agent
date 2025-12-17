@@ -194,8 +194,8 @@ func EnumPageFilesW(pageSize uint64) ([]*PagingFileStat, error) {
 // pEnumPageFileCallbackW is an application-defined callback function used with the EnumPageFilesW function.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/psapi/nc-psapi-penum_page_file_callbackw
-func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageFileInformation, lpFileName *[windows.MAX_LONG_PATH]uint16) bool {
-	ctx := (*PageFilesContext)(unsafe.Pointer(pContext))
+func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageFileInformation, lpFileName *[windows.MAX_LONG_PATH]uint16) uintptr {
+	ctx := (*PageFilesContext)(unsafe.Pointer(pContext)) //nolint:govet
 	pageFileName := windows.UTF16ToString(lpFileName[:])
 
 	// Convert pages to bytes using the pageSize from context
@@ -203,15 +203,20 @@ func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageF
 	usedBytes := enumPageFileInformation.totalInUse * ctx.PageSize
 	availableBytes := totalBytes - usedBytes
 
+	var usedPercent float64
+	if totalBytes != 0 {
+		usedPercent = (float64(usedBytes) / float64(totalBytes)) * 100
+	}
+
 	pageFile := &PagingFileStat{
 		Name:        pageFileName,
 		Total:       totalBytes,
 		Available:   availableBytes,
 		Used:        usedBytes,
-		UsedPercent: (float64(usedBytes) / float64(totalBytes)) * 100,
+		UsedPercent: usedPercent,
 	}
 	ctx.PageFiles = append(ctx.PageFiles, pageFile)
-	return true
+	return 1 // TRUE - continue enumeration
 }
 
 // PagingFileMemory returns paging file metrics
@@ -231,9 +236,9 @@ func PagingFileMemory() ([]*PagingFileStat, error) {
 func getPerformanceInfo() (*performanceInformation, error) {
 	var perfInfo performanceInformation
 	perfInfo.cb = uint32(unsafe.Sizeof(perfInfo))
-	mem, _, _ := procGetPerformanceInfo.Call(uintptr(unsafe.Pointer(&perfInfo)), uintptr(perfInfo.cb))
+	mem, _, err := procGetPerformanceInfo.Call(uintptr(unsafe.Pointer(&perfInfo)), uintptr(perfInfo.cb))
 	if mem == 0 {
-		return nil, windows.GetLastError()
+		return nil, err
 	}
 	return &perfInfo, nil
 }

@@ -7,6 +7,8 @@
 package memory
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
@@ -111,13 +113,14 @@ func (c *Check) Run() error {
 		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
-	pf, errPaging := pagingFileMemory()
+	pageFiles, errPaging := pagingFileMemory()
 	if errPaging == nil {
-		for _, pf := range pf {
-			sender.Gauge("system.paging.total", float64(pf.Total)/mbSize, "", nil)
-			sender.Gauge("system.paging.free", float64(pf.Available)/mbSize, "", nil)
-			sender.Gauge("system.paging.used", float64(pf.Used)/mbSize, "", nil)
-			sender.Gauge("system.paging.pct_free", float64(100-pf.UsedPercent)/100, "", nil)
+		for _, pf := range pageFiles {
+			tag := []string{fmt.Sprintf("pagefile_path:%s", pf.Name)}
+			sender.Gauge("system.paging.total", float64(pf.Total)/mbSize, "", tag)
+			sender.Gauge("system.paging.free", float64(pf.Available)/mbSize, "", tag)
+			sender.Gauge("system.paging.used", float64(pf.Used)/mbSize, "", tag)
+			sender.Gauge("system.paging.pct_free", float64(100-pf.UsedPercent)/100, "", tag)
 		}
 	} else {
 		c.Warnf("memory.Check: could not retrieve paging file memory stats: %s", errPaging)
