@@ -316,6 +316,21 @@ build do
     end
   end
 
+  # These are files containing Python type annotations which aren't used at runtime
+  libraries = [
+    'krb5',
+    'Cryptodome',
+    'ddtrace',
+    'pyVmomi',
+    'gssapi',
+  ]
+  block "Remove type annotations files" do
+    libraries.each do |library|
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
+    end
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
