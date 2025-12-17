@@ -237,25 +237,26 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig              model.Config
-	instance                 *KSMConfig
-	allStores                [][]cache.Store
-	telemetry                *telemetryCache
-	tagger                   tagger.Component
-	cancel                   context.CancelFunc
-	isCLCRunner              bool
-	isRunningOnNodeAgent     bool
-	clusterIDTagValue        string
-	clusterNameTagValue      string
-	clusterNameRFC1123       string
-	metricNamesMapper        map[string]string
-	metricAggregators        map[string]metricAggregator
-	metricTransformers       map[string]metricTransformerFunc
-	metadataMetricsRegex     *regexp.Regexp
-	initRetry                retry.Retrier
-	workloadmetaStore        workloadmeta.Component
-	rolloutTracker           *customresources.RolloutTracker
-	customResourceDiscoverer *ksmDiscovery.CRDiscoverer
+	agentConfig               model.Config
+	instance                  *KSMConfig
+	allStores                 [][]cache.Store
+	telemetry                 *telemetryCache
+	tagger                    tagger.Component
+	cancel                    context.CancelFunc
+	isCLCRunner               bool
+	isRunningOnNodeAgent      bool
+	clusterIDTagValue         string
+	clusterNameTagValue       string
+	clusterNameRFC1123        string
+	metricNamesMapper         map[string]string
+	metricAggregators         map[string]metricAggregator
+	metricTransformers        map[string]metricTransformerFunc
+	metadataMetricsRegex      *regexp.Regexp
+	initRetry                 retry.Retrier
+	workloadmetaStore         workloadmeta.Component
+	rolloutTracker            *customresources.RolloutTracker
+	customResourceDiscoverer  *ksmDiscovery.CRDiscoverer
+	namespaceTagsErrorLogLimit *log.Limit
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -880,7 +881,9 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	if tagErr != nil {
-		log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+		if k.namespaceTagsErrorLogLimit.ShouldLog() {
+			log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+		}
 	} else if len(namespaceTags) > 0 {
 		tagList = append(tagList, namespaceTags...)
 	}
@@ -1173,16 +1176,17 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	k := &KSMCheck{
-		CheckBase:            base,
-		instance:             instance,
-		telemetry:            newTelemetryCache(),
-		tagger:               tagger,
-		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		metricNamesMapper:    defaultMetricNamesMapper(),
-		metricAggregators:    defaultMetricAggregators(),
-		workloadmetaStore:    wmeta,
-		rolloutTracker:       customresources.NewRolloutTracker(),
+		CheckBase:                  base,
+		instance:                   instance,
+		telemetry:                  newTelemetryCache(),
+		tagger:                     tagger,
+		isCLCRunner:                pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent:       flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		metricNamesMapper:          defaultMetricNamesMapper(),
+		metricAggregators:          defaultMetricAggregators(),
+		workloadmetaStore:          wmeta,
+		rolloutTracker:             customresources.NewRolloutTracker(),
+		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
