@@ -259,6 +259,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	podman,
 	fleet,
 	autoscaling,
+	kubeactions,
 }
 
 func init() {
@@ -1323,6 +1324,11 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
 	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+}
+
+func kubeactions(config pkgconfigmodel.Setup) {
+	// Kubernetes Actions product
+	config.BindEnvAndSetDefault("kubeactions.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {

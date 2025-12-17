@@ -39,6 +39,8 @@ const (
 	EventTypeContainerSBOM = "container-sbom"
 	// EventTypeSoftwareInventory represents a software inventory event
 	EventTypeSoftwareInventory = "software-inventory"
+	// EventTypeKubeActions represents a kubernetes action result event
+	EventTypeKubeActions = "kube-actions"
 )
 
 // Component is the interface of the event platform forwarder component.
