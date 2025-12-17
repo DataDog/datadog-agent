@@ -1124,9 +1124,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "validate path sent by value 2 (:path)",
+			name: "validate path sent as literal key (Huffman encoded)",
 			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
-			// sent by value (:path).
+			// sent by value (:path with huffman encoded format).
 			messageBuilder: func() [][]byte {
 				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
 				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
