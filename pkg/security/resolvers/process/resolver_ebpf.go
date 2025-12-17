@@ -1572,6 +1572,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 
 	if cgroupContext.CGroupID != "" {
 		pce.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.Process.ContainerContext.CreatedAt = uint64(pce.Process.ExecTime.UnixNano())
 
 		// update the PID in the right cgroup_resolver bucket
 		if p.cgroupResolver != nil {

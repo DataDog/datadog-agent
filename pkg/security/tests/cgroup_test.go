@@ -474,7 +474,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond) // wait just a bit of time for the cgroup to be released
 
-	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
 	assert.NotNil(t, variables)
 	assert.Len(t, variables, 0)
 }
