@@ -339,7 +339,10 @@ pkg_files(
 
 pkg_install(
     name = "install",
-    srcs = select({
+    srcs = [
+        ":install_files",
+        "@openssl//:openssl_hdr_files",
+    ] + select({
         "@platforms//os:windows": [
             "@openssl//:openssl_exe_file",
             "@openssl//:dll_a",
