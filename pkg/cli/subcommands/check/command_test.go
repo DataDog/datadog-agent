@@ -70,7 +70,8 @@ func TestGetAllCheckConfigs_CustomConfig(t *testing.T) {
 	)
 
 	// create config file
-	tempConfig, err := os.CreateTemp("", "config-*.yaml")
+	tempDir := t.TempDir()
+	tempConfig, err := os.CreateTemp(tempDir, "config-*.yaml")
 	require.NoError(t, err)
 
 	// write in config file
