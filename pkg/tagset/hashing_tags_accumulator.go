@@ -7,7 +7,9 @@ package tagset
 
 import (
 	"sort"
+	"strings"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/twmb/murmur3"
 )
 
@@ -17,6 +19,35 @@ import (
 // This type implements TagsAccumulator.
 type HashingTagsAccumulator struct {
 	hashedTags
+}
+
+// tagName extracts the tag name portion from the tag.
+func tagName(tag string) string {
+	tagNamePos := strings.Index(tag, ":")
+	if tagNamePos == 0 {
+		// Invalid tag
+		return ""
+	}
+	if tagNamePos < 0 {
+		tagNamePos = len(tag)
+	}
+
+	return tag[:tagNamePos]
+}
+
+// FilterTags removes configured tags and their hashes from the accumulated tags.
+func (h *HashingTagsAccumulator) FilterTags(tagMatcher utilstrings.TagMatcher) {
+	idx := 0
+	for arridx, tag := range h.data {
+		tagName := tagName(tag)
+		if tagMatcher.KeepTag(tagName) {
+			h.data[idx] = h.data[arridx]
+			h.hash[idx] = h.hash[arridx]
+			idx++
+		}
+	}
+	h.data = h.data[0:idx]
+	h.hash = h.hash[0:idx]
 }
 
 // NewHashingTagsAccumulator returns a new empty HashingTagsAccumulator

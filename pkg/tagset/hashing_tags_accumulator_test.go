@@ -8,7 +8,9 @@ package tagset
 import (
 	"testing"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/stretchr/testify/assert"
+	"github.com/twmb/murmur3"
 )
 
 func TestNewHashingTagsAccumulator(t *testing.T) {
@@ -104,4 +106,290 @@ func TestRemoveSorted(t *testing.T) {
 	r.SortUniq()
 	r.removeSorted(l)
 	assert.ElementsMatch(t, []string{"A", "e"}, r.Get())
+}
+
+func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
+	assert.Equal(t, len(acc.data), len(acc.hash))
+	for idx, tag := range acc.data {
+		assert.Equal(t, murmur3.StringSum64(tag), acc.hash[idx])
+	}
+}
+
+func TestStripTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		matcherTags  map[string]utilstrings.TagMatcher
+		lookupName   string
+		inputTags    []string
+		expectedTags []string
+	}{
+		{
+			name: "no tags config for name (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: true,
+			}},
+			lookupName:   "metric2",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{"env:prod", "host:server1", "version:1.0"},
+		},
+		{
+			name: "strip single tag with value (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{"host:server1", "version:1.0"},
+		},
+		{
+			name: "strip multiple tags (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+			expectedTags: []string{"version:1.0", "region:us"},
+		},
+		{
+			name: "strip all tags (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host", "region", "version"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+			expectedTags: []string{},
+		},
+		{
+			name: "no matching tags to strip (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"foo", "bar"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+		{
+			name: "empty input tags (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{},
+			expectedTags: []string{},
+		},
+		{
+			name: "tags without values (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env", "host:server1", "version"},
+			expectedTags: []string{"version"},
+		},
+		{
+			name: "invalid tag starting with colon (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "invalid"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
+			expectedTags: []string{":invalid", "host:server1"},
+		},
+		{
+			name: "partial tag name match should not strip (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"environment:prod", "env_var:test", "host:server1"},
+			expectedTags: []string{"environment:prod", "env_var:test", "host:server1"},
+		},
+		{
+			name: "tag name with empty value (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:", "host:server1"},
+			expectedTags: []string{"host:server1"},
+		},
+		{
+			name:         "nil matcher tags map",
+			matcherTags:  nil,
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+		{
+			name: "empty tags to strip list (deny list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{},
+				Negated: true,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := utilstrings.NewMatcher([]string{}, false, tt.matcherTags)
+
+			tagMatcher, ok := matcher.ShouldStripTags(tt.lookupName)
+			_, tagConfigured := tt.matcherTags[tt.lookupName]
+			assert.Equal(t, tagConfigured, ok)
+
+			if ok {
+				// Filter the tags
+				acc := NewHashingTagsAccumulatorWithTags(tt.inputTags)
+				acc.FilterTags(tagMatcher)
+
+				resultTags := acc.Get()
+				assert.Equal(t, tt.expectedTags, resultTags)
+				testTagsMatchHash(t, acc)
+			}
+		})
+	}
+}
+
+func TestStripTagsAllowList(t *testing.T) {
+	tests := []struct {
+		name         string
+		matcherTags  map[string]utilstrings.TagMatcher
+		lookupName   string
+		inputTags    []string
+		expectedTags []string
+	}{
+		{
+			name: "keep single tag (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			expectedTags: []string{"env:prod"},
+		},
+		{
+			name: "keep multiple tags (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+			expectedTags: []string{"env:prod", "host:server1"},
+		},
+		{
+			name: "keep all tags (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host", "region", "version"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+			expectedTags: []string{"env:prod", "host:server1", "version:1.0", "region:us"},
+		},
+		{
+			name: "no matching tags in allow list",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"foo", "bar"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{},
+		},
+		{
+			name: "empty input tags (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{},
+			expectedTags: []string{},
+		},
+		{
+			name: "tags without values (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "host"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env", "host:server1", "version"},
+			expectedTags: []string{"env", "host:server1"},
+		},
+		{
+			name: "invalid tag starting with colon (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env", "invalid"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
+			expectedTags: []string{"env:prod"},
+		},
+		{
+			name: "partial tag name match should not keep (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"environment:prod", "env_var:test", "env:prod", "host:server1"},
+			expectedTags: []string{"env:prod"},
+		},
+		{
+			name: "tag name with empty value (allow list)",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{"env"},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:", "host:server1"},
+			expectedTags: []string{"env:"},
+		},
+		{
+			name: "empty allow list strips all tags",
+			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+				Tags:    []string{},
+				Negated: false,
+			}},
+			lookupName:   "metric1",
+			inputTags:    []string{"env:prod", "host:server1"},
+			expectedTags: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := utilstrings.NewMatcher([]string{}, false, tt.matcherTags)
+
+			tagMatcher, ok := matcher.ShouldStripTags(tt.lookupName)
+			_, tagConfigured := tt.matcherTags[tt.lookupName]
+			assert.Equal(t, tagConfigured, ok)
+
+			if ok {
+				// Filter the tags
+				acc := NewHashingTagsAccumulatorWithTags(tt.inputTags)
+				acc.FilterTags(tagMatcher)
+
+				resultTags := acc.Get()
+				assert.Equal(t, tt.expectedTags, resultTags)
+				testTagsMatchHash(t, acc)
+			}
+		})
+	}
 }

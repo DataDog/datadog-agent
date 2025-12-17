@@ -104,28 +104,17 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64, filterList *utilstrings.Matcher) ckey.ContextKey {
 	name := metricSampleContext.GetName()
-	var (
-		taggerBuffer tagset.TagsAccumulator = cr.taggerBuffer
-		metricBuffer tagset.TagsAccumulator = cr.metricBuffer
-	)
+	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
 
 	if metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(name); strip {
-			// Currently only distributions are supported, if it is configured to remove tags for this given
-			// metric, we will use an accumulator that removes tags, including tags added by the tagger,
-			// whilst the tag context is being built.
-			taggerBuffer = &tagStripAccumulator{
-				accumulator:   cr.taggerBuffer,
-				tagFilterList: tagMatcher,
-			}
-			metricBuffer = &tagStripAccumulator{
-				accumulator:   cr.metricBuffer,
-				tagFilterList: tagMatcher,
-			}
+			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
+			// metric.
+			cr.taggerBuffer.FilterTags(tagMatcher)
+			cr.metricBuffer.FilterTags(tagMatcher)
 		}
 	}
 
-	metricSampleContext.GetTags(taggerBuffer, metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
