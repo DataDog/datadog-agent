@@ -9,6 +9,7 @@
 package loader
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -33,8 +34,6 @@ const (
 	soRcvTimeo = 0x1006 // SO_RCVTIMEO
 	soSndTimeo = 0x1005 // SO_SNDTIMEO
 	solSocket  = 0xffff // SOL_SOCKET
-	afInet     = 2      // AF_INET
-	afInet6    = 23     // AF_INET6
 )
 
 // sockaddrInet4 is the Windows SOCKADDR_IN structure
@@ -43,15 +42,6 @@ type sockaddrInet4 struct {
 	Port   uint16
 	Addr   [4]byte
 	Zero   [8]byte
-}
-
-// sockaddrInet6 is the Windows SOCKADDR_IN6 structure
-type sockaddrInet6 struct {
-	Family   uint16
-	Port     uint16
-	FlowInfo uint32
-	Addr     [16]byte
-	ScopeID  uint32
 }
 
 // GetListenerFromFD creates a new net.Listener from a Windows socket handle
@@ -149,7 +139,7 @@ func (l *winSocketListener) Accept() (net.Conn, error) {
 func (l *winSocketListener) Close() error {
 	r1, _, _ := procClosesocket.Call(uintptr(l.handle))
 	if r1 != 0 {
-		return fmt.Errorf("closesocket failed")
+		return errors.New("closesocket failed")
 	}
 	return nil
 }
@@ -208,7 +198,7 @@ func (c *winSocketConn) Write(b []byte) (int, error) {
 func (c *winSocketConn) Close() error {
 	r1, _, _ := procClosesocket.Call(uintptr(c.handle))
 	if r1 != 0 {
-		return fmt.Errorf("closesocket failed")
+		return errors.New("closesocket failed")
 	}
 	return nil
 }
