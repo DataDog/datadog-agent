@@ -56,7 +56,7 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
     try:
         env = LabEnvironment.load(app, id)
     except Exception as exception:
-        app.display_error(f"Error loading environment '{id}': {exception}")
+        app.abort(f"Error loading environment '{id}': {exception}")
         return
 
     if env is None:
