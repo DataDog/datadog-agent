@@ -218,35 +218,46 @@ func getSymbolVersions(elfFile *safeelf.File) map[int]string {
 
 // parseVerneed parses the .gnu.version_r section to extract version strings.
 func parseVerneed(verneedData, dynstrData []byte, versionStrings map[uint16]string) {
+	const (
+		cntOffset  = 2
+		fileOffset = 4
+		auxOffset  = 8
+		nextOffset = 12
+		readSize   = 16
+
+		otherOffset = 6
+		nameOffset  = 8
+		nextAuxSize = 12
+	)
 	offset := 0
 	for offset < len(verneedData) {
-		if offset+16 > len(verneedData) {
+		if offset+readSize > len(verneedData) {
 			break
 		}
 
 		// Read Verneed structure
-		cnt := binary.LittleEndian.Uint16(verneedData[offset+2:])
-		fileOffset := binary.LittleEndian.Uint32(verneedData[offset+4:])
-		aux := binary.LittleEndian.Uint32(verneedData[offset+8:])
-		next := binary.LittleEndian.Uint32(verneedData[offset+12:])
+		cnt := binary.LittleEndian.Uint16(verneedData[offset+cntOffset:])
+		fileOffsetVal := binary.LittleEndian.Uint32(verneedData[offset+fileOffset:])
+		aux := binary.LittleEndian.Uint32(verneedData[offset+auxOffset:])
+		next := binary.LittleEndian.Uint32(verneedData[offset+nextOffset:])
 
 		// Read the file name (library name) - not used in standard nm format
-		_ = readString(dynstrData, int(fileOffset))
+		_ = readString(dynstrData, int(fileOffsetVal))
 
 		// Parse auxiliary version entries
-		auxOffset := offset + int(aux)
+		auxOffsetRead := offset + int(aux)
 		for i := uint16(0); i < cnt; i++ {
-			if auxOffset+16 > len(verneedData) {
+			if auxOffsetRead+readSize > len(verneedData) {
 				break
 			}
 
 			// Read Vernaux structure
-			other := binary.LittleEndian.Uint16(verneedData[auxOffset+6:])
-			nameOffset := binary.LittleEndian.Uint32(verneedData[auxOffset+8:])
-			nextAux := binary.LittleEndian.Uint32(verneedData[auxOffset+12:])
+			other := binary.LittleEndian.Uint16(verneedData[auxOffsetRead+otherOffset:])
+			nameOffsetVal := binary.LittleEndian.Uint32(verneedData[auxOffsetRead+nameOffset:])
+			nextAux := binary.LittleEndian.Uint32(verneedData[auxOffsetRead+nextAuxSize:])
 
 			// Read version name
-			versionName := readString(dynstrData, int(nameOffset))
+			versionName := readString(dynstrData, int(nameOffsetVal))
 
 			// Store the version string with @ prefix (standard nm format)
 			versionStrings[other] = "@" + versionName
@@ -254,7 +265,7 @@ func parseVerneed(verneedData, dynstrData []byte, versionStrings map[uint16]stri
 			if nextAux == 0 {
 				break
 			}
-			auxOffset += int(nextAux)
+			auxOffsetRead += int(nextAux)
 		}
 
 		if next == 0 {
@@ -266,25 +277,33 @@ func parseVerneed(verneedData, dynstrData []byte, versionStrings map[uint16]stri
 
 // parseVerdef parses the .gnu.version_d section to extract version definitions.
 func parseVerdef(verdefData, dynstrData []byte, versionStrings map[uint16]string) {
+	const (
+		ndxOffset   = 4
+		cntOffset   = 6
+		auxOffset   = 12
+		nextOffset  = 16
+		readSize    = 20
+		auxReadSize = 8
+	)
 	offset := 0
 	for offset < len(verdefData) {
-		if offset+20 > len(verdefData) {
+		if offset+readSize > len(verdefData) {
 			break
 		}
 
 		// Read Verdef structure
-		ndx := binary.LittleEndian.Uint16(verdefData[offset+4:])
-		cnt := binary.LittleEndian.Uint16(verdefData[offset+6:])
-		aux := binary.LittleEndian.Uint32(verdefData[offset+12:])
-		next := binary.LittleEndian.Uint32(verdefData[offset+16:])
+		ndx := binary.LittleEndian.Uint16(verdefData[offset+ndxOffset:])
+		cnt := binary.LittleEndian.Uint16(verdefData[offset+cntOffset:])
+		aux := binary.LittleEndian.Uint32(verdefData[offset+auxOffset:])
+		next := binary.LittleEndian.Uint32(verdefData[offset+nextOffset:])
 
 		// Parse auxiliary version entries (verdaux)
 		// The first aux entry contains the actual version name
 		if cnt > 0 {
-			auxOffset := offset + int(aux)
-			if auxOffset+8 <= len(verdefData) {
+			auxOffsetRead := offset + int(aux)
+			if auxOffsetRead+auxReadSize <= len(verdefData) {
 				// Read Verdaux structure
-				nameOffset := binary.LittleEndian.Uint32(verdefData[auxOffset:])
+				nameOffset := binary.LittleEndian.Uint32(verdefData[auxOffsetRead:])
 
 				// Read version name
 				versionName := readString(dynstrData, int(nameOffset))
