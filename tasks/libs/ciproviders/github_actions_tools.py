@@ -1,4 +1,3 @@
-import os
 import re
 import sys
 import tempfile
@@ -232,4 +231,5 @@ def download_with_retry(
             print("Exception that is not a connectivity issue: ", type(e).__name__, " - ", e)
             raise e
     print(f'Download failed {retry_count} times, stop retry and exit')
-    raise Exit(code=os.EX_TEMPFAIL)
+    # EX_TEMPFAIL equivalent (75) - use constant value for Windows compatibility
+    raise Exit(code=75)
