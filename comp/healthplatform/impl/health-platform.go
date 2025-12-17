@@ -344,7 +344,7 @@ func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, chec
 	// Get the check interval from config
 	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
 	if interval <= 0 {
-		interval = 15 * time.Minute // Default to 15 minutes
+		interval = defaultForwarderInterval
 	}
 
 	// Run the check immediately

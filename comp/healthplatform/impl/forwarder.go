@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -26,7 +26,7 @@ const (
 	intakeEndpointPrefix = "https://event-platform-intake."
 	// intakeEndpointPath is the API path for agent health
 	intakeEndpointPath = "/api/v2/agenthealth"
-	// defaultForwarderInterval is the default interval for sending health reports
+	// defaultForwarderInterval is the default interval for sending health reports and running health checks
 	defaultForwarderInterval = 15 * time.Minute
 )
 
@@ -39,9 +39,9 @@ type forwarder struct {
 	// HTTP client for sending requests
 	httpClient *http.Client
 
-	// Pre-configured headers (including API key)
+	// Pre-configured header (including API key)
 	headerLock sync.RWMutex
-	headers    http.Header
+	header     http.Header
 
 	// Control channels
 	stopCh chan struct{}
@@ -64,9 +64,9 @@ func newForwarder(comp *healthPlatformImpl, hostname string, apiKey string) *for
 		Transport: transport,
 	}
 
-	// Pre-configure headers including API key (stored once, used for all requests)
+	// Pre-configure header including API key (stored once, used for all requests)
 	// Use canonical header keys to ensure proper lookup
-	headers := http.Header{
+	header := http.Header{
 		http.CanonicalHeaderKey("Content-Type"):     []string{"application/json"},
 		http.CanonicalHeaderKey("DD-API-KEY"):       []string{apiKey},
 		http.CanonicalHeaderKey("DD-Agent-Version"): []string{version.AgentVersion},
@@ -77,7 +77,7 @@ func newForwarder(comp *healthPlatformImpl, hostname string, apiKey string) *for
 		comp:       comp,
 		config:     comp.config,
 		httpClient: httpClient,
-		headers:    headers,
+		header:     header,
 		headerLock: sync.RWMutex{},
 		stopCh:     make(chan struct{}),
 		ctx:        ctx,
@@ -90,7 +90,7 @@ func newForwarder(comp *healthPlatformImpl, hostname string, apiKey string) *for
 // computeIntakeURL builds the intake URL based on the configured site
 func computeIntakeURL(cfg config.Component) string {
 	// Use the standard GetMainEndpoint function to build the URL based on site config
-	baseURL := pkgconfigutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
+	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
 	return baseURL + intakeEndpointPath
 }
 
@@ -165,7 +165,7 @@ func (f *forwarder) sendHealthReport() {
 		return
 	}
 
-	// Apply pre-configured headers (including API key)
+	// Apply pre-configured header (including API key)
 	f.applyHeaders(req)
 
 	// Send the request
@@ -185,12 +185,12 @@ func (f *forwarder) sendHealthReport() {
 	f.comp.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
 }
 
-// applyHeaders applies the pre-configured headers to a request
+// applyHeaders applies the pre-configured header to a request
 func (f *forwarder) applyHeaders(req *http.Request) {
 	f.headerLock.RLock()
 	defer f.headerLock.RUnlock()
 
-	for key, values := range f.headers {
+	for key, values := range f.header {
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}

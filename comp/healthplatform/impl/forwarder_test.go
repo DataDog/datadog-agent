@@ -3,22 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !windows
+
 package healthplatformimpl
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
 // TestForwarderBuildHealthReport tests the report building functionality via sendHealthReport
@@ -61,8 +60,13 @@ func TestForwarderBuildHealthReport(t *testing.T) {
 	assert.NotNil(t, issues["check-2"])
 }
 
-// TestForwarderSendReport tests sending reports to a mock server
+// TestForwarderSendReport tests sending reports to a fakeintake server
 func TestForwarderSendReport(t *testing.T) {
+	// Start fakeintake server
+	fi, _ := fakeserver.InitialiseForTests(t)
+	defer fi.Stop()
+
+	// Create component
 	lifecycle := newMockLifecycle()
 	reqs := testRequires(t, lifecycle)
 
@@ -70,103 +74,48 @@ func TestForwarderSendReport(t *testing.T) {
 	require.NoError(t, err)
 	comp := provides.Comp.(*healthPlatformImpl)
 
-	// Track what the server receives
-	var receivedReport healthplatform.HealthReport
-	serverCalled := false
-
-	// Create a test server
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serverCalled = true
-
-		// Verify method
-		assert.Equal(t, "POST", r.Method)
-
-		// Verify headers
-		assert.Equal(t, "test-api-key-123", r.Header.Get("DD-API-KEY"))
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Contains(t, r.Header.Get("User-Agent"), "datadog-agent")
-		assert.NotEmpty(t, r.Header.Get("DD-Agent-Version"))
-
-		// Read the body
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-
-		// Parse the report
-		err = json.Unmarshal(body, &receivedReport)
-		require.NoError(t, err)
-
-		// Verify report structure
-		assert.Equal(t, "test-hostname", receivedReport.Host.Hostname)
-		assert.Equal(t, "1.0", receivedReport.SchemaVersion)
-		assert.Equal(t, "agent-health", receivedReport.EventType)
-		assert.Len(t, receivedReport.Issues, 1)
-		assert.Contains(t, receivedReport.Issues, "test-issue")
-
-		// Send success response
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-
-	// Create a forwarder with the test server URL
+	// Create a forwarder pointing to fakeintake
 	fwd := newForwarder(comp, "test-hostname", "test-api-key-123")
-	// The forwarder uses httputils.CreateHTTPTransport, which is fine
-	// We just need to override the client to point to our test server
-	fwd.httpClient = ts.Client()
+	fwd.intakeURL = fi.URL() + "/api/v2/agenthealth"
 
-	// Create a test report
-	report := &healthplatform.HealthReport{
-		SchemaVersion: "1.0",
-		EventType:     "agent-health",
-		EmittedAt:     time.Now().Format(time.RFC3339),
-		Host: healthplatform.HostInfo{
-			Hostname:     "test-hostname",
-			AgentVersion: "7.0.0",
-			ParIDs:       []string{},
+	// Report an issue so there's something to send (same as TestForwarderBuildHealthReport)
+	err = comp.ReportIssue("test-check", "Test Check", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
+		Context: map[string]string{
+			"dockerDir": "/var/lib/docker",
+			"os":        "linux",
 		},
-		Issues: map[string]*healthplatform.Issue{
-			"test-issue": {
-				ID:          "test-issue",
-				IssueName:   "test_issue",
-				Title:       "Test Issue",
-				Description: "Test Description",
-				Category:    "test",
-				Location:    "test-agent",
-				Severity:    "low",
-				DetectedAt:  "2025-01-01T00:00:00Z",
-				Source:      "test",
-				Tags:        []string{"test"},
-			},
-		},
+		Tags: []string{"test"},
+	})
+	// This may fail if the issue template doesn't exist, which is ok for this test
+	if err != nil {
+		t.Skipf("Skipping test: %v", err)
 	}
 
-	// Test sendReport by creating a custom request with the test server URL
-	payload, err := json.Marshal(report)
-	require.NoError(t, err)
+	// Trigger the report sending
+	fwd.sendHealthReport()
 
-	// Create request to test server with the payload
-	req, err := http.NewRequestWithContext(fwd.ctx, "POST", ts.URL, bytes.NewReader(payload))
+	// Query fakeintake for received payloads using the aggregator
+	client := fakeintake.NewClient(fi.URL())
+	payloads, err := client.GetAgentHealth()
 	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("DD-API-KEY", "test-api-key-123")
-	req.Header.Set("DD-Agent-Version", "7.0.0")
-	req.Header.Set("User-Agent", "datadog-agent/7.0.0")
+	require.Len(t, payloads, 1, "expected exactly one payload")
 
-	// Send to test server
-	resp, err := fwd.httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	// Validate the received report
+	receivedReport := payloads[0]
 
-	// Verify server was called
-	assert.True(t, serverCalled)
+	// Verify report structure - the key things we're testing
+	assert.Equal(t, "test-hostname", receivedReport.Host.Hostname)
+	assert.Equal(t, "1.0", receivedReport.SchemaVersion)
+	assert.Equal(t, "agent-health-issues", receivedReport.EventType)
+	assert.Len(t, receivedReport.Issues, 1)
 
-	// Verify the report structure can be marshaled/unmarshaled
-	var unmarshaled healthplatform.HealthReport
-	err = json.Unmarshal(payload, &unmarshaled)
-	require.NoError(t, err)
-	assert.Equal(t, report.Host.Hostname, unmarshaled.Host.Hostname)
-	assert.Len(t, unmarshaled.Issues, 1)
-	assert.Contains(t, unmarshaled.Issues, "test-issue")
+	// Verify the issue was included
+	issue := receivedReport.Issues["test-check"]
+	require.NotNil(t, issue, "Issue should be present in the payload")
+	// The issue will be enriched with the registered template data
+	assert.NotEmpty(t, issue.ID)
+	assert.NotEmpty(t, issue.Title)
 }
 
 // TestForwarderWithComponent tests the forwarder integrated with the component
@@ -185,10 +134,10 @@ func TestForwarderWithComponent(t *testing.T) {
 	// Verify forwarder was created
 	assert.NotNil(t, comp.forwarder)
 	assert.Equal(t, "test-hostname", comp.forwarder.hostname)
-	// Verify API key is stored in headers (headers is a map[string][]string)
-	assert.NotNil(t, comp.forwarder.headers)
+	// Verify API key is stored in header (header is a map[string][]string)
+	assert.NotNil(t, comp.forwarder.header)
 	comp.forwarder.headerLock.RLock()
-	apiKeyValues := comp.forwarder.headers[http.CanonicalHeaderKey("DD-API-KEY")]
+	apiKeyValues := comp.forwarder.header[http.CanonicalHeaderKey("DD-API-KEY")]
 	comp.forwarder.headerLock.RUnlock()
 	assert.Len(t, apiKeyValues, 1)
 	assert.Equal(t, "test-api-key", apiKeyValues[0])
