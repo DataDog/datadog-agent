@@ -295,6 +295,9 @@ pkg_files(
     name = "openssl_pkgconfig",
     srcs = [":pkgconfig_dir"],
     prefix = "lib",
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
 )
 
 filegroup(
