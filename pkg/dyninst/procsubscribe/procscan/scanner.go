@@ -85,6 +85,9 @@ type Scanner struct {
 
 	// resolveExecutable resolves the executable metadata for a process.
 	resolveExecutable func(pid int32) (process.Executable, error)
+
+	// startTimeCache caches process start times keyed by PID.
+	startTimeCache startTimeCache
 }
 
 // NewScanner creates a new Scanner that discovers processes in the given
@@ -148,6 +151,7 @@ func newScanner(
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
+		startTimeCache:       makeStartTimeCache(defaultStartTimeCacheSize),
 	}
 	s.mu.live = btree.NewG(16, cmp.Less[uint32])
 	return s
@@ -219,10 +223,13 @@ func (p *Scanner) Scan() (
 		}
 
 		// Only analyze processes whose start time falls within a time window.
-		startTime, err := p.readStartTime(int32(pid))
-		if err != nil {
-			maybeLogErr("read start time", err)
-			continue
+		startTime, ok := p.startTimeCache.getStartTime(pid)
+		if !ok {
+			if startTime, err = p.readStartTime(int32(pid)); err != nil {
+				maybeLogErr("read start time", err)
+				continue
+			}
+			p.startTimeCache.insert(pid, startTime)
 		}
 		if !p.matchesAnyWindow(startTime, now, p.lastScan) {
 			continue
@@ -266,6 +273,7 @@ func (p *Scanner) Scan() (
 	p.mu.Unlock()
 
 	p.lastScan = now
+	p.startTimeCache.sweep()
 	return ret, removed, nil
 }
 
