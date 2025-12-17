@@ -1257,6 +1257,11 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 }
 
+func kubeactions(config pkgconfigmodel.Setup) {
+	// Kubernetes Actions product
+	config.BindEnvAndSetDefault("kubeactions.enabled", false)
+}
+
 func fips(config pkgconfigmodel.Setup) {
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
