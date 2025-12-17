@@ -741,7 +741,7 @@ func TestAsJSON(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result map[string]interface{}, warnings []string) {
+			validate: func(t *testing.T, _ map[string]interface{}, warnings []string) {
 				require.Len(t, warnings, 2)
 				assert.Contains(t, warnings[0], "ipv4-network")
 				assert.Contains(t, warnings[0], "some ipv4 network error")
