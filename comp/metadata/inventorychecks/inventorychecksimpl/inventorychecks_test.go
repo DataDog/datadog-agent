@@ -139,6 +139,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -161,6 +162,7 @@ func TestGetPayload(t *testing.T) {
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

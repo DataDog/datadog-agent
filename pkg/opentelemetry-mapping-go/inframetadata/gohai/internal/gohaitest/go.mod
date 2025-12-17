@@ -13,7 +13,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -79,7 +79,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../../../comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../../../../../comp/otelcol/otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../../../../../comp/otelcol/otlp/components/processor/infraattributesprocessor
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../../../../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../../../../comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ../../../../../../comp/otelcol/status/def
 	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ../../../../../../comp/otelcol/status/impl
@@ -115,7 +114,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../../../pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
@@ -141,6 +139,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../../../pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils => ../../../../../../pkg/ssi/testutils
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../../pkg/tagset

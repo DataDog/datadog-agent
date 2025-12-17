@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
@@ -39,6 +41,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
 		core.Bundle(),
+		hostnameimpl.Module(),
 		secretsfx.Module(),
 
 		// Provide eventplatformimpl module
@@ -71,6 +74,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			return &statsd.NoOpClient{}
 		}),
 		ipcfx.ModuleReadOnly(),
+		remotetraceroute.Module(),
 	}
 }
 

@@ -485,6 +485,7 @@ def docker_functional_tests(
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd += '--env=CI '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
@@ -549,6 +550,7 @@ def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":

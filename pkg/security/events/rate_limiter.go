@@ -43,6 +43,7 @@ var (
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
+		RawPacketActionRuleID:           rate.Every(30 * time.Second),
 	}
 )
 
@@ -128,6 +129,7 @@ func (rl *RateLimiter) Allow(ruleID string, event Event) bool {
 
 	limiter, ok := rl.limiters[ruleID]
 	if !ok {
+		seclog.Errorf("Rule %s not found in rate limiter", ruleID)
 		return false
 	}
 	return limiter.Allow(event)

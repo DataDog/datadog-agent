@@ -1,4 +1,4 @@
-go 1.24.10
+go 1.25.5
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -7,9 +7,7 @@ godebug tlsmlkem=0
 
 use (
 	.
-	./pkg/util/hostinfo
-	./pkg/util/jsonquery
-	cmd/secret-backend
+  cmd/secret-backend
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -68,7 +66,6 @@ use (
 	comp/otelcol/otlp/components/exporter/serializerexporter
 	comp/otelcol/otlp/components/metricsclient
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
-	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
 	comp/otelcol/status/def
 	comp/otelcol/status/impl
@@ -111,7 +108,6 @@ use (
 	pkg/logs/metrics
 	pkg/logs/pipeline
 	pkg/logs/processor
-	pkg/logs/sds
 	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
@@ -138,6 +134,7 @@ use (
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/ssi/testutils
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
@@ -157,9 +154,11 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
 	pkg/util/json
+	pkg/util/jsonquery
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option

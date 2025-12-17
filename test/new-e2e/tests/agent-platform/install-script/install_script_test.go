@@ -14,10 +14,10 @@ import (
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
@@ -90,7 +90,7 @@ func TestInstallScript(t *testing.T) {
 			e2e.Run(tt,
 				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion)),
 			)
@@ -112,7 +112,7 @@ func DockerTest(t *testing.T) {
 			&installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)},
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithDocker(),
+					awshost.WithRunOptions(ec2.WithDocker()),
 				),
 			),
 		)
@@ -191,6 +191,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 		common.CheckADPDisabled(is.T(), client)
 	}
+
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)
 }

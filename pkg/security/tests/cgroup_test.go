@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -337,6 +338,10 @@ func TestCGroupVariables(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
@@ -401,5 +406,75 @@ func TestCGroupVariables(t *testing.T) {
 			test.validateOpenSchema(t, event)
 		})
 	})
+}
 
+func TestCGroupVariablesReleased(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_set_variable",
+			Expression: `process.cgroup.id != "" && open.file.path == "/tmp/test-open"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "cgroup",
+						Value: 999,
+						Name:  "bar",
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+	_, err = dockerWrapper.start()
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	test.WaitSignal(t, func() error {
+		return dockerWrapper.Command("touch", []string{"/tmp/test-open"}, nil).Run()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_set_variable")
+		assertFieldEqual(t, event, "open.file.path", "/tmp/test-open")
+		assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
+
+		variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
+		assert.NotNil(t, variables)
+		assert.Contains(t, variables, event.ProcessContext.Process.CGroup.Hash())
+		variable, ok := variables[event.ProcessContext.Process.CGroup.Hash()]
+		assert.True(t, ok)
+		value, ok := variable.GetValue()
+		assert.True(t, ok)
+		assert.Equal(t, 999, value.(int))
+	})
+
+	_, err = dockerWrapper.stop()
+	if err != nil {
+		t.Fatalf("failed to stop docker wrapper: %v", err)
+	}
+
+	time.Sleep(500 * time.Millisecond) // wait just a bit of time for the cgroup to be released
+
+	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+	assert.NotNil(t, variables)
+	assert.Len(t, variables, 0)
 }
