@@ -9,6 +9,7 @@ package hashicorp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -139,7 +140,7 @@ func newVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (a
 			role = sessionConfig.VaultKubernetesRole
 		}
 		if role == "" {
-			return nil, fmt.Errorf("kubernetes role not specified")
+			return nil, errors.New("kubernetes role not specified")
 		}
 
 		jwtToken, err := getKubernetesJWTToken(sessionConfig)
@@ -220,12 +221,12 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 			return nil, fmt.Errorf("failed to created auth info: %s", err)
 		}
 		if authInfo == nil {
-			return nil, fmt.Errorf("no auth info returned")
+			return nil, errors.New("no auth info returned")
 		}
 	} else if backendConfig.VaultToken != "" {
 		client.SetToken(backendConfig.VaultToken)
 	} else {
-		return nil, fmt.Errorf("no auth method or token provided")
+		return nil, errors.New("no auth method or token provided")
 	}
 
 	backend := &VaultBackend{

@@ -10,6 +10,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -129,7 +130,7 @@ func (b *KeyVaultBackend) GetSecretOutput(secretName string) secret.Output {
 		}
 	}
 
-	return b.makeErrorResponse(fmt.Errorf("value does not contain secret key"))
+	return b.makeErrorResponse(errors.New("value does not contain secret key"))
 }
 
 func (b *KeyVaultBackend) makeErrorResponse(err error) secret.Output {
