@@ -9,7 +9,6 @@ package serializerexporter
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -623,20 +622,13 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expected float64) {
 }
 
 func TestUsageMetric_GW(t *testing.T) {
-	os.Unsetenv("DD_OTELCOLLECTOR_GATEWAY_MODE")
-	gwUsage := otel.NewGatewayUsage()
+	gwUsage := otel.NewGatewayUsage(false)
 	// Force gw usage attribute to detect GW; two different host attributes will trigger that.
 	attr := gwUsage.GetHostFromAttributesHandler()
 	attr.OnHost("foo")
 	attr.OnHost("bar")
 	usageMetricGW(t, gwUsage, float64(1.0))
 
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "False")
-	gwUsage = otel.NewGatewayUsage()
+	gwUsage = otel.NewGatewayUsage(false)
 	usageMetricGW(t, gwUsage, float64(0.0))
-
-	os.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "True")
-	gwUsage = otel.NewGatewayUsage()
-	usageMetricGW(t, gwUsage, float64(1.0))
-
 }
