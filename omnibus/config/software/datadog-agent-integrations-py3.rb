@@ -228,37 +228,6 @@ build do
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -m pip check"
 
-  # Removing tests that don't need to be shipped in the embedded folder
-  test_folders = [
-    '../idlelib/idle_test',
-    'bs4/tests',
-    'Cryptodome/SelfTest',
-    'gssapi/tests',
-    'keystoneauth1/tests',
-    'lazy_loader/tests',
-    'openstack/tests',
-    'os_service_types/tests',
-    'pbr/tests',
-    'pkg_resources/tests',
-    'pip/_vendor/colorama/tests',
-    'psutil/tests',
-    'requests_unixsocket/tests',
-    'securesystemslib/_vendor/ed25519/test_data',
-    'setuptools/_distutils/compilers/C/tests',
-    'setuptools/_distutils/tests',
-    'setuptools/tests',
-    'simplejson/tests',
-    'stevedore/tests',
-    'supervisor/tests',
-    'test', # cm-client
-    'vertica_python/tests',
-    'websocket/tests',
-    'win32com/test',
-  ]
-  test_folders.each do |test_folder|
-    delete "#{site_packages_path}/#{test_folder}/"
-  end
-
   unless windows_target?
     block "Remove .exe files" do
       # setuptools come from supervisor and ddtrace
