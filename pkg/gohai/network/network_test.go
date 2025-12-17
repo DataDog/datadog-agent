@@ -1246,7 +1246,7 @@ func assertValueIPv6(t *testing.T, addr utils.Value[string]) {
 	if ipv6, err := addr.Value(); err == nil {
 		assertIPv6(t, ipv6)
 	} else {
-		assert.ErrorIs(t, err, ErrAddressNotFound)
+		assert.ErrorIsf(t, err, ErrAddressNotFound, "addr %s", addr)
 	}
 }
 
@@ -1254,7 +1254,7 @@ func assertMac(t *testing.T, addr string) {
 	t.Helper()
 	if addr != "" {
 		_, err := net.ParseMAC(addr)
-		assert.NoError(t, err)
+		assert.NoErrorf(t, err, "addr %s", addr)
 	}
 }
 
@@ -1263,14 +1263,14 @@ func assertValueMac(t *testing.T, addr utils.Value[string]) {
 	if mac, err := addr.Value(); err == nil {
 		assertMac(t, mac)
 	} else {
-		assert.ErrorIs(t, err, ErrAddressNotFound)
+		assert.ErrorIsf(t, err, ErrAddressNotFound, "addr %s", addr)
 	}
 }
 
 func assertCIDR(t *testing.T, addr string) {
 	t.Helper()
 	_, _, err := net.ParseCIDR(addr)
-	assert.NoError(t, err)
+	assert.NoErrorf(t, err, "addr %s", addr)
 }
 
 func assertValueCIDR(t *testing.T, addr utils.Value[string]) {
@@ -1278,6 +1278,6 @@ func assertValueCIDR(t *testing.T, addr utils.Value[string]) {
 	if addr, err := addr.Value(); err == nil {
 		assertCIDR(t, addr)
 	} else {
-		assert.ErrorIs(t, err, ErrAddressNotFound)
+		assert.ErrorIsf(t, err, ErrAddressNotFound, "addr %s", addr)
 	}
 }
