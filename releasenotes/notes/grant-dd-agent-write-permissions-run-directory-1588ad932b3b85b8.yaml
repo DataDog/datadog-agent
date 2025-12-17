@@ -1,5 +1,6 @@
 fixes:
     - |
-      In the Agent and Cluster Agent Docker images, the `/opt/datadog-agent/run` directory is now owned by the
-      `dd-agent` user and writable by the `root` group. This allows the Agent to function correctly (e.g.,
-      using Remote Configuration) when running as the non-root `dd-agent` user (UID 100).
+      Fixed ownership and permissions for the `/opt/datadog-agent/run` directory 
+      in Agent and Cluster Agent Docker images. This resolves permission errors 
+      encountered by Remote Configuration when running as a non-root user 
+      (UID 100), such as in AWS ECS Fargate environments.
