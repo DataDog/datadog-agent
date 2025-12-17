@@ -169,7 +169,7 @@ pkg_install(
 rewrite_rpath(
     name = "z_fixed",
     prefix = "@@//:install_dir",
-    inputs = [":z"],
+    input = ":z",
 )
 
 # buildifier: disable=no-effect
