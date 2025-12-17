@@ -39,8 +39,6 @@ type EBPFLessResolver struct {
 	opts         ResolverOpts
 	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
-
-	processCacheEntryPool *Pool
 }
 
 // NewEBPFLessResolver returns a new process resolver
@@ -51,8 +49,6 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 		scrubber:     scrubber,
 		statsdClient: statsdClient,
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	return p, nil
 }
@@ -81,7 +77,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 		return nil
 	}
 
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
@@ -99,7 +95,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.Source = source

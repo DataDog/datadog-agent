@@ -36,8 +36,6 @@ type Resolver struct {
 	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
 
-	processCacheEntryPool *Pool
-
 	exitedQueue []uint32
 }
 
@@ -49,8 +47,6 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 		scrubber:     scrubber,
 		statsdClient: statsdClient,
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	return p, nil
 }
@@ -119,7 +115,7 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // AddNewEntry add a new process entry to the cache
 func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, envs []string, commandLine string, OwnerSidString string) (*model.ProcessCacheEntry, error) {
-	e := p.processCacheEntryPool.Get()
+	e := model.NewProcessCacheEntry()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 	e.Process.CmdLine = pathutils.NormalizePath(commandLine)
@@ -227,7 +223,7 @@ func (p *Resolver) Snapshot() {
 	entries := make([]*model.ProcessCacheEntry, 0, len(pmap))
 
 	for pid, proc := range pmap {
-		e := p.processCacheEntryPool.Get()
+		e := model.NewProcessCacheEntry()
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 

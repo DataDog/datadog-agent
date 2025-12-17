@@ -105,8 +105,6 @@ type EBPFResolver struct {
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
 	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
-	processCacheEntryPool *Pool
-
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
 
@@ -144,7 +142,7 @@ func (p *EBPFResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *EBPFResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 
@@ -1626,8 +1624,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	for _, tag := range allInodeErrTags() {
 		p.inodeErrStats[tag] = atomic.NewInt64(0)
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)
