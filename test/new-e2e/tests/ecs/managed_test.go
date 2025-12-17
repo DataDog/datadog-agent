@@ -408,22 +408,30 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 				return
 			}
 
-			// Count instances being monitored
-			instances := make(map[string]bool)
+			// Count agent tasks being monitored (agent runs as daemon task, one per instance)
+			// Since we don't have host tags in sidecar mode, count unique agent task ARNs
+			agentTasks := make(map[string]bool)
 			for _, metric := range metrics {
 				tags := metric.GetTags()
+				var taskArn, containerName string
 				for _, tag := range tags {
-					if strings.HasPrefix(tag, "host:") {
-						hostName := strings.TrimPrefix(tag, "host:")
-						instances[hostName] = true
+					if strings.HasPrefix(tag, "task_arn:") {
+						taskArn = strings.TrimPrefix(tag, "task_arn:")
 					}
+					if strings.HasPrefix(tag, "container_name:") {
+						containerName = strings.TrimPrefix(tag, "container_name:")
+					}
+				}
+				// Count datadog-agent daemon tasks (one per instance)
+				if taskArn != "" && strings.Contains(containerName, "datadog-agent") {
+					agentTasks[taskArn] = true
 				}
 			}
 
-			suite.T().Logf("Monitoring %d instances in managed node group", len(instances))
+			suite.T().Logf("Monitoring %d agent daemon tasks in managed node group", len(agentTasks))
 
-			assert.GreaterOrEqualf(c, len(instances), 1,
-				"Should monitor at least one managed instance")
+			assert.GreaterOrEqualf(c, len(agentTasks), 1,
+				"Should monitor at least one agent daemon task")
 
 			// Verify continuous metric collection (agent is stable during scaling)
 			assert.GreaterOrEqualf(c, len(metrics), 10,
@@ -447,34 +455,35 @@ func (suite *ecsManagedSuite) TestManagedInstancePlacementStrategy() {
 			}
 
 			// Verify tasks are placed and tracked properly
-			// Count task placement across instances
-			instanceTasks := make(map[string]int)
+			// Count unique tasks (each task represents a workload placement)
+			tasks := make(map[string]bool)
+			taskMetricCount := make(map[string]int)
 
 			for _, metric := range metrics {
 				tags := metric.GetTags()
-				var host, taskArn string
-
 				for _, tag := range tags {
-					if strings.HasPrefix(tag, "host:") {
-						host = strings.TrimPrefix(tag, "host:")
-					}
 					if strings.HasPrefix(tag, "task_arn:") {
-						taskArn = strings.TrimPrefix(tag, "task_arn:")
+						taskArn := strings.TrimPrefix(tag, "task_arn:")
+						tasks[taskArn] = true
+						taskMetricCount[taskArn]++
 					}
-				}
-
-				if host != "" && taskArn != "" {
-					instanceTasks[host]++
 				}
 			}
 
-			suite.T().Logf("Task placement distribution: %d instances with tasks", len(instanceTasks))
-			for host, count := range instanceTasks {
-				suite.T().Logf("  Instance %s: %d task metrics", host, count)
+			suite.T().Logf("Task placement: %d unique tasks tracked", len(tasks))
+			suite.T().Logf("Total metrics with task attribution: %d", len(taskMetricCount))
+
+			// Show some sample tasks
+			count := 0
+			for taskArn, metricCount := range taskMetricCount {
+				if count < 3 {
+					suite.T().Logf("  Task %s: %d metrics", taskArn, metricCount)
+					count++
+				}
 			}
 
 			// Should have tasks placed on managed instances
-			assert.GreaterOrEqualf(c, len(instanceTasks), 1,
+			assert.GreaterOrEqualf(c, len(tasks), 1,
 				"Should have tasks placed on managed instances")
 		}, 3*time.Minute, 10*time.Second, "Managed instance placement strategy validation completed")
 	})
