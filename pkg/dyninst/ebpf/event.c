@@ -182,7 +182,19 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       }
     }
   } else {
-    header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE;
+    switch (params->no_return_reason) {
+    case NO_RETURN_REASON_INLINED:
+      LOG(4, "no return reason: inlined for goid %lld stack byte depth %d probe id %d", header->goid, header->stack_byte_depth, params->probe_id);
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE_INLINED;
+      break;
+    case NO_RETURN_REASON_NO_BODY:
+      LOG(4, "no return body for goid %lld stack byte depth %d probe id %d", header->goid, header->stack_byte_depth, params->probe_id);
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE_NO_BODY;
+      break;
+    default:
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE;
+      break;
+    }
   }
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
