@@ -339,12 +339,14 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
-				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-				filterablePod := workloadfilter.CreatePod("", "", podNamespace, nil)
-				filterableContainer := workloadfilter.CreateContainer(utils.GetTagValue("container_id", msg.tags), containerName, imageName, filterablePod)
-				if a.containerFilter.IsExcluded(filterableContainer) {
-					// similar return value as if we had sent the message
-					return true
+				if a.containerFilter != nil {
+					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+					filterablePod := workloadfilter.CreatePod("", "", podNamespace, nil)
+					filterableContainer := workloadfilter.CreateContainer(utils.GetTagValue("container_id", msg.tags), containerName, imageName, filterablePod)
+					if a.containerFilter.IsExcluded(filterableContainer) {
+						// similar return value as if we had sent the message
+						return true
+					}
 				}
 
 				data, err := msg.toJSON()
@@ -778,6 +780,14 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component, filterStore workloadfilter.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
+
 	as := &APIServer{
 		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
@@ -793,7 +803,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
-		containerFilter: filterStore.GetContainerRuntimeSecurityFilters(),
+		containerFilter: containerFilter,
 	}
 
 	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {

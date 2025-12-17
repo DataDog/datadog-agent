@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -200,6 +201,14 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		return nil, err
 	}
 
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
+
 	minDumpTimeout := cfg.RuntimeSecurity.ActivityDumpLoadControlMinDumpTimeout
 	if minDumpTimeout < absoluteMinimumDumpTimeout {
 		minDumpTimeout = absoluteMinimumDumpTimeout
@@ -309,7 +318,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
 		contextTags:      contextTags,
-		containerFilters: filterStore.GetContainerRuntimeSecurityFilters(),
+		containerFilters: containerFilter,
 		hostname:         hostname,
 
 		minDumpTimeout: minDumpTimeout,

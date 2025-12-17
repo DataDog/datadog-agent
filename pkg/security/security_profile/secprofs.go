@@ -402,11 +402,13 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
-	filterablePod := workloadfilter.CreatePod("", "", podNamespace, nil)
-	filterableContainer := workloadfilter.CreateContainer("", containerName, imageName, filterablePod)
-	if m.containerFilters.IsExcluded(filterableContainer) {
-		return
+	if m.containerFilters != nil {
+		containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
+		filterablePod := workloadfilter.CreatePod("", "", podNamespace, nil)
+		filterableContainer := workloadfilter.CreateContainer("", containerName, imageName, filterablePod)
+		if m.containerFilters.IsExcluded(filterableContainer) {
+			return
+		}
 	}
 
 	selector := workload.Selector
