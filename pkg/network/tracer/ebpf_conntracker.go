@@ -61,6 +61,8 @@ var conntrackerTelemetry = struct {
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
+	//JMWORIG telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	//JMWNEWWHY
 	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
@@ -471,6 +473,13 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
+		//JMWORIG
+		// me := opts.MapSpecEditors[probes.ConntrackMap]
+		// me.Type = ebpf.LRUHash
+		// me.EditorFlag |= manager.EditType
+		// opts.MapSpecEditors[probes.ConntrackMap] = me
+		//
+		//JMWNEWWHY
 		// Apply LRU hash to all conntrack maps
 		for _, mapName := range []string{probes.ConntrackMap} {
 			me := opts.MapSpecEditors[mapName]
@@ -588,15 +597,4 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
-}
-
-// conntrackTupleToString converts a ConntrackTuple to a string for comparison
-func conntrackTupleToString(tuple *netebpf.ConntrackTuple) string {
-	return fmt.Sprintf("%s:%d->%s:%d[%d]",
-		tuple.SourceAddress().String(),
-		tuple.Sport,
-		tuple.DestAddress().String(),
-		tuple.Dport,
-		tuple.Netns,
-	)
 }

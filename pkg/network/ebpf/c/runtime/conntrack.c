@@ -27,46 +27,6 @@
 #include "ipv6.h"
 #endif
 
-// JMWRM
-/* // Primary probe: Track all conntrack insertions */
-/* SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK */
-/* int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) { */
-/*     increment_kprobe__nf_conntrack_hash_insert_entry_count(); */
-/*     log_debug("JMW(runtime)kprobe__nf_conntrack_hash_insert: ct: %p netns: %u", ct, get_netns(ct)); */
-
-/*     u32 status = 0; */
-/*     BPF_CORE_READ_INTO(&status, ct, status); */
-/*     // JMWWAS if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) { */
-/*     // JMW see https://github.com/DataDog/datadog-agent/pull/41848/files, */
-/*     if (!(status&IPS_NAT_MASK)) { */
-/*         return 0; */
-/*     } */
-
-/*     conntrack_tuple_t orig = {}, reply = {}; */
-/*     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) { */
-/*         increment_nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count(); */
-/*         return 0; */
-/*     } */
-
-/*     long ret1 = bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST); */
-/*     long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST); */
-
-/*     if (ret1 == -EEXIST) { */
-/*         increment_nf_conntrack_hash_insert_regular_exists(); */
-/*     } */
-/*     if (ret2 == -EEXIST) { */
-/*         increment_nf_conntrack_hash_insert_reverse_exists(); */
-/*     } */
-
-/*     // Only increment hash_insert_count if at least one entry was actually added */
-/*     if (ret1 == 0 || ret2 == 0) { */
-/*         increment_nf_conntrack_hash_insert_count(); */
-/*         log_debug("JMW(runtime)kprobe__nf_conntrack_hash_insert: added to conntrack ct=%p", ct); */
-/*     } */
-/*     increment_telemetry_registers_count(); */
-
-/*     return 0; */
-/* } */
 
 //JMWCOMMENT
 // new probe: Track conntrack confirmations (entry) - correlation approach
@@ -175,21 +135,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Add both directions to conntrack map
     //JMW
-    long ret1 = bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
-    long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
-    
-    if (ret1 == -EEXIST) {
-        increment_kretprobe__nf_conntrack_confirm_regular_exists();
-    }
-    if (ret2 == -EEXIST) {
-        increment_kretprobe__nf_conntrack_confirm_reverse_exists();
-    }
-    
-    // Only increment success_count if at least one entry was actually added
-    if (ret1 == 0 || ret2 == 0) {
-        increment_kretprobe__nf_conntrack_confirm_success_count();
-        log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: added ct=%p", ct);
-    }
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
 
     return 0;
 }
@@ -214,24 +161,12 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        increment_kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count();
         return 0;
     }
 
-    long ret1 = bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
-    long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
 
-    if (ret1 == -EEXIST) {
-        increment_kprobe_ctnetlink_fill_info_regular_exists_count();
-    }
-    if (ret2 == -EEXIST) {
-        increment_kprobe_ctnetlink_fill_info_reverse_exists_count();
-    }
-
-    // Only increment hash_insert_count if at least one entry was actually added
-    if (ret1 == 0 || ret2 == 0) {
-        increment_kprobe_ctnetlink_fill_info_added_count();
-    }
     increment_telemetry_registers_count();
 
     return 0;
