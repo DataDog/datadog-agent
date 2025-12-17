@@ -309,7 +309,7 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
-    Used in CI jobs only (requires CI_JOB_TOKEN).
+    Used in CI jobs only (automatically generate a token targeting the target project).
 
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
@@ -324,12 +324,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
-    if not os.environ.get('CI_JOB_TOKEN'):
-        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
-
-    # Use the CI_JOB_TOKEN which is passed from gitlab
-    token = None if follow else os.environ['CI_JOB_TOKEN']
-    repo = get_gitlab_repo(project_name, token=token)
+    repo = get_gitlab_repo(project_name)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -534,9 +529,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
-    assert (
-        match is not None
-    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    assert match is not None, (
+        f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    )
     assert "'" not in owner_branch_name
 
     owner, branch = match.group('owner'), match.group('branch_name')
@@ -546,9 +541,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
     branch_res = ctx.run('git branch', hide='stdout')
-    assert (
-        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
-    ), f'{owner_branch_name} branch already exists'
+    assert re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == [], (
+        f'{owner_branch_name} branch already exists'
+    )
     remote_res = ctx.run('git remote', hide='stdout')
     assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
