@@ -1008,7 +1008,7 @@ replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-2025121
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
-replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.0
+replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.3.0
 
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
 exclude go.opentelemetry.io/proto/otlp v1.1.0
