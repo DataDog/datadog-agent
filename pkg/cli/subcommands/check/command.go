@@ -124,6 +124,7 @@ type cliParams struct {
 	discoveryRetryInterval    uint
 	discoveryMinInstances     uint
 	generateIntegrationTraces bool
+	instance                  int
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -230,6 +231,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	cmd.Flags().IntVarP(&cliParams.instance, "instance", "i", -1, "only run a specific instance")
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -442,6 +444,15 @@ func run(
 		}
 	}
 
+	if cliParams.instance != -1 {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
+			if cliParams.instance >= 0 && cliParams.instance < len(conf.Instances) {
+				selectedInstance := conf.Instances[cliParams.instance]
+				conf.Instances = []integration.Data{selectedInstance}
+			}
+		}
+	}
 	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
 
 	// something happened while getting the check(s), display some info.
