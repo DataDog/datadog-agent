@@ -53,6 +53,12 @@ pub struct SocketConfig {
     /// Default: uses LISTEN_FDS (systemd-compatible)
     #[serde(default)]
     pub fd_env_var: Option<String>,
+
+    /// Environment variable name for passing the first accepted client connection FD
+    /// When set, the daemon will accept the first connection and pass it to the child
+    /// via this environment variable (trace-loader style handoff)
+    #[serde(default)]
+    pub client_fd_env_var: Option<String>,
 }
 
 /// Process configuration from YAML

@@ -121,6 +121,21 @@ pub struct SocketConfig {
     /// - datadog-apm Unix: DD_APM_UNIX_RECEIVER_FD
     /// - datadog-otlp: DD_OTLP_CONFIG_GRPC_FD
     pub fd_env_var: Option<String>,
+
+    /// Environment variable name for passing the first accepted client connection FD
+    ///
+    /// When set, the socket manager will:
+    /// 1. Wait for a connection on the listening socket
+    /// 2. Accept the first connection
+    /// 3. Pass BOTH the listening socket (via fd_env_var) AND the accepted client
+    ///    connection (via client_fd_env_var) to the child process
+    ///
+    /// This enables trace-loader style socket handoff where the parent accepts the
+    /// first connection but the child handles it.
+    ///
+    /// For Datadog APM: DD_APM_NET_RECEIVER_CLIENT_FD
+    #[serde(default)]
+    pub client_fd_env_var: Option<String>,
 }
 
 impl SocketConfig {
@@ -138,6 +153,7 @@ impl SocketConfig {
             socket_user: None,
             socket_group: None,
             fd_env_var: None,
+            client_fd_env_var: None,
         }
     }
 
@@ -154,7 +170,8 @@ impl SocketConfig {
             socket_mode: None,
             socket_user: None,
             socket_group: None,
-            fd_env_var: None, // Will be set during resolution
+            fd_env_var: None,           // Will be set during resolution
+            client_fd_env_var: None,    // Will be set during resolution
         }
     }
 
@@ -172,6 +189,7 @@ impl SocketConfig {
             socket_user: None,
             socket_group: None,
             fd_env_var: None,
+            client_fd_env_var: None,
         }
     }
 
@@ -220,6 +238,16 @@ impl SocketConfig {
     /// Set custom FD environment variable name
     pub fn with_fd_env_var(mut self, var_name: String) -> Self {
         self.fd_env_var = Some(var_name);
+        self
+    }
+
+    /// Set client FD environment variable name for first-connection handoff
+    ///
+    /// When set, the socket manager will accept the first connection and pass
+    /// it to the child via this environment variable, in addition to the
+    /// listening socket.
+    pub fn with_client_fd_env_var(mut self, var_name: String) -> Self {
+        self.client_fd_env_var = Some(var_name);
         self
     }
 

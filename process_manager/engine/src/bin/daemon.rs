@@ -780,15 +780,31 @@ async fn handle_socket_activation_events(
             fd = event.fd,
             accept = event.accept,
             fd_env_var = ?event.fd_env_var,
+            client_fd = ?event.client_fd,
+            client_fd_env_var = ?event.client_fd_env_var,
             "Socket activation event received"
         );
 
-        // Build the fd_env_var_names list
-        let fd_env_var_names: Vec<String> = event
+        // Build the listen_fds list (listener FD + optional client FD)
+        let mut listen_fds: Vec<i32> = vec![event.fd as i32];
+        let mut fd_env_var_names: Vec<String> = event
             .fd_env_var
             .as_ref()
             .map(|v| vec![v.clone()])
             .unwrap_or_default();
+
+        // Add client FD if present (trace-loader style handoff)
+        if let (Some(client_fd), Some(client_env_var)) =
+            (event.client_fd, event.client_fd_env_var.clone())
+        {
+            listen_fds.push(client_fd as i32);
+            fd_env_var_names.push(client_env_var);
+            info!(
+                socket = %event.socket_name,
+                client_fd = client_fd,
+                "Including pre-accepted client connection in socket activation"
+            );
+        }
 
         // Convert platform-specific FD type to i32
         let fd_as_i32 = event.fd as i32;
@@ -846,8 +862,8 @@ async fn handle_socket_activation_events(
             // Process is not running, start it with FD passing and custom env var names
             let start_cmd = StartProcessCommand::from_name_with_fds_and_env_vars(
                 event.service_name.clone(),
-                vec![fd_as_i32],
-                fd_env_var_names,
+                listen_fds.clone(),
+                fd_env_var_names.clone(),
             );
 
             match start_use_case.execute(start_cmd).await {
@@ -943,6 +959,7 @@ async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketA
                     socket_user: None,
                     socket_group: None,
                     fd_env_var: None,
+                    client_fd_env_var: None, // Will be set during resolution
                 };
 
                 match dd_config_reader.resolve_socket_config(&temp_config) {
@@ -961,12 +978,18 @@ async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketA
                                     tcp_cfg = tcp_cfg.with_fd_env_var(env_var.clone());
                                 }
 
+                                // Enable trace-loader style handoff if configured
+                                if let Some(ref client_env_var) = resolved.tcp_client_fd_env_var {
+                                    tcp_cfg = tcp_cfg.with_client_fd_env_var(client_env_var.clone());
+                                }
+
                                 match socket_manager.create_socket(tcp_cfg).await {
                                     Ok(name) => {
                                         info!(
                                             socket = %name,
                                             addr = %addr,
                                             fd_env = resolved.tcp_fd_env_var.as_deref().unwrap_or("LISTEN_FDS"),
+                                            client_fd_env = resolved.tcp_client_fd_env_var.as_deref(),
                                             "TCP socket created from Datadog config"
                                         );
                                     }
@@ -990,12 +1013,18 @@ async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketA
                                     unix_cfg = unix_cfg.with_fd_env_var(env_var.clone());
                                 }
 
+                                // Enable trace-loader style handoff if configured
+                                if let Some(ref client_env_var) = resolved.unix_client_fd_env_var {
+                                    unix_cfg = unix_cfg.with_client_fd_env_var(client_env_var.clone());
+                                }
+
                                 match socket_manager.create_socket(unix_cfg).await {
                                     Ok(name) => {
                                         info!(
                                             socket = %name,
                                             path = %path.display(),
                                             fd_env = resolved.unix_fd_env_var.as_deref().unwrap_or("LISTEN_FDS"),
+                                            client_fd_env = resolved.unix_client_fd_env_var.as_deref(),
                                             "Unix socket created from Datadog config"
                                         );
                                     }
@@ -1052,6 +1081,11 @@ async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketA
 
                 if let Some(ref fd_env) = socket_cfg.fd_env_var {
                     domain_cfg = domain_cfg.with_fd_env_var(fd_env.clone());
+                }
+
+                // Enable trace-loader style client handoff if configured
+                if let Some(ref client_fd_env) = socket_cfg.client_fd_env_var {
+                    domain_cfg = domain_cfg.with_client_fd_env_var(client_fd_env.clone());
                 }
 
                 // Create the socket

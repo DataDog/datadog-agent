@@ -27,6 +27,10 @@ pub struct ResolvedSocketConfig {
     pub tcp_fd_env_var: Option<String>,
     /// Environment variable name for Unix socket FD
     pub unix_fd_env_var: Option<String>,
+    /// Environment variable name for pre-accepted TCP client connection FD (trace-loader style)
+    pub tcp_client_fd_env_var: Option<String>,
+    /// Environment variable name for pre-accepted Unix client connection FD (trace-loader style)
+    pub unix_client_fd_env_var: Option<String>,
 }
 
 /// Datadog configuration reader
@@ -385,6 +389,8 @@ impl DatadogConfigReader {
                     listen_unix: config.listen_unix.clone(),
                     tcp_fd_env_var: config.fd_env_var.clone(),
                     unix_fd_env_var: None,
+                    tcp_client_fd_env_var: config.client_fd_env_var.clone(),
+                    unix_client_fd_env_var: None,
                 }])
             }
 
@@ -418,6 +424,8 @@ impl DatadogConfigReader {
             listen_unix: None,
             tcp_fd_env_var: None,
             unix_fd_env_var: None,
+            tcp_client_fd_env_var: None,
+            unix_client_fd_env_var: None,
         };
 
         // TCP receiver
@@ -426,10 +434,12 @@ impl DatadogConfigReader {
             let host = self.get_apm_bind_host();
             result.listen_stream = Some(format!("{}:{}", host, port));
             result.tcp_fd_env_var = Some("DD_APM_NET_RECEIVER_FD".to_string());
+            // Enable trace-loader style handoff: accept first connection and pass it to child
+            result.tcp_client_fd_env_var = Some("DD_APM_NET_RECEIVER_CLIENT_FD".to_string());
             info!(
                 host = %host,
                 port = port,
-                "APM TCP receiver configured"
+                "APM TCP receiver configured with client handoff"
             );
         }
 
@@ -466,6 +476,8 @@ impl DatadogConfigReader {
             listen_unix: None,
             tcp_fd_env_var: Some("DD_OTLP_CONFIG_GRPC_FD".to_string()),
             unix_fd_env_var: None,
+            tcp_client_fd_env_var: None, // OTLP doesn't use client handoff
+            unix_client_fd_env_var: None,
         }])
     }
 
@@ -483,6 +495,8 @@ impl DatadogConfigReader {
             listen_unix: None,
             tcp_fd_env_var: None,
             unix_fd_env_var: None,
+            tcp_client_fd_env_var: None,
+            unix_client_fd_env_var: None,
         };
 
         if port > 0 {

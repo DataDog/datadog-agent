@@ -45,7 +45,7 @@ pub struct SocketActivationEvent {
     pub socket_name: String,
     /// Service/process name to start
     pub service_name: String,
-    /// File descriptor / socket handle to pass to the service
+    /// File descriptor / socket handle for the listening socket
     #[cfg(unix)]
     pub fd: RawFd,
     #[cfg(windows)]
@@ -57,6 +57,16 @@ pub struct SocketActivationEvent {
     /// Custom environment variable name for the FD (e.g., DD_APM_NET_RECEIVER_FD)
     /// If None, uses LISTEN_FDS (systemd-compatible)
     pub fd_env_var: Option<String>,
+    /// File descriptor / socket handle for the first accepted client connection
+    /// Only set when client_fd_env_var is configured (trace-loader style handoff)
+    #[cfg(unix)]
+    pub client_fd: Option<RawFd>,
+    #[cfg(windows)]
+    pub client_fd: Option<RawSocket>,
+    #[cfg(not(any(unix, windows)))]
+    pub client_fd: Option<i32>,
+    /// Environment variable name for the client FD (e.g., DD_APM_NET_RECEIVER_CLIENT_FD)
+    pub client_fd_env_var: Option<String>,
 }
 
 /// Socket activation manager
@@ -241,6 +251,11 @@ impl SocketActivationService {
     }
 
     /// Accept=no: Wait for first connection, then trigger service start once
+    ///
+    /// If `client_fd_env_var` is configured, this performs trace-loader style handoff:
+    /// 1. Wait for connection on listening socket
+    /// 2. Accept the first connection
+    /// 3. Pass BOTH the listening socket AND the accepted connection to the child
     #[cfg(unix)]
     fn accept_once_single(
         socket_name: String,
@@ -249,9 +264,13 @@ impl SocketActivationService {
         event_tx: mpsc::UnboundedSender<SocketActivationEvent>,
         config: SocketConfig,
     ) {
+        let client_fd_env_var = config.client_fd_env_var.clone();
+        let handoff_first_connection = client_fd_env_var.is_some();
+
         debug!(
             socket = %socket_name,
             service = %service_name,
+            handoff_first_connection = handoff_first_connection,
             "Waiting for connection to trigger service activation (Accept=no)"
         );
 
@@ -275,9 +294,34 @@ impl SocketActivationService {
                     );
 
                     if result > 0 && libc::FD_ISSET(fd, &readfds) {
+                        // Optionally accept the first connection for trace-loader style handoff
+                        let client_fd = if handoff_first_connection {
+                            let accepted_fd = libc::accept(fd, std::ptr::null_mut(), std::ptr::null_mut());
+                            if accepted_fd < 0 {
+                                let err = std::io::Error::last_os_error();
+                                error!(
+                                    socket = %socket_name,
+                                    error = %err,
+                                    "Failed to accept first connection for handoff"
+                                );
+                                None
+                            } else {
+                                info!(
+                                    socket = %socket_name,
+                                    service = %service_name,
+                                    client_fd = accepted_fd,
+                                    "Accepted first connection for handoff to child"
+                                );
+                                Some(accepted_fd)
+                            }
+                        } else {
+                            None
+                        };
+
                         info!(
                             socket = %socket_name,
                             service = %service_name,
+                            client_fd = ?client_fd,
                             "Connection detected, triggering service activation"
                         );
 
@@ -287,6 +331,8 @@ impl SocketActivationService {
                             fd,
                             accept: false,
                             fd_env_var: fd_env_var.clone(),
+                            client_fd,
+                            client_fd_env_var: client_fd_env_var.clone(),
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                             break;
@@ -312,6 +358,9 @@ impl SocketActivationService {
     /// 4. Daemon CLOSES its copy of the socket so child exclusively owns it
     /// 5. Child uses the inherited handle to accept connections (gets the first connection)
     ///
+    /// If `client_fd_env_var` is configured (trace-loader style), the daemon will accept
+    /// the first connection and pass BOTH the listener AND the client connection to the child.
+    ///
     /// Note: On Windows, both parent and child hold references to the same socket.
     /// The daemon must close its reference after spawning, otherwise both compete for connections.
     #[cfg(windows)]
@@ -324,13 +373,17 @@ impl SocketActivationService {
     ) {
         use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
         use windows::Win32::Networking::WinSock::{
-            select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR,
+            accept, select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR, INVALID_SOCKET,
         };
+
+        let client_fd_env_var = config.client_fd_env_var.clone();
+        let handoff_first_connection = client_fd_env_var.is_some();
 
         debug!(
             socket = %socket_name,
             service = %service_name,
             handle = handle,
+            handoff_first_connection = handoff_first_connection,
             "Waiting for connection to trigger service activation (Accept=no) - Windows"
         );
 
@@ -389,23 +442,61 @@ impl SocketActivationService {
                 }
 
                 if result > 0 && read_fds.fd_count > 0 {
-                    // Connection is pending on the listening socket!
-                    // DO NOT accept() - let the child process do it
+                    // Optionally accept the first connection for trace-loader style handoff
+                    let client_fd: Option<RawSocket> = if handoff_first_connection {
+                        let client_socket = unsafe {
+                            accept(SOCKET(handle as usize), None, None)
+                        };
+                        if client_socket == INVALID_SOCKET {
+                            let err = std::io::Error::last_os_error();
+                            error!(
+                                socket = %socket_name,
+                                error = %err,
+                                "Failed to accept first connection for handoff"
+                            );
+                            None
+                        } else {
+                            let client_handle = client_socket.0 as RawSocket;
+                            // Make the client socket inheritable
+                            unsafe {
+                                let h = HANDLE(client_handle as *mut std::ffi::c_void);
+                                if let Err(e) = SetHandleInformation(h, 1u32, HANDLE_FLAGS(1)) {
+                                    warn!(
+                                        socket = %socket_name,
+                                        error = ?e,
+                                        "Failed to make client socket inheritable"
+                                    );
+                                }
+                            }
+                            info!(
+                                socket = %socket_name,
+                                service = %service_name,
+                                client_handle = client_handle,
+                                "Accepted first connection for handoff to child"
+                            );
+                            Some(client_handle)
+                        }
+                    } else {
+                        None
+                    };
+
                     info!(
                         socket = %socket_name,
                         service = %service_name,
                         handle = handle,
-                        "Connection pending, triggering service activation (no accept - child will receive connection)"
+                        client_fd = ?client_fd,
+                        "Connection pending, triggering service activation"
                     );
 
-                    // Send activation event with the socket handle
-                    // The child will call accept() and get the first connection
+                    // Send activation event with the socket handle(s)
                     if let Err(e) = event_tx.send(SocketActivationEvent {
                         socket_name: socket_name.clone(),
                         service_name: service_name.clone(),
                         fd: handle,
                         accept: false,
                         fd_env_var: fd_env_var.clone(),
+                        client_fd,
+                        client_fd_env_var: client_fd_env_var.clone(),
                     }) {
                         error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         break;
@@ -490,6 +581,8 @@ impl SocketActivationService {
                             fd: accepted_fd,
                             accept: true,
                             fd_env_var: fd_env_var.clone(),
+                            client_fd: None,           // Not used in Accept=yes mode
+                            client_fd_env_var: None,   // Not used in Accept=yes mode
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         }
@@ -552,6 +645,8 @@ impl SocketActivationService {
                             fd: accepted_handle,
                             accept: true,
                             fd_env_var: fd_env_var.clone(),
+                            client_fd: None,           // Not used in Accept=yes mode
+                            client_fd_env_var: None,   // Not used in Accept=yes mode
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         }
