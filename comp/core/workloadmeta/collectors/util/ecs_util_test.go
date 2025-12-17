@@ -10,19 +10,20 @@ package util
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseRegionAndAWSAccountID(t *testing.T) {
 	// test valid arn
 	arn := "arn:aws:ecs:us-east-1:123456789012:task/12345678-1234-1234-1234-123456789012"
-	region, awsAccountID := ParseRegionAndAWSAccountID(arn)
+	region, awsAccountID := ecs.ParseRegionAndAWSAccountID(arn)
 	require.Equal(t, "us-east-1", region)
 	require.Equal(t, "123456789012", awsAccountID)
 
 	// test invalid arn
 	arn = "arn:aws:ecs:us-east-1:123:task/12345678-1234-1234-1234-123456789012"
-	region, awsAccountID = ParseRegionAndAWSAccountID(arn)
+	region, awsAccountID = ecs.ParseRegionAndAWSAccountID(arn)
 	require.Equal(t, "us-east-1", region)
 	require.Equal(t, "", awsAccountID)
 }
