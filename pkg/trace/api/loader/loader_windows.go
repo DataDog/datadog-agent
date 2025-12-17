@@ -23,6 +23,7 @@ var (
 	wsock32         = syscall.NewLazyDLL("ws2_32.dll")
 	procAccept      = wsock32.NewProc("accept")
 	procGetsockname = wsock32.NewProc("getsockname")
+	procGetpeername = wsock32.NewProc("getpeername")
 	procClosesocket = wsock32.NewProc("closesocket")
 	procRecv        = wsock32.NewProc("recv")
 	procSend        = wsock32.NewProc("send")
@@ -69,6 +70,64 @@ func GetListenerFromFD(handleStr string, name string) (net.Listener, error) {
 	}
 
 	return listener, nil
+}
+
+// GetConnFromFD creates a new net.Conn from a Windows socket handle
+//
+// On Windows, socket handles are passed via environment variables (e.g., DD_APM_NET_RECEIVER_CLIENT_FD).
+// The handle is inherited from the parent process using SetHandleInformation.
+//
+// Unlike Unix, Go's net.FileConn doesn't work with Windows socket handles,
+// so we create a custom connection that uses raw Winsock API calls.
+func GetConnFromFD(handleStr string, name string) (net.Conn, error) {
+	handle, err := strconv.ParseUint(handleStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse socket handle %v: %v", handleStr, err)
+	}
+
+	socketHandle := syscall.Handle(handle)
+
+	// Get local address
+	var localSA sockaddrInet4
+	localSALen := int32(unsafe.Sizeof(localSA))
+	r1, _, sysErr := procGetsockname.Call(
+		uintptr(socketHandle),
+		uintptr(unsafe.Pointer(&localSA)),
+		uintptr(unsafe.Pointer(&localSALen)),
+	)
+	if r1 != 0 {
+		return nil, fmt.Errorf("getsockname failed: %v", sysErr)
+	}
+	localPort := int(localSA.Port>>8) | int(localSA.Port&0xff)<<8
+	localAddr := &net.TCPAddr{
+		IP:   net.IPv4(localSA.Addr[0], localSA.Addr[1], localSA.Addr[2], localSA.Addr[3]),
+		Port: localPort,
+	}
+
+	// Get remote address
+	var remoteSA sockaddrInet4
+	remoteSALen := int32(unsafe.Sizeof(remoteSA))
+	r1, _, sysErr = procGetpeername.Call(
+		uintptr(socketHandle),
+		uintptr(unsafe.Pointer(&remoteSA)),
+		uintptr(unsafe.Pointer(&remoteSALen)),
+	)
+	if r1 != 0 {
+		return nil, fmt.Errorf("getpeername failed: %v", sysErr)
+	}
+	remotePort := int(remoteSA.Port>>8) | int(remoteSA.Port&0xff)<<8
+	remoteAddr := &net.TCPAddr{
+		IP:   net.IPv4(remoteSA.Addr[0], remoteSA.Addr[1], remoteSA.Addr[2], remoteSA.Addr[3]),
+		Port: remotePort,
+	}
+
+	conn := &winSocketConn{
+		handle:     socketHandle,
+		localAddr:  localAddr,
+		remoteAddr: remoteAddr,
+	}
+
+	return conn, nil
 }
 
 // winSocketListener wraps a Windows socket handle to implement net.Listener
