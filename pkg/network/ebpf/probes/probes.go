@@ -181,9 +181,12 @@ const (
 	// SocketDNSFilter is the socket probe for dns
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
-	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm
+	// ConntrackHashInsert is the kprobe for __nf_conntrack_hash_insert (used by prebuilt)
+	// This probe directly receives struct nf_conn*, avoiding the need to extract it from sk_buff
+	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
+	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
-	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
