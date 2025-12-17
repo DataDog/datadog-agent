@@ -357,6 +357,9 @@ func (tp *InternalTracerPayload) ReplaceChunk(i int, chunk *InternalTraceChunk) 
 
 // SetStringAttribute sets a string attribute for the tracer payload.
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
+	if tp.Attributes == nil {
+		tp.Attributes = make(map[uint32]*AnyValue)
+	}
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
@@ -513,6 +516,9 @@ func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
 
 // SetStringAttribute sets a string attribute for the trace chunk.
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
+	if c.Attributes == nil {
+		c.Attributes = make(map[uint32]*AnyValue)
+	}
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 

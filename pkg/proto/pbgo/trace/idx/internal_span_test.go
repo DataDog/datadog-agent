@@ -646,3 +646,38 @@ func TestInternalSpan_CloneConcurrentSafe(t *testing.T) {
 	_, found = clonedSpan.GetAttributeAsString("original.attr")
 	assert.False(t, found, "Cloned span should not have original span's attribute")
 }
+
+func TestSetStringAttribute_NilAttributesMap(t *testing.T) {
+	t.Run("InternalTracerPayload", func(t *testing.T) {
+		// Create a payload with nil Attributes (simulating deserialized payload without attributes)
+		tp := &InternalTracerPayload{
+			Strings:    NewStringTable(),
+			Attributes: nil,
+		}
+
+		// Should not panic and should properly set the attribute
+		tp.SetStringAttribute("test.key", "test.value")
+
+		// Verify the attribute was set
+		val, found := tp.GetAttributeAsString("test.key")
+		assert.True(t, found, "Attribute should be found after SetStringAttribute")
+		assert.Equal(t, "test.value", val)
+	})
+
+	t.Run("InternalTraceChunk", func(t *testing.T) {
+		strings := NewStringTable()
+		// Create a chunk with nil Attributes
+		chunk := &InternalTraceChunk{
+			Strings:    strings,
+			Attributes: nil,
+		}
+
+		// Should not panic and should properly set the attribute
+		chunk.SetStringAttribute("chunk.key", "chunk.value")
+
+		// Verify the attribute was set
+		val, found := chunk.GetAttributeAsString("chunk.key")
+		assert.True(t, found, "Attribute should be found after SetStringAttribute")
+		assert.Equal(t, "chunk.value", val)
+	})
+}
