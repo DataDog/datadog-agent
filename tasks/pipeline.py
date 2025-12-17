@@ -325,7 +325,8 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
-    token = get_gitlab_token(ctx, repo=project_name.split('/')[1])
+    token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
+
     repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.

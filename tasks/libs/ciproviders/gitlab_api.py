@@ -66,7 +66,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
-
+    print(f"Getting Gitlab token for {url}")
     session = requests.Session()
     session.mount('https://', HTTPAdapter(max_retries=2))
     res = session.get(url, headers={'Authorization': infra_token}, timeout=30)
