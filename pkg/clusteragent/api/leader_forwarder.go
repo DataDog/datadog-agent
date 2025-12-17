@@ -87,6 +87,7 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 
 	if req.Header.Get(forwardHeader) != "" {
 		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		return
 	}
 
 	var currentProxy *httputil.ReverseProxy
