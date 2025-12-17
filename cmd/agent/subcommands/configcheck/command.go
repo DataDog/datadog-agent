@@ -7,7 +7,6 @@
 package configcheck
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -107,9 +106,6 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 		return err
 	}
 
-	var b bytes.Buffer
-	color.Output = &b
-
 	if cliParams.json || cliParams.prettyJSON {
 		checkConfigs := make([]checkConfig, len(cr.Configs))
 
@@ -125,8 +121,6 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 	} else {
 		flare.PrintConfigCheck(color.Output, *cr, cliParams.verbose)
 	}
-
-	fmt.Println(b.String())
 	return nil
 }
 
@@ -143,9 +137,6 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 	// search through the configs for a check with the same name
 	for _, configResponse := range cr.Configs {
 		if cliParams.args[0] == configResponse.Config.Name {
-			var b bytes.Buffer
-			color.Output = &b
-
 			if cliParams.json || cliParams.prettyJSON {
 				checkConfig := convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs)
 
@@ -157,8 +148,6 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 				// flare format print
 				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
 			}
-
-			fmt.Println(b.String())
 			return nil
 		}
 	}
