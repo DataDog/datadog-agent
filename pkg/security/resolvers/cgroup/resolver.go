@@ -206,8 +206,7 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 
 func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext.ContainerID, &process.CGroup, process.Pid)
-	newCGroup.ContainerContext.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
+	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext, process.CGroup, process.Pid)
 
 	// add the new CGroup to the cache
 	if process.ContainerContext.ContainerID != "" {
