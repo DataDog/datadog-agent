@@ -51,7 +51,7 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc"],
+            exclude = ["**/*.pyc", "BUILD.bazel"],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -100,8 +100,12 @@ pkg_install(
     name = "install",
     srcs = [":install_files"] + select({
         "@platforms//os:windows": [
-            "@openssl//:openssl_install_files",
+            "@openssl//:openssl_exe_file",
+            "@openssl//:dll_a",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            "@openssl//:openssl_bin_file",
+            "@openssl//:openssl_pkgconfig",
+        ],
     }),
 )
