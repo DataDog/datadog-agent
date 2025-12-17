@@ -53,6 +53,7 @@ func testCircuitBreaker(
 	require.NoError(t, err)
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
+	cfg.SnapshotsUploaderURL = testServer.getSnapshotsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
 	cfg.CircuitBreakerConfig = actuator.CircuitBreakerConfig{
 		Interval:          10 * time.Millisecond,

@@ -79,7 +79,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "[1, 2, 3, ...]"
@@ -169,7 +170,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "[1, 2, 3, ...]"

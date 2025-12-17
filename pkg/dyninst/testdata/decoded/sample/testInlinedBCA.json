@@ -57,7 +57,8 @@
             "method": "main.testInlinedBCA"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testInlinedBCA"
