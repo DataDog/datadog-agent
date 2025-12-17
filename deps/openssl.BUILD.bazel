@@ -39,17 +39,26 @@ MACOS_LIBCRYPTO = "libcrypto.dylib"
 
 # Common script to fix OPENSSLDIR, ENGINESDIR, MODULESDIR and other paths in binaries
 # Expects $LIBS to be set by caller to the list of libraries to patch
+# OpenSSL stores paths in two forms:
+#   1. Display strings for `openssl version -a` ending with " (e.g., MODULESDIR: "/path")
+#   2. Internal runtime paths without quotes used for actually loading modules
+# Both forms must be replaced for FIPS to work correctly.
 # In case of OPENSSLDIR there is no additional slash between BUILD_TMPDIR and INSTALL_PREFIX,
 # but there is for ENGINESDIR and MODULESDIR.
 # TARGET value is a 200 symbols long placeholder that is easy to find and replace after the build.
 # It should be long enough to support most paths, but leave room for suffixes like /ssl/private.
 FIX_OPENSSL_PATHS = """
     # Fix OpenSSL hardcoded paths in binaries
-    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
     TARGET="##########################################################################################PLACEHOLDERDIRECTORY##########################################################################################"
 
-    # OPENSSLDIR: /ssl"
+    # === OPENSSLDIR paths (no extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
+    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
+
+    # OPENSSLDIR display string: /ssl"
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # OPENSSLDIR internal path (bare, no quote) - used for actual config lookup
+    OLD_PATH="$${SANDBOX}/ssl" NEW_PATH="$${TARGET}/ssl" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
     # SSL private dir: /ssl/private
     OLD_PATH="$${SANDBOX}/ssl/private" NEW_PATH="$${TARGET}/ssl/private" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
@@ -60,12 +69,20 @@ FIX_OPENSSL_PATHS = """
     # SSL cert.pem: /ssl/cert.pem
     OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
+    # === ENGINESDIR and MODULESDIR paths (extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
     SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
-    # ENGINESDIR: /lib/engines-3"
+
+    # ENGINESDIR display string: /lib/engines-3"
     OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
-    # MODULESDIR: /lib/ossl-modules"
+    # ENGINESDIR internal path (bare, no quote) - used for actual engine loading
+    OLD_PATH="$${SANDBOX}/lib/engines-3" NEW_PATH="$${TARGET}/lib/engines-3" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # MODULESDIR display string: /lib/ossl-modules"
     OLD_PATH="$${SANDBOX}/lib/ossl-modules\\"" NEW_PATH="$${TARGET}/lib/ossl-modules\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # MODULESDIR internal path (bare, no quote) - used for actual provider loading (CRITICAL for FIPS!)
+    OLD_PATH="$${SANDBOX}/lib/ossl-modules" NEW_PATH="$${TARGET}/lib/ossl-modules" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 """
 
 configure_make(
