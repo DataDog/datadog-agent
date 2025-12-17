@@ -678,85 +678,126 @@ func TestDecryptConfig(t *testing.T) {
 }
 
 func TestRefreshConfig(t *testing.T) {
-	deps := createDeps(t)
-	msch := scheduler.NewControllerAndStart()
-	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
-	msch.Register("mock", sch, false)
-
-	tpl := integration.Config{
-		Name:          "redisdb",
-		ADIdentifiers: []string{"redis"},
-		Instances:     []integration.Data{integration.Data("foo: ENC[bar]")},
-	}
-	mockResolver := MockSecretResolver{t: t, scenarios: []mockSecretScenario{
+	tests := []struct {
+		name               string
+		callbackOrigin     func(tpl integration.Config) string
+		oldValue           string
+		newValue           string
+		expectedFinalValue string
+	}{
 		{
-			expectedData:   []byte{},
-			expectedOrigin: tpl.Digest(),
-			returnedData:   []byte{},
-			returnedError:  nil,
+			name:               "secret rotation with active config origin",
+			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			oldValue:           "bar_resolved",
+			newValue:           "new_resolved_value",
+			expectedFinalValue: "foo: new_resolved_value",
 		},
 		{
-			expectedData:   []byte("foo: ENC[bar]\n"),
-			expectedOrigin: tpl.Digest(),
-			returnedData:   []byte("foo: bar_resolved"),
-			returnedError:  nil,
+			name:               "callback with non-active config origin",
+			callbackOrigin:     func(_ integration.Config) string { return "non-existent-origin" },
+			oldValue:           "bar_resolved",
+			newValue:           "new_resolved_value",
+			expectedFinalValue: "foo: bar_resolved",
 		},
-	}}
-
-	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
-	ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
-
-	changes := ac.processNewConfig(tpl)
-	ac.applyChanges(changes)
-
-	resolved := integration.Config{
-		Name:          "redisdb",
-		ADIdentifiers: []string{"redis"},
-		InitConfig:    integration.Data{},
-		Instances:     []integration.Data{integration.Data("foo: bar_resolved")},
-		MetricConfig:  integration.Data{},
-		LogsConfig:    integration.Data{},
-		ServiceID:     "abcd",
+		{
+			name:               "initial resolution with empty old value",
+			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			oldValue:           "",
+			newValue:           "new_resolved_value",
+			expectedFinalValue: "foo: bar_resolved",
+		},
+		{
+			name:               "callback with oldValue as unresolved secret",
+			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			oldValue:           "ENC[foo]",
+			newValue:           "",
+			expectedFinalValue: "foo: bar_resolved",
+		},
 	}
 
-	require.Eventually(t, func() bool {
-		_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
-		return sch.scheduledSize() == 1 && foundScheduledConfig
-	}, 5*time.Second, 10*time.Millisecond)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := createDeps(t)
+			msch := scheduler.NewControllerAndStart()
+			sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
+			msch.Register("mock", sch, false)
 
-	// rotate secret
-	mockResolver.scenarios[1] = mockSecretScenario{
-		expectedData:   []byte("foo: ENC[bar]\n"),
-		expectedOrigin: tpl.Digest(),
-		returnedData:   []byte("foo: new_resolved_value"),
-		returnedError:  nil,
+			tpl := integration.Config{
+				Name:          "redisdb",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("foo: ENC[bar]")},
+			}
+			mockResolver := MockSecretResolver{t: t, scenarios: []mockSecretScenario{
+				{
+					expectedData:   []byte{},
+					expectedOrigin: tpl.Digest(),
+					returnedData:   []byte{},
+					returnedError:  nil,
+				},
+				{
+					expectedData:   []byte("foo: ENC[bar]\n"),
+					expectedOrigin: tpl.Digest(),
+					returnedData:   []byte("foo: bar_resolved"),
+					returnedError:  nil,
+				},
+			}}
+
+			ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
+			ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
+
+			changes := ac.processNewConfig(tpl)
+			ac.applyChanges(changes)
+
+			resolved := integration.Config{
+				Name:          "redisdb",
+				ADIdentifiers: []string{"redis"},
+				InitConfig:    integration.Data{},
+				Instances:     []integration.Data{integration.Data("foo: bar_resolved")},
+				MetricConfig:  integration.Data{},
+				LogsConfig:    integration.Data{},
+				ServiceID:     "abcd",
+			}
+
+			require.Eventually(t, func() bool {
+				_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
+				return sch.scheduledSize() == 1 && foundScheduledConfig
+			}, 5*time.Second, 10*time.Millisecond)
+
+			// rotate secret
+			mockResolver.scenarios[1] = mockSecretScenario{
+				expectedData:   []byte("foo: ENC[bar]\n"),
+				expectedOrigin: tpl.Digest(),
+				returnedData:   []byte("foo: " + tt.newValue),
+				returnedError:  nil,
+			}
+
+			// send subscribers 'secret refreshed' notifications which should
+			// queue up autoconfig.refreshConfig()
+			mockResolver.triggerCallback(
+				"check",
+				tt.callbackOrigin(tpl),
+				[]string{},
+				tt.oldValue,
+				tt.newValue,
+			)
+
+			resolved = integration.Config{
+				Name:          "redisdb",
+				ADIdentifiers: []string{"redis"},
+				InitConfig:    integration.Data{},
+				Instances:     []integration.Data{integration.Data(tt.expectedFinalValue)},
+				MetricConfig:  integration.Data{},
+				LogsConfig:    integration.Data{},
+				ServiceID:     "abcd",
+			}
+
+			// newly resolved configuration is eventually scheduled (or remains unchanged if shouldRefresh is false).
+			require.Eventually(t, func() bool {
+				_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
+				return sch.scheduledSize() == 1 && foundScheduledConfig
+			}, 5*time.Second, 10*time.Millisecond)
+		})
 	}
-
-	// send subscribers 'secret refreshed' notifications which should
-	// queue up autoconfig.refreshConfig()
-	mockResolver.triggerCallback(
-		"check",
-		tpl.Digest(),
-		[]string{},
-		"bar_resolved",
-		"new_resolved_value",
-	)
-
-	resolved = integration.Config{
-		Name:          "redisdb",
-		ADIdentifiers: []string{"redis"},
-		InitConfig:    integration.Data{},
-		Instances:     []integration.Data{integration.Data("foo: new_resolved_value")},
-		MetricConfig:  integration.Data{},
-		LogsConfig:    integration.Data{},
-		ServiceID:     "abcd",
-	}
-
-	// newly resolved configuration is eventually scheduled.
-	require.Eventually(t, func() bool {
-		_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
-		return sch.scheduledSize() == 1 && foundScheduledConfig
-	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
