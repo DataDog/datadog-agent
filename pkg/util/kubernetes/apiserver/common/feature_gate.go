@@ -8,15 +8,13 @@
 package common
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"k8s.io/client-go/discovery"
 )
@@ -44,36 +42,28 @@ type FeatureGate struct {
 func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, error) {
 	gates := make(map[string]FeatureGate)
 
-	// Regex to parse: kubernetes_feature_enabled{name="SomeFeature",stage="BETA"} 1
-	pattern := regexp.MustCompile(`kubernetes_feature_enabled\{name="([^"]+)",stage="([^"]*)"\}\s+(\d+)`)
+	metrics, err := prometheus.ParseMetrics(metricsData)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing feature gate metrics: %w", err)
+	}
 
-	scanner := bufio.NewScanner(strings.NewReader(string(metricsData)))
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Skip comments and non-matching lines
-		if strings.HasPrefix(line, "#") || !strings.Contains(line, "kubernetes_feature_enabled") {
+	for _, metric := range metrics {
+		if metric.Name != "kubernetes_feature_enabled" {
 			continue
 		}
 
-		matches := pattern.FindStringSubmatch(line)
-		if len(matches) == 4 {
-			name := matches[1]
-			stage := matches[2]
-			enabled := matches[3] == "1"
-
-			gates[name] = FeatureGate{
-				Name:    name,
-				Stage:   stage,
+		for _, sample := range metric.Samples {
+			name := sample.Metric["name"]
+			stage := sample.Metric["stage"]
+			// sample values are always either (0 or 1)
+			enabled := sample.Value == 1
+			gates[string(name)] = FeatureGate{
+				Name:    string(name),
+				Stage:   string(stage),
 				Enabled: enabled,
 			}
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error scanning metrics: %v", err)
-	}
-
 	return gates, nil
 }
 
