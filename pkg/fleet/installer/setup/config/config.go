@@ -253,7 +253,7 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
-	LogsCaptureEnabled            *bool   `yaml:"DD_LOGS_CAPTURE_ENABLED,omitempty"`
+	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install

@@ -49,18 +49,18 @@ const (
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
-	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
-	envRuntimeMetricsEnabled     = "DD_RUNTIME_METRICS_ENABLED"
-	envLogsInjection             = "DD_LOGS_INJECTION"
-	envAPMTracingEnabled         = "DD_APM_TRACING_ENABLED"
-	envProfilingEnabled          = "DD_PROFILING_ENABLED"
-	envDataStreamsEnabled        = "DD_DATA_STREAMS_ENABLED"
-	envAppsecEnabled             = "DD_APPSEC_ENABLED"
-	envIastEnabled               = "DD_IAST_ENABLED"
-	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
-	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
-	envInfrastructureMode        = "DD_INFRASTRUCTURE_MODE"
-	envTracerLogsCaptureEnabled  = "DD_LOGS_CAPTURE_ENABLED"
+	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRuntimeMetricsEnabled       = "DD_RUNTIME_METRICS_ENABLED"
+	envLogsInjection               = "DD_LOGS_INJECTION"
+	envAPMTracingEnabled           = "DD_APM_TRACING_ENABLED"
+	envProfilingEnabled            = "DD_PROFILING_ENABLED"
+	envDataStreamsEnabled          = "DD_DATA_STREAMS_ENABLED"
+	envAppsecEnabled               = "DD_APPSEC_ENABLED"
+	envIastEnabled                 = "DD_IAST_ENABLED"
+	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
+	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
+	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
+	envTracerLogsCollectionEnabled = "DD_LOGS_COLLECTION_ENABLED"
 )
 
 // Windows MSI options
@@ -141,16 +141,16 @@ type InstallScriptEnv struct {
 	APMInstrumentationEnabled string
 
 	// APM features toggles
-	RuntimeMetricsEnabled    *bool
-	LogsInjection            *bool
-	APMTracingEnabled        *bool
-	ProfilingEnabled         string
-	DataStreamsEnabled       *bool
-	AppsecEnabled            *bool
-	IastEnabled              *bool
-	DataJobsEnabled          *bool
-	AppsecScaEnabled         *bool
-	TracerLogsCaptureEnabled *bool
+	RuntimeMetricsEnabled       *bool
+	LogsInjection               *bool
+	APMTracingEnabled           *bool
+	ProfilingEnabled            string
+	DataStreamsEnabled          *bool
+	AppsecEnabled               *bool
+	IastEnabled                 *bool
+	DataJobsEnabled             *bool
+	AppsecScaEnabled            *bool
+	TracerLogsCollectionEnabled *bool
 }
 
 // Env contains the configuration for the installer.
@@ -261,17 +261,17 @@ func FromEnv() *Env {
 		},
 
 		InstallScript: InstallScriptEnv{
-			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
-			RuntimeMetricsEnabled:     getBoolEnv(envRuntimeMetricsEnabled),
-			LogsInjection:             getBoolEnv(envLogsInjection),
-			APMTracingEnabled:         getBoolEnv(envAPMTracingEnabled),
-			ProfilingEnabled:          getEnvOrDefault(envProfilingEnabled, ""),
-			DataStreamsEnabled:        getBoolEnv(envDataStreamsEnabled),
-			AppsecEnabled:             getBoolEnv(envAppsecEnabled),
-			IastEnabled:               getBoolEnv(envIastEnabled),
-			DataJobsEnabled:           getBoolEnv(envDataJobsEnabled),
-			AppsecScaEnabled:          getBoolEnv(envAppsecScaEnabled),
-			TracerLogsCaptureEnabled:  getBoolEnv(envTracerLogsCaptureEnabled),
+			APMInstrumentationEnabled:   getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			RuntimeMetricsEnabled:       getBoolEnv(envRuntimeMetricsEnabled),
+			LogsInjection:               getBoolEnv(envLogsInjection),
+			APMTracingEnabled:           getBoolEnv(envAPMTracingEnabled),
+			ProfilingEnabled:            getEnvOrDefault(envProfilingEnabled, ""),
+			DataStreamsEnabled:          getBoolEnv(envDataStreamsEnabled),
+			AppsecEnabled:               getBoolEnv(envAppsecEnabled),
+			IastEnabled:                 getBoolEnv(envIastEnabled),
+			DataJobsEnabled:             getBoolEnv(envDataJobsEnabled),
+			AppsecScaEnabled:            getBoolEnv(envAppsecScaEnabled),
+			TracerLogsCollectionEnabled: getBoolEnv(envTracerLogsCollectionEnabled),
 		},
 
 		Tags: append(
