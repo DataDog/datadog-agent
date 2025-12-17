@@ -17,6 +17,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
+func TestCollect(t *testing.T) {
+	netInfo, err := CollectInfo()
+	require.NoError(t, err)
+
+	assertIPv4(t, netInfo.IPAddress)
+	assertValueIPv6(t, netInfo.IPAddressV6)
+	assertMac(t, netInfo.MacAddress)
+
+	require.NotEmpty(t, netInfo.Interfaces)
+	for _, iface := range netInfo.Interfaces {
+		assert.NotEmpty(t, iface.Name)
+
+		assertValueCIDR(t, iface.IPv4Network)
+		assertValueCIDR(t, iface.IPv6Network)
+		assertValueMac(t, iface.MacAddress)
+
+		for _, addr := range iface.IPv4 {
+			assertIPv4(t, addr)
+		}
+		for _, addr := range iface.IPv6 {
+			assertIPv6(t, addr)
+		}
+	}
+}
+
 // mockNetworkInterface implements networkInterface for testing
 type mockNetworkInterface struct {
 	name         string
@@ -1196,4 +1221,63 @@ func TestRealNetworkInterfaceMethods(t *testing.T) {
 	// Addrs() may or may not return an error depending on the system
 	// We're just testing that the method can be called
 	_, _ = realIface.Addrs()
+}
+
+// Helpers
+
+func assertIPv4(t *testing.T, addr string) {
+	t.Helper()
+	res := net.ParseIP(addr)
+	if assert.NotNil(t, res, "not a valid ipv4 address: %s", addr) {
+		assert.NotNil(t, res.To4())
+	}
+}
+
+func assertIPv6(t *testing.T, addr string) {
+	t.Helper()
+	res := net.ParseIP(addr)
+	if assert.NotNil(t, res, "not a valid ipv6 address: %s", addr) {
+		assert.NotNil(t, res.To16())
+	}
+}
+
+func assertValueIPv6(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
+	if ipv6, err := addr.Value(); err == nil {
+		assertIPv6(t, ipv6)
+	} else {
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	}
+}
+
+func assertMac(t *testing.T, addr string) {
+	t.Helper()
+	if addr != "" {
+		_, err := net.ParseMAC(addr)
+		assert.NoError(t, err)
+	}
+}
+
+func assertValueMac(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
+	if mac, err := addr.Value(); err == nil {
+		assertMac(t, mac)
+	} else {
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	}
+}
+
+func assertCIDR(t *testing.T, addr string) {
+	t.Helper()
+	_, _, err := net.ParseCIDR(addr)
+	assert.NoError(t, err)
+}
+
+func assertValueCIDR(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
+	if addr, err := addr.Value(); err == nil {
+		assertCIDR(t, addr)
+	} else {
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	}
 }
