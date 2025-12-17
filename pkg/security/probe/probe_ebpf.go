@@ -1046,6 +1046,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 
 func (p *EBPFProbe) getPoolEvent() *model.Event {
 	event := p.eventPool.Get()
+	relatedEventZeroer(event)
 	event.FieldHandlers = p.fieldHandlers
 	return event
 }
@@ -1053,7 +1054,6 @@ func (p *EBPFProbe) getPoolEvent() *model.Event {
 var relatedEventZeroer = model.NewEventZeroer()
 
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	relatedEventZeroer(event)
 	p.eventPool.Put(event)
 }
 

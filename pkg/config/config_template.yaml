@@ -537,6 +537,13 @@ api_key:
 #
 # azure_hostname_style: "os"
 
+## @param azure_metadata_api_version - string - optional - default: "2021-02-01"
+## @env DD_AZURE_METADATA_API_VERSION - string - optional - default: "2021-02-01"
+## The API version to use when querying the Azure Instance Metadata Service (IMDS).
+## Change this if you need to use a different API version for compatibility reasons.
+#
+# azure_metadata_api_version: "2021-02-01"
+
 ## @param scrubber - custom object - optional
 ## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #

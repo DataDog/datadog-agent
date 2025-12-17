@@ -292,3 +292,17 @@ http_archive(
     strip_prefix = "libxslt-1.1.43",
     url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
 )
+
+http_archive(
+    name = "dbus",
+    files = {
+        # TODO(agent-build): ensure all the macros defined in these headers are actually needed
+        # Once cleaned, replace install dir occurences with a placeholder for replacement.
+        "config-linux-x86_64.h": "//deps:dbus/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:dbus/config-linux-arm64.h",
+        "BUILD.bazel": "//deps:dbus/dbus.BUILD.bazel",
+    },
+    sha256 = "0ba2a1a4b16afe7bceb2c07e9ce99a8c2c3508e5dec290dbb643384bd6beb7e2",
+    url = "https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz",
+    strip_prefix = "dbus-1.16.2",
+)
