@@ -882,7 +882,6 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	if tagErr != nil {
 		log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
 	} else if len(namespaceTags) > 0 {
-		log.Debugf("obtained tags for namespace %q from tagger: %v", resourceNamespace, namespaceTags)
 		tagList = append(tagList, namespaceTags...)
 	}
 
