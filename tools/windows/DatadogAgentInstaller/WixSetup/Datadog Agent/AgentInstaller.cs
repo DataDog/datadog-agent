@@ -145,6 +145,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_OTELCOLLECTOR_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -659,6 +663,7 @@ namespace WixSetup.Datadog_Agent
             if (_agentFlavor.FlavorName != Constants.FipsFlavor)
             {
                 targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.DdCompilePolicy));
             }
 
             return targetBinFolder;
