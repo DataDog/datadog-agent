@@ -3,19 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin && !windows
+//go:build !windows
 
 package battery
 
 import (
-	"errors"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-func hasBatteryAvailable() (bool, error) {
-	return false, errors.New("battery info only supported on macOS and Windows")
+// Configure handles initial configuration/initialization of the check
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
+		return err
+	}
+
+	return check.ErrSkipCheckInstance
 }
 
-// getBatteryInfo returns no battery on unsupported platforms
-func getBatteryInfo() (*batteryInfo, error) {
-	return nil, errors.New("battery info only supported on macOS and Windows")
+// Run executes the check
+func (c *Check) Run() error {
+	return nil
 }
