@@ -11,8 +11,11 @@ package converters
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
+
+type yamlNode = map[string]any
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
 func NewFactoryWithoutAgent() confmap.ConverterFactory {
@@ -42,6 +45,10 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 
+	if mergeMap(confStringMap, agentModeRequiredConfig()) {
+		log.Info("Applied required infraattributes configuration")
+	}
+
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
@@ -56,6 +63,10 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	}
 	if err := removeHpFlareExtension(confStringMap); err != nil {
 		return err
+	}
+
+	if mergeMap(confStringMap, standaloneModeRequiredConfig()) {
+		log.Info("Applied required resourcedetection configuration")
 	}
 
 	*conf = *confmap.NewFromStringMap(confStringMap)
