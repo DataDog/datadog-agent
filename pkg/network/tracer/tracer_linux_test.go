@@ -2274,6 +2274,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
+// JMW how to run this test?
 func TestEbpfConntrackerFallback(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 

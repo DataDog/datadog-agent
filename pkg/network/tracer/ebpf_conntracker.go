@@ -92,7 +92,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	var m *manager.Manager
 	var err error
 	if cfg.EnableCORE {
-		m, err = ebpfConntrackerCORECreator(cfg)
+		m, err = ebpfConntrackerCORECreator(cfg) // JMW1
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 				log.Warnf("error loading CO-RE conntracker, falling back to runtime compiled: %s", err)
@@ -106,7 +106,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	if m == nil && allowRC {
-		m, err = ebpfConntrackerRCCreator(cfg)
+		m, err = ebpfConntrackerRCCreator(cfg) // JMW2
 		if err != nil {
 			if !cfg.AllowPrebuiltFallback {
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
@@ -118,7 +118,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 
 	var isPrebuilt bool
 	if m == nil {
-		m, err = ebpfConntrackerPrebuiltCreator(cfg)
+		m, err = ebpfConntrackerPrebuiltCreator(cfg) // JMW3
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
@@ -126,7 +126,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		isPrebuilt = true
 	}
 
-	if isPrebuilt && prebuilt.IsDeprecated() {
+	if isPrebuilt && prebuilt.IsDeprecated() { // JMW what's this
 		log.Warn("using deprecated prebuilt conntracker")
 	}
 
