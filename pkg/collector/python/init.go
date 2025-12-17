@@ -523,6 +523,7 @@ func enableFIPS(embeddedPath string) error {
 		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
 		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
 	}
+
 	for envVar, pathParts := range envVars {
 		if v := os.Getenv(envVar); v != "" {
 			continue
