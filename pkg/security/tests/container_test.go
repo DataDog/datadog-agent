@@ -36,6 +36,10 @@ func TestContainerCreatedAt(t *testing.T) {
 		return kv.IsRH7Kernel()
 	})
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
@@ -108,6 +112,10 @@ func TestContainerVariables(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

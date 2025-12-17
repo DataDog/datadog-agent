@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -204,6 +205,10 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -426,6 +431,10 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
@@ -476,6 +485,10 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_lesser",
@@ -507,6 +520,10 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -540,6 +557,10 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_4",
@@ -571,6 +592,10 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -936,6 +961,10 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
 		return docker.Info["Storage Driver"] != "overlay2"
