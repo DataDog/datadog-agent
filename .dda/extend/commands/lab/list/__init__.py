@@ -8,7 +8,6 @@ from dda.cli.base import dynamic_command, pass_app
 if TYPE_CHECKING:
     from dda.cli.application import Application
 
-    from lab import LabEnvironment
 
 @dynamic_command(short_help="List all lab active environments")
 @click.option("--type", "-t", "env_type", default=None, help="Filter by environment type (e.g., kind, gke, eks)")

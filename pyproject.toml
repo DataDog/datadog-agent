@@ -52,6 +52,8 @@ quote-style = "preserve"
 
 [tool.mypy]
 python_version = "3.12"
+# Make mypy aware of dda extension modules (e.g. `lab`).
+mypy_path = [".dda/extend/pythonpath"]
 # Follows imports and type-check imported modules.
 follow_imports = "normal"
 # Ignore errors about imported packages that don't provide type hints.
