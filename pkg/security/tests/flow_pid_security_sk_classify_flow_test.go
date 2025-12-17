@@ -14,7 +14,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -5855,7 +5854,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 				if err != nil {
 					return err.Error()
 				}
-				return fmt.Sprintf(strings.ReplaceAll(string(data), "\x00", " "))
+				return strings.ReplaceAll(string(data), "\x00", " ")
 			}
 
 			if len(discoveredPIDs) != 2 {
@@ -5863,7 +5862,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 				for _, pid := range discoveredPIDs {
 					fmt.Println(getCmdline(strconv.FormatUint(uint64(pid), 10)))
 				}
-				
+
 			} else {
 				if discoveredPIDs[0] == tcpVal.Pid && discoveredPIDs[1] == udpVal.Pid {
 					// First try: associate discoveredPIDs[0] with TCP and discoveredPIDs[1] with UDP.
