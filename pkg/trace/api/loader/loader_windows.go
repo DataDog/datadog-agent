@@ -79,7 +79,7 @@ func GetListenerFromFD(handleStr string, name string) (net.Listener, error) {
 //
 // Unlike Unix, Go's net.FileConn doesn't work with Windows socket handles,
 // so we create a custom connection that uses raw Winsock API calls.
-func GetConnFromFD(handleStr string, name string) (net.Conn, error) {
+func GetConnFromFD(handleStr string, _ string) (net.Conn, error) {
 	handle, err := strconv.ParseUint(handleStr, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse socket handle %v: %v", handleStr, err)
