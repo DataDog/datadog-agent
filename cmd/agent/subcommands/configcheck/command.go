@@ -28,8 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const unknownProvider = "Unknown provider"
-const unknownConfigSource = "Unknown configuration source"
+const (
+	unknownProvider     = "Unknown provider"
+	unknownConfigSource = "Unknown configuration source"
+)
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
@@ -90,70 +92,39 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
-	// no specific check was passed, print all check configs
-	if len(cliParams.args) < 1 {
-		return fullConfigCmd(cliParams, log, client)
-	}
+func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 
-	// print only the config of the specified check
-	return singleCheckCmd(cliParams, log, client)
-}
-
-func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	cr, err := getConfigCheckResponse(client)
 	if err != nil {
 		return err
 	}
 
-	if cliParams.json || cliParams.prettyJSON {
-		checkConfigs := make([]checkConfig, len(cr.Configs))
-
-		// gather and filter every check config
-		for i, config := range cr.Configs {
-			checkConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
-		}
-
-		if err := printJSON(color.Output, checkConfigs, cliParams.prettyJSON); err != nil {
-			return err
-		}
-
-	} else {
-		flare.PrintConfigCheck(color.Output, *cr, cliParams.verbose)
-	}
-	return nil
-}
-
-func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+	// filter configs if a check name has been passed
 	if len(cliParams.args) > 1 {
 		return errors.New("only one check must be specified")
 	}
-
-	cr, err := getConfigCheckResponse(client)
-	if err != nil {
-		return err
-	}
-
-	// search through the configs for a check with the same name
-	for _, configResponse := range cr.Configs {
-		if cliParams.args[0] == configResponse.Config.Name {
-			if cliParams.json || cliParams.prettyJSON {
-				checkConfig := convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs)
-
-				if err := printJSON(color.Output, checkConfig, cliParams.prettyJSON); err != nil {
-					return err
-				}
-
-			} else {
-				// flare format print
-				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
-			}
-			return nil
+	if len(cliParams.args) == 1 {
+		if err := filterCheckConfigsByName(cr, cliParams.args[0]); err != nil {
+			return err
 		}
 	}
 
-	// return an error if the name wasn't found in the checks list
-	return fmt.Errorf("no check named %q was found", cliParams.args[0])
+	if cliParams.json || cliParams.prettyJSON {
+		// JSON formatted output
+		checkJSONConfigs := make([]checkConfig, len(cr.Configs))
+		for i, config := range cr.Configs {
+			checkJSONConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
+		}
+
+		if err := printJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON); err != nil {
+			return err
+		}
+	} else {
+		// flare-style formatted output
+		flare.PrintConfigCheck(color.Output, *cr, cliParams.verbose)
+	}
+
+	return nil
 }
 
 func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResponse, error) {
@@ -209,6 +180,16 @@ func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) checkC
 	jsonConfig.Logs = string(c.LogsConfig)
 
 	return jsonConfig
+}
+
+func filterCheckConfigsByName(cr *integration.ConfigCheckResponse, name string) error {
+	for _, config := range cr.Configs {
+		if config.Config.Name == name {
+			cr.Configs = []integration.ConfigResponse{config}
+			return nil
+		}
+	}
+	return fmt.Errorf("no check named %q was found", name)
 }
 
 func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
