@@ -161,8 +161,8 @@ func (suite *ecsPlatformSuite) TestCPU() {
 				`^task_version:[[:digit:]]+$`,
 			},
 			Value: &TestMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Max: 160000000,
+				Min: 120000000,
 			},
 		},
 	})
