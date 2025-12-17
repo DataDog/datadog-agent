@@ -7,6 +7,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,7 +57,7 @@ type Operations struct {
 }
 
 // Apply applies the operations to the root.
-func (o *Operations) Apply(rootPath string) error {
+func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
 		return err
@@ -64,7 +65,7 @@ func (o *Operations) Apply(rootPath string) error {
 	defer root.Close()
 	for _, operation := range o.FileOperations {
 		// TODO (go.1.25): we won't need rootPath in 1.25
-		err := operation.apply(root, rootPath)
+		err := operation.apply(ctx, root, rootPath)
 		if err != nil {
 			return err
 		}
@@ -80,8 +81,9 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(root *os.Root, rootPath string) error {
-	if !configNameAllowed(a.FilePath) {
+func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath string) error {
+	spec := getConfigFileSpec(a.FilePath)
+	if spec == nil {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
@@ -149,9 +151,19 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 		if err != nil {
 			return err
 		}
-		return err
+		// Set proper ownership and permissions for the file
+		fullPath := filepath.Join(rootPath, path)
+		if err := setFileOwnershipAndPermissions(ctx, fullPath, spec); err != nil {
+			return err
+		}
+		return nil
 	case FileOperationCopy:
 		// TODO(go.1.25): os.Root.MkdirAll and os.Root.WriteFile are only available starting go 1.25
+		destSpec := getConfigFileSpec(a.DestinationPath)
+		if destSpec == nil {
+			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
+		}
+
 		err := ensureDir(root, destinationPath)
 		if err != nil {
 			return err
@@ -179,9 +191,20 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 		if err != nil {
 			return err
 		}
+
+		// Set proper ownership and permissions for the destination file
+		fullDestPath := filepath.Join(rootPath, destinationPath)
+		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
+			return err
+		}
 		return nil
 	case FileOperationMove:
 		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
+		destSpec := getConfigFileSpec(a.DestinationPath)
+		if destSpec == nil {
+			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
+		}
+
 		err := ensureDir(root, destinationPath)
 		if err != nil {
 			return err
@@ -212,6 +235,12 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 
 		err = root.Remove(path)
 		if err != nil {
+			return err
+		}
+
+		// Set proper ownership and permissions for the destination file
+		fullDestPath := filepath.Join(rootPath, destinationPath)
+		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
 			return err
 		}
 		return nil
@@ -275,39 +304,70 @@ func ensureDir(root *os.Root, filePath string) error {
 	return nil
 }
 
+// configFileSpec specifies a config file pattern, its ownership, and permissions.
+type configFileSpec struct {
+	pattern string
+	owner   string
+	group   string
+	mode    os.FileMode
+}
+
 var (
-	allowedConfigFiles = []string{
-		"/datadog.yaml",
-		"/otel-config.yaml",
-		"/security-agent.yaml",
-		"/system-probe.yaml",
-		"/application_monitoring.yaml",
-		"/conf.d/*.yaml",
-		"/conf.d/*.d/*.yaml",
+	allowedConfigFiles = []configFileSpec{
+		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
+		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
 )
 
-func configNameAllowed(file string) bool {
-	// Normalize path to use forward slashes for consistent matching on all platforms
+func getConfigFileSpec(file string) *configFileSpec {
 	normalizedFile := filepath.ToSlash(file)
 
-	// Matching everything under the legacy /managed directory
+	// Fallback for legacy files under the /managed directory
 	if strings.HasPrefix(normalizedFile, "/managed") {
-		return true
+		filename := filepath.Base(normalizedFile)
+
+		for _, spec := range allowedConfigFiles {
+			// Skip patterns with nested paths (e.g., /conf.d/*.yaml)
+			if strings.Count(spec.pattern, "/") > 1 {
+				continue
+			}
+
+			// Extract just the filename from the pattern
+			patternFilename := filepath.Base(spec.pattern)
+			match, err := filepath.Match(patternFilename, filename)
+			if err != nil {
+				continue
+			}
+			if match {
+				// Return a copy with the original pattern set to the full managed path
+				return &configFileSpec{
+					pattern: normalizedFile,
+					owner:   spec.owner,
+					group:   spec.group,
+					mode:    spec.mode,
+				}
+			}
+		}
+		return &configFileSpec{pattern: normalizedFile, owner: "dd-agent", group: "dd-agent", mode: 0640}
 	}
 
-	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, normalizedFile)
+	for _, spec := range allowedConfigFiles {
+		match, err := filepath.Match(spec.pattern, normalizedFile)
 		if err != nil {
-			return false
+			continue
 		}
 		if match {
-			return true
+			return &spec
 		}
 	}
-	return false
+	return nil
 }
 
 func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
