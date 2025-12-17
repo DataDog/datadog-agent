@@ -228,7 +228,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
 	github.com/DataDog/datadog-go/v5 v5.8.1
-	github.com/DataDog/dd-trace-go/v2 v2.4.1
+	github.com/DataDog/dd-trace-go/v2 v2.6.0-dev.1.0.20251217093152-bdccc9123f7f
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
