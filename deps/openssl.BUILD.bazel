@@ -109,6 +109,11 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
+    # We should set this to make placeholder placement easier and more predictable.
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "/opt/datadog-agent/embedded",
+    }),
     env = select({
         "@platforms//os:macos": {
             # For some reason AR is set to libtool on macos
