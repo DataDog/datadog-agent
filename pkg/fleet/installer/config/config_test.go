@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -48,10 +49,12 @@ func TestOperationApply_Patch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "baz", updatedMap["foo"])
 
-	// Check file permissions
-	stat, err := os.Stat(filePath)
-	assert.NoError(t, err)
-	assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+	// Check file permissions (skip on Windows as POSIX permissions don't apply)
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+	}
 }
 
 func TestOperationApply_MergePatch(t *testing.T) {
@@ -717,7 +720,10 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check file permissions - should be world-readable (0644)
-	stat, err := os.Stat(filePath)
-	assert.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
+	// Skip on Windows as POSIX permissions don't apply
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
+	}
 }
