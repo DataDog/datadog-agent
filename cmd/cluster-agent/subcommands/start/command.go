@@ -90,13 +90,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -169,7 +168,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
@@ -264,6 +263,7 @@ func start(log log.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
 	demultiplexer demultiplexer.Component,
+	epForwarder eventplatform.Component,
 	filterStore workloadfilter.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
@@ -449,19 +449,27 @@ func start(log log.Component,
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
-	if configUtils.IsRemoteConfigEnabled(config) && isSet {
+	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
+	log.Infof("Remote Configuration: enabled=%v, service_set=%v", rcEnabled, isSet)
+	if rcEnabled && isSet {
+		log.Infof("Remote Configuration is enabled, checking which products to register...")
 		var products []string
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
+			log.Infof("Adding APMTracing product to RC")
 		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+			log.Infof("Adding Container Autoscaling products to RC")
 		}
 		if config.GetBool("autoscaling.cluster.enabled") {
 			products = append(products, state.ProductClusterAutoscalingValues)
 		}
 		if config.GetBool("kubeactions.enabled") {
-			products = append(products, string(data.ProductKubeActions))
+			// TODO: Switch to ProductKubeActions once the track is created
+			// For now, using DEBUG product for PoC/testing in staging
+			products = append(products, "DEBUG")
+			log.Infof("Adding DEBUG product to RC for kubeactions")
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
@@ -473,15 +481,20 @@ func start(log log.Component,
 
 		if len(products) > 0 {
 			var err error
+			log.Infof("Initializing Remote Configuration client with products: %v", products)
 			rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
 			if err != nil {
-				log.Errorf("Failed to start remote-configuration: %v", err)
+				log.Errorf("Failed to initialize remote-configuration client: %v", err)
 			} else {
+				log.Infof("Remote Configuration client initialized successfully, starting...")
 				rcClient.Start()
+				log.Infof("Remote Configuration client started")
 				defer func() {
 					rcClient.Close()
 				}()
 			}
+		} else {
+			log.Warnf("No Remote Configuration products to enable, rcClient will be nil")
 		}
 	}
 
@@ -561,16 +574,34 @@ func start(log log.Component,
 	}
 
 	// Kubernetes Actions Product
-	if config.GetBool("kubeactions.enabled") {
+	kubeactionsEnabled := config.GetBool("kubeactions.enabled")
+	log.Infof("kubeactions.enabled config value: %v", kubeactionsEnabled)
+	if kubeactionsEnabled {
+		log.Infof("Attempting to start Kubernetes Actions subsystem...")
 		if rcClient == nil {
+			log.Errorf("Remote Config client is nil, cannot start kubeactions")
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
+		log.Infof("Remote Config client is available, setting up kubeactions...")
 
-		namespace := config.GetString("kubeactions.persistent_store.namespace")
-		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, namespace, le.IsLeader, rcClient); err != nil {
+		// Check if Event Platform forwarder component is available
+		log.Infof("[KubeActions] Event Platform forwarder component: %p", epForwarder)
+		if epForwarder != nil {
+			if fwd, ok := epForwarder.Get(); ok {
+				log.Infof("[KubeActions] Event Platform forwarder.Get() returned OK, forwarder=%p", fwd)
+			} else {
+				log.Warnf("[KubeActions] Event Platform forwarder.Get() returned NOT OK - forwarder may be disabled")
+			}
+		} else {
+			log.Errorf("[KubeActions] Event Platform forwarder component is NIL")
+		}
+
+		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, le.IsLeader, rcClient, epForwarder); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
+	} else {
+		log.Infof("Kubernetes Actions subsystem is disabled (kubeactions.enabled=false)")
 	}
 
 	// Compliance
@@ -777,18 +808,30 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 		pkglog.Warn("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
 	}
 
-	pkglog.Debugf("Initializing remote-config client with cluster-name: '%s', cluster-id: '%s', products: %v", clusterName, clusterID, products)
+	// Get the hostname that RC will use for targeting
+	hname, err := hostname.Get(context.Background())
+	if err != nil {
+		pkglog.Warnf("Unable to get hostname for RC client: %v", err)
+		hname = "unknown"
+	}
+
+	pkglog.Infof("Initializing remote-config client with cluster-name: '%s', cluster-id: '%s', hostname: '%s', products: %v", clusterName, clusterID, hname, products)
+	pkglog.Infof("Remote Config will use hostname '%s' for targeting (use this in RC config --host flag)", hname)
+
+	// Pass rcService directly as the ConfigFetcher - it implements ClientGetConfigs
+	// The client will poll the local RC service, which in turn polls the Datadog backend
+	// Products can be passed here, but they're also auto-registered when we call SubscribeIgnoreExpiration
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
 		rcclient.WithProducts(products...),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
 
+	pkglog.Infof("Remote Config client created successfully, will poll RC service every 5 seconds")
 	return rcClient, nil
 }
 

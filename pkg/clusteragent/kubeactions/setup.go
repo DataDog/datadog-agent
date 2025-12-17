@@ -9,17 +9,16 @@ package kubeactions
 
 import (
 	"context"
-	"fmt"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/client-go/kubernetes"
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
-// If namespace is empty, uses "default" namespace for persistent storage
-func Setup(ctx context.Context, clientset kubernetes.Interface, namespace string, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
+func Setup(ctx context.Context, clientset kubernetes.Interface, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
 	log.Infof("Setting up Kubernetes actions subsystem")
 
 	// Create the executor registry
@@ -28,17 +27,23 @@ func Setup(ctx context.Context, clientset kubernetes.Interface, namespace string
 	// Register all action executors
 	registerExecutors(registry, clientset)
 
-	// Create persistent action store
-	if namespace == "" {
-		namespace = ConfigMapNamespace
-	}
-	store, err := NewPersistentActionStore(ctx, clientset, namespace)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create persistent action store: %w", err)
+	// Create in-memory action store with TTL-based expiration
+	store := NewActionStore(ctx)
+
+	// Get the event platform forwarder if available
+	log.Infof("[KubeActions] Attempting to get Event Platform forwarder from component...")
+	var epForwarder eventplatform.Forwarder
+	if forwarder, ok := epForwarderComp.Get(); ok {
+		epForwarder = forwarder
+		log.Infof("[KubeActions] SUCCESS: Event Platform forwarder available for kubeactions result reporting (forwarder=%p)", epForwarder)
+	} else {
+		log.Errorf("[KubeActions] CRITICAL: Event Platform forwarder not available, result reporting will be disabled")
 	}
 
-	// Create the processor with persistent store
-	processor := NewActionProcessor(ctx, registry, store)
+	// Create the processor with in-memory store and event platform forwarder
+	log.Infof("[KubeActions] Creating ActionProcessor with epForwarder=%p", epForwarder)
+	processor := NewActionProcessor(ctx, registry, store, epForwarder)
+	log.Infof("[KubeActions] ActionProcessor created successfully")
 
 	// Create and return the config retriever
 	return NewConfigRetriever(ctx, processor, isLeader, rcClient)
