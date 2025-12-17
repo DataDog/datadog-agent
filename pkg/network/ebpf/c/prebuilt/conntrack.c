@@ -14,6 +14,25 @@
 #include "ipv6.h"
 #include "pid_tgid.h"
 
+#ifdef JMWOLD
+SEC("kprobe/__nf_conntrack_hash_insert")
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
+
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+    RETURN_IF_NOT_NAT(&orig, &reply);
+
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
+    increment_telemetry_registers_count();
+
+    return 0;
+}
+#endif
+
 // JMW these need to have the same flag checks as runtime
 // Third probe: Track confirmed NAT connections (entry)
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
