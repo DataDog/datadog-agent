@@ -614,6 +614,11 @@ new-e2e-discovery:
 
 new-e2e-process-ecs:
   extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
@@ -642,8 +647,7 @@ new-e2e-process:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator-ecs:
-  extends:
-    - .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.manual]
@@ -655,7 +659,7 @@ new-e2e-orchestrator-ecs:
   timeout: 55m
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
