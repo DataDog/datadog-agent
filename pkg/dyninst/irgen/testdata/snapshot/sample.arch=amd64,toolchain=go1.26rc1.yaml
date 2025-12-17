@@ -3781,8 +3781,13 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testStructWithMap}
       tags: ['foo:bar']
-      template: '{s}'
-      segments: [{json: {ref: s}, dsl: s}]
+      template: '{s} {@duration}'
+      segments:
+        - json: {ref: s}
+          dsl: s
+        - ' '
+        - json: {ref: '@duration'}
+          dsl: '@duration'
       captureSnapshot: true
       subprogram: {subprogram: 60}
       events:
@@ -3791,12 +3796,14 @@ Probes:
           InjectionPoints: [{PC: "0xce74a0", Frameless: true}]
           Condition: null
       probeTemplate:
-        TemplateString: '{s}'
+        TemplateString: '{s} {@duration}'
         Segments:
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
               EventExpressionIndex: 1
+            - ' '
+            - '@duration'
     - id: testSubslices
       version: 0
       type: LOG_PROBE
