@@ -233,7 +233,6 @@ require (
 )
 
 require (
-	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
@@ -243,7 +242,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.9 // indirect
-	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
+	github.com/DataDog/go-libddwaf/v4 v4.6.1 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
@@ -317,6 +316,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.11 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
+	github.com/theckman/httpforwarded v0.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
