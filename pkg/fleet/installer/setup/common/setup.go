@@ -174,6 +174,8 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 		err = s.installer.Install(ctx, url, nil)
 	}
 	if err != nil {
+		// Display error to the user
+		// else it will only be compacted in the JSON output which is hard to read
 		s.Out.WriteString(fmt.Sprintf("Error installing %s\n", name))
 		s.Out.WriteString(err.Error() + "\n")
 		return err
