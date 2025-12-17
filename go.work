@@ -7,7 +7,7 @@ godebug tlsmlkem=0
 
 use (
 	.
-  cmd/secret-backend
+	cmd/secret-backend
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
