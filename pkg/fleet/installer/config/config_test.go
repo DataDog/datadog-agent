@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -37,7 +38,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -47,6 +48,13 @@ func TestOperationApply_Patch(t *testing.T) {
 	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
 	assert.Equal(t, "baz", updatedMap["foo"])
+
+	// Check file permissions (skip on Windows as POSIX permissions don't apply)
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+	}
 }
 
 func TestOperationApply_MergePatch(t *testing.T) {
@@ -70,7 +78,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -98,7 +106,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -122,7 +130,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -149,7 +157,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -178,7 +186,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -206,7 +214,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -397,7 +405,7 @@ func TestOperationApply_Copy(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file still exists
@@ -430,7 +438,7 @@ func TestOperationApply_Move(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file no longer exists
@@ -465,7 +473,7 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -499,7 +507,7 @@ func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -530,7 +538,7 @@ func TestOperationApply_CopyMissingSource(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.Error(t, err)
 }
 
@@ -547,7 +555,7 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root, tmpDir)
+	err = op.apply(context.Background(), root, tmpDir)
 	assert.Error(t, err)
 }
 
@@ -639,4 +647,37 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	_, err = os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "application_monitoring.yaml")
+	orig := map[string]any{"enabled": true}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0600)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Patch the file
+	patchJSON := `[{"op": "replace", "path": "/enabled", "value": false}]`
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/application_monitoring.yaml",
+		Patch:             []byte(patchJSON),
+	}
+
+	err = op.apply(context.Background(), root, tmpDir)
+	assert.NoError(t, err)
+
+	// Check file permissions - should be world-readable (0644)
+	// Skip on Windows as POSIX permissions don't apply
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
+	}
 }

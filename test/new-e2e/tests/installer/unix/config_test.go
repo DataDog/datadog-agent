@@ -152,3 +152,61 @@ func (s *configSuite) TestConfigFailureHealth() {
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "info", config["log_level"])
 }
+
+func (s *configSuite) TestConfigFilePermissions() {
+	// Skip on Windows as POSIX permissions don't apply
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping test on Windows - POSIX permissions not applicable")
+	}
+
+	s.agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.agent.MustUninstall()
+
+	// Configure multiple files with different permission requirements
+	nginxConfig := `{
+		"init_config": {},
+		"instances": [
+			{
+				"nginx_status_url": "http://localhost:8080/status"
+			}
+		]
+	}`
+
+	err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+		DeploymentID: "file-permissions",
+		FileOperations: []fleetbackend.FileOperation{
+			{
+				FileOperationType: fleetbackend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			},
+			{
+				FileOperationType: fleetbackend.FileOperationMergePatch,
+				FilePath:          "/application_monitoring.yaml",
+				Patch:             []byte(`{"enabled": true}`),
+			},
+			{
+				FileOperationType: fleetbackend.FileOperationMergePatch,
+				FilePath:          "/conf.d/nginx.yaml",
+				Patch:             []byte(nginxConfig),
+			},
+		},
+	})
+	require.NoError(s.T(), err)
+
+	// Check file permissions in experiment directory
+	state := s.host.State()
+	state.AssertFileExists("/etc/datadog-agent-exp/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent-exp/application_monitoring.yaml", 0644, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent-exp/conf.d/nginx.yaml", 0640, "dd-agent", "dd-agent")
+
+	// Promote and verify permissions persist
+	err = s.backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	// Verify permissions after promotion
+	state = s.host.State()
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent/conf.d/nginx.yaml", 0640, "dd-agent", "dd-agent")
+}
