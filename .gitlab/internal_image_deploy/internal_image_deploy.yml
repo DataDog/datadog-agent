@@ -1,6 +1,6 @@
 ---
 # internal_image_deploy stage
-# Contains jobs to trigger a pipeline in the images repo to create internal Agent images.
+# Contains jobs to trigger a pipeline in  the images repo to create internal Agent images.
 
 # Base template with common configuration
 .docker_trigger_base:
