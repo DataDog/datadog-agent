@@ -45,6 +45,7 @@ func TestLocalSDKInjectionSuite(t *testing.T) {
 								Port:    8080,
 								PodLabels: map[string]string{
 									"admission.datadoghq.com/enabled": "true",
+									"tags.datadoghq.com/service":      DefaultAppName,
 								},
 								PodAnnotations: map[string]string{
 									"admission.datadoghq.com/python-lib.version": "v3.18.1",
