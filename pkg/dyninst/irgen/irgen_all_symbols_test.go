@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -104,12 +105,23 @@ func testAllProbes(t *testing.T, binPath string) {
 	var probes []ir.ProbeDefinition
 	symbols, err := elf.Symbols()
 	require.NoError(t, err)
+
 	for i, s := range symbols {
-		// These automatically generated symbols cause problems.
-		if strings.HasPrefix(s.Name, "type:.") {
+		if int(s.Section) >= len(elf.Sections) ||
+			elf.Sections[s.Section].Name != ".text" {
 			continue
 		}
-		if strings.HasPrefix(s.Name, "runtime.vdso") {
+		// These automatically generated symbols cause problems.
+		if s.Name == "runtime.text" ||
+			s.Name == "runtime.etext" ||
+			strings.HasPrefix(s.Name, "go:") ||
+			strings.HasPrefix(s.Name, "type:.") ||
+			strings.HasPrefix(s.Name, "runtime.vdso") ||
+			strings.HasSuffix(s.Name, ".abi0") ||
+			strings.Contains(s.Name, "..typeAssert") ||
+			strings.Contains(s.Name, "..dict") ||
+			strings.Contains(s.Name, "..gobytes") ||
+			strings.Contains(s.Name, "..interfaceSwitch") {
 			continue
 		}
 
@@ -133,8 +145,8 @@ func testAllProbes(t *testing.T, binPath string) {
 	verifyIR(t, v)
 }
 
-func verifyIR(t *testing.T, ir *ir.Program) {
-	for _, s := range ir.Subprograms {
+func verifyIR(t *testing.T, p *ir.Program) {
+	for _, s := range p.Subprograms {
 		varNames := make(map[string]struct{})
 		for _, v := range s.Variables {
 			if _, ok := varNames[v.Name]; ok {
@@ -142,5 +154,62 @@ func verifyIR(t *testing.T, ir *ir.Program) {
 			}
 			varNames[v.Name] = struct{}{}
 		}
+	}
+	kindCounts := make(map[ir.IssueKind]int)
+	defer func() {
+		for kind, count := range kindCounts {
+			t.Logf("kind %s: %d", kind.String(), count)
+		}
+	}()
+	for _, issue := range p.Issues {
+		loc := issue.ProbeDefinition.GetWhere().(ir.FunctionWhere).Location()
+		kindCounts[issue.Kind]++
+		switch issue.Kind {
+		case ir.IssueKindInvalidDWARF:
+			t.Logf("%s: invalid DWARF: %s", loc, issue.Message)
+		case ir.IssueKindDisassemblyFailed:
+			if permittedDisassemblyFailed(loc) {
+				t.Logf("(permitted) %s: disassembly failed: %s", loc, issue.Message)
+			} else {
+				t.Errorf("%s: disassembly failed: %s", loc, issue.Message)
+			}
+		case ir.IssueKindInvalidProbeDefinition:
+			t.Logf("%s: invalid probe definition: %s", loc, issue.Message)
+		case ir.IssueKindMalformedExecutable:
+			t.Logf("%s: malformed executable: %s", loc, issue.Message)
+		case ir.IssueKindTargetNotFoundInBinary:
+			if permittedTargetNotFoundInBinary(loc) {
+				t.Logf("(permitted) %s: target not found in binary: %s", loc, issue.Message)
+			} else {
+				t.Errorf("%s: target not found in binary: %s", loc, issue.Message)
+			}
+		case ir.IssueKindUnsupportedFeature:
+			t.Logf("%s: unsupported feature: %s", loc, issue.Message)
+		default:
+			t.Errorf("%s: unexpected issue kind: %#v", loc, issue.Kind)
+		}
+	}
+}
+
+func permittedDisassemblyFailed(loc string) bool {
+	return strings.HasPrefix(loc, "expandAVX512_") ||
+		slices.Contains([]string{
+			"cmpbody",
+			"countbody",
+			"indexbytebody",
+			"memeqbody",
+		}, loc)
+}
+
+func permittedTargetNotFoundInBinary(loc string) bool {
+	switch loc {
+	// Some weird thing where the type of a different package gets moved
+	// and then it should have a center dot but for the symbol table it becomes
+	// a period.
+	case "mime/multipart.(*writerOnly.1).Write",
+		"mime/multipart.writerOnly.1.Write":
+		return true
+	default:
+		return false
 	}
 }
