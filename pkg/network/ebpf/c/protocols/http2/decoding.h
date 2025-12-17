@@ -149,21 +149,22 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         pktbuf_advance(pkt, str_len);
 
         if (index == 0) {
+            // The header is not recognized - skip the value
             str_len = 0;
+            // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+            // At this point the huffman code is not interesting due to the fact that we already read the string length,
+            // We are reading the current size in order to skip it.
             if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
                 return false;
             }
             goto end;
         }
 
+        // The header was recognized as :path - read the value length to process it
         str_len = 0;
-        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-        // At this point the huffman code is not interesting due to the fact that we already read the string length,
-        // We are reading the current size in order to skip it.
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
-        goto end;
     }
 
     // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
