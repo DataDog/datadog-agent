@@ -34,7 +34,7 @@ func TestLocalSDKInjectionSuite(t *testing.T) {
 	e2e.Run(t, &localSDKInjectionSuite{}, e2e.WithProvisioner(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
 			kindvm.WithAgentDependentWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-				return singlestep.Scenario(e, kubeProvider, "workload-selection", []singlestep.Namespace{
+				return singlestep.Scenario(e, kubeProvider, "local-sdk-injection", []singlestep.Namespace{
 					{
 						Name: "application",
 						Apps: []singlestep.App{
@@ -47,7 +47,7 @@ func TestLocalSDKInjectionSuite(t *testing.T) {
 									"admission.datadoghq.com/enabled": "true",
 								},
 								PodAnnotations: map[string]string{
-									"dmission.datadoghq.com/python-lib.version": "v3.18.1",
+									"admission.datadoghq.com/python-lib.version": "v3.18.1",
 								},
 							},
 							{

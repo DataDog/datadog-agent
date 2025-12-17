@@ -35,7 +35,7 @@ func TestNamespaceSelectionSuite(t *testing.T) {
 	e2e.Run(t, &namespaceSelectionSuite{}, e2e.WithProvisioner(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
 			kindvm.WithAgentDependentWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-				return singlestep.Scenario(e, kubeProvider, "workload-selection", []singlestep.Namespace{
+				return singlestep.Scenario(e, kubeProvider, "namespace-selection", []singlestep.Namespace{
 					{
 						Name: "expect-injection",
 						Apps: []singlestep.App{
