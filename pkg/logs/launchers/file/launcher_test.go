@@ -41,7 +41,12 @@ import (
 type RegularTestSetupStrategy struct{}
 
 func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
-	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()}}
+	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
+		TestOps: TestOps{
+			create: os.Create,
+			rename: os.Rename,
+			remove: os.Remove,
+		}}
 }
 
 type LauncherTestSuite struct {
@@ -110,8 +115,15 @@ type TestSetupStrategy interface {
 	Setup(t *testing.T) TestSetupResult
 }
 
+type TestOps struct {
+	create func(name string) (*os.File, error)
+	rename func(oldPath, newPath string) error
+	remove func(name string) error
+}
+
 type TestSetupResult struct {
 	TestDirs []string
+	TestOps  TestOps
 }
 
 type BaseLauncherTestSuite struct {
@@ -132,6 +144,8 @@ type BaseLauncherTestSuite struct {
 
 	setupStrategy TestSetupStrategy
 	setupResult   TestSetupResult
+
+	ops TestOps
 }
 
 const DefaultFileLimit = 100
@@ -190,13 +204,15 @@ func (suite *BaseLauncherTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.setupResult.TestDirs[0]
 
+	suite.ops = suite.setupResult.TestOps
+
 	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
 	suite.testRotatedPath = fmt.Sprintf("%s.1", suite.testPath)
 
-	f, err := os.Create(suite.testPath)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
-	f, err = os.Create(suite.testRotatedPath)
+	f, err = suite.ops.create(suite.testRotatedPath)
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
@@ -263,8 +279,9 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello world", string(msg.GetContent()))
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
+	suite.Nil(err)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -333,8 +350,9 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
+	suite.Nil(err)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 
 	// Write different content
@@ -457,13 +475,13 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() 
 	var err error
 
 	// remove file
-	err = os.Remove(suite.testPath)
+	err = suite.ops.remove(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen-1, s.tailers.Count())
 
 	// create file
-	_, err = os.Create(suite.testPath)
+	_, err = suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen, s.tailers.Count())
@@ -1260,11 +1278,11 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 
 	// Simulate file rotation: move current file to .1 and create a new empty file
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
 	// Create a new file that is undersized (empty, which results in fingerprint = 0)
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	newFile.Close()
 
@@ -1328,10 +1346,10 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 
 	// Rotate the file
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = newFile.WriteString("new content\n")
 	suite.Nil(err)
@@ -1398,11 +1416,11 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 
 	// Simulate rotation
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
 	// Create new file
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = newFile.WriteString("line2\n")
 	suite.Nil(err)
@@ -1477,7 +1495,7 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	defer status.Clear()
 
 	// Create file with content
-	f, err := os.Create(suite.testPath)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = f.WriteString("test data\n")
 	suite.Nil(err)
