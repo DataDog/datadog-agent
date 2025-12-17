@@ -8,7 +8,7 @@
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
+  - mkdir -p $GOPATH && tar xJf modcache_tools.tar.xz -C $GOPATH
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
@@ -69,7 +69,7 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz bin/ pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:
