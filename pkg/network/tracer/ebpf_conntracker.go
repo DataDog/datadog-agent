@@ -144,10 +144,14 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	nfConntrackConfirmArgsMap, err := maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get nfConntrackConfirmArgsMap: %w", err)
+	// nfConntrackConfirmArgsMap is only used by CO-RE/Runtime conntracker (not prebuilt)
+	var nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64]
+	if !isPrebuilt {
+		nfConntrackConfirmArgsMap, err = maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
+		if err != nil {
+			_ = m.Stop(manager.CleanAll)
+			return nil, fmt.Errorf("unable to get nfConntrackConfirmArgsMap: %w", err)
+		}
 	}
 
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
@@ -415,35 +419,61 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*manager.Manager, error) {
-	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Maps: []*manager.Map{
-			{Name: probes.ConntrackMap},
-			{Name: probes.NFConntrackConfirmArgsMap},
-			{Name: probes.ConntrackTelemetryMap},
-		},
-		PerfMaps: []*manager.PerfMap{},
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmReturn,
-					UID:          "conntracker",
-				},
+// getManager creates a manager for the conntracker.
+// isPrebuilt determines which probes and maps to configure:
+//   - Prebuilt uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
+//     avoiding the need to extract it from sk_buff->_nfct (which would require offset guessing).
+//   - CO-RE and Runtime use __nf_conntrack_confirm which can handle the _nfct field access
+//     using CO-RE relocations or kernel headers.
+func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPrebuilt bool) (*manager.Manager, error) {
+	// Common maps for all modes
+	maps := []*manager.Map{
+		{Name: probes.ConntrackMap},
+		{Name: probes.ConntrackTelemetryMap},
+	}
+
+	// Common probe for all modes
+	probesList := []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ConntrackFillInfo,
+				UID:          "conntracker",
 			},
-			{
+			MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
+		},
+	}
+
+	if isPrebuilt {
+		// Prebuilt uses __nf_conntrack_hash_insert
+		probesList = append(probesList, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ConntrackHashInsert,
+				UID:          "conntracker",
+			},
+		})
+	} else {
+		// CO-RE and Runtime use __nf_conntrack_confirm (entry and return)
+		maps = append(maps, &manager.Map{Name: probes.NFConntrackConfirmArgsMap})
+		probesList = append(probesList,
+			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackConfirmEntry,
 					UID:          "conntracker",
 				},
 			},
-			{
+			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackFillInfo,
+					EBPFFuncName: probes.ConntrackConfirmReturn,
 					UID:          "conntracker",
 				},
-				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
-		},
+		)
+	}
+
+	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
+		Maps:     maps,
+		PerfMaps: []*manager.PerfMap{},
+		Probes:   probesList,
 	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
@@ -465,7 +495,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number
+	if !isPrebuilt {
+		opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number
+	}
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
@@ -518,7 +550,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 
 	opts := manager.Options{ConstantEditors: constants}
-	return getManager(cfg, buf, opts)
+	return getManager(cfg, buf, opts, true)
 }
 
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
@@ -552,7 +584,7 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 	defer buf.Close()
 
-	return getManager(cfg, buf, manager.Options{})
+	return getManager(cfg, buf, manager.Options{}, false)
 }
 
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
@@ -570,7 +602,7 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", cfg.CollectUDPv6Conns),
 		)
-		m, err = getManager(cfg, ar, o)
+		m, err = getManager(cfg, ar, o, false)
 		return err
 	})
 	return m, err
