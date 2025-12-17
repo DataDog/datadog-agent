@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"strconv"
 )
 
 // Filter represent one filter
@@ -58,11 +59,7 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			var cidrStr string
 			ip, err := netip.ParseAddr(cfg.MatchIP)
 			if err == nil { // cfg.MatchIP is a single IP
-				if ip.Is4() || ip.Is4In6() {
-					cidrStr = cfg.MatchIP + "/32"
-				} else if ip.Is6() {
-					cidrStr = cfg.MatchIP + "/128"
-				}
+				cidrStr = cfg.MatchIP + "/" + strconv.Itoa(ip.BitLen())
 			} else { // assuming cfg.MatchIP is a CIDR
 				cidrStr = cfg.MatchIP
 			}
