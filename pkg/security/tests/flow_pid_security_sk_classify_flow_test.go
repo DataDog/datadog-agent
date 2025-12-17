@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -5849,8 +5850,20 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 				}
 			}
 
+			getCmdline := func(pid string) string {
+				data, err := os.ReadFile("/proc/" + pid + "/cmdline")
+				if err != nil {
+					return err.Error()
+				}
+				return fmt.Sprintf(strings.ReplaceAll(string(data), "\x00", " "))
+			}
+
 			if len(discoveredPIDs) != 2 {
 				t.Logf("expected 2 syscall_tester processes, found %d: %v", len(discoveredPIDs), discoveredPIDs)
+				for _, pid := range discoveredPIDs {
+					fmt.Println(getCmdline(strconv.FormatUint(uint64(pid), 10)))
+				}
+				
 			} else {
 				if discoveredPIDs[0] == tcpVal.Pid && discoveredPIDs[1] == udpVal.Pid {
 					// First try: associate discoveredPIDs[0] with TCP and discoveredPIDs[1] with UDP.
