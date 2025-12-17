@@ -7,6 +7,7 @@
 package wlan
 
 import (
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,14 +15,13 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 const (
 	CheckName                    = "wlan"
 	defaultMinCollectionInterval = 15
 )
-
-var getWiFiInfo = GetWiFiInfo
 
 // wifiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
 type wifiInfo struct {
@@ -45,6 +45,7 @@ type WLANCheck struct {
 	lastBSSID   string
 	lastSSID    string
 	isWarmedUp  bool
+	ipcSchema   *gojsonschema.Schema // Pre-compiled JSON schema for IPC validation
 }
 
 func (c *WLANCheck) String() string {
@@ -119,7 +120,7 @@ func (c *WLANCheck) Run() error {
 	}
 
 	// Attempt to get WiFi info from GUI via IPC
-	wi, err := getWiFiInfo()
+	wi, err := c.GetWiFiInfo()
 	if err != nil {
 		// Failed to get WiFi info - emit CRITICAL status
 		log.Errorf("WLAN check failed: %v", err)
@@ -216,7 +217,21 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &WLANCheck{
+	wlanCheck := &WLANCheck{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
+	
+	// Pre-compile JSON schema for IPC response validation (macOS only)
+	if runtime.GOOS == "darwin" {
+		schema, err := createIPCResponseSchema()
+		if err != nil {
+			// Schema compilation failure is a developer bug - fail hard
+			log.Criticalf("Failed to create IPC validation schema (developer bug): %v", err)
+			panic("WLAN check initialization failed: IPC schema compilation error")
+		}
+		wlanCheck.ipcSchema = schema
+		log.Debug("IPC response JSON schema validation enabled")
+	}
+	
+	return wlanCheck
 }

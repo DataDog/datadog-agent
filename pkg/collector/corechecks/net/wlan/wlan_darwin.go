@@ -26,6 +26,8 @@ import (
 	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/swaggest/jsonschema-go"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 // WiFi data validation constants
@@ -60,41 +62,64 @@ const (
 
 // guiWiFiData represents the WiFi data structure from GUI IPC
 type guiWiFiData struct {
-	RSSI               int     `json:"rssi"`
-	SSID               string  `json:"ssid"`
-	BSSID              string  `json:"bssid"`
-	Channel            int     `json:"channel"`
-	Noise              int     `json:"noise"`
+	RSSI               int     `json:"rssi" minimum:"-110" maximum:"-5"`
+	SSID               string  `json:"ssid" maxLength:"32"`
+	BSSID              string  `json:"bssid" maxLength:"17" pattern:"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^$"`
+	Channel            int     `json:"channel" minimum:"1" maximum:"196"`
+	Noise              int     `json:"noise" minimum:"-120" maximum:"-75"`
 	NoiseValid         bool    `json:"noise_valid"`
-	TransmitRate       float64 `json:"transmit_rate"`
-	ReceiveRate        float64 `json:"receive_rate"`
+	TransmitRate       float64 `json:"transmit_rate" minimum:"0" maximum:"100000"`
+	ReceiveRate        float64 `json:"receive_rate" minimum:"0" maximum:"100000"`
 	ReceiveRateValid   bool    `json:"receive_rate_valid"`
-	MACAddress         string  `json:"mac_address"`
-	PHYMode            string  `json:"phy_mode"`
+	MACAddress         string  `json:"mac_address" maxLength:"17" pattern:"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^$"`
+	PHYMode            string  `json:"phy_mode" enum:"None,802.11a,802.11b,802.11g,802.11n,802.11ac,802.11ax,802.11be"`
 	LocationAuthorized bool    `json:"location_authorized"`
 	Error              *string `json:"error"`
 }
 
 // guiIPCResponse represents the IPC response from GUI
 type guiIPCResponse struct {
-	Success bool         `json:"success"`
+	Success bool         `json:"success" required:"true"`
 	Data    *guiWiFiData `json:"data"`
 	Error   *string      `json:"error"`
 }
 
-// GetWiFiInfo retrieves WiFi information via IPC from the GUI
-func GetWiFiInfo() (wifiInfo, error) {
+// createIPCResponseSchema generates a JSON schema for IPC response validation
+// This is called once during check initialization
+func createIPCResponseSchema() (*gojsonschema.Schema, error) {
+	reflector := jsonschema.Reflector{}
+	schema, err := reflector.Reflect(guiIPCResponse{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to reflect schema: %w", err)
+	}
+
+	schemaBytes, err := json.Marshal(schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	compiledSchema, err := gojsonschema.NewSchema(schemaLoader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
+	}
+
+	return compiledSchema, nil
+}
+
+// GetWiFiInfo retrieves WiFi information via IPC from the GUI/user app
+func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	// Get console user UID
 	uid, err := getConsoleUserUID()
 	if err != nil {
 		// No console user detected - try any available socket as fallback
 		log.Debugf("No console user detected: %v, trying any available socket", err)
-		return tryAnyAvailableGUISocket()
+		return c.tryAnyAvailableGUISocket()
 	}
 
 	// Try to fetch from console user's GUI
 	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", fmt.Sprintf("gui-%s.sock", uid))
-	info, err := fetchWiFiFromGUI(socketPath, 1*time.Second)
+	info, err := c.fetchWiFiFromGUI(socketPath, 1*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
 		log.Infof("Console user's GUI not responding, attempting to launch it: %v", err)
@@ -106,7 +131,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 			// Retry connection (give GUI ~1.6s to start, then fallback)
 			// This prevents blocking the check scheduler for too long (WiFi metrics are periodic, not critical)
 			retryErr := checkpkg.Retry(400*time.Millisecond, 4, func() error {
-				info, err = fetchWiFiFromGUI(socketPath, 1*time.Second)
+				info, err = c.fetchWiFiFromGUI(socketPath, 1*time.Second)
 				if err != nil {
 					return checkpkg.RetryableError{Err: err}
 				}
@@ -122,7 +147,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 
 		// Fallback: Try any available socket
 		log.Info("Falling back to any available GUI socket...")
-		return tryAnyAvailableGUISocket()
+		return c.tryAnyAvailableGUISocket()
 	}
 
 	return info, nil
@@ -131,7 +156,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 // tryAnyAvailableGUISocket attempts to connect to any available GUI socket
 // This is used as a fallback when the console user's GUI is unavailable
 // WiFi data is system-wide, so any user's GUI will return identical data
-func tryAnyAvailableGUISocket() (wifiInfo, error) {
+func (c *WLANCheck) tryAnyAvailableGUISocket() (wifiInfo, error) {
 	// Find all GUI sockets
 	runPath := filepath.Join(pkgconfigsetup.InstallPath, "run")
 	socketsPattern := filepath.Join(runPath, "gui-*.sock")
@@ -150,7 +175,7 @@ func tryAnyAvailableGUISocket() (wifiInfo, error) {
 	var lastErr error
 	for _, socketPath := range sockets {
 		log.Debugf("Trying fallback socket: %s", socketPath)
-		info, err := fetchWiFiFromGUI(socketPath, 1*time.Second)
+		info, err := c.fetchWiFiFromGUI(socketPath, 1*time.Second)
 		if err == nil {
 			log.Infof("Successfully retrieved WiFi data from fallback socket: %s", socketPath)
 			return info, nil
@@ -395,7 +420,7 @@ func launchGUIApp(uid string) error {
 }
 
 // fetchWiFiFromGUI connects to the GUI Unix socket and fetches WiFi data
-func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error) {
+func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error) {
 	// Validate socket ownership before connecting (security: prevent socket hijacking)
 	if err := validateSocketOwnership(socketPath); err != nil {
 		return wifiInfo{}, fmt.Errorf("socket validation failed: %w", err)
@@ -446,6 +471,23 @@ func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error
 	}
 
 	log.Debugf("Received response from GUI: %s", strings.TrimSpace(responseLine))
+
+	// Validate response against JSON schema (if available)
+	if c.ipcSchema != nil {
+		documentLoader := gojsonschema.NewStringLoader(responseLine)
+		result, err := c.ipcSchema.Validate(documentLoader)
+		if err != nil {
+			return wifiInfo{}, fmt.Errorf("schema validation failed: %w", err)
+		}
+		if !result.Valid() {
+			var errMsgs []string
+			for _, desc := range result.Errors() {
+				errMsgs = append(errMsgs, desc.String())
+			}
+			return wifiInfo{}, fmt.Errorf("IPC response failed schema validation: %s", strings.Join(errMsgs, "; "))
+		}
+		log.Debug("IPC response passed JSON schema validation")
+	}
 
 	// Parse response
 	var response guiIPCResponse
