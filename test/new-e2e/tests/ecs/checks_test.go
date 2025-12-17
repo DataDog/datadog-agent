@@ -84,7 +84,7 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 
 	suite.AssertLog(&TestLogArgs{
 		Filter: TestLogFilterArgs{
-			Service: "apps-nginx-server",
+			Service: "nginx",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: TestLogExpectArgs{
