@@ -35,10 +35,19 @@ type MetricFamily struct {
 	Samples []Sample
 }
 
-// trimMetricSuffix extracts the base metric name by removing known suffixes.
-// Strips histogram/summary suffixes (_bucket, _sum, _count)
-func trimMetricSuffix(name string) string {
+// trimHistogramSuffix removes histogram-specific suffixes (_bucket, _sum, _count).
+func trimHistogramSuffix(name string) string {
 	for _, suffix := range []string{"_bucket", "_sum", "_count"} {
+		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
+			return trimmed
+		}
+	}
+	return name
+}
+
+// trimSummarySuffix removes summary-specific suffixes (_sum, _count).
+func trimSummarySuffix(name string) string {
+	for _, suffix := range []string{"_sum", "_count"} {
 		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
 			return trimmed
 		}
@@ -104,20 +113,33 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 			_, ts, value := parser.Series()
 			parser.Labels(&lbls)
 
-			// Get metric name from __name__ label
-			name := trimMetricSuffix(lbls.Get(labels.MetricName))
+			rawName := lbls.Get(labels.MetricName)
 
-			// If no current family or name doesn't match, create a new UNTYPED family
-			if len(result) == 0 || result[len(result)-1].Name != name {
-				// Discard previous family if it has no samples
-				if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
-					result = result[:len(result)-1]
+			// Fast path: check if raw name matches current family (common for COUNTER/GAUGE)
+			if len(result) == 0 || result[len(result)-1].Name != rawName {
+				// Slow path: try trimming suffix based on current family type
+				name := rawName
+				if len(result) > 0 {
+					switch result[len(result)-1].Type {
+					case "HISTOGRAM":
+						name = trimHistogramSuffix(rawName)
+					case "SUMMARY":
+						name = trimSummarySuffix(rawName)
+					}
 				}
-				result = append(result, MetricFamily{
-					Name:    name,
-					Type:    "UNTYPED",
-					Samples: make([]Sample, 0, 8),
-				})
+
+				// If still no match, create a new UNTYPED family
+				if len(result) == 0 || result[len(result)-1].Name != name {
+					// Discard previous family if it has no samples
+					if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
+						result = result[:len(result)-1]
+					}
+					result = append(result, MetricFamily{
+						Name:    name,
+						Type:    "UNTYPED",
+						Samples: make([]Sample, 0, 8),
+					})
+				}
 			}
 
 			// Convert labels to Metric

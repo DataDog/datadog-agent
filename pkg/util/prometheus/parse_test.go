@@ -253,34 +253,62 @@ func findFamily(families []MetricFamily, name string) *MetricFamily {
 // Benchmarks
 
 func BenchmarkParseMetrics(b *testing.B) {
+	var metrics []MetricFamily
+	var err error
+
 	data := generateLargeMetricsData()
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = ParseMetrics(data)
+		metrics, err = ParseMetrics(data)
 	}
+	b.StopTimer()
+
+	require.NoError(b, err)
+	require.Len(b, metrics, 2)
+	assert.Len(b, metrics[0].Samples, 1000)
+	assert.Len(b, metrics[1].Samples, 1000)
 }
 
 func BenchmarkParseMetricsWithFilter(b *testing.B) {
+	var metrics []MetricFamily
+	var err error
+
 	data := generateLargeMetricsDataWithEmptyPods()
 	filter := []string{`pod_name=""`}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = ParseMetricsWithFilter(data, filter)
+		metrics, err = ParseMetricsWithFilter(data, filter)
 	}
+	b.StopTimer()
+
+	require.NoError(b, err)
+	require.Len(b, metrics, 1)
+	assert.Len(b, metrics[0].Samples, 900)
 }
 
 func BenchmarkParseMetricsSmall(b *testing.B) {
+	var metrics []MetricFamily
+	var err error
+
 	data := []byte(`# TYPE container_cpu_usage_seconds_total counter
 container_cpu_usage_seconds_total{pod="pod-1",container="c1"} 100
 container_cpu_usage_seconds_total{pod="pod-2",container="c2"} 200
 container_cpu_usage_seconds_total{pod="pod-3",container="c3"} 300`)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = ParseMetrics(data)
+		metrics, err = ParseMetrics(data)
 	}
+	b.StopTimer()
+
+	require.NoError(b, err)
+	require.Len(b, metrics, 1)
+	assert.Len(b, metrics[0].Samples, 3)
 }
 
 func generateLargeMetricsData() []byte {
