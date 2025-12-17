@@ -181,10 +181,9 @@ const (
 	// SocketDNSFilter is the socket probe for dns
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
-	//JMW
-	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
+	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
-	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"

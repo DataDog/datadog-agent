@@ -424,7 +424,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			// JMW do return probe before entry probe to avoid missing events JMW
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackConfirmReturn,
@@ -473,20 +472,10 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
-		//JMWORIG
-		// me := opts.MapSpecEditors[probes.ConntrackMap]
-		// me.Type = ebpf.LRUHash
-		// me.EditorFlag |= manager.EditType
-		// opts.MapSpecEditors[probes.ConntrackMap] = me
-		//
-		//JMWNEWWHY
-		// Apply LRU hash to all conntrack maps
-		for _, mapName := range []string{probes.ConntrackMap} {
-			me := opts.MapSpecEditors[mapName]
-			me.Type = ebpf.LRUHash
-			me.EditorFlag |= manager.EditType
-			opts.MapSpecEditors[mapName] = me
-		}
+		me := opts.MapSpecEditors[probes.ConntrackMap]
+		me.Type = ebpf.LRUHash
+		me.EditorFlag |= manager.EditType
+		opts.MapSpecEditors[probes.ConntrackMap] = me
 	}
 
 	err = mgr.InitWithOptions(buf, &opts)
