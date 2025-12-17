@@ -12,7 +12,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type serverMock struct {
@@ -61,7 +60,7 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) SetFilterList(v []string, _ bool, _ map[string]utilstrings.TagMatcher) {
+func (s *serverMock) SetFilterList(v []string, _ bool) {
 	s.filterlist = v
 }
 

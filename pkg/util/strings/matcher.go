@@ -16,19 +16,11 @@ import (
 type Matcher struct {
 	data        []string
 	matchPrefix bool
-	tags        map[string]TagMatcher
-}
-
-type TagMatcher struct {
-	Tags []string `yaml:"tags"`
-	// If Negated == false, we keep only the provided tags (allow list).
-	// If Negated == true, we strip the provided tags (deny list).
-	Negated bool `yaml:"tags_negated"`
 }
 
 // NewMatcher creates a new strings matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
-func NewMatcher(data []string, matchPrefix bool, tags map[string]TagMatcher) Matcher {
+func NewMatcher(data []string, matchPrefix bool) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -46,18 +38,12 @@ func NewMatcher(data []string, matchPrefix bool, tags map[string]TagMatcher) Mat
 		data = data[:i+1]
 	}
 
-	// Ensure all tags are sorted
-	for _, v := range tags {
-		sort.Strings(v.Tags)
-	}
-
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
 	return Matcher{
 		data:        data,
 		matchPrefix: matchPrefix,
-		tags:        tags,
 	}
 }
 
@@ -95,16 +81,4 @@ func (m *Matcher) Test(name string) bool {
 	}
 
 	return false
-}
-
-// ShouldStripTags returns true if it has been configured to strip tags
-// from the given metric name.
-func (m *Matcher) ShouldStripTags(name string) (TagMatcher, bool) {
-	tags, ok := m.tags[name]
-	return tags, ok
-}
-
-// KeepTag will return true if the given tagname should be kept.
-func (tm TagMatcher) KeepTag(tag string) bool {
-	return slices.Contains(tm.Tags, tag) != tm.Negated
 }

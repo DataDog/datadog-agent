@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -109,7 +108,6 @@ type cachedOriginCounter struct {
 type localFilterListConfig struct {
 	metricNames []string
 	matchPrefix bool
-	tags        map[string]utilstrings.TagMatcher
 }
 
 // Server represent a Dogstatsd server
@@ -545,8 +543,8 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 // SetFilterList updates the metric names filter on all running worker.
-func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[string]utilstrings.TagMatcher) {
-	s.log.Debugf("SetFilterList with %d metrics, %d metrics with tags", len(metricNames), len(tags))
+func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
+	s.log.Debugf("SetFilterList with %d metrics", len(metricNames))
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
@@ -554,7 +552,7 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := s.createHistogramsFilterList(metricNames)
-	matcher := utilstrings.NewMatcher(metricNames, matchPrefix, tags)
+	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
@@ -562,7 +560,7 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool, tags map[
 	}
 
 	// send the histogram filterlist used right before flushing to the serializer
-	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix, tags)
+	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
 	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
 }
@@ -638,47 +636,11 @@ func (s *server) handleMessages() {
 		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
 
-	tagFilterList := s.loadTagFilterList()
-
 	s.localFilterListConfig = localFilterListConfig{
 		metricNames: filterlist,
 		matchPrefix: filterlistPrefix,
-		tags:        tagFilterList,
 	}
 	s.restoreFilterListFromLocalConfig()
-}
-
-func (s *server) loadTagFilterList() map[string]utilstrings.TagMatcher {
-	tagFilterListInterface := s.config.GetStringMap("tag_filterlist")
-	tagFilterList := make(map[string]utilstrings.TagMatcher, len(tagFilterListInterface))
-	for metricName, tags := range tagFilterListInterface {
-		// Tags can be configured as a simple array of tags - default to negated.
-		arr, ok := tags.([]string)
-		if ok {
-			tagFilterList[metricName] = utilstrings.TagMatcher{
-				Tags:    arr,
-				Negated: true,
-			}
-		} else {
-			// Or tags can be configured as an object with fields:
-			// tags - array of tags
-			// tags_negated - boolean to indicate negated.
-			// Roundtrip the struct through yaml to load it.
-			tagBytes, err := yaml.Marshal(tags)
-			if err != nil {
-				s.log.Errorf("invalid configuration for `tag_filterlist` %s", metricName)
-			} else {
-				var tags utilstrings.TagMatcher
-				err = yaml.Unmarshal(tagBytes, &tags)
-				if err != nil {
-					s.log.Errorf("error loading configuration for `tag_filterlist` %s", err)
-				} else {
-					tagFilterList[metricName] = tags
-				}
-			}
-		}
-	}
-	return tagFilterList
 }
 
 func (s *server) restoreFilterListFromLocalConfig() {
@@ -690,7 +652,6 @@ func (s *server) restoreFilterListFromLocalConfig() {
 	s.SetFilterList(
 		s.localFilterListConfig.metricNames,
 		s.localFilterListConfig.matchPrefix,
-		s.localFilterListConfig.tags,
 	)
 }
 

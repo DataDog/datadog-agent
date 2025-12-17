@@ -8,7 +8,7 @@ package tagset
 import (
 	"testing"
 
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/murmur3"
 )
@@ -118,14 +118,14 @@ func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
 func TestStripTags(t *testing.T) {
 	tests := []struct {
 		name         string
-		matcherTags  map[string]utilstrings.TagMatcher
+		matcherTags  map[string]filterlist.MetricTagList
 		lookupName   string
 		inputTags    []string
 		expectedTags []string
 	}{
 		{
 			name: "no tags config for name (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: true,
 			}},
@@ -135,7 +135,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "strip single tag with value (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: true,
 			}},
@@ -145,7 +145,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "strip multiple tags (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: true,
 			}},
@@ -155,7 +155,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "strip all tags (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host", "region", "version"},
 				Negated: true,
 			}},
@@ -165,7 +165,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "no matching tags to strip (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"foo", "bar"},
 				Negated: true,
 			}},
@@ -175,7 +175,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "empty input tags (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: true,
 			}},
@@ -185,7 +185,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "tags without values (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: true,
 			}},
@@ -195,7 +195,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "invalid tag starting with colon (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "invalid"},
 				Negated: true,
 			}},
@@ -205,7 +205,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "partial tag name match should not strip (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: true,
 			}},
@@ -215,7 +215,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "tag name with empty value (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: true,
 			}},
@@ -232,7 +232,7 @@ func TestStripTags(t *testing.T) {
 		},
 		{
 			name: "empty tags to strip list (deny list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{},
 				Negated: true,
 			}},
@@ -244,7 +244,7 @@ func TestStripTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			matcher := utilstrings.NewMatcher([]string{}, false, tt.matcherTags)
+			matcher := filterlist.NewTagMatcher(tt.matcherTags)
 
 			tagMatcher, ok := matcher.ShouldStripTags(tt.lookupName)
 			_, tagConfigured := tt.matcherTags[tt.lookupName]
@@ -266,14 +266,14 @@ func TestStripTags(t *testing.T) {
 func TestStripTagsAllowList(t *testing.T) {
 	tests := []struct {
 		name         string
-		matcherTags  map[string]utilstrings.TagMatcher
+		matcherTags  map[string]filterlist.MetricTagList
 		lookupName   string
 		inputTags    []string
 		expectedTags []string
 	}{
 		{
 			name: "keep single tag (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: false,
 			}},
@@ -283,7 +283,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "keep multiple tags (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: false,
 			}},
@@ -293,7 +293,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "keep all tags (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host", "region", "version"},
 				Negated: false,
 			}},
@@ -303,7 +303,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "no matching tags in allow list",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"foo", "bar"},
 				Negated: false,
 			}},
@@ -313,7 +313,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "empty input tags (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: false,
 			}},
@@ -323,7 +323,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "tags without values (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "host"},
 				Negated: false,
 			}},
@@ -333,7 +333,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "invalid tag starting with colon (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env", "invalid"},
 				Negated: false,
 			}},
@@ -343,7 +343,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "partial tag name match should not keep (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: false,
 			}},
@@ -353,7 +353,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "tag name with empty value (allow list)",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{"env"},
 				Negated: false,
 			}},
@@ -363,7 +363,7 @@ func TestStripTagsAllowList(t *testing.T) {
 		},
 		{
 			name: "empty allow list strips all tags",
-			matcherTags: map[string]utilstrings.TagMatcher{"metric1": {
+			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
 				Tags:    []string{},
 				Negated: false,
 			}},
@@ -375,7 +375,7 @@ func TestStripTagsAllowList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			matcher := utilstrings.NewMatcher([]string{}, false, tt.matcherTags)
+			matcher := filterlist.NewTagMatcher(tt.matcherTags)
 
 			tagMatcher, ok := matcher.ShouldStripTags(tt.lookupName)
 			_, tagConfigured := tt.matcherTags[tt.lookupName]

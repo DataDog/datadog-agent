@@ -16,7 +16,7 @@ import (
 
 func TestNewMatcher(t *testing.T) {
 	check := func(data []string) []string {
-		b := NewMatcher(data, true, nil)
+		b := NewMatcher(data, true)
 		return b.data
 	}
 
@@ -48,7 +48,7 @@ func TestIsStringMatching(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
 			func(t *testing.T) {
-				b := NewMatcher(c.list, c.matchPrefix, nil)
+				b := NewMatcher(c.list, c.matchPrefix)
 				assert.Equal(t, c.result, b.Test(c.name))
 			})
 	}
@@ -91,7 +91,7 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	matcher := NewMatcher(values, false, nil)
+	matcher := NewMatcher(values, false)
 
 	for n := 0; n < b.N; n++ {
 		matcher.Test(words[n%len(words)])

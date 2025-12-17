@@ -22,6 +22,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -275,6 +277,8 @@ type BufferedAggregator struct {
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
+
+	tagFilterList *filterlist.TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -354,9 +358,46 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan: make(chan utilstrings.Matcher),
+		tagFilterList:  loadTagFilterList(),
 	}
 
 	return aggregator
+}
+
+func loadTagFilterList() *filterlist.TagMatcher {
+	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("tag_filterlist")
+
+	tagFilterList := make(map[string]filterlist.MetricTagList, len(tagFilterListInterface))
+	for metricName, tags := range tagFilterListInterface {
+		// Tags can be configured as a simple array of tags - default to negated.
+		arr, ok := tags.([]string)
+		if ok {
+			tagFilterList[metricName] = filterlist.MetricTagList{
+				Tags:    arr,
+				Negated: true,
+			}
+		} else {
+			// Or tags can be configured as an object with fields:
+			// tags - array of tags
+			// tags_negated - boolean to indicate negated.
+			// Roundtrip the struct through yaml to load it.
+			tagBytes, err := yaml.Marshal(tags)
+			if err != nil {
+				log.Errorf("invalid configuration for `tag_filterlist` %s", metricName)
+			} else {
+				var tags filterlist.MetricTagList
+				err = yaml.Unmarshal(tagBytes, &tags)
+				if err != nil {
+					log.Errorf("error loading configuration for `tag_filterlist` %s", err)
+				} else {
+					tagFilterList[metricName] = tags
+				}
+			}
+		}
+	}
+	return &filterlist.TagMatcher{
+		Metrics: tagFilterList,
+	}
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -454,7 +495,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample, &agg.flushFilterList)
+			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
@@ -470,7 +511,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket, &agg.flushFilterList)
+		checkSampler.addBucket(checkBucket.bucket, agg.tagFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}

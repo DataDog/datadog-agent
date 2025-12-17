@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/twmb/murmur3"
 )
 
@@ -24,10 +23,6 @@ type HashingTagsAccumulator struct {
 // tagName extracts the tag name portion from the tag.
 func tagName(tag string) string {
 	tagNamePos := strings.Index(tag, ":")
-	if tagNamePos == 0 {
-		// Invalid tag
-		return ""
-	}
 	if tagNamePos < 0 {
 		tagNamePos = len(tag)
 	}
@@ -35,8 +30,12 @@ func tagName(tag string) string {
 	return tag[:tagNamePos]
 }
 
+type tagMatcher interface {
+	KeepTag(string) bool
+}
+
 // FilterTags removes configured tags and their hashes from the accumulated tags.
-func (h *HashingTagsAccumulator) FilterTags(tagMatcher utilstrings.TagMatcher) {
+func (h *HashingTagsAccumulator) FilterTags(tagMatcher tagMatcher) {
 	idx := 0
 	for arridx, tag := range h.data {
 		tagName := tagName(tag)
