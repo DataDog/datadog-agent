@@ -274,6 +274,8 @@ core,github.com/ProtonMail/go-crypto/openpgp/armor,BSD-3-Clause,Copyright (c) 20
 core,github.com/ProtonMail/go-crypto/openpgp/clearsign,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/ecdh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/ecdsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/ed25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/ed448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/eddsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/elgamal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/errors,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -282,6 +284,8 @@ core,github.com/ProtonMail/go-crypto/openpgp/internal/ecc,BSD-3-Clause,Copyright
 core,github.com/ProtonMail/go-crypto/openpgp/internal/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
