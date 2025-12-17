@@ -37,7 +37,7 @@ import (
 
 var (
 	// ErrSizeLimitReached indicates that the size limit was reached
-	ErrSizeLimitReached = fmt.Errorf("size limit reached")
+	ErrSizeLimitReached = errors.New("size limit reached")
 )
 
 // SizeLimitedWriter implements io.Writer and returns an error if more than the configured amount of data is read
@@ -161,7 +161,7 @@ func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model
 	event.FieldHandlers.ResolveFilePath(event, file)
 
 	process := event.ProcessContext.Process
-	resolver.HashFileEvent(event.GetEventType(), process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(event.GetEventType(), process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
@@ -173,7 +173,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	resolver.HashFileEvent(eventType, process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(eventType, process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
@@ -276,7 +276,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(ctrID)
+		w, ok := resolver.cgroupResolver.GetContainerWorkload(ctrID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}
@@ -293,8 +293,14 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		if mode, size, fkey, lastErr = getFileInfo(path); !mode.IsRegular() {
+		mode, size, fkey, lastErr = getFileInfo(path)
+		if lastErr != nil {
 			continue
+		}
+
+		if !mode.IsRegular() {
+			// the file is not regular, break out early and the error will be reported in the `if f == nil` check
+			break
 		}
 
 		if _, ok := failedCache[fkey]; ok {
@@ -303,10 +309,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		}
 
 		f, lastErr = os.Open(path)
-		if lastErr == nil {
-			break
+		if lastErr != nil {
+			failedCache[fkey] = struct{}{}
+			continue
 		}
-		failedCache[fkey] = struct{}{}
+
+		// we manage to open the file
+		break
 	}
 	if lastErr != nil {
 		rateReservation.Cancel()

@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -doc ../../../../docs/cloud-workload-security/secl_windows.json -field-accessors-output field_accessors_windows.go
+//go:generate event_deep_copy -tags windows -types-file model.go -output event_deep_copy_windows.go
 
 // Package model holds model related files
 package model
 
 import (
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -20,8 +20,7 @@ import (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
 	}
 }
@@ -30,9 +29,8 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers: &FakeFieldHandlers{},
+			Os:            runtime.GOOS,
 		},
 	}
 }
@@ -61,8 +59,6 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerId
-// gengetter: GetContainerId
 // gengetter: GetEventService
 // gengetter: GetExecFilePath
 // gengetter: GetExitCode
@@ -96,12 +92,19 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
 
 	return func(e *Event) {
 		*e = eventZero
-		*e.BaseEvent.ContainerContext = containerContextZero
 	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // FileEvent is the common file event type
@@ -133,7 +136,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	ExitTime time.Time `field:"exit_time,opts:getters_only|gen_getters"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only|gen_getters"`
@@ -239,9 +242,11 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return strconv.Itoa(int(pc.Pid)), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+	}
 }
 
 // ParentScope returns the parent entity scope

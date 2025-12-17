@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -37,6 +38,7 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -102,6 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
@@ -145,8 +148,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 				// we can include the tagger as part of the workloadmeta component.
-				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 				}),
 				haagentfx.Module(),
 				logscompressionfx.Module(),
@@ -202,7 +205,7 @@ func run(
 	}
 	pkglog.Infof("Hostname is: %s", hname)
 
-	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion + " - Datadog Cluster Agent")
 
 	pkglog.Infof("Datadog Cluster Agent is now running.")
 
@@ -220,7 +223,7 @@ func run(
 		return err
 	}
 
-	common.LoadComponents(secretResolver, wmeta, taggerComp, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, taggerComp, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
@@ -338,7 +341,7 @@ func initializeBBSCache(ctx context.Context) error {
 			}
 		case <-timer.C:
 			ticker.Stop()
-			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
+			return errors.New("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
 	}
 }

@@ -17,7 +17,7 @@ exporters:
     traces:
       span_name_as_resource_name: true
       endpoint: "http://127.0.0.1:9091"
-    hostname: "smp-regression"    
+    hostname: "smp-regression"
     api:
       key: "123456789"
       site: 127.0.0.1:9091
@@ -26,10 +26,8 @@ exporters:
       endpoint: http://127.0.0.1:9091
     logs:
       endpoint: http://127.0.0.1:9091
-      
 
-processors:
-  batch:
+
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
@@ -42,17 +40,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog/connector]
     traces/send:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]

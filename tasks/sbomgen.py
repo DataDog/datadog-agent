@@ -43,6 +43,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
     ctx.run(f"ls -alh {BIN_PATH}")

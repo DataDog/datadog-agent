@@ -19,10 +19,31 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
+// NewFactoryWithAgent returns a new converterWithAgent factory.
+func NewFactoryWithAgent() confmap.ConverterFactory {
+	return confmap.NewConverterFactory(newConverterWithAgent)
+}
+
 type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithoutAgent{}
+}
+
+type converterWithAgent struct{}
+
+func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
+	return &converterWithAgent{}
+}
+
+func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
+	confStringMap := conf.ToStringMap()
+	if err := removeResourceDetectionProcessor(confStringMap); err != nil {
+		return err
+	}
+
+	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -31,6 +52,9 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 	if err := removeDDProfilingExtension(confStringMap); err != nil {
+		return err
+	}
+	if err := removeHpFlareExtension(confStringMap); err != nil {
 		return err
 	}
 

@@ -63,7 +63,7 @@ func (m *MMappingElfFile) SectionDataRange(
 	s *safeelf.SectionHeader, offset, length uint64,
 ) (SectionData, error) {
 	if s.Flags&safeelf.SHF_COMPRESSED != 0 {
-		return nil, fmt.Errorf("mmapping compressed sections is not supported")
+		return nil, errors.New("mmapping compressed sections is not supported")
 	}
 	if offset+length > s.Size {
 		return nil, fmt.Errorf("out of section range: %d+%d > %d", offset, length, s.Size)

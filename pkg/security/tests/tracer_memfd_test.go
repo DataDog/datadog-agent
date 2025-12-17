@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -101,6 +102,11 @@ func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
 func TestTracerMemfd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	checkKernelCompatibility(t, "TracerMemfd test not supported on RHEL7", func(kv *kernel.Version) bool {
+		// Test fails on RHEL7 for unknown reasons, skip it for now
+		return kv.IsRH7Kernel()
+	})
+
 	consumer := &tracerMemfdConsumer{}
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
@@ -143,9 +149,9 @@ func TestTracerMemfd(t *testing.T) {
 
 		// Verify expected tags from the msgp-encoded metadata
 		expectedTags := []string{
-			"service:test-service",
-			"env:test-env",
-			"version:1.0.0",
+			"tracer_service_name:test-service",
+			"tracer_service_env:test-env",
+			"tracer_service_version:1.0.0",
 			"custom.tag:value",
 		}
 

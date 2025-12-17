@@ -263,7 +263,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 	// add source tag
 	if len(utils.GetTagValue("source", contextTags)) == 0 {
-		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
 	containerFilters, err := utils.NewContainerFilter()
@@ -717,15 +717,15 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerID)
+		if cgce.ContainerContext.ContainerID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerContext.ContainerID)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupID)
+		} else if cgce.CGroupContext.CGroupID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupContext.CGroupID)
 			if err != nil {
 				return false
 			}
@@ -762,7 +762,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		for _, pid := range pids {
 			pce := pr.Resolve(pid, pid, 0, true, nil)
 			if pce == nil {
-				seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
 			}
 

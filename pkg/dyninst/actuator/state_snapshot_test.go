@@ -10,6 +10,7 @@ package actuator
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -95,7 +96,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -242,7 +243,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[processKey]bool)
+		allIDs := make(map[ProcessID]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -253,12 +254,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			var key any
-			if id.tenantID != 0 {
-				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
-			} else {
-				key = int(id.PID)
-			}
+			key := int(id.PID)
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -314,13 +310,13 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			if beforeProg != nil {
 				beforeState = fmt.Sprintf(
 					"%s (proc %d)",
-					beforeProg.state.String(), beforeProg.PID,
+					beforeProg.state.String(), beforeProg.processID.PID,
 				)
 			}
 			if afterProg != nil {
 				afterState = fmt.Sprintf(
 					"%s (proc %d)",
-					afterProg.state.String(), afterProg.PID,
+					afterProg.state.String(), afterProg.processID.PID,
 				)
 			}
 
@@ -372,14 +368,14 @@ func parseEventsFromNode(
 	eventsNode *yaml.Node,
 ) ([]yamlEvent, []*yaml.Node, error) {
 	if eventsNode.Kind != yaml.DocumentNode || len(eventsNode.Content) != 1 {
-		return nil, nil, fmt.Errorf(
+		return nil, nil, errors.New(
 			"expected document with single content node",
 		)
 	}
 
 	listNode := eventsNode.Content[0]
 	if listNode.Kind != yaml.SequenceNode {
-		return nil, nil, fmt.Errorf("expected sequence node for events list")
+		return nil, nil, errors.New("expected sequence node for events list")
 	}
 
 	events := make([]yamlEvent, len(listNode.Content))

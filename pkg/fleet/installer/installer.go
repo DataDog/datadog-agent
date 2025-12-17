@@ -45,9 +45,8 @@ type Installer interface {
 
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+	ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -95,7 +94,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -107,7 +106,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		packages:   pkgs,
 		config: &config.Directories{
 			StablePath:     paths.AgentConfigDir,
-			ExperimentPath: paths.AgentConfigDir + "-exp",
+			ExperimentPath: paths.AgentConfigDirExp,
 		},
 		hooks: packages.NewHooks(env, pkgs),
 
@@ -127,11 +126,6 @@ func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, 
 	return i.packages.GetState(pkg)
 }
 
-// States returns the states of all packages.
-func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
-	return i.packages.GetStates()
-}
-
 // ConfigState returns the state of a package.
 func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.State, error) {
 	state, err := i.config.GetState()
@@ -144,8 +138,8 @@ func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.Sta
 	}, nil
 }
 
-// ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
+// configStates returns the config states of all supported packages (only datadog-agent is supported today).
+func (i *installerImpl) configStates(_ context.Context) (map[string]repository.State, error) {
 	state, err := i.config.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get config state: %w", err)
@@ -159,6 +153,22 @@ func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.S
 			Stable:     stableDeploymentID,
 			Experiment: state.ExperimentDeploymentID,
 		},
+	}, nil
+}
+
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+	configStates, err := i.configStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	packageStates, err := i.packages.GetStates()
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		ConfigStates: configStates,
+		States:       packageStates,
 	}, nil
 }
 
@@ -486,7 +496,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -597,9 +607,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
-	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+	//
+	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
+	//       This is used to prevent the agent from being uninstalled when purge is
+	//       called from within the MSI.
+	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		if err != nil {
+			log.Warnf("could not remove agent: %v", err)
+		}
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
@@ -612,7 +628,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
@@ -687,12 +704,25 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.InstrumentAPMInjector(ctx, method)
@@ -707,17 +737,30 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
-		return fmt.Errorf("could not instrument APM: %w", err)
+		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
 }

@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,14 +46,12 @@ func (c *ntmConfig) ReadInConfig() error {
 	c.file = newInnerNode(nil)
 
 	c.findConfigFile()
-	err := c.readInConfig(c.configFile)
-	if err != nil {
+	if err := c.readInConfig(c.configFile); err != nil {
 		return err
 	}
 
 	for _, f := range c.extraConfigFilePaths {
-		err = c.readInConfig(f)
-		if err != nil {
+		if err := c.readInConfig(f); err != nil {
 			return err
 		}
 	}
@@ -91,7 +90,7 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }
 
-func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Source, content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Source, content []byte) error {
 	var inData map[string]interface{}
 
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
@@ -104,11 +103,33 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 	return nil
 }
 
+// buildNestedMap converts keys with dots into a nested structure
+// for example:
+//
+//	buildNestedMap(["a", "b", "c"], 123) => {"a": {"b": {"c": 123}}}
+func buildNestedMap(keyParts []string, bottomValue interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	nextKey := keyParts[0]
+	if len(keyParts) == 1 {
+		res[nextKey] = bottomValue
+	} else {
+		res[nextKey] = buildNestedMap(keyParts[1:], bottomValue)
+	}
+	return res
+}
+
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interface{}, atPath string, schema InnerNode, allowDynamicSchema bool) []error {
+func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, allowDynamicSchema bool) []error {
 	warnings := []error{}
 	for key, value := range inData {
+		// If the key contains a dot, it represents a nested key
+		if strings.Contains(key, ".") {
+			parts := strings.Split(key, ".")
+			key = parts[0]
+			value = buildNestedMap(parts[1:], value)
+		}
+
 		key = strings.ToLower(key)
 		currPath := joinKey(atPath, key)
 
@@ -116,9 +137,6 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
-			if !allowDynamicSchema {
-				continue
-			}
 
 			// if the key is not defined in the schema, we can still add it to the destination
 			if value == nil || isScalar(value) || isSlice(value) {
@@ -127,23 +145,21 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 			}
 
 			// fallback to inner node if it's not a scalar or nil
-			schemaChild = newInnerNode(make(map[string]Node))
+			schemaChild = newInnerNode(nil)
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest
-		if _, isLeaf := schemaChild.(LeafNode); isLeaf {
+		if schemaChild.IsLeafNode() {
 			// check that dest doesn't have a inner leaf under that name
 			c, _ := dest.GetChild(key)
-			if _, ok := c.(InnerNode); ok {
+			if c != nil && c.IsInnerNode() {
 				// Both default and dest have a child but they conflict in type. This should never happen.
-				warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
+				warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			} else {
 				dest.InsertChildNode(key, newLeafNode(value, source))
 			}
 			continue
 		}
-		// by now we know schemaNode is an InnerNode
-		schemaInner, _ := schemaChild.(InnerNode)
 
 		childValue, err := ToMapStringInterface(value, currPath)
 		if err != nil {
@@ -155,20 +171,19 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		}
 
 		if !dest.HasChild(key) {
-			destChildInner := newInnerNode(nil)
-			warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner, allowDynamicSchema)...)
-			dest.InsertChildNode(key, destChildInner)
+			destChild := newInnerNode(nil)
+			warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, allowDynamicSchema)...)
+			dest.InsertChildNode(key, destChild)
 			continue
 		}
 
 		destChild, _ := dest.GetChild(key)
-		destChildInner, ok := destChild.(InnerNode)
-		if !ok {
+		if destChild.IsLeafNode() {
 			// Both default and dest have a child but they conflict in type. This should never happen.
-			warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
+			warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			continue
 		}
-		warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner, allowDynamicSchema)...)
+		warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, allowDynamicSchema)...)
 	}
 	return warnings
 }

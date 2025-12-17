@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -86,6 +87,10 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
 		source = workloadmeta.SourceRuntime
 	}
+	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
+		source = workloadmeta.SourceRuntime
+		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstances
+	}
 
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
@@ -147,6 +152,7 @@ func ParseV4TaskContainers(
 			},
 			State: workloadmeta.ContainerState{
 				Running:  container.KnownStatus == "RUNNING",
+				Status:   ContainerStatusFromKnownStatus(container.KnownStatus),
 				ExitCode: container.ExitCode,
 			},
 			Owner: &workloadmeta.EntityID{
@@ -232,6 +238,10 @@ func ParseV4TaskContainers(
 			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
 		}
+		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
+			source = workloadmeta.SourceRuntime
+			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
+		}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: source,
@@ -241,6 +251,20 @@ func ParseV4TaskContainers(
 	}
 
 	return taskContainers, events
+}
+
+// ContainerStatusFromKnownStatus converts the ECS known status string into a workloadmeta.ContainerStatus.
+func ContainerStatusFromKnownStatus(status string) workloadmeta.ContainerStatus {
+	switch status {
+	case "RUNNING":
+		return workloadmeta.ContainerStatusRunning
+	case "STOPPED":
+		return workloadmeta.ContainerStatusStopped
+	case "PULLED", "CREATED", "RESOURCES_PROVISIONED":
+		return workloadmeta.ContainerStatusCreated
+	default:
+		return workloadmeta.ContainerStatusUnknown
+	}
 }
 
 func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {

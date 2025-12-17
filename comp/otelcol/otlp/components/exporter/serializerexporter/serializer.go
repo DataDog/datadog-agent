@@ -7,11 +7,13 @@ package serializerexporter
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -133,8 +135,12 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
-			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
 			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+
+			// Disable regular "Successfully posted payload" logs, since flushing is user-controlled and may happen frequently.
+			// Successful export operations can be monitored with exporterhelper metrics.
+			pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
+
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
@@ -160,6 +166,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
+		fx.Provide(func() secrets.Component { return secretsnoop.NewComponent().Comp }),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
 		fx.Populate(&f),
 		fx.Populate(&s),
@@ -169,7 +176,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 	}
 	fw, ok := f.(*defaultforwarder.DefaultForwarder)
 	if !ok {
-		return nil, nil, fmt.Errorf("failed to cast forwarder to defaultforwarder.DefaultForwarder")
+		return nil, nil, errors.New("failed to cast forwarder to defaultforwarder.DefaultForwarder")
 	}
 	return s, fw, nil
 }

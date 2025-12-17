@@ -529,6 +529,10 @@ func TestActionKillDisarm(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
 		return env.IsContainerized()
 	})
@@ -542,7 +546,7 @@ func TestActionKillDisarm(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "kill_action_disarm_executable",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id == ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
@@ -553,7 +557,7 @@ func TestActionKillDisarm(t *testing.T) {
 		},
 		{
 			ID:         "kill_action_disarm_container",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id != ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{

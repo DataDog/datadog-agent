@@ -133,9 +133,10 @@
   extends:
     - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["go_deps", "go_tools_deps"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  needs: ["go_deps", "go_tools_deps", "go_e2e_deps"]
   tags: ["arch:amd64", "specific:true"]
+  retry: !reference [.retry_only_infra_failure, retry]
   variables:
     AWS_REGION: us-east-1
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
@@ -155,6 +156,8 @@
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
@@ -206,7 +209,7 @@
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   before_script:
     - !reference [.kmt_new_profile]
@@ -278,7 +281,7 @@
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'mount -o remount,size=5G /opt/kmt-ramfs && CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars CI_COMMIT_SHA,DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
+    - NO_RETRY_EXIT_CODE=42 ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
     - "[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && ${CI_PROJECT_DIR}/tools/ci/retry.sh scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log"
   artifacts:
     expire_in: 2 weeks

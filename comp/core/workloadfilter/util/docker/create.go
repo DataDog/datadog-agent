@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // CreateContainer creates a filterable container from the docker container summary
@@ -24,17 +24,19 @@ func CreateContainer(rawContainer container.Summary, resolvedImageName string, o
 		containerName = rawContainer.Names[0]
 	}
 
-	c := &typedef.FilterContainer{
-		Id:    rawContainer.ID,
-		Name:  containerName,
-		Image: resolvedImageName,
+	c := &core.FilterContainer{
+		Id:   rawContainer.ID,
+		Name: containerName,
+		Image: &core.FilterImage{
+			Reference: resolvedImageName,
+		},
 	}
 
 	if owner != nil {
 		switch o := owner.(type) {
 		case *workloadfilter.Pod:
 			if o != nil && o.FilterPod != nil {
-				c.Owner = &typedef.FilterContainer_Pod{
+				c.Owner = &core.FilterContainer_Pod{
 					Pod: o.FilterPod,
 				}
 			}
@@ -43,6 +45,5 @@ func CreateContainer(rawContainer container.Summary, resolvedImageName string, o
 
 	return &workloadfilter.Container{
 		FilterContainer: c,
-		Owner:           owner,
 	}
 }

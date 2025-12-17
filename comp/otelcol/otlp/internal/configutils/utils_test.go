@@ -7,7 +7,6 @@ package configutils
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -24,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 const testPath = "./testdata/pipeline.yaml"
@@ -43,6 +43,7 @@ func buildTestFactories(t *testing.T) otelcol.Factories {
 		Receivers:  receivers,
 		Processors: processors,
 		Exporters:  exporters,
+		Telemetry:  otelconftelemetry.NewFactory(),
 	}
 }
 
@@ -65,7 +66,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	// build default provider from same data
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{fmt.Sprintf("file:%s", testPath)},
+			URIs: []string{"file:" + testPath},
 			ProviderFactories: []confmap.ProviderFactory{
 				fileprovider.NewFactory(),
 				envprovider.NewFactory(),

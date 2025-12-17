@@ -49,8 +49,8 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		base["endpoints"] = s.agent.endpoints.GetStatus()
 	}
 
-	if s.agent.client != nil {
-		cfStatus, err := s.agent.client.GetStatus()
+	if s.agent.cmdClient != nil {
+		cfStatus, err := s.agent.cmdClient.GetStatus()
 		if err == nil {
 			if cfStatus.Environment != nil {
 				environment := map[string]interface{}{

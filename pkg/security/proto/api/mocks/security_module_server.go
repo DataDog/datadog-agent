@@ -7,8 +7,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 
-	grpc "google.golang.org/grpc"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -261,53 +259,6 @@ func (_c *SecurityModuleServer_DumpProcessCache_Call) RunAndReturn(run func(cont
 	return _c
 }
 
-// GetActivityDumpStream provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GetActivityDumpStream(_a0 *api.ActivityDumpStreamParams, _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]) error {
-	ret := _m.Called(_a0, _a1)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetActivityDumpStream")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*api.ActivityDumpStreamParams, grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]) error); ok {
-		r0 = rf(_a0, _a1)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SecurityModuleServer_GetActivityDumpStream_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityDumpStream'
-type SecurityModuleServer_GetActivityDumpStream_Call struct {
-	*mock.Call
-}
-
-// GetActivityDumpStream is a helper method to define mock.On call
-//   - _a0 *api.ActivityDumpStreamParams
-//   - _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]
-func (_e *SecurityModuleServer_Expecter) GetActivityDumpStream(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetActivityDumpStream_Call {
-	return &SecurityModuleServer_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream", _a0, _a1)}
-}
-
-func (_c *SecurityModuleServer_GetActivityDumpStream_Call) Run(run func(_a0 *api.ActivityDumpStreamParams, _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage])) *SecurityModuleServer_GetActivityDumpStream_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*api.ActivityDumpStreamParams), args[1].(grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]))
-	})
-	return _c
-}
-
-func (_c *SecurityModuleServer_GetActivityDumpStream_Call) Return(_a0 error) *SecurityModuleServer_GetActivityDumpStream_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *SecurityModuleServer_GetActivityDumpStream_Call) RunAndReturn(run func(*api.ActivityDumpStreamParams, grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]) error) *SecurityModuleServer_GetActivityDumpStream_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetConfig provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetConfig(_a0 context.Context, _a1 *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -363,53 +314,6 @@ func (_c *SecurityModuleServer_GetConfig_Call) Return(_a0 *api.SecurityConfigMes
 }
 
 func (_c *SecurityModuleServer_GetConfig_Call) RunAndReturn(run func(context.Context, *api.GetConfigParams) (*api.SecurityConfigMessage, error)) *SecurityModuleServer_GetConfig_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetEvents provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GetEvents(_a0 *api.GetEventParams, _a1 grpc.ServerStreamingServer[api.SecurityEventMessage]) error {
-	ret := _m.Called(_a0, _a1)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetEvents")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*api.GetEventParams, grpc.ServerStreamingServer[api.SecurityEventMessage]) error); ok {
-		r0 = rf(_a0, _a1)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SecurityModuleServer_GetEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEvents'
-type SecurityModuleServer_GetEvents_Call struct {
-	*mock.Call
-}
-
-// GetEvents is a helper method to define mock.On call
-//   - _a0 *api.GetEventParams
-//   - _a1 grpc.ServerStreamingServer[api.SecurityEventMessage]
-func (_e *SecurityModuleServer_Expecter) GetEvents(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetEvents_Call {
-	return &SecurityModuleServer_GetEvents_Call{Call: _e.mock.On("GetEvents", _a0, _a1)}
-}
-
-func (_c *SecurityModuleServer_GetEvents_Call) Run(run func(_a0 *api.GetEventParams, _a1 grpc.ServerStreamingServer[api.SecurityEventMessage])) *SecurityModuleServer_GetEvents_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*api.GetEventParams), args[1].(grpc.ServerStreamingServer[api.SecurityEventMessage]))
-	})
-	return _c
-}
-
-func (_c *SecurityModuleServer_GetEvents_Call) Return(_a0 error) *SecurityModuleServer_GetEvents_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *SecurityModuleServer_GetEvents_Call) RunAndReturn(run func(*api.GetEventParams, grpc.ServerStreamingServer[api.SecurityEventMessage]) error) *SecurityModuleServer_GetEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }

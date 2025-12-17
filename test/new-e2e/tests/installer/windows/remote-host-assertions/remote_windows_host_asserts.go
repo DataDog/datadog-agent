@@ -8,12 +8,13 @@ package assertions
 import (
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	e2ecommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	e2ecommon "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -239,4 +240,89 @@ func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstal
 	return &RemoteWindowsInstallerAssertions{
 		RemoteWindowsBinaryAssertions: bin,
 	}
+}
+
+// HasDDAgentUserFileAccess verifies that ddagentuser has appropriate permissions
+// on key Agent files and directories. This is to verify that config updates
+// or upgrades haven't broken file permissions.
+func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess(args ...string) *RemoteWindowsHostAssertions {
+	r.context.T().Helper()
+
+	var agentUserName string
+	if len(args) > 0 {
+		agentUserName = args[0]
+	} else {
+		agentUserName = windowsagent.DefaultAgentUserName
+	}
+
+	// Get ddagentuser identity
+	ddAgentUser, err := common.GetIdentityForUser(r.remoteHost, agentUserName)
+	r.require.NoError(err, "should get ddagentuser identity")
+
+	// Get config root from registry
+	configRoot, err := windowsagent.GetConfigRootFromRegistry(r.remoteHost)
+	r.require.NoError(err, "should get config root from registry")
+
+	// Test critical paths that ddagentuser needs access to
+	criticalPaths := []struct {
+		path        string
+		minRights   int
+		description string
+		fileType    string
+	}{
+		{
+			path:        filepath.Join(configRoot, "datadog.yaml"),
+			minRights:   common.FileFullControl,
+			description: "datadog.yaml must be readable by ddagentuser",
+			fileType:    "file",
+		},
+		{
+			path:        filepath.Join(configRoot, "conf.d"),
+			minRights:   common.FileFullControl,
+			description: "conf.d must be readable by ddagentuser",
+			fileType:    "directory",
+		},
+		{
+			path:        filepath.Join(configRoot, "logs"),
+			minRights:   common.FileFullControl,
+			description: "logs directory must be writable by ddagentuser",
+			fileType:    "directory",
+		},
+	}
+
+	for _, cp := range criticalPaths {
+		switch cp.fileType {
+		case "file":
+			exists, err := r.remoteHost.FileExists(cp.path)
+			r.require.NoError(err, "should check if file exists")
+			if !exists {
+				r.require.Failf("path %s does not exist", cp.path)
+			}
+		case "directory":
+			_, err := r.remoteHost.Lstat(cp.path)
+			r.require.NoError(err, "should check if directory exists")
+		}
+
+		security, err := common.GetSecurityInfoForPath(r.remoteHost, cp.path)
+		r.require.NoError(err, "should get security info for %s", cp.path)
+
+		// Filter to get ddagentuser rules
+		ddagentRules := common.FilterRulesForIdentity(security.Access, ddAgentUser)
+		r.require.NotEmpty(ddagentRules,
+			"ddagentuser should have access rules on %s", cp.path)
+
+		// Verify at least one rule grants the minimum required rights
+		hasRequiredRights := false
+		for _, rule := range ddagentRules {
+			if rule.IsAllow() && (rule.Rights&cp.minRights) == cp.minRights {
+				hasRequiredRights = true
+				break
+			}
+		}
+
+		r.require.True(hasRequiredRights,
+			"%s (path: %s)", cp.description, cp.path)
+	}
+
+	return r
 }

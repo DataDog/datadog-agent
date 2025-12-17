@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -55,7 +56,7 @@ func (d *dispatcher) calculateAvg() (int, error) {
 	}
 
 	if length == 0 {
-		return -1, fmt.Errorf("zero nodes reporting")
+		return -1, errors.New("zero nodes reporting")
 	}
 
 	return busyness / length, nil

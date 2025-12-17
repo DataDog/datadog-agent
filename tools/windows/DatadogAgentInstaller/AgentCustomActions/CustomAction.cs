@@ -220,5 +220,11 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
         }
+
+        [CustomAction]
+        public static ActionResult PurgeOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
+        }
     }
 }

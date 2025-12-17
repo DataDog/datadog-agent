@@ -11,7 +11,14 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 // SECLLegacyFields contains the list of the legacy attributes we need to support
 var SECLLegacyFields = map[eval.Field]eval.Field{
 	// event
-	"async": "event.async",
+	"async":                "event.async",
+	"container.id":         "process.container.id",
+	"container.created_at": "process.container.created_at",
+	"container.tags":       "process.container.tags",
+	"cgroup.id":            "process.cgroup.id",
+	"cgroup.version":       "process.cgroup.version",
+	"cgroup.file.inode":    "process.cgroup.file.inode",
+	"cgroup.file.mount_id": "process.cgroup.file.mount_id",
 
 	// chmod
 	"chmod.filename": "chmod.file.path",

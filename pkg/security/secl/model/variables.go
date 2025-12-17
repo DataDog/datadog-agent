@@ -7,23 +7,22 @@
 package model
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/google/uuid"
 )
 
 var (
 	// SECLVariables set of variables
-	SECLVariables = map[string]eval.StaticVariable{
-		"process.pid": eval.NewStaticVariable[int](func(ctx *eval.Context) int {
+	SECLVariables = map[string]eval.SECLVariable{
+		"process.pid": eval.NewScopedIntVariable(func(ctx *eval.Context, _ bool) (int, bool) {
 			pc := ctx.Event.(*Event).ProcessContext
 			if pc == nil {
-				return 0
+				return 0, false
 			}
-			return int(pc.Process.Pid)
-		}),
-		"builtins.uuid4": eval.NewStaticVariable[string](func(_ *eval.Context) string {
-			return uuid.New().String()
-		}),
+			return int(pc.Process.Pid), true
+		}, nil),
+		"builtins.uuid4": eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
+			return uuid.New().String(), true
+		}, nil),
 	}
 )

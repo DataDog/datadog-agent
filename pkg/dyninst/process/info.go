@@ -5,12 +5,17 @@
 
 //go:build linux_bpf
 
-// Package process provides shared process-related types used by procmon,
-// rcscrape, and other dyninst components.
+// Package process provides shared process-related types used by dynamic
+// instrumentation components.
 package process
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -85,4 +90,55 @@ type ContainerInfo struct {
 	EntityID string
 	// ContainerID is the container id of the process.
 	ContainerID string
+}
+
+// ResolveExecutable resolves metadata that identifies process executable and
+// its contents.
+func ResolveExecutable(procfsRoot string, pid int32) (Executable, error) {
+	exeLink := filepath.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
+	exePath, err := os.Readlink(exeLink)
+	if err != nil {
+		return Executable{}, err
+	}
+
+	openPath := exePath
+	file, err := os.Open(openPath)
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
+		trimmed := strings.TrimPrefix(openPath, "/")
+		if trimmed != "" {
+			openPath = filepath.Join(
+				procfsRoot,
+				strconv.Itoa(int(pid)),
+				"root",
+				trimmed,
+			)
+			file, err = os.Open(openPath)
+		}
+	}
+	if err != nil {
+		return Executable{}, err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return Executable{}, err
+	}
+	statT, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return Executable{}, fmt.Errorf(
+			"unexpected stat type %T", info.Sys(),
+		)
+	}
+	key := FileKey{
+		FileHandle: FileHandle{
+			Dev: uint64(statT.Dev),
+			Ino: statT.Ino,
+		},
+		LastModified: statT.Mtim,
+	}
+	return Executable{
+		Path: openPath,
+		Key:  key,
+	}, nil
 }

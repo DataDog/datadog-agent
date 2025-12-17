@@ -24,6 +24,9 @@ build do
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
+        # Push all the pieces built with Bazel.
+        command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
@@ -55,6 +58,10 @@ build do
             delete "#{install_dir}/embedded/lib/cmake"
             # and for libtool files
             delete "#{install_dir}/embedded/lib/*.la"
+
+            # Delete the leftovers of static linking.
+            delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/include/dbus-1.0"
         end
 
         if linux_target?
@@ -209,6 +216,21 @@ build do
                     ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
+
+            # Check that all binaries are compatible with the minimum macOS version we support
+            # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+            allow_list = [
+              "libddwaf\\.dylib",
+              "secret-generic-connector",
+            ]
+            command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
+                                 live_stream: Omnibus.logger.live_stream(:info),
+                                 env: {
+                                   ARCH: arm_target? ? "arm64" : "x86_64",
+                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   INSTALL_DIR: install_dir,
+                                   ALLOW_PATTERN: "(#{allow_list.join('|')})",
+                                 }
         end
     end
 end

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -72,13 +73,21 @@ type pendingMsg struct {
 	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
-	skip            bool
+
+	sshSessionPatcher sshSessionPatcher
 }
 
 func (p *pendingMsg) isResolved() bool {
 	for _, report := range p.actionReports {
 		if err := report.IsResolved(); err != nil {
 			seclog.Debugf("action report not resolved: %v", err)
+			return false
+		}
+	}
+
+	if p.sshSessionPatcher != nil {
+		if err := p.sshSessionPatcher.IsResolved(); err != nil {
+			seclog.Tracef("ssh session not resolved: %v", err)
 			return false
 		}
 	}
@@ -101,6 +110,10 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		if len(data) > 0 {
 			p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
 		}
+	}
+
+	if p.sshSessionPatcher != nil {
+		p.sshSessionPatcher.PatchEvent(p.eventSerializer)
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
@@ -128,8 +141,9 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	api.UnimplementedSecurityModuleServer
-	msgs               chan *api.SecurityEventMessage
+	api.UnimplementedSecurityModuleEventServer
+	api.UnimplementedSecurityModuleCmdServer
+	events             chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
@@ -156,10 +170,12 @@ type APIServer struct {
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
+
+	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
-// GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+// GetActivityDumpStream transfers dumps to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetActivityDumpStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetActivityDumpStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -188,8 +204,8 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
-// GetEvents waits for security events
-func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
+// GetEventStream transfers events to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetEventStreamServer) error {
 	if prev := a.connEstablished.Swap(true); !prev {
 		// should always be non nil
 		if a.cwsConsumer != nil {
@@ -203,7 +219,7 @@ func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_G
 			return nil
 		case <-a.stopChan:
 			return nil
-		case msg := <-a.msgs:
+		case msg := <-a.events:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -227,10 +243,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 		}
 
 		if cb(msg) {
-			return true
-		}
-
-		if msg.skip {
 			return true
 		}
 
@@ -270,6 +282,12 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	}
 }
 
+func (a *APIServer) updateMsgTrack(msg *api.SecurityEventMessage) {
+	if slices.Contains(events.AllSecInfoRuleIDs(), msg.RuleID) {
+		msg.Track = string(SecInfo)
+	}
+}
+
 func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	appendTagsIfNotPresent := func(toAdd []string) {
 		for _, tag := range toAdd {
@@ -282,8 +300,8 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 		}
 	}
 
-	// on fargate, append global tags on custom events
-	if fargate.IsFargateInstance() {
+	// in sidecar, append global tags on custom events
+	if fargate.IsSidecar() {
 		appendTagsIfNotPresent(a.getGlobalTags())
 	}
 
@@ -321,10 +339,12 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
-				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
-					msg.skip = true
-					return false
+				if a.containerFilter != nil {
+					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+						// similar return value as if we had sent the message
+						return true
+					}
 				}
 
 				data, err := msg.toJSON()
@@ -357,6 +377,19 @@ func (a *APIServer) start(ctx context.Context) {
 
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
+	if a.securityAgentAPIClient != nil {
+		seclog.Infof("starting to send events to security agent")
+
+		go a.securityAgentAPIClient.SendEvents(ctx, a.events, func() {
+			if prev := a.connEstablished.Swap(true); !prev {
+				// should always be non nil
+				if a.cwsConsumer != nil {
+					a.cwsConsumer.onAPIConnectionEstablished()
+				}
+			}
+		})
+		go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
+	}
 	go a.start(ctx)
 }
 
@@ -424,7 +457,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 				actionReports = append(actionReports, ar)
 			}
 		}
-
+		// Create SSH session patcher if the event has an SSH user session
+		sshSessionPatcher := createSSHSessionPatcher(ev, a.probe)
 		timestamp := ev.ResolveEventTime()
 		if timestamp.IsZero() {
 			timestamp = time.Now()
@@ -433,13 +467,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule),
+			eventSerializer: serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
+
+			sshSessionPatcher: sshSessionPatcher,
 		}
 
 		a.enqueue(msg)
@@ -487,6 +523,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
+		a.updateMsgTrack(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -534,7 +571,7 @@ func (a *APIServer) getStats() map[string]int64 {
 func (a *APIServer) SendStats() error {
 	// statistics about the number of dropped events
 	for ruleID, val := range a.getStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		tags := []string{"rule_id:" + ruleID}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
@@ -570,7 +607,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
 	if ruleSet == nil {
-		return nil, fmt.Errorf("failed to get loaded rule set")
+		return nil, errors.New("failed to get loaded rule set")
 	}
 
 	cfg := &pconfig.Config{
@@ -746,7 +783,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	as := &APIServer{
-		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:    atomic.NewInt64(0),
@@ -763,6 +800,16 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		containerFilter: containerFilter,
 	}
 
+	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
+		seclog.Infof("setting up security agent api client")
+
+		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
+		if err != nil {
+			return nil, err
+		}
+		as.securityAgentAPIClient = securityAgentAPIClient
+	}
+
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
@@ -776,7 +823,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		}
 
 		if as.msgSender == nil {
-			as.msgSender = NewChanMsgSender(as.msgs)
+			as.msgSender = NewChanMsgSender(as.events)
 		}
 	}
 

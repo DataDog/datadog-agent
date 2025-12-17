@@ -1305,7 +1305,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		src := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src, _ := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
@@ -1432,54 +1432,17 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []*struct {
+		for i, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice
+			meta   map[string]string
 			out    pb.Span
 		}{
 			{
-				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]any{
-					"exception.message":    "Out of memory",
-					"exception.type":       "mem",
-					"exception.stacktrace": "1/2/3",
-				}, 0, 0),
-				out: pb.Span{
-					Error: 1,
-					Meta: map[string]string{
-						"error.msg":   "Out of memory",
-						"error.type":  "mem",
-						"error.stack": "1/2/3",
-					},
-				},
-			},
-			{
-				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]any{
-					"exception.message": "Out of memory",
-				}, 0, 0),
-				out: pb.Span{
-					Error: 1,
-					Meta:  map[string]string{"error.msg": "Out of memory"},
-				},
-			},
-			{
-				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("EXCEPTION", map[string]any{
-					"exception.message": "Out of memory",
-				}, 0, 0),
-				out: pb.Span{
-					Error: 1,
-					Meta:  map[string]string{"error.msg": "Out of memory"},
-				},
-			},
-			{
-				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("OTher", map[string]any{
-					"exception.message": "Out of memory",
-				}, 0, 0),
-				out: pb.Span{Error: 1},
+				status: ptrace.StatusCodeOk,
+				events: ptrace.NewSpanEventSlice(),
+				out:    pb.Span{Error: 0},
 			},
 			{
 				status: ptrace.StatusCodeError,
@@ -1490,38 +1453,81 @@ func TestOTLPHelpers(t *testing.T) {
 				status: ptrace.StatusCodeError,
 				msg:    "Error number #24",
 				events: ptrace.NewSpanEventSlice(),
-				out:    pb.Span{Error: 1, Meta: map[string]string{"error.msg": "Error number #24"}},
+				out: pb.Span{
+					Error: 1,
+					Meta:  map[string]string{"error.msg": "Error number #24"},
+				},
 			},
 			{
-				status: ptrace.StatusCodeOk,
+				status: ptrace.StatusCodeError,
+				msg:    "Error number #25",
 				events: ptrace.NewSpanEventSlice(),
-				out:    pb.Span{Error: 0},
+				meta: map[string]string{
+					"http.response.status_code": "500",
+				},
+				out: pb.Span{
+					Error: 1,
+					Meta:  map[string]string{"error.msg": "Error number #25"},
+				},
 			},
 			{
-				status: ptrace.StatusCodeOk,
+				status: ptrace.StatusCodeError,
+				events: ptrace.NewSpanEventSlice(),
+				meta: map[string]string{
+					"http.response.status_code": "500",
+				},
+				out: pb.Span{
+					Error: 1,
+					Meta:  map[string]string{"error.msg": "500 Internal Server Error"},
+				},
+			},
+			{
+				// We no longer map `http.status_text` to the error message
+				status: ptrace.StatusCodeError,
+				events: ptrace.NewSpanEventSlice(),
+				meta: map[string]string{
+					"http.response.status_code": "500",
+					"http.status_text":          "deprecated",
+				},
+				out: pb.Span{
+					Error: 1,
+					Meta:  map[string]string{"error.msg": "500 Internal Server Error"},
+				},
+			},
+			{
+				// We no longer map exception event attributes onto the span
+				status: ptrace.StatusCodeError,
 				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
 				}, 0, 0),
-				out: pb.Span{Error: 0},
+				out: pb.Span{
+					Error: 1,
+					Meta:  map[string]string{},
+				},
 			},
 		} {
-			assert := assert.New(t)
-			span := pb.Span{Meta: make(map[string]string)}
-			status := ptrace.NewStatus()
-			status.SetCode(tt.status)
-			status.SetMessage(tt.msg)
-			got := transform.Status2Error(status, tt.events, span.Meta)
-			assert.Equal(tt.out.Error, got)
-			for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
-				if v, ok := tt.out.Meta[prop]; ok {
-					assert.Equal(v, span.Meta[prop])
-				} else {
-					_, ok := span.Meta[prop]
-					assert.False(ok, prop)
+			t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
+				assert := assert.New(t)
+				span := pb.Span{Meta: tt.meta}
+				if span.Meta == nil {
+					span.Meta = make(map[string]string)
 				}
-			}
+				status := ptrace.NewStatus()
+				status.SetCode(tt.status)
+				status.SetMessage(tt.msg)
+				got := transform.Status2Error(status, tt.events, span.Meta)
+				assert.Equal(tt.out.Error, got)
+				for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
+					if v, ok := tt.out.Meta[prop]; ok {
+						assert.Equal(v, span.Meta[prop])
+					} else {
+						_, ok := span.Meta[prop]
+						assert.False(ok, prop)
+					}
+				}
+			})
 		}
 	})
 
@@ -1676,9 +1682,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
 				},
@@ -1802,9 +1806,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
 					"peer.service":                  "userbase",
@@ -1942,9 +1944,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
 					"span.kind":                     "server",
@@ -2077,7 +2077,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.library.name":    "ddtracer",
 					"otel.library.version": "v2",
 					"otel.status_code":     "Error",
-					"error.msg":            "201",
+					"error.msg":            "201 Created",
 					"http.method":          "POST",
 					"url.path":             "/uploads/4",
 					"url.scheme":           "https",
@@ -2135,7 +2135,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.library.name":    "ddtracer",
 					"otel.library.version": "v2",
 					"otel.status_code":     "Error",
-					"error.msg":            "201",
+					"error.msg":            "201 Created",
 					"http.method":          "POST",
 					"url.path":             "/uploads/4",
 					"url.scheme":           "https",
@@ -2698,9 +2698,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
 				},
@@ -2827,9 +2825,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
 					"peer.service":                  "userbase",
@@ -2957,9 +2953,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":                     "Out of memory",
-					"error.type":                    "mem",
-					"error.stack":                   "1/2/3",
+					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
 					"span.kind":                     "server",
@@ -3082,7 +3076,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.library.name":         "ddtracer",
 					"otel.library.version":      "v2",
 					"otel.status_code":          "Error",
-					"error.msg":                 "201",
+					"error.msg":                 "201 Created",
 					"http.request.method":       "POST",
 					"http.method":               "POST",
 					"url.path":                  "/uploads/4",
@@ -3142,7 +3136,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.library.name":    "ddtracer",
 					"otel.library.version": "v2",
 					"otel.status_code":     "Error",
-					"error.msg":            "201",
+					"error.msg":            "201 Created",
 					"http.method":          "POST",
 					"url.path":             "/uploads/4",
 					"url.scheme":           "https",

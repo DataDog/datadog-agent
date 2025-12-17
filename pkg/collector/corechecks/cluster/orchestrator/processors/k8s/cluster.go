@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -195,8 +196,9 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags:         pctx.Cfg.ExtraTags,
-			AgentVersion: ctx.GetAgentVersion(),
+			Tags:            pctx.Cfg.ExtraTags,
+			AgentVersion:    ctx.GetAgentVersion(),
+			OriginCollector: model.OriginCollector_datadogAgent,
 		},
 	}
 	processResult = processors.ProcessResult{
@@ -215,7 +217,7 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 	}
 
 	version := murmur3.Sum64(jsonClustermodel)
-	c.ResourceVersion = fmt.Sprint(version)
+	c.ResourceVersion = strconv.FormatUint(version, 10)
 
 	return nil
 }

@@ -1,4 +1,4 @@
-go 1.24.9
+go 1.25.5
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -7,8 +7,6 @@ godebug tlsmlkem=0
 
 use (
 	.
-	./pkg/util/hostinfo
-	./pkg/util/jsonquery
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -62,13 +60,11 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
 	comp/otelcol/otlp/components/metricsclient
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
-	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
 	comp/otelcol/status/def
 	comp/otelcol/status/impl
@@ -90,6 +86,7 @@ use (
 	pkg/collector/check/defaults
 	pkg/config/create
 	pkg/config/env
+	pkg/config/helper
 	pkg/config/mock
 	pkg/config/model
 	pkg/config/nodetreemodel
@@ -110,7 +107,6 @@ use (
 	pkg/logs/metrics
 	pkg/logs/pipeline
 	pkg/logs/processor
-	pkg/logs/sds
 	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
@@ -130,19 +126,20 @@ use (
 	pkg/opentelemetry-mapping-go/otlp/metrics
 	pkg/opentelemetry-mapping-go/otlp/rum
 	pkg/orchestrator/model
+	pkg/orchestrator/util
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/ssi/testutils
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
 	pkg/telemetry
 	pkg/template
 	pkg/trace
-	pkg/trace/stats/oteltest
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
@@ -156,9 +153,11 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
 	pkg/util/json
+	pkg/util/jsonquery
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
@@ -178,6 +177,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	test/e2e-framework
 	test/fakeintake
 	test/new-e2e
 	test/otel

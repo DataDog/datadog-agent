@@ -4,16 +4,20 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
+
+.retrieve_linux_pulumi_plugins:
+  - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
+  - rm -f pulumi_plugins.tar.xz
 
 .cache:
   stage: deps_fetch
@@ -69,11 +73,6 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    # Partial mitigation for #incident-30779. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
-    # Long term solution will be to provide the datadog-packages as a binary hosted internally
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - go env -w GOPRIVATE="github.com/DataDog/*"
-    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
@@ -89,15 +88,33 @@ go_tools_deps:
         - modcache_tools.tar.xz
 
 go_e2e_deps:
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   extends: .cache
+  before_script:
+    - dd-octo-sts version
+    - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch)
   script:
-    - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
-    - dda inv -- -e new-e2e-tests.deps
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
+    - |
+      if [ ! -f modcache_e2e.tar.xz ]; then
+        dda inv -- -e new-e2e-tests.deps
+        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache/ .
+      fi
+    - |
+      if [ ! -f pulumi_plugins.tar.xz ]; then
+        # Pre-download Pulumi plugins used by e2e scenarios and components, should no longer be needed when we move test-infra-definitions to datadog-agent
+        pushd ./test/new-e2e
+        PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install
+        popd
+        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/pulumi_plugins.tar.xz -C ~/.pulumi plugins
+      fi
   artifacts:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache_e2e.tar.xz
+      - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
   cache:
     - key:
         files:
@@ -106,6 +123,13 @@ go_e2e_deps:
         prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz
+    - key:
+        files:
+          - ./test/new-e2e/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "pulumi_plugins"
+      paths:
+        - pulumi_plugins.tar.xz
 
 fetch_openjdk:
   needs: []

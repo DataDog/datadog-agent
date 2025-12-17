@@ -1,0 +1,16 @@
+---
+# Policy used by the `push_to_datadog_agent` job in `datadog-agent-buildimages` CI.
+# Needs to be able to trigger the `buildimages-update` workflow.
+issuer: https://gitlab.ddbuild.io
+
+subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+
+claim_pattern:
+  event_name: workflow_dispatch
+  ref: refs/heads/main
+  ref_protected: "true"
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/buildimages-update\.yml@refs/heads/main
+
+permissions:
+  contents: write
+  pull_requests: write

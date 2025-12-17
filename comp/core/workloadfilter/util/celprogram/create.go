@@ -39,15 +39,15 @@ func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 	switch key {
 	case workloadfilter.ContainerType:
-		return "datadog.filter.FilterContainer"
+		return "datadog.workloadfilter.FilterContainer"
 	case workloadfilter.PodType:
-		return "datadog.filter.FilterPod"
+		return "datadog.workloadfilter.FilterPod"
 	case workloadfilter.ServiceType:
-		return "datadog.filter.FilterKubeService"
+		return "datadog.workloadfilter.FilterKubeService"
 	case workloadfilter.EndpointType:
-		return "datadog.filter.FilterKubeEndpoint"
+		return "datadog.workloadfilter.FilterKubeEndpoint"
 	case workloadfilter.ProcessType:
-		return "datadog.filter.FilterProcess"
+		return "datadog.workloadfilter.FilterProcess"
 	default:
 		return ""
 	}

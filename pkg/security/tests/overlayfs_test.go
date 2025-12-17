@@ -610,6 +610,10 @@ func TestOverlayOpOverride(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
 		return docker.Info["Storage Driver"] != "overlay2"
 	})
@@ -666,7 +670,7 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
 			assertFieldEqual(t, event, "open.file.path", "/tmp/target.txt")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 		})
 	})
 
@@ -680,7 +684,7 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
 			assertFieldEqual(t, event, "open.file.path", openTargetFromOverlayMnt)
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
 		})
 	})
 
@@ -694,7 +698,7 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertFieldEqual(t, event, "mkdir.file.path", mkdirTargetFromOverlayMnt)
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
 		})
 	})
 }

@@ -319,7 +319,7 @@ type PackageCommandHandler func(ctx context.Context, command string) error
 
 // RunPackageCommand runs a package-specific command
 func RunPackageCommand(ctx context.Context, packageName string, command string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("package.%s", packageName))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "package."+packageName)
 	span.SetTag("command", command)
 	defer func() { span.Finish(err) }()
 

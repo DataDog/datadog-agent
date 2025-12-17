@@ -1,0 +1,46 @@
+# Test that processes within the startDelay window are not discovered.
+# Process starts at tick 150, we scan at tick 200, watermark is 100.
+# Process is too new (started at 150 > watermark 100) so it's not discovered.
+- !initialize
+  current_time: 0
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 150
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+- !advance-time {to: 200}
+- !scan {}
+- !advance-time {to: 300}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 150
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+state:
+  current_time: 200
+  last_scan: 200
+  process_delays: [100]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 300}
+---
+command: !scan {}
+new: [1001]
+state:
+  current_time: 300
+  last_scan: 300
+  live: [1001]
+  processes_in_procfs: [1001]

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -800,7 +801,8 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, err := decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+	emptyRecv := HTTPReceiver{}
+	tp, err := emptyRecv.decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
 		return "abcdef123789456", nil
 	}), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
@@ -860,6 +862,49 @@ func TestDecodeV05(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestDecodeTracerPayloadContentLengthTooLarge(t *testing.T) {
+	// Test that decodeTracerPayload rejects requests when the Content-Length header
+	// exceeds MaxRequestBytes. This prevents allocating large buffers for oversized requests.
+	assert := assert.New(t)
+	require := require.New(t)
+
+	// Create a simple msgpack payload (v0.5 format)
+	data := [2]interface{}{
+		0: []string{
+			0: "Service",
+			1: "Name",
+			2: "Resource",
+			3: "sql",
+		},
+		1: [][][12]interface{}{
+			{
+				{uint32(3), uint32(1), uint32(2), uint64(1), uint64(2), uint64(3), int64(123), int64(456), 0, map[uint32]uint32{}, map[uint32]float64{}, uint32(3)},
+			},
+		},
+	}
+	b, err := vmsgp.Marshal(&data)
+	require.NoError(err)
+
+	// Create an HTTPReceiver with a small MaxRequestBytes
+	conf := newTestReceiverConfig()
+	conf.MaxRequestBytes = 100 // Set a small limit
+	recv := newTestReceiverFromConfig(conf)
+
+	// Create request with Content-Length header that exceeds MaxRequestBytes
+	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
+	require.NoError(err)
+	req.Header.Set("Content-Length", "1000") // Set Content-Length larger than MaxRequestBytes
+
+	// Call decodeTracerPayload and expect it to fail with ErrLimitedReaderLimitReached
+	_, err = recv.decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+		return "", nil
+	}), "python", "3.8.1", "1.2.3")
+
+	// Assert that we get the expected error
+	assert.Error(err)
+	assert.ErrorIs(err, apiutil.ErrLimitedReaderLimitReached)
 }
 
 type mockStatsProcessor struct {

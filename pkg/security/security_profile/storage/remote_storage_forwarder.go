@@ -11,7 +11,7 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -50,7 +50,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	// marshal event metadata
 	headerData, err := json.Marshal(p.Header)
 	if err != nil {
-		return fmt.Errorf("couldn't marshall event metadata")
+		return errors.New("couldn't marshall event metadata")
 	}
 
 	if storage.activityDumpHandler == nil {
@@ -58,7 +58,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	}
 
 	err = storage.activityDumpHandler.HandleActivityDump(selector.Image, selector.Tag, headerData, raw.Bytes())
-	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
+	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the activity dump handler", request.Format, selector)
 	return err
 }
 

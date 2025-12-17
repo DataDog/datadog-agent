@@ -17,7 +17,7 @@ import (
 
 // LegacyProcessExcludeProgram creates a regex-based program for filtering processes based on legacy disallowlist patterns
 func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyProcessExcludeProgram"
+	programName := string(workloadfilter.ProcessLegacyExclude)
 	var initErrors []error
 
 	extractFieldFunc := func(entity workloadfilter.Filterable) string {
@@ -56,4 +56,18 @@ func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Componen
 		ExtractField:         extractFieldFunc,
 		InitializationErrors: initErrors,
 	}
+}
+
+// ProcessCELLogsProgram creates a program for filtering process logs via CEL rules
+func ProcessCELLogsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ProcessCELLogsProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductLogs, workloadfilter.ProcessType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.ProcessType, logger)
+}
+
+// ProcessCELGlobalProgram creates a program for filtering processes globally via CEL rules
+func ProcessCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ProcessCELGlobalProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ProcessType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.ProcessType, logger)
 }
