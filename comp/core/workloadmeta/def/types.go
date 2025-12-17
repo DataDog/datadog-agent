@@ -2171,6 +2171,10 @@ func (crd CRD) String(verbose bool) string {
 	return sb.String()
 }
 
+func (crd CRD) BuildGKV() string {
+	return crd.Group + "/" + crd.Kind + ":" + crd.Version
+}
+
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate
 type FeatureGateStage string
 
