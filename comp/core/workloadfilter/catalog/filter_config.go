@@ -14,11 +14,11 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:pkgconfigusage
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +32,11 @@ type FilterConfig struct {
 	ContainerExcludeMetrics []string `json:"container_exclude_metrics"`
 	ContainerIncludeLogs    []string `json:"container_include_logs"`
 	ContainerExcludeLogs    []string `json:"container_exclude_logs"`
+
+	ContainerRuntimeSecurityInclude []string
+	ContainerRuntimeSecurityExclude []string
+	ContainerComplianceInclude      []string
+	ContainerComplianceExclude      []string
 
 	// Legacy AC filters
 	ACInclude []string `json:"ac_include"`
@@ -69,6 +74,8 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		processBlacklistPatterns = cfg.GetStringSlice("process_config.blacklist_patterns")
 	}
 
+	systemProbeCfg := pkgconfigsetup.SystemProbe()
+
 	return &FilterConfig{
 		// Legacy container filters
 		ContainerInclude:        cfg.GetStringSlice("container_include"),
@@ -77,6 +84,12 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		ContainerExcludeMetrics: cfg.GetStringSlice("container_exclude_metrics"),
 		ContainerIncludeLogs:    cfg.GetStringSlice("container_include_logs"),
 		ContainerExcludeLogs:    cfg.GetStringSlice("container_exclude_logs"),
+
+		ContainerComplianceInclude: cfg.GetStringSlice("compliance_config.container_include"),
+		ContainerComplianceExclude: cfg.GetStringSlice("compliance_config.container_exclude"),
+
+		ContainerRuntimeSecurityInclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_include"),
+		ContainerRuntimeSecurityExclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_exclude"),
 
 		// Legacy AC filters
 		ACInclude: cfg.GetStringSlice("ac_include"),
@@ -118,19 +131,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
-	if err == nil {
-		return celConfig, nil
-	}
-
-	// Fallback: try to get raw value and unmarshal manually
-	rawValue := cfg.GetString("cel_workload_exclude")
-	if rawValue == "" {
-		return nil, nil
-	}
-
-	// handles both yaml and json input
-	err = yaml.Unmarshal([]byte(rawValue), &celConfig)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig, structure.EnableStringUnmarshal)
 	if err == nil {
 		return celConfig, nil
 	}
