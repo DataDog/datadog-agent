@@ -2,12 +2,15 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
-package(default_package_metadata = [":license"])
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"]
+)
 
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
-    license_text = "@@//deps:lua/license",
+    license_text = "license_file",
     copyright_notice = "Copyright © 1994–2025 Lua.org, PUC-Rio.",
     visibility = ["//visibility:public"],
 )

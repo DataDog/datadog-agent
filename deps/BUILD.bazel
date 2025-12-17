@@ -42,7 +42,3 @@ filegroup(
     }),
     visibility = ["//compliance:__pkg__"],
 )
-
-exports_files([
-    "lua/license",
-])

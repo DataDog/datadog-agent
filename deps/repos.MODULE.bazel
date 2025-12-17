@@ -311,6 +311,7 @@ http_archive(
     strip_prefix = "lua-5.4.6",
     files = {
         "BUILD.bazel": "//deps:lua/lua.BUILD.bazel",
+        "license_file": "//deps:lua/license",
     },
 )
 
