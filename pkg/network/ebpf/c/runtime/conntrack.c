@@ -27,27 +27,44 @@
 #include "ipv6.h"
 #endif
 
+#ifdef JMWOLD
+SEC("kprobe/__nf_conntrack_hash_insert")
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
 
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+
+    if (!is_conn_nat(&orig, &reply)) {
+        return 0;
+    }
+
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
+    increment_telemetry_registers_count();
+
+    return 0;
+}
+#endif
+
+
+    // JMW update this kprobe and kretprobe to follow the pattern in /Users/jim.wilson/dd/datadog-agent/pkg/network/ebpf/c/tracer.c
+    // kprobe/tcp_sendmsg/kretprobe__tcp_sendmsg and others
 //JMWCOMMENT
 // new probe: Track conntrack confirmations (entry) - correlation approach
 // Entry probe: Store NAT connection info for correlation with return probe
 SEC("kprobe/__nf_conntrack_confirm")
-int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
-    log_debug("JMW(runtime)confirm: entry");
-    // JMW update this kprobe and kretprobe to follow the pattern in /Users/jim.wilson/dd/datadog-agent/pkg/network/ebpf/c/tracer.c
-    // kprobe/tcp_sendmsg/kretprobe__tcp_sendmsg and others
-    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
+int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-
-    if (!skb) {
-        return 0;
-    }
+    log_debug("kprobe/__nf_conntrack_confirm: pid_tgid: %llu", pid_tgid);
 
     // Extract ct from skb using nf_ct_get()
     struct nf_conn *ct = NULL;
     // JMW what happens if we try to call nf_ct_get() from here?
-    // Note: nf_ct_get() is typically inlined, so we need to access the skb fields directly (is get_netns() also typically inlined, we
-    // use it above)
+    // Note: nf_ct_get() is typically inlined, so we need to access the skb fields directly (JMW is get_netns() also typically inlined, we
+    // use it in current kprobe___nf_conntrack_hash_insert)
     // The conntrack info is stored in skb->_nfct
     u64 nfct = 0;
     BPF_CORE_READ_INTO(&nfct, skb, _nfct);
@@ -124,9 +141,11 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     }
 
     // Add both directions to conntrack map
-    //JMW
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
+
+    // JMW here, right?  Do we always want to increment this?  What if the entries already exist?
+    increment_telemetry_registers_count();
 
     return 0;
 }
