@@ -5,7 +5,6 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import yaml
-from click import Context
 from gitlab import GitlabError
 from gitlab.v4.objects import Project
 from invoke import task
@@ -308,7 +307,7 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
+def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (automatically generate a token targeting the target project).
@@ -326,7 +325,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
-    token = get_gitlab_token(Context(), repo=project_name.split('/')[1])
+    token = get_gitlab_token(ctx, repo=project_name.split('/')[1])
     repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
