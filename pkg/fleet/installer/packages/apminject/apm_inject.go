@@ -398,9 +398,9 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 				hasChanged = true
 				cfg.Default.ProfilingEnabled = &a.Env.InstallScript.ProfilingEnabled
 			}
-			if a.Env.InstallScript.TracerLogsCaptureEnabled != nil {
+			if a.Env.InstallScript.TracerLogsCollectionEnabled != nil {
 				hasChanged = true
-				cfg.Default.LogsCaptureEnabled = a.Env.InstallScript.TracerLogsCaptureEnabled
+				cfg.Default.LogsCollectionEnabled = a.Env.InstallScript.TracerLogsCollectionEnabled
 			}
 
 			// Avoid creating a .backup file and overwriting the existing file if no changes were made
