@@ -8,8 +8,7 @@ mod process_manager {
     tonic::include_proto!("process_manager");
 }
 use process_manager::process_manager_client::ProcessManagerClient;
-use tonic::transport::{Channel, Endpoint, Uri};
-use tower::service_fn;
+use tonic::transport::Channel;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,55 +49,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Create gRPC channel with platform-appropriate transport
 async fn create_channel() -> Result<Channel, Box<dyn std::error::Error>> {
-    // Check if TCP mode is explicitly requested
-    let use_tcp = env::var("DD_PM_USE_TCP").is_ok();
-
     // On Windows, always use TCP (Unix sockets not available)
     #[cfg(windows)]
-    let use_tcp = true;
+    {
+        create_tcp_channel().await
+    }
 
-    if use_tcp {
-        // TCP connection
-        let port = env::var("DD_PM_DAEMON_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(50051);
-        let addr = format!("http://127.0.0.1:{}", port);
-
-        let channel = Channel::from_shared(addr)?
-            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
-            .tcp_nodelay(true)
-            .timeout(std::time::Duration::from_secs(30))
-            .connect()
-            .await?;
-
-        Ok(channel)
-    } else {
-        // Unix socket connection (Unix-only)
-        #[cfg(unix)]
-        {
-            use tokio::net::UnixStream;
-
-            let socket_path = env::var("DD_PM_GRPC_SOCKET")
-                .or_else(|_| env::var("DD_PM_SOCKET")) // Backward compat
-                .unwrap_or_else(|_| "/var/run/datadog/process-manager.sock".to_string());
-
-            let channel = Endpoint::try_from("http://[::]:50051")?
-                .connect_with_connector(service_fn(move |_: Uri| {
-                    let socket_path = socket_path.clone();
-                    async move { UnixStream::connect(socket_path).await }
-                }))
-                .await?;
-
-            Ok(channel)
-        }
-
-        #[cfg(not(unix))]
-        {
-            Err("Unix sockets are not supported on this platform. Set DD_PM_USE_TCP=1 to use TCP."
-                .into())
+    // On Unix, check if TCP mode is explicitly requested
+    #[cfg(unix)]
+    {
+        let use_tcp = env::var("DD_PM_USE_TCP").is_ok();
+        if use_tcp {
+            create_tcp_channel().await
+        } else {
+            create_unix_socket_channel().await
         }
     }
+}
+
+/// Create a TCP-based gRPC channel
+async fn create_tcp_channel() -> Result<Channel, Box<dyn std::error::Error>> {
+    let port = env::var("DD_PM_DAEMON_PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(50051);
+    let addr = format!("http://127.0.0.1:{}", port);
+
+    let channel = Channel::from_shared(addr)?
+        .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
+        .tcp_nodelay(true)
+        .timeout(std::time::Duration::from_secs(30))
+        .connect()
+        .await?;
+
+    Ok(channel)
+}
+
+/// Create a Unix socket-based gRPC channel (Unix-only)
+#[cfg(unix)]
+async fn create_unix_socket_channel() -> Result<Channel, Box<dyn std::error::Error>> {
+    use tokio::net::UnixStream;
+    use tonic::transport::{Endpoint, Uri};
+    use tower::service_fn;
+
+    let socket_path = env::var("DD_PM_GRPC_SOCKET")
+        .or_else(|_| env::var("DD_PM_SOCKET")) // Backward compat
+        .unwrap_or_else(|_| "/var/run/datadog/process-manager.sock".to_string());
+
+    let channel = Endpoint::try_from("http://[::]:50051")?
+        .connect_with_connector(service_fn(move |_: Uri| {
+            let socket_path = socket_path.clone();
+            async move { UnixStream::connect(socket_path).await }
+        }))
+        .await?;
+
+    Ok(channel)
 }
 
 fn print_usage() {

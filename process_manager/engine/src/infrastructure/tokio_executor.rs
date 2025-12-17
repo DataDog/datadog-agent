@@ -12,11 +12,15 @@ use crate::domain::{
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use tracing::{debug, error, info, warn};
+
+#[cfg(target_os = "linux")]
+use std::fs;
+#[cfg(target_os = "linux")]
+use std::path::Path;
 
 // Platform-specific imports
 #[cfg(unix)]
@@ -483,11 +487,10 @@ impl TokioProcessExecutor {
         pid: u32,
         limits: &crate::domain::ResourceLimits,
     ) -> Result<(), DomainError> {
-        use windows::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, JOBOBJECT_BASIC_LIMIT_INFORMATION,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_JOB_MEMORY,
+            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
             JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOB_OBJECT_LIMIT_PROCESS_MEMORY,
         };
         use windows::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};

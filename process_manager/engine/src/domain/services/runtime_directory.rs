@@ -6,8 +6,11 @@
 
 use crate::domain::DomainError;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::{debug, warn};
+
+#[cfg(unix)]
+use std::path::Path;
 
 /// Get the platform-specific runtime base directory
 fn get_runtime_base() -> PathBuf {

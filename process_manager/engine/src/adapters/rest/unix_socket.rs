@@ -5,8 +5,7 @@
 //! - Windows: TCP on localhost (as fallback)
 
 use axum::Router;
-use std::path::Path;
-use tracing::{info, warn};
+use tracing::info;
 
 // ============================================================================
 // Unix Socket Implementation (Unix-only)
@@ -15,9 +14,13 @@ use tracing::{info, warn};
 #[cfg(unix)]
 use hyper::server::accept;
 #[cfg(unix)]
+use std::path::Path;
+#[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
+#[cfg(unix)]
+use tracing::warn;
 
 /// Start REST API server on Unix socket (Unix-only)
 ///

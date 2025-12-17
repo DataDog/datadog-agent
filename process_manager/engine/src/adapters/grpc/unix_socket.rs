@@ -6,18 +6,21 @@
 
 use crate::adapters::grpc::ProcessManagerService;
 use crate::proto::process_manager::process_manager_server::ProcessManagerServer;
-use std::path::Path;
 use tonic::transport::Server;
-use tracing::{info, warn};
+use tracing::info;
 
 // ============================================================================
 // Unix Socket Implementation (Unix-only)
 // ============================================================================
 
 #[cfg(unix)]
+use std::path::Path;
+#[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
+#[cfg(unix)]
+use tracing::warn;
 
 /// Start gRPC server on Unix socket (Unix-only)
 ///

@@ -1,0 +1,20 @@
+flowchart TB
+    subgraph OS["Operating System"]
+        SYSTEMD["systemd (PID 1)"]
+        
+        subgraph PM["dd-procmgrd (Process Manager)"]
+            AGENT["datadog-agent"]
+            TRACE["trace-agent"]
+            PROCESS["process-agent"]
+            SECURITY["security-agent"]
+            SYSPROBE["system-probe"]
+        end
+        
+        SYSTEMD --> PM
+    end
+
+    style OS fill:#f5f5f5,stroke:#333
+    style PM fill:#e3f2fd,stroke:#1976d2
+    style SYSTEMD fill:#fff,stroke:#333
+
+

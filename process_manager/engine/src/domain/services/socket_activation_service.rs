@@ -373,7 +373,7 @@ impl SocketActivationService {
     ) {
         use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
         use windows::Win32::Networking::WinSock::{
-            accept, select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR, INVALID_SOCKET,
+            accept, select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR,
         };
 
         let client_fd_env_var = config.client_fd_env_var.clone();
@@ -444,37 +444,39 @@ impl SocketActivationService {
                 if result > 0 && read_fds.fd_count > 0 {
                     // Optionally accept the first connection for trace-loader style handoff
                     let client_fd: Option<RawSocket> = if handoff_first_connection {
-                        let client_socket = unsafe {
+                        let client_socket_result = unsafe {
                             accept(SOCKET(handle as usize), None, None)
                         };
-                        if client_socket == INVALID_SOCKET {
-                            let err = std::io::Error::last_os_error();
-                            error!(
-                                socket = %socket_name,
-                                error = %err,
-                                "Failed to accept first connection for handoff"
-                            );
-                            None
-                        } else {
-                            let client_handle = client_socket.0 as RawSocket;
-                            // Make the client socket inheritable
-                            unsafe {
-                                let h = HANDLE(client_handle as *mut std::ffi::c_void);
-                                if let Err(e) = SetHandleInformation(h, 1u32, HANDLE_FLAGS(1)) {
-                                    warn!(
-                                        socket = %socket_name,
-                                        error = ?e,
-                                        "Failed to make client socket inheritable"
-                                    );
-                                }
+                        match client_socket_result {
+                            Err(err) => {
+                                error!(
+                                    socket = %socket_name,
+                                    error = %err,
+                                    "Failed to accept first connection for handoff"
+                                );
+                                None
                             }
-                            info!(
-                                socket = %socket_name,
-                                service = %service_name,
-                                client_handle = client_handle,
-                                "Accepted first connection for handoff to child"
-                            );
-                            Some(client_handle)
+                            Ok(client_socket) => {
+                                let client_handle = client_socket.0 as RawSocket;
+                                // Make the client socket inheritable
+                                unsafe {
+                                    let h = HANDLE(client_handle as *mut std::ffi::c_void);
+                                    if let Err(e) = SetHandleInformation(h, 1u32, HANDLE_FLAGS(1)) {
+                                        warn!(
+                                            socket = %socket_name,
+                                            error = ?e,
+                                            "Failed to make client socket inheritable"
+                                        );
+                                    }
+                                }
+                                info!(
+                                    socket = %socket_name,
+                                    service = %service_name,
+                                    client_handle = client_handle,
+                                    "Accepted first connection for handoff to child"
+                                );
+                                Some(client_handle)
+                            }
                         }
                     } else {
                         None

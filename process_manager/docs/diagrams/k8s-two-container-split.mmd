@@ -1,0 +1,47 @@
+flowchart TB
+    subgraph pod["Kubernetes Pod"]
+        subgraph privileged["Container: privileged-agents<br/>securityContext: privileged: true"]
+            PM1["dd-procmgrd<br/>(daemon, root)"]
+            SYSPROBE["system-probe"]
+            SECURITY["security-agent"]
+            PM1 --> SYSPROBE
+            PM1 --> SECURITY
+        end
+
+        subgraph unprivileged["Container: agents<br/>securityContext: runAsNonRoot: true"]
+            PM2["dd-procmgrd<br/>(daemon, dd-agent)"]
+            AGENT["datadog-agent"]
+            TRACE["trace-agent"]
+            PROCESS["process-agent"]
+            PM2 --> AGENT
+            PM2 --> TRACE
+            PM2 --> PROCESS
+            
+            CLI["dd-procmgr CLI<br/>(discovers & merges)"]
+        end
+
+        subgraph shared["Shared Volume: /var/run/datadog/pm/"]
+            SOCK1["privileged.sock"]
+            SOCK2["unprivileged.sock"]
+        end
+
+        PM1 -.-> SOCK1
+        PM2 -.-> SOCK2
+        CLI -.->|"scan directory"| shared
+    end
+
+    style pod fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style privileged fill:#ffe0e0,stroke:#cc0000,stroke-width:2px
+    style unprivileged fill:#e0ffe0,stroke:#009900,stroke-width:2px
+    style shared fill:#fff9c4,stroke:#f9a825,stroke-width:1px
+    style PM1 fill:#ffaaaa,stroke:#cc0000
+    style SYSPROBE fill:#ffaaaa,stroke:#cc0000
+    style SECURITY fill:#ffaaaa,stroke:#cc0000
+    style PM2 fill:#aaffaa,stroke:#009900
+    style AGENT fill:#aaffaa,stroke:#009900
+    style TRACE fill:#aaffaa,stroke:#009900
+    style PROCESS fill:#aaffaa,stroke:#009900
+    style CLI fill:#81c784,stroke:#388e3c,stroke-width:2px
+    style SOCK1 fill:#fff59d,stroke:#f9a825
+    style SOCK2 fill:#fff59d,stroke:#f9a825
+

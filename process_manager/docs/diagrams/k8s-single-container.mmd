@@ -1,0 +1,35 @@
+flowchart TB
+    subgraph pod["Kubernetes Pod"]
+        subgraph container["Container: datadog-agent<br/>securityContext: privileged: true"]
+            PM["dd-procmgrd<br/>(root)"]
+            
+            subgraph root_procs[" "]
+                SYSPROBE["system-probe<br/>(root)"]
+                SECURITY["security-agent<br/>(root)"]
+            end
+            
+            subgraph user_procs[" "]
+                AGENT["datadog-agent<br/>(dd-agent via setuid)"]
+                TRACE["trace-agent<br/>(dd-agent via setuid)"]
+                PROCESS["process-agent<br/>(dd-agent via setuid)"]
+            end
+            
+            PM --> SYSPROBE
+            PM --> SECURITY
+            PM --> AGENT
+            PM --> TRACE
+            PM --> PROCESS
+        end
+    end
+
+    style pod fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style container fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style root_procs fill:#ffe0e0,stroke:#cc0000,stroke-width:1px
+    style user_procs fill:#e0ffe0,stroke:#009900,stroke-width:1px
+    style PM fill:#ffcc80,stroke:#ff9800
+    style SYSPROBE fill:#ffaaaa,stroke:#cc0000
+    style SECURITY fill:#ffaaaa,stroke:#cc0000
+    style AGENT fill:#aaffaa,stroke:#009900
+    style TRACE fill:#aaffaa,stroke:#009900
+    style PROCESS fill:#aaffaa,stroke:#009900
+
