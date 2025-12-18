@@ -18,7 +18,7 @@ core,cloud.google.com/go/compute/apiv1,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/apiv1/computepb,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
-core,code.cloudfoundry.org/bbs,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,code.cloudfoundry.org/bbs,Apache-2.0,Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
 core,code.cloudfoundry.org/bbs/encryption,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/events,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/format,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
