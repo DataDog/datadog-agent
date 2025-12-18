@@ -65,7 +65,7 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 		IsPartial: isPartial(flag),
 	}
 	// Tag the stream (stdout/stderr) so downstream can filter by origin stream.
-	stream := string(components[1]) // stdout or stderr
+	stream := string(components[1])               // stdout or stderr
 	if stream == "stdout" || stream == "stderr" { // tag the stream so downstream can filter by origin stream.
 		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream)) // add it to rest of tags
 	}

@@ -116,7 +116,7 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
 	}
 	return msg, nil
-} 
+}
 
 // getDockerSeverity returns the status of the message based on the value of the
 // STREAM_TYPE byte in the header. STREAM_TYPE can be 1 for stdout and 2 for
