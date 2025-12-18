@@ -26,14 +26,12 @@ type dockerPermissionSuite struct {
 }
 
 // TestDockerPermissionSuite runs the docker permission health check test
-// Uses Amazon Linux ECS AMI which comes with Docker pre-installed
 func TestDockerPermissionSuite(t *testing.T) {
 	e2e.Run(t, &dockerPermissionSuite{},
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(os.AmazonLinuxECSDefault)), // ECS AMI has Docker pre-installed
 				ec2.WithAgentOptions(
-					agentparams.WithPipeline("87504962"),
 					agentparams.WithAgentConfig(`health_platform:
   enabled: true
   forwarder:
