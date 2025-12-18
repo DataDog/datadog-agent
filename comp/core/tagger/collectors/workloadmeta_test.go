@@ -2877,6 +2877,7 @@ func TestHandleProcess(t *testing.T) {
 		gpuDevice         = "Tesla V100"
 		gpuDriverVersion  = "525.60.13"
 		gpuVirtMode       = "none"
+		gpuSlicingMode = "none"
 	)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -3227,6 +3228,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
@@ -3267,6 +3270,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
