@@ -34,6 +34,7 @@ from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
+WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
@@ -48,6 +49,33 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+
+def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
+    """
+    Check if a gate failure should be non-blocking because on-disk size delta is 0 or negative.
+
+    A failure is considered non-blocking if the on-disk size hasn't increased from the ancestor,
+    meaning the issue existed before this PR and wasn't introduced by the current changes.
+
+    Note: Only on-disk size is checked because it's the primary metric for package size impact.
+
+    Args:
+        gate_name: The name of the quality gate to check
+        metric_handler: The metric handler containing relative size metrics
+
+    Returns:
+        True if on-disk size delta is <= 0 (bypass eligible), False otherwise
+    """
+    gate_metrics = metric_handler.metrics.get(gate_name, {})
+    disk_delta = gate_metrics.get("relative_on_disk_size")
+
+    # If we don't have delta data (e.g., no ancestor report), can't bypass
+    if disk_delta is None:
+        return False
+
+    # Bypass if on-disk size hasn't increased from ancestor
+    return disk_delta <= 0
 
 
 def display_pr_comment(
@@ -70,7 +98,8 @@ def display_pr_comment(
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
-    with_error = False
+    with_blocking_error = False
+    with_non_blocking_error = False
     with_info = False
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
@@ -97,12 +126,23 @@ def display_pr_comment(
             body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             with_info = True
         else:
-            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
+            # Check if this is a blocking or non-blocking failure
+            is_blocking = gate.get("blocking", True)
+            status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
+            body_error += f"|{status_char}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
-            body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
-            with_error = True
-    if with_error:
+            blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
+            body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
+            if is_blocking:
+                with_blocking_error = True
+            else:
+                with_non_blocking_error = True
+
+    if with_blocking_error:
         body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        final_error_body = body_error + body_error_footer
+    elif with_non_blocking_error:
+        body_error_footer += "\n</details>\n\nNote: Some gates exceeded limits but are non-blocking because the size hasn't increased from the ancestor commit.\n"
         final_error_body = body_error + body_error_footer
     else:
         final_error_body = ""
@@ -182,6 +222,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     "state": False,
                     "error_type": "StaticQualityGateFailed",
                     "message": str(e),
+                    "blocking": True,  # May be updated to False if delta=0 after relative size calculation
                 }
             )
         except InfraError as e:
@@ -198,6 +239,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     "state": False,
                     "error_type": "StackTrace",
                     "message": traceback.format_exc(),
+                    "blocking": True,  # StackTrace errors are always blocking
                 }
             )
         finally:
@@ -224,10 +266,29 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
+    # Calculate relative sizes (delta from ancestor) before sending metrics
+    # This is done for all branches to include delta metrics in Datadog
+    ancestor = get_common_ancestor(ctx, "HEAD")
+    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+
+    # Post-process gate failures: mark as non-blocking if delta <= 0
+    # This means the size issue existed before this PR and wasn't introduced by current changes
+    for gate_state in gate_states:
+        if gate_state["state"] is False and gate_state.get("blocking", True):
+            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+            if gate_state["error_type"] == "StaticQualityGateFailed":
+                if should_bypass_failure(gate_state["name"], metric_handler):
+                    gate_state["blocking"] = False
+                    print(
+                        color_message(
+                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                            "orange",
+                        )
+                    )
+
     # Reporting part
-    # Send metrics to Datadog
-    # and then print the summary table
-    # in the job's log
+    # Send metrics to Datadog (now includes delta metrics)
+    # and then print the summary table in the job's log
     metric_handler.send_metrics_to_datadog()
 
     # Print summary table directly with composition-based gates and metric handler
@@ -239,16 +300,17 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
+        # Determine if there are blocking failures (non-blocking failures have delta=0)
+        has_blocking_failures = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
-            ancestor = get_common_ancestor(ctx, "HEAD")
-            metric_handler.generate_relative_size(
-                ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json"
-            )
-            display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
+            # Pass True for final_state if there are no blocking failures
+            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
-        if final_state != "success" and not nightly_run:
+        # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)
+        if has_blocking_failures and not nightly_run:
             metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics
