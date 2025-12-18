@@ -64,8 +64,8 @@ done
 
 if [ "$NON_LINUX_FOUND" = "true" ]; then
     echo "$0: Non-excluded files changed - Windows installer jobs should run"
-    exit 0
+    exit 1
 else
     echo "$0: Only linux omnibus files changed - Skipping Windows installer jobs"
-    exit 1
+    exit 0
 fi
