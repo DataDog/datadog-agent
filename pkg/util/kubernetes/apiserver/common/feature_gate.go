@@ -9,6 +9,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -115,7 +116,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
 			case <-timeoutCtx.Done():
-				return nil, fmt.Errorf("timeout reached while waiting for Kubernetes feature gates")
+				return nil, errors.New("timeout reached while waiting for Kubernetes feature gates")
 			case <-time.After(sleepFor):
 			}
 		}
