@@ -22,10 +22,10 @@ import (
 const (
 	containerImageField    = string(workloadfilter.ContainerType) + ".image"
 	processCmdlineField    = string(workloadfilter.ProcessType) + ".cmdline"
-	serviceNameField       = string(workloadfilter.ServiceType) + ".name"
-	serviceNamespaceField  = string(workloadfilter.ServiceType) + ".namespace"
-	endpointNameField      = string(workloadfilter.EndpointType) + ".name"
-	endpointNamespaceField = string(workloadfilter.EndpointType) + ".namespace"
+	serviceNameField       = string(workloadfilter.KubeServiceType) + ".name"
+	serviceNamespaceField  = string(workloadfilter.KubeServiceType) + ".namespace"
+	endpointNameField      = string(workloadfilter.KubeEndpointType) + ".name"
+	endpointNamespaceField = string(workloadfilter.KubeEndpointType) + ".namespace"
 )
 
 type matchingProgram struct {
