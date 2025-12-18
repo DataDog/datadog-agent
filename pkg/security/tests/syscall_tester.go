@@ -50,7 +50,11 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
-	if _, err := sideTester.CombinedOutput(); err != nil {
+	output, err := sideTester.CombinedOutput()
+	if len(output) > 0 {
+		t.Logf("syscall tester check output: %s", string(output))
+	}
+	if err != nil {
 		return fmt.Errorf("cannot run syscall tester check: %w", err)
 	}
 	return nil
@@ -61,7 +65,8 @@ func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args .
 	sideTester := exec.CommandContext(ctx, path, args...)
 	output, err := sideTester.CombinedOutput()
 
-	if err != nil {
+	// Always log the output to help with debugging
+	if len(output) > 0 {
 		t.Logf("syscall tester output: %s", string(output))
 	}
 	return err
