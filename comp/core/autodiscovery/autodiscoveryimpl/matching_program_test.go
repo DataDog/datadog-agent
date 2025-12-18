@@ -71,14 +71,14 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 			rules: workloadfilter.Rules{
 				KubeServices: []string{`kube_service.name.matches("api-service") && kube_service.namespace == "default"`},
 			},
-			expectedTarget: workloadfilter.ServiceType,
+			expectedTarget: workloadfilter.KubeServiceType,
 		},
 		{
 			name: "endpoint rules only",
 			rules: workloadfilter.Rules{
 				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
-			expectedTarget: workloadfilter.EndpointType,
+			expectedTarget: workloadfilter.KubeEndpointType,
 		},
 		{
 			name: "multiple valid container rules",
@@ -98,7 +98,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 					`kube_service.annotations["version"] == "v2"`,
 				},
 			},
-			expectedTarget: workloadfilter.ServiceType,
+			expectedTarget: workloadfilter.KubeServiceType,
 		},
 	}
 
@@ -195,7 +195,7 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
 				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
-			expectedTarget: workloadfilter.ServiceType,
+			expectedTarget: workloadfilter.KubeServiceType,
 		},
 		{
 			name: "all types present - containers win",
