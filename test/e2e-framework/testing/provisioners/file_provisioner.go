@@ -7,10 +7,10 @@ package provisioners
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
-	"io/fs"
-	"path/filepath"
-	"strings"
+	"os"
 )
 
 const (
@@ -20,21 +20,21 @@ const (
 
 // FileProvisioner is a provisioner that reads JSON files from a filesystem.
 type FileProvisioner struct {
-	id string
-	fs fs.FS
+	id   string
+	path string
 }
 
 var _ Provisioner = &FileProvisioner{}
 
 // NewFileProvisioner returns a new FileProvisioner.
-func NewFileProvisioner(id string, fs fs.FS) *FileProvisioner {
+func NewFileProvisioner(id string, path string) *FileProvisioner {
 	if id == "" {
 		id = fileProvisionerDefaultID
 	}
 
 	return &FileProvisioner{
-		id: id,
-		fs: fs,
+		id:   id,
+		path: path,
 	}
 }
 
@@ -47,28 +47,28 @@ func (fp *FileProvisioner) ID() string {
 func (fp *FileProvisioner) Provision(context.Context, string, io.Writer) (RawResources, error) {
 	resources := make(RawResources)
 
-	return resources, fs.WalkDir(fp.fs, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fs.SkipDir
-		}
+	content, err := os.ReadFile(fp.path)
+	if err != nil {
+		return nil, err
+	}
 
-		if !d.Type().IsRegular() {
-			return nil
-		}
+	// The file is expected to be a "bundle" JSON map:
+	//   {"RemoteHost": {...}, "Agent": {...}, ...}
+	//
+	// We unmarshal into json.RawMessage to keep each value as raw JSON bytes,
+	// which is exactly what the e2e importer expects (per-resource payloads).
+	var resourcesJSON map[string]json.RawMessage
+	if err := json.Unmarshal(content, &resourcesJSON); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal file provisioner JSON %q: %w", fp.path, err)
+	}
+	if len(resourcesJSON) == 0 {
+		return nil, fmt.Errorf("file provisioner JSON %q is empty (no resources)", fp.path)
+	}
+	for key, value := range resourcesJSON {
+		resources[key] = value
+	}
 
-		if filepath.Ext(path) != fileExtFilter {
-			return nil
-		}
-
-		data, err := fs.ReadFile(fp.fs, path)
-		if err != nil {
-			return err
-		}
-
-		// We may need to put the relative path instead of just filename
-		resources[strings.TrimSuffix(d.Name(), fileExtFilter)] = data
-		return nil
-	})
+	return resources, nil
 }
 
 // Destroy is a no-op for the FileProvisioner.

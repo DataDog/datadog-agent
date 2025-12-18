@@ -81,6 +81,9 @@ const (
 	CoveragePipeline StoreKey = "coverage_pipeline"
 	// CoverageOutDir config flag parameter name
 	CoverageOutDir StoreKey = "coverage_out_dir"
+	// ExistingEnvJSONPath points to a JSON file describing an already-provisioned environment.
+	// When set, provisioners may use it to skip provisioning and import resources from the JSON instead.
+	EnvironmentJsonPath StoreKey = "environment_json_path"
 )
 
 const (

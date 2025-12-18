@@ -13,9 +13,10 @@ import (
 	"io"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -104,11 +105,13 @@ func TestProvisioningSequence(t *testing.T) {
 	permanentProvisioner := &testProvisioner{}
 	permanentProvisioner.On("ID").Return("permanent")
 	permanentProvisioner.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(testRawResources("myWrapper1", "permanent"), nil)
+	permanentProvisioner.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Temp provisioner is going to be removed in some tests
 	tempProvisioner := &testProvisioner{}
 	tempProvisioner.On("ID").Return("temp")
 	tempProvisioner.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(testRawResources("myWrapper2", "temp"), nil)
+	tempProvisioner.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	Run(t, &testSuiteWithTests{permanentProvisioner: permanentProvisioner, tempProvisioner: tempProvisioner}, WithProvisioner(permanentProvisioner), WithProvisioner(tempProvisioner))
 }
@@ -129,12 +132,16 @@ func (s *testSuiteWithTests) TestOrderA() {
 
 	// Remove temp provisioner, destroy should be called.
 	// `Provide` will be called again on permanent provisioner
-	// The call will panic because missing resource `myWrapper2`
-	s.tempProvisioner.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.Assert().PanicsWithError(
-		"unable to build env: *e2e.testEnv from resources for stack: e2e-testSuiteWithTests-e3e6e49fc651fcb8, err: expected resource named: Wrapper2 with key: myWrapper2 but not returned by provisioners",
-		func() { s.UpdateEnv(s.permanentProvisioner) },
+	// The call will error because missing resource `myWrapper2`
+	expectedErr := fmt.Sprintf(
+		"unable to build env: *e2e.testEnv from resources for stack: %s, err: expected resource named: Wrapper2 with key: myWrapper2 but not returned by provisioners",
+		s.params.stackName,
 	)
+	err := s.reconcileEnv(provisioners.ProvisionerMap{
+		s.permanentProvisioner.ID(): s.permanentProvisioner,
+	})
+	s.Require().Error(err)
+	s.Require().Equal(expectedErr, err.Error())
 
 	s.permanentProvisioner.AssertExpectations(s.T())
 	s.permanentProvisioner.AssertNumberOfCalls(s.T(), "Provision", 2)

@@ -156,9 +156,10 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -371,11 +372,15 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
 		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
 	}
-
 	if stackNameSuffix != "" {
 		bs.params.stackName = fmt.Sprintf("%s-%s", bs.params.stackName, stackNameSuffix)
 	}
-
+	if envPath, err := runner.GetProfile().ParamStore().Get(parameters.EnvironmentJsonPath); err == nil && envPath != "" {
+		bs.params.provisioners = provisioners.ProvisionerMap{}
+		fileProvisioner := provisioners.NewFileProvisioner("existing-env", envPath)
+		bs.params.provisioners[fileProvisioner.ID()] = fileProvisioner
+		bs.params.allowMissingResources = true
+	}
 	bs.originalProvisioners = bs.params.provisioners
 }
 
@@ -519,7 +524,6 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResour
 	if len(resources) == 0 {
 		return nil
 	}
-
 	for idx, fieldValue := range values {
 		field := fields[idx]
 		importKeyFromTag := field.Tag.Get(importKey)
@@ -539,6 +543,11 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResour
 		if importKeyFromTag != "" {
 			resourceKey = importKeyFromTag
 		}
+		// File-backed / static environments may not have had `components.Export()` run, so the
+		// Importable key can be empty. In that case, fall back to the environment field name.
+		if resourceKey == "" && importKeyFromTag == "" {
+			resourceKey = field.Name
+		}
 		if resourceKey == "" {
 			return fmt.Errorf("resource named %s has no import key set and no annotation", field.Name)
 		}
@@ -556,6 +565,11 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResour
 				}
 			}
 		} else {
+			// Static env mode: allow partial environments (e.g. RemoteHost only) by treating missing pointers as nil.
+			if bs.params.allowMissingResources && fieldValue.Kind() == reflect.Pointer && fieldValue.CanSet() {
+				fieldValue.Set(reflect.Zero(fieldValue.Type()))
+				continue
+			}
 			return fmt.Errorf("expected resource named: %s with key: %s but not returned by provisioners", field.Name, resourceKey)
 		}
 	}
@@ -732,23 +746,29 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Run provisioner Diagnose before tearing down the stack
-		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-		if err != nil {
-			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
-			continue
-		}
+		// Run provisioner Diagnose before tearing down the stack (Pulumi-only: requires Pulumi stack name).
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
-			bs.T().Logf("Running Diagnose for provisioner %s", id)
-			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
-			if diagnoseErr != nil {
-				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
-			} else if diagnoseResult != "" {
-				bs.T().Logf("Diagnose result: %s", diagnoseResult)
+			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+			if err != nil {
+				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			} else {
+				bs.T().Logf("Running Diagnose for provisioner %s", id)
+				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+				if diagnoseErr != nil {
+					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				} else if diagnoseResult != "" {
+					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				}
 			}
 		}
 
 		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
+			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+			if err != nil {
+				bs.T().Logf("unable to get stack name for remote stack cleaning, err: %v", err)
+				continue
+			}
+
 			fullStackName := "organization/e2eci/" + stackName
 			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
