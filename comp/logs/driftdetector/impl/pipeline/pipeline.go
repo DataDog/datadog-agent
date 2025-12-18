@@ -49,7 +49,7 @@ func New(config common.Config) *Pipeline {
 	templateExtractor := template.NewExtractor(config.Template, windowChan, templateChan)
 	embeddingClient := embedding.NewClient(config.Embedding, templateChan, embeddingChan)
 	dmdAnalyzer := dmd.NewAnalyzer(config.DMD, embeddingChan, dmdChan)
-	alertManager := alert.NewManager(config.Alert, dmdChan)
+	alertManager := alert.NewManager(config.Alert, dmdChan, config.Telemetry)
 
 	return &Pipeline{
 		config:            config,

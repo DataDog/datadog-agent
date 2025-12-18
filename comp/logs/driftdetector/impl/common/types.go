@@ -5,7 +5,11 @@
 
 package common
 
-import "time"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+)
 
 // LogEntry represents a single log line with timestamp and content
 type LogEntry struct {
@@ -74,6 +78,7 @@ type Config struct {
 	DMD       DMDConfig
 	Alert     AlertConfig
 	Manager   ManagerConfig
+	Telemetry telemetry.Component
 }
 
 // WindowConfig configures the sliding window behavior

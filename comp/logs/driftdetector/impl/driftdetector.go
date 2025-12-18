@@ -10,13 +10,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/logs/driftdetector/def"
 	"github.com/DataDog/datadog-agent/comp/logs/driftdetector/impl/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dependencies struct {
-	Config config.Component
+	Config    config.Component
+	Telemetry telemetry.Component
 }
 
 type driftDetector struct {
@@ -29,6 +31,9 @@ type driftDetector struct {
 func NewProvides(deps dependencies) def.Component {
 	// Load configuration from agent config
 	config := loadConfigFromAgent(deps.Config)
+
+	// Set telemetry component
+	config.Telemetry = deps.Telemetry
 
 	// Create manager for per-source drift detection
 	manager := newDriftDetectorManager(config)

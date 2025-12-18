@@ -10,35 +10,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/logs/driftdetector/impl/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-	// Prometheus metrics
-	anomaliesDetected = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "logdrift_anomalies_detected_total",
-			Help: "Total number of anomalies detected by severity",
-		},
-		[]string{"severity"},
-	)
-
-	reconstructionError = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "logdrift_dmd_reconstruction_error",
-			Help: "Current DMD reconstruction error",
-		},
-	)
-
-	normalizedError = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "logdrift_dmd_normalized_error",
-			Help: "Current DMD normalized error (in standard deviations)",
-		},
-	)
 )
 
 // Manager handles anomaly detection and alerting
@@ -47,16 +21,40 @@ type Manager struct {
 	inputChan chan common.DMDResult
 	ctx       context.Context
 	cancel    context.CancelFunc
+
+	// Telemetry metrics
+	anomaliesDetected   telemetry.Counter
+	reconstructionError telemetry.SimpleGauge
+	normalizedError     telemetry.SimpleGauge
 }
 
 // NewManager creates a new alert manager
-func NewManager(config common.AlertConfig, inputChan chan common.DMDResult) *Manager {
+func NewManager(config common.AlertConfig, inputChan chan common.DMDResult, tel telemetry.Component) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Manager{
 		config:    config,
 		inputChan: inputChan,
 		ctx:       ctx,
 		cancel:    cancel,
+
+		// Initialize telemetry metrics
+		anomaliesDetected: tel.NewCounter(
+			"logdrift",
+			"anomalies_detected_total",
+			[]string{"severity"},
+			"Total number of anomalies detected by severity",
+		),
+		reconstructionError: tel.NewSimpleGauge(
+			"logdrift",
+			"dmd_reconstruction_error",
+			"Current DMD reconstruction error",
+		),
+		normalizedError: tel.NewSimpleGauge(
+			"logdrift",
+			"dmd_normalized_error",
+			"Current DMD normalized error (in standard deviations)",
+		),
 	}
 }
 
@@ -88,8 +86,8 @@ func (m *Manager) run() {
 
 func (m *Manager) processDMDResult(result common.DMDResult) {
 	// Update metrics
-	reconstructionError.Set(result.ReconstructionError)
-	normalizedError.Set(result.NormalizedError)
+	m.reconstructionError.Set(result.ReconstructionError)
+	m.normalizedError.Set(result.NormalizedError)
 
 	// Check thresholds
 	var severity common.Severity
@@ -114,7 +112,7 @@ func (m *Manager) processDMDResult(result common.DMDResult) {
 		}
 
 		// Update counter
-		anomaliesDetected.WithLabelValues(string(severity)).Inc()
+		m.anomaliesDetected.Inc(string(severity))
 
 		// Log the alert
 		m.logAlert(alert)
