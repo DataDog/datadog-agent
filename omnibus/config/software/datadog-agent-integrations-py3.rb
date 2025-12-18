@@ -228,6 +228,14 @@ build do
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -m pip check"
 
+  # Removing tests that don't need to be shipped in the embedded folder
+  test_folders = [
+    '../idlelib/idle_test',
+  ]
+  test_folders.each do |test_folder|
+    delete "#{site_packages_path}/#{test_folder}/"
+  end
+
   unless windows_target?
     block "Remove .exe files" do
       # setuptools come from supervisor and ddtrace
