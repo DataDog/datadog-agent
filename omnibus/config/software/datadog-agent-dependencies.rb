@@ -10,7 +10,11 @@ end
 if fips_mode?
   dependency 'openssl-fips-provider'
 else
-  dependency 'secret-generic-connector' unless heroku_target?
+  if !heroku_target?
+    build do
+      command_on_repo_root "bazelisk run -- //deps/secret_connector:install --verbose --destdir=#{install_dir}"
+    end
+  end
 end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
