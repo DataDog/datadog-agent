@@ -190,10 +190,10 @@ COPY --from=extract /output/ /
 # Install Python dependencies for PyTorch embedding service
 # Use CPU-only PyTorch to avoid CUDA dependencies
 RUN /opt/datadog-agent/embedded/bin/python3 -m pip install --no-cache-dir \
-    torch==2.1.2+cpu \
+    torch==2.8.0+cpu \
     --index-url https://download.pytorch.org/whl/cpu && \
     /opt/datadog-agent/embedded/bin/python3 -m pip install --no-cache-dir \
-    sentence-transformers==2.2.2
+    sentence-transformers==3.3.1
 
 # Pre-download model to bake into image (speeds up first start)
 RUN /opt/datadog-agent/embedded/bin/python3 -c \
