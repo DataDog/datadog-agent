@@ -1,5 +1,16 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.4.2 / 2025-12-18
+
+* bump Go version to 1.25.5
+* bump golang.org/x/crypto to v0.44.0 (indirect)
+* Bump golang.org/x/oauth2 from 0.33.0 to 0.34.0
+* Bump github.com/aws/aws-sdk-go-v2/config from 1.32.1 to 1.32.6
+* Bump github.com/aws/aws-sdk-go-v2/credentials from 1.19.1 to 1.19.3
+* Bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.67.3 to 1.67.7
+* Bump github.com/aws/aws-sdk-go-v2/service/sts from 1.41.1 to 1.41.4
+* Bump github.com/aws/aws-sdk-go-v2/service/secretsmanager from 1.40.1 to 1.41.0
+
 ## 1.4.1 / 2025-11-25
 
 * Rework GCP delimiter parsing
