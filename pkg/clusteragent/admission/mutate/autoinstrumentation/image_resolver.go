@@ -259,12 +259,14 @@ type RepositoryConfig struct {
 
 // ResolvedImage represents a fully resolved image with digest and metadata.
 type ResolvedImage struct {
-	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	FullImageRef     string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	CanonicalVersion string // e.g., "3.1.0"
 }
 
 func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
 	return &ResolvedImage{
-		FullImageRef: registry + "/" + repositoryName + "@" + imageInfo.Digest,
+		FullImageRef:     registry + "/" + repositoryName + "@" + imageInfo.Digest,
+		CanonicalVersion: imageInfo.CanonicalVersion,
 	}
 }
 

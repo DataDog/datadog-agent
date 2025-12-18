@@ -53,7 +53,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
-		imageResolver,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -71,7 +71,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
-		imageResolver,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

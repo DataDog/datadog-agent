@@ -44,6 +44,7 @@ build do
   configure_options = [
     "--disable-static",
     "--disable-pedantic",
+    "--with-libxml=#{install_dir}/embedded/"
   ]
   configure(*configure_options, env: env)
   make "-j #{workers}", env: env

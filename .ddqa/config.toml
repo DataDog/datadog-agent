@@ -87,6 +87,13 @@ github_team = "ndm-integrations"
 github_labels = ["team/ndm-integrations"]
 exclude_members = ["leeavital", "heyronhay"]
 
+[teams."Network Path"]
+jira_project = "NETPATH"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "network-path"
+github_labels = ["team/network-path"]
+
 [teams."Network Performance Monitoring"]
 jira_project = "NPM"
 jira_issue_type = "Task"

@@ -24,8 +24,8 @@ build do
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
-        # Licenses
-        command_on_repo_root "bazelisk run -- //compliance:install_licenses --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+        # Push all the pieces built with Bazel.
+        command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
 
         # Conf files
         if windows_target?
@@ -58,6 +58,10 @@ build do
             delete "#{install_dir}/embedded/lib/cmake"
             # and for libtool files
             delete "#{install_dir}/embedded/lib/*.la"
+
+            # Delete the leftovers of static linking.
+            delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/include/dbus-1.0"
         end
 
         if linux_target?
