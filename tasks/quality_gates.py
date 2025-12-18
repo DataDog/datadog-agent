@@ -166,9 +166,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     current_mb = violation.current_size / (1024 * 1024)
                     max_mb = violation.max_size / (1024 * 1024)
                     excess_mb = violation.excess_bytes / (1024 * 1024)
+                    if excess_mb < 1:
+                        excess_kb = violation.excess_bytes / 1024
+                        excess_str = f"{excess_kb:.1f} KB"
+                    else:
+                        excess_str = f"{excess_mb:.1f} MB"
                     violation_messages.append(
                         f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                        f"exceeds limit of {max_mb:.1f} MB by {excess_mb:.1f} MB"
+                        f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
                     )
                 error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
                 print(color_message(error_message, "red"))
