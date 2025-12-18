@@ -978,7 +978,13 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/modelcontextprotocol/go-sdk v1.1.0
 	gitlab.com/gitlab-org/api/client-go v1.8.0
+)
+
+require (
+	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 )
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
