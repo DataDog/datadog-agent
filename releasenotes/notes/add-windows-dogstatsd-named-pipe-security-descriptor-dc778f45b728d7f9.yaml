@@ -1,3 +1,3 @@
 enhancements:
   - |
-    Add configuration for dogstatsd_windows_pipe_security_descriptor and set default to `D:AI(A;;GA;;;WD)`.
+    Add configuration for `dogstatsd_windows_pipe_security_descriptor` and set default to `D:AI(A;;GA;;;WD)`. This default security descriptor prevents an `Access is denied` error when opening a named pipe for dogstatsd server on a Windows Azure App Service Web app.
