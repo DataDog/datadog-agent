@@ -545,34 +545,34 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 func TestDisabledCollectorsConfiguration(t *testing.T) {
 	tests := []struct {
-		name           string
-		disabledList   []string
-		expectError    bool
-		expectedConfig []string
+		name               string
+		disabledCollectors []string
+		expected           []string
 	}{
 		{
-			name:           "valid configuration with single collector",
-			disabledList:   []string{"gpm"},
-			expectError:    false,
-			expectedConfig: []string{"gpm"},
+			name:               "disable gpm collector",
+			disabledCollectors: []string{"gpm"},
+			expected:           []string{"gpm"},
 		},
 		{
-			name:           "valid configuration with multiple collectors",
-			disabledList:   []string{"gpm", "fields", "sampling"},
-			expectError:    false,
-			expectedConfig: []string{"gpm", "fields", "sampling"},
+			name:               "disable multiple collectors",
+			disabledCollectors: []string{"gpm", "fields", "sampling"},
+			expected:           []string{"gpm", "fields", "sampling"},
 		},
 		{
-			name:           "empty configuration",
-			disabledList:   []string{},
-			expectError:    false,
-			expectedConfig: []string{},
+			name:               "disable all collectors",
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
 		},
 		{
-			name:           "nil disabled_collectors list",
-			disabledList:   nil,
-			expectError:    false,
-			expectedConfig: []string{},
+			name:               "no collectors disabled",
+			disabledCollectors: []string{},
+			expected:           []string{},
+		},
+		{
+			name:               "nil disabled_collectors list",
+			disabledCollectors: nil,
+			expected:           []string{},
 		},
 	}
 
@@ -590,7 +590,7 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			require.True(t, ok)
 
 			pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledList)
+			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
 				pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
 				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
@@ -604,16 +604,13 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				[]byte{},
 				"test",
 			)
+			require.NoError(t, err)
 
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, len(tt.expectedConfig), len(check.disabledCollectors))
-				for _, collector := range tt.expectedConfig {
-					assert.Contains(t, check.disabledCollectors, collector)
-				}
-			}
+			// Verify the disabled collectors are correctly identified in the check struct
+			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
+				"expected %d disabled collectors, got %d", len(tt.expected), len(check.disabledCollectors))
+			assert.ElementsMatch(t, tt.expected, check.disabledCollectors,
+				"disabled collectors mismatch")
 		})
 	}
 }
