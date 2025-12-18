@@ -65,9 +65,10 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
-	hostname    hostnameinterface.Component
-	cfg         pkgconfigmodel.Reader
-	compression logscompression.Component
+	hostname      hostnameinterface.Component
+	cfg           pkgconfigmodel.Reader
+	compression   logscompression.Component
+	driftDetector interface{}
 }
 
 // NewProvider returns a new Provider
@@ -84,6 +85,7 @@ func NewProvider(
 	compression logscompression.Component,
 	legacyMode bool,
 	serverless bool,
+	driftDetector interface{},
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
@@ -104,6 +106,7 @@ func NewProvider(
 		compression,
 		serverlessMeta,
 		senderImpl,
+		driftDetector,
 	)
 }
 
@@ -211,6 +214,7 @@ func newProvider(
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
+	driftDetector interface{},
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -224,6 +228,7 @@ func newProvider(
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
+		driftDetector:             driftDetector,
 	}
 }
 
@@ -242,6 +247,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
+			p.driftDetector,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)

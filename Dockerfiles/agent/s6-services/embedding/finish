@@ -1,0 +1,16 @@
+#!/usr/bin/execlineb -S1
+
+# Handle service exit:
+# - exit(0) = config check disabled it → permanently disable service
+# - exit(non-zero) = error → wait 2s and restart
+
+ifthenelse
+    { s6-test ${1} -eq 0 }
+    {
+        foreground { /initlog.sh "embedding-server exited (drift detection not enabled), disabling" }
+        foreground { /bin/s6-svc -d /var/run/s6/services/embedding/ }
+    }
+    {
+        foreground { /initlog.sh "embedding-server exited with code ${1}, restarting in 2s" }
+        foreground { s6-sleep 2 }
+    }

@@ -52,6 +52,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		nil,   // drift detector not used in compliance
 	)
 	pipelineProvider.Start()
 

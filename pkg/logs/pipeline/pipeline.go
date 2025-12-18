@@ -42,6 +42,7 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
+	driftDetector interface{},
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -61,7 +62,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID, driftDetector)
 
 	return &Pipeline{
 		InputChan:       inputChan,

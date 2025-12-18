@@ -57,6 +57,7 @@ func (a *logAgent) SetupPipeline(
 		a.compression,
 		true, // disable distributed sending for serverless
 		true, // serverless
+		a.driftDetector,
 	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)

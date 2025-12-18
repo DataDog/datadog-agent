@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	driftdetectordef "github.com/DataDog/datadog-agent/comp/logs/driftdetector/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -87,6 +88,7 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
+	DriftDetector      driftdetectordef.Component
 }
 
 type provides struct {
@@ -125,6 +127,7 @@ type logAgent struct {
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
 	healthPlatform            option.Option[healthplatform.Component]
+	driftDetector             driftdetectordef.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -148,6 +151,7 @@ func newLogsAgent(deps dependencies) provides {
 			log:                deps.Log,
 			config:             deps.Config,
 			inventoryAgent:     deps.InventoryAgent,
+			driftDetector:      deps.DriftDetector,
 			hostname:           deps.Hostname,
 			started:            atomic.NewUint32(status.StatusNotStarted),
 			auditor:            deps.Auditor,

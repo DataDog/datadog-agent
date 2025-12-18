@@ -187,6 +187,24 @@ ENV \
 # Copy agent from extract stage
 COPY --from=extract /output/ /
 
+# Install Python dependencies for PyTorch embedding service
+# Use CPU-only PyTorch to avoid CUDA dependencies
+RUN /opt/datadog-agent/embedded/bin/python3 -m pip install --no-cache-dir \
+    torch==2.8.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu && \
+    /opt/datadog-agent/embedded/bin/python3 -m pip install --no-cache-dir \
+    sentence-transformers==3.3.1
+
+# Pre-download model to bake into image (speeds up first start)
+RUN /opt/datadog-agent/embedded/bin/python3 -c \
+    "from sentence_transformers import SentenceTransformer; \
+     SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" && \
+    echo "Model cached successfully"
+
+# Copy embedding server script
+COPY embedding_server.py /opt/datadog-agent/bin/embedding_server.py
+RUN chmod 755 /opt/datadog-agent/bin/embedding_server.py
+
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
