@@ -8,8 +8,18 @@
 //nolint:revive // TODO(PLINT) Fix revive linter
 package wlan
 
-import "errors"
+import (
+	"errors"
 
-func GetWiFiInfo() (wifiInfo, error) {
+	"github.com/xeipuuv/gojsonschema"
+)
+
+// GetWiFiInfo retrieves WiFi information (not supported on this platform)
+func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	return wifiInfo{}, errors.New("wifi info only supported on macOS and Windows")
+}
+
+// createIPCResponseSchema is a stub for non-darwin platforms
+func createIPCResponseSchema() (*gojsonschema.Schema, error) {
+	return nil, errors.New("IPC schema validation only needed on macOS")
 }
