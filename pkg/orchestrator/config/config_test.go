@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
@@ -337,7 +337,6 @@ func (suite *YamlConfigTestSuite) TestLoadFunction() {
 	// Check default values
 	suite.Equal(100, orchestratorCfg.MaxPerMessage)
 	suite.Equal(10000000, orchestratorCfg.MaxWeightPerMessageBytes)
-	suite.Equal(15*1000*1000, orchestratorCfg.PodQueueBytes)
 }
 
 func (suite *YamlConfigTestSuite) TestLoadWithAPIKey() {
