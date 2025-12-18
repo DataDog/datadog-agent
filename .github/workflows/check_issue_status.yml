@@ -48,15 +48,12 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                per_page: 1,
-                sort: 'created',
-                direction: 'desc'
               });
               if (comments.data.length === 0) {
                 // no comments, cannot determine user
                 return "false";
               }
-              username = comments.data[0].user.login;
+              username = comments.data[comments.data.length - 1].user.login;
             } else {
               return "false";
             }
@@ -71,7 +68,7 @@ jobs:
               }
               return "false";
             } catch (error) {
-              if (error.name === 'HttpError') {
+              if (error.message.startsWith('User does not exist or is not a member')) {
                 // User is not a datadog member
                 return "false";
               }
