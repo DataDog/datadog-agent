@@ -1014,8 +1014,6 @@ type Status struct {
 					Alloc int `json:"alloc"`
 				} `json:"memstats"`
 				Pid                             int    `json:"pid"`
-				PodQueueBytes                   int    `json:"pod_queue_bytes"`
-				PodQueueSize                    int    `json:"pod_queue_size"`
 				ProcessCount                    int    `json:"process_count"`
 				ProcessQueueBytes               int    `json:"process_queue_bytes"`
 				ProcessQueueSize                int    `json:"process_queue_size"`
