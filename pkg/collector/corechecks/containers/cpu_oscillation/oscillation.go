@@ -111,8 +111,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return errors.New("cpu_oscillation check is disabled by default; set enabled: true in configuration to enable")
 	}
 
-	log.Infof("[%s] Configured with enabled=%t, amplitude_multiplier=%.2f, min_amplitude=%.2f, min_direction_reversals=%d, warmup_seconds=%d",
-		CheckName, c.config.Enabled, c.config.AmplitudeMultiplier, c.config.MinAmplitude, c.config.MinDirectionReversals, c.config.WarmupSeconds)
+	log.Infof("[%s] Configured with enabled=%t, min_periodicity_score=%.2f, min_amplitude=%.2f, min_period=%d, max_period=%d, warmup_seconds=%d",
+		CheckName, c.config.Enabled, c.config.MinPeriodicityScore, c.config.MinAmplitude, c.config.MinPeriod, c.config.MaxPeriod, c.config.WarmupSeconds)
 
 	return nil
 }
@@ -380,19 +380,11 @@ func (c *Check) emitMetrics() {
 
 		// REQ-COD-003: Emit metrics with container tags
 		sender.Gauge("container.cpu.oscillation.detected", detected, "", tags)
-		sender.Gauge("container.cpu.oscillation.amplitude", result.Amplitude, "", tags)
+		sender.Gauge("container.cpu.oscillation.periodicity_score", result.PeriodicityScore, "", tags)
+		sender.Gauge("container.cpu.oscillation.period", result.Period, "", tags)
 		sender.Gauge("container.cpu.oscillation.frequency", result.Frequency, "", tags)
-		sender.Gauge("container.cpu.oscillation.direction_reversals", float64(result.DirectionReversals), "", tags)
-		sender.Gauge("container.cpu.oscillation.baseline_stddev", cd.detector.BaselineStdDev(), "", tags)
-
-		// Emit amplitude_ratio: amplitude / baseline_stddev (raw ratio without multiplier)
-		// This allows querying "how many containers have ratio > X?" for any threshold X
-		// without needing to redeploy with different amplitude_multiplier config
-		amplitudeRatio := 0.0
-		if cd.detector.BaselineStdDev() > 0 {
-			amplitudeRatio = result.Amplitude / cd.detector.BaselineStdDev()
-		}
-		sender.Gauge("container.cpu.oscillation.amplitude_ratio", amplitudeRatio, "", tags)
+		sender.Gauge("container.cpu.oscillation.amplitude", result.Amplitude, "", tags)
+		sender.Gauge("container.cpu.oscillation.baseline_stddev", cd.detector.StdDev(), "", tags)
 
 		// Log when oscillation is detected
 		if result.Detected {
@@ -400,8 +392,8 @@ func (c *Check) emitMetrics() {
 			if len(shortID) > 12 {
 				shortID = shortID[:12]
 			}
-			log.Infof("[%s] Oscillation detected for container %s: amplitude=%.2f%%, frequency=%.3fHz, direction_reversals=%d",
-				CheckName, shortID, result.Amplitude, result.Frequency, result.DirectionReversals)
+			log.Infof("[%s] Oscillation detected for container %s: periodicity=%.2f, period=%.1fs, amplitude=%.2f%%",
+				CheckName, shortID, result.PeriodicityScore, result.Period, result.Amplitude)
 		}
 	}
 

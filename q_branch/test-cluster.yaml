@@ -100,5 +100,7 @@ data:
       - enabled: true
         warmup_seconds: 60
         min_amplitude: 10
-        min_direction_reversals: 40
+        min_periodicity_score: 0.5
+        min_period: 2
+        max_period: 30
 ---

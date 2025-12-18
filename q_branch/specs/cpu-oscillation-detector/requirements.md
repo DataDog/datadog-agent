@@ -23,17 +23,23 @@ As an SRE operating Kubernetes clusters with 20-100 containers per node across m
 
 ## Requirements
 
-### REQ-COD-001: Detect Rapid CPU Cycling Per Container
+### REQ-COD-001: Detect Periodic CPU Oscillation Per Container
 
-WHEN a container's CPU usage alternates direction (rising then falling, or falling then rising) more than 6 times within a 60-second window
-AND the amplitude of these swings exceeds 4x the container's baseline standard deviation
-AND the amplitude exceeds the configured minimum amplitude threshold (if set)
+WHEN a container's CPU usage exhibits periodic behavior (autocorrelation peak > 0.5 at some lag τ)
+AND the period τ is within the detectable range (2-30 seconds)
+AND the amplitude of CPU swings exceeds the configured minimum amplitude threshold
 THE SYSTEM SHALL emit a binary signal indicating oscillation is detected for that container
 
-WHEN a container's CPU usage shows fewer direction changes OR swing amplitude is within normal variance
+WHEN a container's CPU usage shows no significant periodicity (autocorrelation peak < 0.5)
+OR the detected period is outside the valid range
+OR amplitude is below the minimum threshold
 THE SYSTEM SHALL indicate no oscillation detected for that container
 
-**Rationale:** Rapid CPU oscillation often indicates unhealthy container states (restart loops, thrashing, retry storms) that are invisible in standard 15-60 second aggregated metrics. Per-container detection enables SREs to immediately identify which workload is causing problems on hosts running dozens of containers.
+THE SYSTEM SHALL report the periodicity score (0.0-1.0) indicating strength of the periodic pattern
+
+THE SYSTEM SHALL report the detected period in seconds (time between CPU peaks)
+
+**Rationale:** Autocorrelation-based detection finds true periodic patterns rather than counting random direction changes. Random noise produces many direction reversals but low autocorrelation; true oscillations (batch processing, health check loops, retry storms) show strong autocorrelation peaks at the oscillation period. This eliminates false positives from containers with naturally variable but non-periodic CPU usage.
 
 ---
 
@@ -60,44 +66,53 @@ THE SYSTEM SHALL create a new detector with fresh warmup state
 WHEN oscillation metrics are emitted for a container
 THE SYSTEM SHALL include tags identifying the container using standard DD_CHECKS_TAG_CARDINALITY tagging (kube_namespace, kube_deployment, container_name, etc.)
 
-WHEN oscillation is detected for a container
-THE SYSTEM SHALL report the current swing amplitude (peak-to-trough percentage) for that container
+WHEN metrics are emitted for a container
+THE SYSTEM SHALL report the following oscillation characteristics:
+- `detected` (0 or 1): Whether oscillation is currently detected
+- `periodicity_score` (0.0-1.0): Strength of periodic pattern (peak autocorrelation)
+- `period` (seconds): Detected oscillation period (time between peaks)
+- `frequency` (Hz): Oscillation frequency (1/period)
+- `amplitude` (CPU %): Peak-to-trough CPU swing
+- `baseline_stddev` (CPU %): Container's baseline standard deviation
 
-WHEN oscillation is detected for a container
-THE SYSTEM SHALL report the detected cycle frequency for that container
-
-**Rationale:** Tags enable the critical triage path: alert fires -> read K8s tags -> navigate to that workload's logs/events. Without proper tagging, per-container detection has no value over host-level detection.
+**Rationale:** Tags enable the critical triage path: alert fires -> read K8s tags -> navigate to that workload's logs/events. The periodicity_score allows flexible alerting thresholds without redeploying the Agent. Period/frequency help identify the source (e.g., 30s period suggests health check loops).
 
 ---
 
 ### REQ-COD-004: Minimal Performance Impact at Scale
 
-THE SYSTEM SHALL sample CPU for each container at 1Hz without adding more than 1% CPU overhead to the Agent process
+THE SYSTEM SHALL sample CPU for each container at 1Hz with O(1) cost per sample
+
+THE SYSTEM SHALL compute autocorrelation at emission time (every 15s) with O(n²) complexity where n=60 samples
 
 THE SYSTEM SHALL maintain detection state using fixed memory per container (~500 bytes per container)
 
 THE SYSTEM SHALL support 100 containers per host within a ~50KB memory budget for all detector state
 
+THE SYSTEM SHALL complete autocorrelation computation for 100 containers in <100ms
+
 THE SYSTEM SHALL NOT require batching or special handling for typical container counts (20-100)
 
-**Rationale:** The detector must not itself become a resource problem. With 20-100 containers per host being typical, the implementation must scale linearly with predictable memory usage.
+**Rationale:** The detector must not itself become a resource problem. Autocorrelation is O(n²) but with n=60 and only computed every 15s, the CPU cost is negligible (~0.1ms per container). With 20-100 containers per host being typical, the implementation scales acceptably.
 
 ---
 
 ### REQ-COD-005: Configurable Detection with Default Disabled
 
 WHERE oscillation detection is enabled via configuration
-THE SYSTEM SHALL allow users to configure the amplitude multiplier threshold (default: 4.0x baseline)
-
-WHERE oscillation detection is enabled
-THE SYSTEM SHALL allow users to configure a minimum amplitude threshold in absolute percentage points (default: 0, meaning no floor)
+THE SYSTEM SHALL allow users to configure:
+- `min_amplitude` (default: 10%): Minimum CPU swing to consider as oscillation
+- `min_periodicity_score` (default: 0.5): Minimum autocorrelation peak to detect periodicity
+- `min_period` (default: 2s): Minimum detectable oscillation period
+- `max_period` (default: 30s): Maximum detectable oscillation period
+- `warmup_seconds` (default: 60s): Time before detection is active
 
 WHERE oscillation detection is disabled (default state)
 THE SYSTEM SHALL not perform 1Hz sampling or oscillation analysis
 
 THE SYSTEM SHALL default to disabled (explicit opt-in required)
 
-**Rationale:** This is a new, experimental feature. Default-disabled ensures users explicitly opt-in. Different environments have different tolerance for false positives vs. missed detections. The amplitude multiplier provides relative sensitivity (compared to baseline), while the minimum amplitude threshold provides an absolute floor.
+**Rationale:** This is a new, experimental feature. Default-disabled ensures users explicitly opt-in. The min_periodicity_score threshold controls sensitivity (higher = fewer false positives but may miss weak oscillations). Period range limits focus detection on actionable oscillations (too fast = noise, too slow = normal variation).
 
 ---
 
@@ -137,16 +152,20 @@ THE SYSTEM SHALL run normally but emit no metrics (not an error condition)
 
 2. **Aggregate CPU per container (not per-core):** Per-core detection is non-deterministic because work scheduling across cores is unpredictable within a container.
 
-3. **Short-lived containers (<5min warmup) will not trigger detection:** Containers that don't survive the warmup period never establish a baseline and thus cannot detect oscillation. This is acceptable since short-lived containers don't oscillate meaningfully (they either succeed or fail quickly).
+3. **Autocorrelation-based detection (not direction reversals):** Direction reversal counting produces excessive false positives because random noise also produces many reversals. Autocorrelation detects true periodicity: a signal correlated with a time-shifted version of itself indicates repeating patterns. This correctly identifies batch processing, health check loops, and retry storms while ignoring random noise.
 
-4. **Container restart = new detector:** A restarting container gets a new container ID, which means a fresh detector with new warmup. This is correct behavior since the container's workload characteristics may have changed.
+4. **Short-lived containers (<60s warmup) will not trigger detection:** Containers that don't survive the warmup period never establish a baseline and thus cannot detect oscillation. Warmup reduced from 5 minutes to 60 seconds since autocorrelation doesn't require baseline variance estimation.
 
-5. **Use existing container metrics infrastructure:** Leverage WorkloadMeta for container discovery/lifecycle and the standard metrics provider for CPU stats, consistent with other container checks.
+5. **Container restart = new detector:** A restarting container gets a new container ID, which means a fresh detector with new warmup. This is correct behavior since the container's workload characteristics may have changed.
 
-6. **Metric namespace: `container.cpu.oscillation.*`:** Clear separation from `system.*` host-level metrics indicates these are per-container metrics.
+6. **Use existing container metrics infrastructure:** Leverage WorkloadMeta for container discovery/lifecycle and the standard metrics provider for CPU stats, consistent with other container checks.
 
-7. **High-variance workloads (batch, CI):** Unknown how to handle. This implementation is explicitly a data-gathering exercise to understand what oscillation patterns look like in the wild. We'll tune based on staging observations.
+7. **Metric namespace: `container.cpu.oscillation.*`:** Clear separation from `system.*` host-level metrics indicates these are per-container metrics.
 
-8. **Baseline persistence across restarts:** Out of scope for this iteration. Future work could leverage the Auditer/registry.json pattern for state persistence.
+8. **Period range 2-30 seconds:** Oscillations faster than 2s are likely measurement noise; slower than 30s are normal workload variation. This range captures the actionable patterns: batch processing (5-10s), health checks (10-30s), retry loops (1-5s).
 
-9. **Correlation with host-level metrics:** Out of scope. Users can aggregate per-container metrics at query time in Datadog if they need host-level views.
+9. **Periodicity score threshold 0.5:** Based on signal processing standards, autocorrelation > 0.5 indicates moderate to strong periodicity. This can be tuned via configuration.
+
+10. **Baseline persistence across restarts:** Out of scope for this iteration. Future work could leverage the Auditer/registry.json pattern for state persistence.
+
+11. **Correlation with host-level metrics:** Out of scope. Users can aggregate per-container metrics at query time in Datadog if they need host-level views.

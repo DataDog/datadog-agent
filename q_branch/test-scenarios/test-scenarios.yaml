@@ -1,0 +1,371 @@
+# Test Scenarios for CPU Oscillation Detection (v2)
+#
+# These pods demonstrate realistic failure patterns visible at 1Hz but invisible at 15s:
+# 1. Connection Pool Starvation - Feast/famine bimodal CPU pattern
+# 2. Batch Micro-Processing - Queue consumer sawtooth pattern
+# 3. Self-Induced Feedback Loop - "Healthy but broken" oscillation
+
+---
+# ConfigMap containing all test scripts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oscillation-test-scripts
+data:
+  connection_pool_starvation.py: |
+    #!/usr/bin/env python3
+    """Connection Pool Starvation - Feast/Famine Pattern"""
+    import threading
+    import time
+    import sys
+
+    POOL_SIZE = 2
+    NUM_WORKERS = 8
+    WORK_DURATION = 2.0
+
+    class ConnectionPool:
+        def __init__(self, size):
+            self.semaphore = threading.Semaphore(size)
+            self.size = size
+            self.active = 0
+            self.lock = threading.Lock()
+
+        def acquire(self):
+            self.semaphore.acquire()
+            with self.lock:
+                self.active += 1
+
+        def release(self):
+            with self.lock:
+                self.active -= 1
+            self.semaphore.release()
+
+        def get_active(self):
+            with self.lock:
+                return self.active
+
+    def cpu_intensive_work(duration):
+        end_time = time.time() + duration
+        result = 0
+        while time.time() < end_time:
+            for i in range(10000):
+                result += i * i
+        return result
+
+    def worker(worker_id, pool, stats):
+        while True:
+            wait_start = time.time()
+            pool.acquire()
+            wait_time = time.time() - wait_start
+            try:
+                cpu_intensive_work(WORK_DURATION)
+                with stats['lock']:
+                    stats['queries'] += 1
+                    stats['total_wait'] += wait_time
+            finally:
+                pool.release()
+            time.sleep(0.1)
+
+    def monitor(pool, stats):
+        last_queries = 0
+        while True:
+            time.sleep(5)
+            with stats['lock']:
+                queries = stats['queries']
+                total_wait = stats['total_wait']
+            qps = (queries - last_queries) / 5
+            avg_wait = total_wait / max(queries, 1)
+            print(f"[Monitor] Pool: {pool.get_active()}/{pool.size} | Queries: {queries} ({qps:.1f}/s) | Avg wait: {avg_wait:.2f}s")
+            sys.stdout.flush()
+            last_queries = queries
+
+    print("=" * 60)
+    print("Connection Pool Starvation Demo")
+    print(f"Pool: {POOL_SIZE}, Workers: {NUM_WORKERS}")
+    print("Expected: Bimodal CPU - HIGH or LOW")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    pool = ConnectionPool(POOL_SIZE)
+    stats = {'queries': 0, 'total_wait': 0.0, 'lock': threading.Lock()}
+    threading.Thread(target=monitor, args=(pool, stats), daemon=True).start()
+    for i in range(NUM_WORKERS):
+        threading.Thread(target=worker, args=(i, pool, stats), daemon=True).start()
+        time.sleep(0.05)
+    while True:
+        time.sleep(60)
+
+  batch_processor.py: |
+    #!/usr/bin/env python3
+    """Batch Micro-Processing - Queue Consumer Pattern"""
+    import time
+    import random
+    import sys
+    import threading
+    import queue
+
+    MIN_BATCH_INTERVAL = 3.0
+    MAX_BATCH_INTERVAL = 8.0
+    MIN_BATCH_SIZE = 50
+    MAX_BATCH_SIZE = 200
+
+    def cpu_work_for_message():
+        result = 0
+        for i in range(5000):
+            result += i * i
+        return result
+
+    def message_producer(msg_queue, stats):
+        batch_num = 0
+        while True:
+            interval = random.uniform(MIN_BATCH_INTERVAL, MAX_BATCH_INTERVAL)
+            time.sleep(interval)
+            batch_size = random.randint(MIN_BATCH_SIZE, MAX_BATCH_SIZE)
+            batch_num += 1
+            for i in range(batch_size):
+                msg_queue.put({'batch': batch_num, 'ts': time.time()})
+            with stats['lock']:
+                stats['received'] += batch_size
+            print(f"[Producer] Batch {batch_num}: {batch_size} msgs")
+            sys.stdout.flush()
+
+    def message_consumer(msg_queue, stats):
+        while True:
+            batch = []
+            try:
+                batch.append(msg_queue.get(timeout=1.0))
+            except queue.Empty:
+                continue
+            while True:
+                try:
+                    batch.append(msg_queue.get_nowait())
+                except queue.Empty:
+                    break
+            start = time.time()
+            for msg in batch:
+                cpu_work_for_message()
+            elapsed = time.time() - start
+            with stats['lock']:
+                stats['processed'] += len(batch)
+            print(f"[Consumer] {len(batch)} msgs in {elapsed:.2f}s")
+            sys.stdout.flush()
+
+    print("=" * 60)
+    print("Batch Micro-Processing Demo")
+    print(f"Batch interval: {MIN_BATCH_INTERVAL}-{MAX_BATCH_INTERVAL}s")
+    print("Expected: Sawtooth CPU pattern")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    msg_queue = queue.Queue()
+    stats = {'received': 0, 'processed': 0, 'lock': threading.Lock()}
+    threading.Thread(target=message_producer, args=(msg_queue, stats), daemon=True).start()
+    threading.Thread(target=message_consumer, args=(msg_queue, stats), daemon=True).start()
+    while True:
+        time.sleep(60)
+
+  feedback_loop.py: |
+    #!/usr/bin/env python3
+    """Self-Induced Feedback Loop - Healthy But Broken"""
+    import time
+    import sys
+    import threading
+    import http.server
+    import socketserver
+
+    WORK_THRESHOLD = 30
+    CRITICAL_THRESHOLD = 15
+    MAX_HEALTH = 100
+    PORT = 8080
+
+    class AppState:
+        def __init__(self):
+            self.health = MAX_HEALTH
+            self.lock = threading.Lock()
+            self.cycles = 0
+            self.state = "healthy"
+
+        def get_health(self):
+            with self.lock:
+                return self.health
+
+        def update_health(self, delta):
+            with self.lock:
+                self.health = max(0, min(MAX_HEALTH, self.health + delta))
+
+        def set_state(self, state):
+            with self.lock:
+                if self.state != state:
+                    self.cycles += 1
+                    print(f"[State] {self.state} -> {state} (cycle {self.cycles})")
+                    sys.stdout.flush()
+                self.state = state
+
+    def cpu_work(duration):
+        end = time.time() + duration
+        while time.time() < end:
+            for i in range(10000):
+                _ = i * i
+
+    def work_loop(app):
+        while True:
+            h = app.get_health()
+            if h >= WORK_THRESHOLD:
+                app.set_state("healthy")
+                cpu_work(0.5)
+                app.update_health(-7.5)
+            elif h >= CRITICAL_THRESHOLD:
+                app.set_state("degraded")
+                cpu_work(0.2)
+                app.update_health(-1.5)
+                time.sleep(0.1)
+            else:
+                app.set_state("critical")
+                time.sleep(0.5)
+                app.update_health(2.5)
+
+    def monitor(app):
+        while True:
+            time.sleep(5)
+            h = app.get_health()
+            bar = "#" * int(h/2) + "-" * (50 - int(h/2))
+            print(f"[Monitor] Health: {h:5.1f} [{bar}] Cycles: {app.cycles}")
+            sys.stdout.flush()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'OK\n')
+        def log_message(self, *args):
+            pass
+
+    def http_server():
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            httpd.serve_forever()
+
+    print("=" * 60)
+    print("Self-Induced Feedback Loop Demo")
+    print(f"Health check :{PORT} always returns 200!")
+    print("Expected: CPU oscillates HIGH/MED/LOW")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    app = AppState()
+    threading.Thread(target=http_server, daemon=True).start()
+    threading.Thread(target=monitor, args=(app,), daemon=True).start()
+    work_loop(app)
+
+---
+# Scenario 1: Connection Pool Starvation
+# 8 workers fighting for 2 connections
+# Pattern: Bimodal CPU - HIGH when processing, LOW when blocked
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pool-starvation
+  labels:
+    app: pool-starvation
+    scenario: cpu-oscillation-test-v2
+spec:
+  containers:
+  - name: app
+    image: python:3.11-alpine
+    command: ["python3", "-u", "/scripts/connection_pool_starvation.py"]
+    volumeMounts:
+    - name: scripts
+      mountPath: /scripts
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
+  volumes:
+  - name: scripts
+    configMap:
+      name: oscillation-test-scripts
+      defaultMode: 0755
+  restartPolicy: Always
+
+---
+# Scenario 2: Batch Micro-Processing
+# Queue consumer that processes batches every 3-8 seconds
+# Pattern: Sawtooth CPU - spike during batch, valley while waiting
+apiVersion: v1
+kind: Pod
+metadata:
+  name: batch-processor
+  labels:
+    app: batch-processor
+    scenario: cpu-oscillation-test-v2
+spec:
+  containers:
+  - name: app
+    image: python:3.11-alpine
+    command: ["python3", "-u", "/scripts/batch_processor.py"]
+    volumeMounts:
+    - name: scripts
+      mountPath: /scripts
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
+  volumes:
+  - name: scripts
+    configMap:
+      name: oscillation-test-scripts
+      defaultMode: 0755
+  restartPolicy: Always
+
+---
+# Scenario 3: Self-Induced Feedback Loop
+# App with internal health that K8s can't see
+# Pattern: Oscillating CPU as health cycles through healthy/degraded/critical
+# K8s readiness probe ALWAYS passes - this is the "looks healthy but isn't" case
+apiVersion: v1
+kind: Pod
+metadata:
+  name: feedback-loop
+  labels:
+    app: feedback-loop
+    scenario: cpu-oscillation-test-v2
+spec:
+  containers:
+  - name: app
+    image: python:3.11-alpine
+    command: ["python3", "-u", "/scripts/feedback_loop.py"]
+    ports:
+    - containerPort: 8080
+    volumeMounts:
+    - name: scripts
+      mountPath: /scripts
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+  volumes:
+  - name: scripts
+    configMap:
+      name: oscillation-test-scripts
+      defaultMode: 0755
+  restartPolicy: Always
