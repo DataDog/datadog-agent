@@ -563,7 +563,7 @@ func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
 	if h.privileged == nil {
 		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
 		utils.Logf(h.context.T(), "Can't SFTP files without a privileged SSH connection")
-		require.Fail(h.context.T(), "Can't SFTP files without a privileged SSH connection")
+		h.context.T().Fail()
 		return nil
 	}
 	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
