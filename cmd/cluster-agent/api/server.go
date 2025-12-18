@@ -156,6 +156,11 @@ func ModifyAPIRouter(f func(*mux.Router)) {
 	f(apiRouter)
 }
 
+// ModifyRootRouter allows to pass in a function to modify the root router used in server
+func ModifyRootRouter(f func(*mux.Router)) {
+	f(router)
+}
+
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func StopServer() {

@@ -557,6 +557,9 @@ type AgentConfig struct {
 
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
+
+	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
+	APMMode string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

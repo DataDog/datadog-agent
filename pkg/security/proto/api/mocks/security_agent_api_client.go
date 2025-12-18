@@ -7,7 +7,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	grpc "google.golang.org/grpc"
 
@@ -28,7 +28,7 @@ func (_m *SecurityAgentAPIClient) EXPECT() *SecurityAgentAPIClient_Expecter {
 }
 
 // SendActivityDumpStream provides a mock function with given fields: ctx, opts
-func (_m *SecurityAgentAPIClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty], error) {
+func (_m *SecurityAgentAPIClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty], error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -42,16 +42,16 @@ func (_m *SecurityAgentAPIClient) SendActivityDumpStream(ctx context.Context, op
 		panic("no return value specified for SendActivityDumpStream")
 	}
 
-	var r0 grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty]
+	var r0 grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty], error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty], error)); ok {
 		return rf(ctx, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty]); ok {
 		r0 = rf(ctx, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty])
+			r0 = ret.Get(0).(grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty])
 		}
 	}
 
@@ -90,18 +90,18 @@ func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) Run(run func(ctx c
 	return _c
 }
 
-func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) Return(_a0 grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty], _a1 error) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
+func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) Return(_a0 grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty], _a1 error) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) RunAndReturn(run func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty], error)) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
+func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) RunAndReturn(run func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty], error)) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SendEvent provides a mock function with given fields: ctx, opts
-func (_m *SecurityAgentAPIClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty], error) {
+func (_m *SecurityAgentAPIClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty], error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -115,16 +115,16 @@ func (_m *SecurityAgentAPIClient) SendEvent(ctx context.Context, opts ...grpc.Ca
 		panic("no return value specified for SendEvent")
 	}
 
-	var r0 grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty]
+	var r0 grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty], error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty], error)); ok {
 		return rf(ctx, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty]); ok {
 		r0 = rf(ctx, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty])
+			r0 = ret.Get(0).(grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty])
 		}
 	}
 
@@ -163,12 +163,12 @@ func (_c *SecurityAgentAPIClient_SendEvent_Call) Run(run func(ctx context.Contex
 	return _c
 }
 
-func (_c *SecurityAgentAPIClient_SendEvent_Call) Return(_a0 grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty], _a1 error) *SecurityAgentAPIClient_SendEvent_Call {
+func (_c *SecurityAgentAPIClient_SendEvent_Call) Return(_a0 grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty], _a1 error) *SecurityAgentAPIClient_SendEvent_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityAgentAPIClient_SendEvent_Call) RunAndReturn(run func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty], error)) *SecurityAgentAPIClient_SendEvent_Call {
+func (_c *SecurityAgentAPIClient_SendEvent_Call) RunAndReturn(run func(context.Context, ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty], error)) *SecurityAgentAPIClient_SendEvent_Call {
 	_c.Call.Return(run)
 	return _c
 }

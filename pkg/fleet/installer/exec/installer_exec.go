@@ -304,38 +304,29 @@ func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.Package
 
 // State returns the state of a package.
 func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
-	states, err := i.States(ctx)
+	allStates, err := i.ConfigAndPackageStates(ctx)
 	if err != nil {
 		return repository.State{}, err
 	}
-	return states[pkg], nil
-}
-
-// States returns the states of all packages.
-func (i *InstallerExec) States(ctx context.Context) (map[string]repository.State, error) {
-	allStates, err := i.getStates(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return allStates.States, nil
+	return allStates.States[pkg], nil
 }
 
 // ConfigState returns the state of a package's configuration.
 func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
-	configStates, err := i.ConfigStates(ctx)
+	allStates, err := i.ConfigAndPackageStates(ctx)
 	if err != nil {
 		return repository.State{}, err
 	}
-	return configStates[pkg], nil
+	return allStates.ConfigStates[pkg], nil
 }
 
-// ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *InstallerExec) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
 	allStates, err := i.getStates(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return allStates.ConfigStates, nil
+	return allStates, nil
 }
 
 // Close cleans up any resources.

@@ -242,7 +242,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 	}
 
 	if ev.ProcessContext.ContainerContext.ContainerID != "" {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetContainerWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
 			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
 			ev.ProcessContext.ContainerContext.Resolved = true
 		}
@@ -393,16 +393,6 @@ func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SEL
 		e.BoolName = fh.resolvers.PathResolver.ResolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
-}
-
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFFieldHandlers) GetProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false, newEntryCb)
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
 }
 
 // ResolveFileFieldsGroup resolves the group id of the file to a group name

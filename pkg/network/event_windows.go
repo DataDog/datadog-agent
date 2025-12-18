@@ -122,6 +122,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.TLSTags = tls.Tags{
 		ChosenVersion:   flow.Tls_version_chosen,
 		OfferedVersions: uint8(flow.Tls_versions_offered),
+		CipherSuite:     flow.Tls_cipher_suite,
 	}
 
 	if connectionType == TCP {

@@ -33,6 +33,12 @@
             "log"
           ],
           "title": "LogAction"
+        },
+        {
+          "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
         }
       ],
       "properties": {

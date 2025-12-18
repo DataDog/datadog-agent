@@ -142,11 +142,6 @@ func load() (*types.Config, error) {
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := cfg.GetBool(compNS("enabled")) ||
-		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")))
-	if complianceEnabled {
-		c.EnabledModules[ComplianceModule] = struct{}{}
-	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
@@ -187,6 +182,15 @@ func load() (*types.Config, error) {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}
+	}
+
+	// Enable discovery by default if system-probe has any modules enabled,
+	// unless the user has explicitly configured the discovery.enabled config
+	// key.
+	if len(c.EnabledModules) > 0 &&
+		!c.ModuleIsEnabled(DiscoveryModule) &&
+		applyDefault(cfg, discoveryNS("enabled"), true) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

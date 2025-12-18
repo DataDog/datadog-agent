@@ -284,10 +284,11 @@ func TestRawPacketAction(t *testing.T) {
 			if msg == nil {
 				return errors.New("not found")
 			}
-			validateMessageSchema(t, string(msg.Data))
+			validateRawPacketActionSchema(t, string(msg.Data))
 
 			return nil
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
 	})
 }
 

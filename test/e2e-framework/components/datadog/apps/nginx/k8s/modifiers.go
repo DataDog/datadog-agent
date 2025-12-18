@@ -179,3 +179,57 @@ func WithAnnotations(annotations map[string]string) DeploymentModifier {
 		return nil
 	}
 }
+
+// WithConfigMap adds a ConfigMap volume and volume mount to the nginx container.
+func WithConfigMap() DeploymentModifier {
+	return func(d *appsv1.DeploymentArgs) error {
+		podTemplateSpec, err := ensureDeploymentPodTemplateSpec(d)
+		if err != nil {
+			return err
+		}
+
+		containers, ok := podTemplateSpec.Containers.(corev1.ContainerArray)
+		if !ok {
+			return errors.New("type check failed for Containers array")
+		}
+
+		// Add the ConfigMap volume mount to the nginx container
+		if len(containers) > 0 {
+			container, ok := containers[0].(*corev1.ContainerArgs)
+			if !ok {
+				return errors.New("type check failed for container")
+			}
+
+			if container.VolumeMounts != nil {
+				volumeMounts, ok := container.VolumeMounts.(*corev1.VolumeMountArray)
+				if !ok {
+					return errors.New("type check failed for VolumeMounts")
+				}
+
+				*volumeMounts = append(corev1.VolumeMountArray{
+					&corev1.VolumeMountArgs{
+						Name:      pulumi.String("conf"),
+						MountPath: pulumi.String("/etc/nginx/nginx.conf"),
+						SubPath:   pulumi.String("nginx.conf"),
+					},
+				}, *volumeMounts...)
+			}
+		}
+
+		volumes, ok := podTemplateSpec.Volumes.(corev1.VolumeArray)
+		if !ok {
+			return errors.New("type check failed for Volumes array")
+		}
+
+		podTemplateSpec.Volumes = append(corev1.VolumeArray{
+			&corev1.VolumeArgs{
+				Name: pulumi.String("conf"),
+				ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+					Name: pulumi.String("nginx"),
+				},
+			},
+		}, volumes...)
+
+		return nil
+	}
+}

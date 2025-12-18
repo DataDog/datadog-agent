@@ -90,6 +90,28 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	wincommonagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
+// TestInstallAgentFails asserts various system state when the installer fails to install the Agent package (it's not available)
+func (s *testInstallExeSuite) TestInstallAgentFails() {
+	// Act
+	_, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE": "does-not-exist.internal",
+	}))
+	s.Require().Error(err, "expected install to fail because Agent package is not available")
+
+	// Assert
+	configDir := `C:\ProgramData\Datadog`
+	s.Require().Host(s.Env().RemoteHost).
+		DirExists(configDir)
+	// check that config dir is protected even though MSI didn't run
+	security, err := wincommon.GetSecurityInfoForPath(s.Env().RemoteHost, configDir)
+	s.Require().NoError(err)
+	s.Require().True(security.AreAccessRulesProtected, "config dir should be protected")
+	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Owner.GetSID(), "config dir should be owned by Administrators group")
+	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Group.GetSID(), "config dir should be grouped by Administrators group")
+	// Agent is not installed so we can't grab paths from the registry keys, must provide them manually
+	wincommonagent.TestHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost, []string{configDir})
+}
+
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)
 type proxyEnv struct {
 	environments.WindowsHost

@@ -27,6 +27,9 @@ const pathTraces = "/api/v0.2/traces"
 
 const defaultConnectionLimit = 5
 
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+const tagAPMMode = "_dd.apm_mode"
+
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
@@ -83,6 +86,8 @@ type TraceWriter struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+	// apmMode exists here to propagate the value to the AgentPayload
+	apmMode string
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -114,6 +119,7 @@ func NewTraceWriter(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		apmMode:            cfg.APMMode,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -272,6 +278,9 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
+	}
+	if w.apmMode != "" {
+		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

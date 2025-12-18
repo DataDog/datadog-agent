@@ -1,5 +1,5 @@
-#ifndef __TRIE_H__
-#define __TRIE_H__
+#ifndef __CHASED_POINTERS_TRIE_H__
+#define __CHASED_POINTERS_TRIE_H__
 
 // The critbit trie stores sets of typed pointers: 64-bit address + 32-bit
 // type_id. Based on the patricia trie or djb's critbit trie but binpacked
@@ -173,8 +173,8 @@ __attribute__((always_inline)) static inline uint8_t clz64(uint64_t x) {
 }
 
 typedef enum chased_pointers_trie_insert_result {
-  CHASED_POINTERS_TRIE_EXISTS = 0,
-  CHASED_POINTERS_TRIE_SUCCESS = 1,
+  CHASED_POINTERS_TRIE_ALREADY_EXISTS = 0,
+  CHASED_POINTERS_TRIE_INSERTED = 1,
   CHASED_POINTERS_TRIE_FULL = 2,
   CHASED_POINTERS_TRIE_NULL = 3,
   CHASED_POINTERS_TRIE_ERROR = 4,
@@ -193,7 +193,7 @@ chased_pointers_trie_insert(
     trie->leaves[0].type_id = type_id;
     trie->len = 1;
     trie->root = 0 | CPT_LEAF_BIT; // Set root to point to first leaf
-    return CHASED_POINTERS_TRIE_SUCCESS;
+    return CHASED_POINTERS_TRIE_INSERTED;
   }
 
   // Traverse until we reach a leaf.
@@ -244,7 +244,7 @@ chased_pointers_trie_insert(
   } else if (diff_type_id) {
     crit_bit = 64 + 31 - clz32(diff_type_id);
   } else {
-    return CHASED_POINTERS_TRIE_EXISTS; // keys are identical
+    return CHASED_POINTERS_TRIE_ALREADY_EXISTS; // keys are identical
   }
 
   // Determine direction for new key at critical bit.
@@ -287,7 +287,7 @@ chased_pointers_trie_insert(
   } else {
     trie->nodes[parent & CPT_NODE_MASK].left = new_internal;
   }
-  return CHASED_POINTERS_TRIE_SUCCESS;
+  return CHASED_POINTERS_TRIE_INSERTED;
 }
 
 void chased_pointers_trie_clear(chased_pointers_trie_t* trie) {
@@ -335,4 +335,4 @@ static uint16_t chased_pointers_trie_len(chased_pointers_trie_t* trie) {
 }
 #endif
 
-#endif // __TRIE_H__
+#endif // __CHASED_POINTERS_TRIE_H__

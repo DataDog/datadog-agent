@@ -23,8 +23,9 @@ def destroy(
     """
 
     full_stack_name = get_stack_name(stack, scenario_name)
-    short_stack_names, full_stack_names = _get_existing_stacks()
+    pulumi_dir_flag = tool.get_pulumi_dir_flag()
 
+    short_stack_names, full_stack_names = _get_existing_stacks(pulumi_dir_flag.split(" "))
     if len(short_stack_names) == 0:
         info("No stack to destroy")
         return
@@ -50,7 +51,7 @@ def destroy(
         for stack_name in short_stack_names:
             error(f" {stack_name}")
     else:
-        cmd = f"pulumi destroy --remove --yes --skip-preview -s {full_stack_name}"
+        cmd = f"pulumi {pulumi_dir_flag} destroy --remove --yes --skip-preview -s {full_stack_name}"
         pty = True
         if tool.is_windows():
             pty = False
@@ -61,8 +62,8 @@ def destroy(
             ctx.run(cmd, pty=pty)
 
 
-def _get_existing_stacks() -> Tuple[List[str], List[str]]:
-    output = subprocess.check_output(["pulumi", "stack", "ls", "--all"])
+def _get_existing_stacks(pulumi_dir_flag: List[str]) -> Tuple[List[str], List[str]]:
+    output = subprocess.check_output(["pulumi", *pulumi_dir_flag, "stack", "ls", "--all"])
     output = output.decode("utf-8")
     lines = output.splitlines()
     lines = lines[1:]  # skip headers

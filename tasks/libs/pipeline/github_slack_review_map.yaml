@@ -38,7 +38,7 @@
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/debugger-go': '#debugger-go'
 '@datadog/documentation': '#documentation'
-'@datadog/ebpf-platform': '#ebpf-platform-reviews'
+'@datadog/ebpf-platform': '#ebpf-platform'
 '@datadog/fleet': '#fleet-automation'
 '@datadog/injection-platform': '#injection-platform'
 '@datadog/kubernetes-experiences': '#kubernetes-experiences'

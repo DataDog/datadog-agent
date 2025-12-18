@@ -43,10 +43,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -155,6 +157,11 @@ func testDyninst(
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
 	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
+	cfg.TestingKnobs.TombstoneSleepKnobs = tombstone.WaitTestingKnobs{
+		BackoffPolicy: &backoff.ExpBackoffPolicy{
+			MaxBackoffTime: time.Millisecond.Seconds(),
+		},
+	}
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
@@ -212,7 +219,7 @@ func testDyninst(
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
-	t.Logf("Triggering function calls")
+	t.Logf("Triggering function calls at %s", time.Now().Format(time.RFC3339))
 	sampleStdin.Write([]byte("\n"))
 
 	var totalExpectedEvents int
@@ -229,7 +236,7 @@ func testDyninst(
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in
 		// the happy path, it's fine to let this be quite long.
-		timeout = 5*time.Second + 5*time.Since(start)
+		timeout = 30*time.Second + 10*time.Since(start)
 	}
 	deadline := time.Now().Add(timeout)
 	var n int
@@ -240,6 +247,7 @@ func testDyninst(
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !rewriteEnabled {
+		t.Logf("function calls completed at %s", time.Now().Format(time.RFC3339))
 		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())

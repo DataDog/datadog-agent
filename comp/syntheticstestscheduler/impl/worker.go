@@ -17,12 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
@@ -141,7 +139,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				hostname:      hname,
 			}
 
-			result, tracerouteErr := s.runTraceroute(ctx, tracerouteCfg, s.telemetry)
+			result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
 			if tracerouteErr != nil {
@@ -282,19 +280,6 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (str
 		return "", err
 	}
 	return res.Result.Status, nil
-}
-
-// runTraceroute is the default traceroute execution using the traceroute package.
-func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg, telemetry)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %w", err)
-	}
-	path, err := tr.Run(ctx)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %w", err)
-	}
-	return path, nil
 }
 
 // configRequestToResultRequest converts a ConfigRequest to a ResultRequest.

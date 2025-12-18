@@ -37,7 +37,7 @@ func (s *installScriptSSISuite) TestInstall() {
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_PROFILING_ENABLED=true",
 		"DD_NO_AGENT_INSTALL=true",

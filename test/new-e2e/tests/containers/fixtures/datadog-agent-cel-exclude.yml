@@ -1,8 +1,16 @@
 datadog:
   envDict:
     DD_CEL_WORKLOAD_EXCLUDE: |-
-      - products: ["global"]
-        rules:
-          containers:
-          - container.name == "redis"
-          - container.pod.namespace == "filtered-ns"
+      [
+        {
+          "products": [
+            "global"
+          ],
+          "rules": {
+            "containers": [
+              "container.name == \"redis\"",
+              "container.pod.namespace == \"filtered-ns\""
+            ]
+          }
+        }
+      ]

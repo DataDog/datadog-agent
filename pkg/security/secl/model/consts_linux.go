@@ -2390,3 +2390,10 @@ type PrCtlOption int
 func (p PrCtlOption) String() string {
 	return prctlOptionStrings[int(p)]
 }
+
+// RlimitResource is used to define the resource type in rlimit calls
+type RlimitResource int
+
+func (r RlimitResource) String() string {
+	return rlimitStrings[int(r)]
+}

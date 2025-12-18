@@ -255,7 +255,7 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
-	ret.procSubscriber = procsubscribe.NewRemoteConfigProcessSubscriber(
+	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)
 
@@ -295,6 +295,24 @@ func (m *Module) Register(router *module.Router) error {
 			},
 		),
 	)
+	// Handler for printing debug information about the known Go processes with
+	// the Datadog tracer. These processes are watched for Remote Config updates
+	// related to Dynamic Instrumentation.
+	router.HandleFunc(
+		"/debug/goprocs",
+		utils.WithConcurrencyLimit(
+			utils.DefaultMaxConcurrentRequests,
+			func(w http.ResponseWriter, _ *http.Request) {
+				if m.shutdown.realDependencies.procSubscriber == nil {
+					utils.WriteAsJSON(w, nil, utils.PrettyPrint)
+					return
+				}
+
+				report := m.shutdown.realDependencies.procSubscriber.GetReport()
+				utils.WriteAsJSON(w, report, utils.PrettyPrint)
+			},
+		),
+	)
 	return nil
 }
 
@@ -326,6 +344,7 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				Info:   update.Info,
 				Probes: update.Probes,
 			})
+			m.diagnostics.retain(runtimeID, update.Probes)
 			for _, probe := range update.Probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}

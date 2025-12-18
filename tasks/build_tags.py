@@ -61,9 +61,9 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
-    "sds",
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
@@ -101,6 +101,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
     "trivy",
@@ -325,6 +326,7 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
+        "installer": INSTALLER_TAGS.union(FIPS_TAGS),
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
@@ -356,7 +358,6 @@ def compute_build_tags_for_flavor(
     build_include: str | None,
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
-    include_sds: bool = False,
     platform: str | None = None,
 ):
     """
@@ -377,9 +378,6 @@ def compute_build_tags_for_flavor(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     list = get_build_tags(build_include, build_exclude)
-
-    if include_sds:
-        list.append("sds")
 
     return list
 

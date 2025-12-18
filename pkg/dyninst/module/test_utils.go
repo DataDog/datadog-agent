@@ -7,10 +7,6 @@
 
 package module
 
-import (
-	"sync"
-)
-
 // DiagnosticsStates returns the diagnostics states for the controller.
 func (m *Module) DiagnosticsStates() map[string]map[string][]string {
 	var states = make(map[string]map[string][]string)
@@ -20,19 +16,15 @@ func (m *Module) DiagnosticsStates() map[string]map[string][]string {
 		m.diagnostics.emitted,
 		m.diagnostics.errors,
 	} {
-		t.byRuntimeID.Range(func(runtimeIDAny, probesAny interface{}) bool {
-			runtimeID := runtimeIDAny.(string)
-			m, ok := states[runtimeID]
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		t.mu.btree.Ascend(func(item diagnosticItem) bool {
+			m, ok := states[item.key.runtimeID]
 			if !ok {
 				m = make(map[string][]string)
-				states[runtimeID] = m
+				states[item.key.runtimeID] = m
 			}
-			probes := probesAny.(*sync.Map)
-			probes.Range(func(probeIDAny, _ interface{}) bool {
-				probeID := probeIDAny.(string)
-				m[probeID] = append(m[probeID], t.name)
-				return true
-			})
+			m[item.key.probeID] = append(m[item.key.probeID], t.name)
 			return true
 		})
 	}

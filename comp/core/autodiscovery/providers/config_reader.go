@@ -216,7 +216,11 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 
 		entries, err := os.ReadDir(path)
 		if err != nil {
-			log.Warnf("Skipping, %s", err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Debugf("Skipping, %s", err)
+			} else {
+				log.Warnf("Skipping, %s", err)
+			}
 			continue
 		}
 

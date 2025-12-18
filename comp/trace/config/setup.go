@@ -24,6 +24,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -156,6 +157,17 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 		}
 	}
 	return endpoints
+}
+
+// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config. Currently only "edge" is supported.
+func normalizeAPMMode(mode string) string {
+	switch strings.ToLower(mode) {
+	case "edge":
+		return "edge"
+	}
+	// If DD_APM_MODE is set to an invalid value, warn about it and return an empty string
+	log.Warnf("invalid value for 'DD_APM_MODE': '%s', dropping", mode)
+	return ""
 }
 
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
@@ -382,6 +394,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"
 	}
+
+	dsdConfig := dsdconfig.NewConfig(core)
+	c.StatsdEnabled = dsdConfig.Enabled()
 	c.StatsdPipeName = core.GetString("dogstatsd_pipe_name")
 	c.StatsdSocket = core.GetString("dogstatsd_socket")
 	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
@@ -576,9 +591,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if c.Site == "" {
 		c.Site = pkgconfigsetup.DefaultSite
 	}
-	if k := "use_dogstatsd"; core.IsSet(k) {
-		c.StatsdEnabled = core.GetBool(k)
-	}
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
 	}
@@ -665,6 +677,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	return nil
 }

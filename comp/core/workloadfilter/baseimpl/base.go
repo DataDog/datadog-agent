@@ -7,10 +7,16 @@
 package baseimpl
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"sync"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
@@ -83,44 +89,48 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	legacyACExcludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACExcludePrg }
 
 	// Container Filters
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyLogs), legacyLogsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyACInclude), legacyACIncludePrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyACExclude), legacyACExcludePrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacySBOM), catalog.LegacyContainerSBOMProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyLogs, legacyLogsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyACInclude, legacyACIncludePrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyACExclude, legacyACExcludePrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacySBOM, catalog.LegacyContainerSBOMProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyRuntimeSecurity, catalog.ContainerLegacyRuntimeSecurityProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyCompliance, catalog.ContainerLegacyComplianceProgram)
 
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsLogs, genericADLogsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerPaused, catalog.ContainerPausedProgram)
 
 	// Service Filters
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Endpoints Filters
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Pod Filters
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Process Filters
-	baseFilter.RegisterFactory(workloadfilter.ProcessType, string(workloadfilter.ProcessLegacyExcludeList), catalog.LegacyProcessExcludeProgram)
+	baseFilter.RegisterFactory(workloadfilter.ProcessLegacyExclude, catalog.LegacyProcessExcludeProgram)
 
 	return baseFilter
 }
 
 // RegisterFactory registers a factory function for a given resource type and program ID
-func (f *BaseFilterStore) RegisterFactory(resourceType workloadfilter.ResourceType, programID string, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
+func (f *BaseFilterStore) RegisterFactory(id workloadfilter.FilterIdentifier, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
+	resourceType := id.TargetResource()
+	programID := id.GetFilterName()
 	if f.ProgramFactoryStore[resourceType] == nil {
 		f.ProgramFactoryStore[resourceType] = make(map[string]*FilterProgramFactory)
 	}
@@ -169,22 +179,32 @@ func (f *BaseFilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfi
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
 func (f *BaseFilterStore) GetContainerSharedMetricFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerSharedMetricFilters())
+	return f.GetContainerFilters(f.selection.containerSharedMetric)
 }
 
 // GetContainerPausedFilters returns the pre-computed container paused filters
 func (f *BaseFilterStore) GetContainerPausedFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerPausedFilters())
+	return f.GetContainerFilters(f.selection.containerPaused)
 }
 
 // GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
 func (f *BaseFilterStore) GetPodSharedMetricFilters() workloadfilter.FilterBundle {
-	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
+	return f.GetPodFilters(f.selection.podSharedMetric)
 }
 
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
 func (f *BaseFilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerSBOMFilters())
+	return f.GetContainerFilters(f.selection.containerSBOM)
+}
+
+// GetContainerRuntimeSecurityFilters returns the pre-computed container runtime security filters
+func (f *BaseFilterStore) GetContainerRuntimeSecurityFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerRuntimeSecurity)
+}
+
+// GetContainerComplianceFilters returns the pre-computed container compliance filters
+func (f *BaseFilterStore) GetContainerComplianceFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerCompliance)
 }
 
 // GetContainerFilters returns the filter bundle for the given container filters
@@ -212,9 +232,113 @@ func (f *BaseFilterStore) GetProcessFilters(processFilters [][]workloadfilter.Pr
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
 }
 
-// GetFilterConfigString returns a string representation of the raw filter configuration
-func (f *BaseFilterStore) GetFilterConfigString() (string, error) {
-	return f.FilterConfig.String()
+func (f *BaseFilterStore) FlareCallback(fb flaretypes.FlareBuilder) error {
+	fb.AddFile("workload-filter.log", []byte(f.String(false)))
+	return nil
+}
+
+// String returns a string representation of the workloadfilter configuration
+func (f *BaseFilterStore) String(useColor bool) string {
+	var buffer bytes.Buffer
+
+	printMainHeader(&buffer, "=== Workload Filter Status ===", useColor)
+	fmt.Fprintln(&buffer)
+
+	// Container Autodiscovery Filters
+	printSectionHeader(&buffer, "-------- Container Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Logs:"), f.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter), useColor)
+
+	// Service Autodiscovery Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Kube Service Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+
+	// Endpoint Autodiscovery Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Kube Endpoint Autodiscovery Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+
+	// Pod Shared Metric Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Pod Shared Metrics Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SharedMetrics:"), f.GetPodSharedMetricFilters(), useColor)
+
+	// Container Shared Metric Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container Shared Metrics Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SharedMetrics:"), f.GetContainerSharedMetricFilters(), useColor)
+
+	// Container Paused Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container Paused Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "PausedContainers:"), f.GetContainerPausedFilters(), useColor)
+
+	// Container SBOM Filters
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Container SBOM Filters --------", useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "SBOM:"), f.GetContainerSBOMFilters(), useColor)
+
+	// Print raw filter configuration
+	fmt.Fprintln(&buffer)
+	printSectionHeader(&buffer, "-------- Raw Filter Configuration --------", useColor)
+
+	if f.FilterConfig == nil {
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Filter config not initialized"))
+		} else {
+			fmt.Fprintf(&buffer, "      -> Filter config not initialized\n")
+		}
+	} else {
+		fmt.Fprint(&buffer, f.FilterConfig.String(useColor))
+	}
+
+	return buffer.String()
+}
+
+func printMainHeader(w io.Writer, text string, useColor bool) {
+	if useColor {
+		fmt.Fprintf(w, "    %s\n", color.HiCyanString(text))
+	} else {
+		fmt.Fprintf(w, "%s\n", text)
+	}
+}
+
+func printSectionHeader(w io.Writer, text string, useColor bool) {
+	if useColor {
+		fmt.Fprintf(w, "    %s\n", color.HiCyanString(text))
+	} else {
+		fmt.Fprintf(w, "%s\n", text)
+	}
+}
+
+func printFilter(w io.Writer, name string, bundle workloadfilter.FilterBundle, useColor bool) {
+	if bundle == nil {
+		fmt.Fprintf(w, "%s: No filters configured\n", name)
+		return
+	}
+
+	errors := bundle.GetErrors()
+	if len(errors) > 0 {
+		if useColor {
+			fmt.Fprintf(w, "%s %s %s\n", color.HiRedString("✗"), name, color.HiRedString("failed to load"))
+		} else {
+			fmt.Fprintf(w, "x %s failed to load\n", name)
+		}
+		for _, err := range errors {
+			fmt.Fprintf(w, "        Error: %s\n", err)
+		}
+		return
+	}
+
+	if useColor {
+		fmt.Fprintf(w, "%s %s Loaded successfully\n", color.HiGreenString("✓"), name)
+	} else {
+		fmt.Fprintf(w, "v %s Loaded successfully\n", name)
+	}
 }
 
 // getFilterBundle constructs a filter bundle for a given resource type and filters.
