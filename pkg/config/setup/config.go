@@ -556,6 +556,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -716,6 +718,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
 	config.BindEnvAndSetDefault("azure_metadata_timeout", 300)
+	config.BindEnvAndSetDefault("azure_metadata_api_version", "2021-02-01")
 
 	// IBM cloud
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.
@@ -1961,10 +1964,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
-
-	// SDS logs blocking mechanism
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
-	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
 
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)

@@ -309,13 +309,9 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
-	copied.Releasable = deepCopyReleasable(fieldToCopy.Releasable)
+	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
-	return copied
-}
-func deepCopyReleasable(fieldToCopy Releasable) Releasable {
-	copied := Releasable{}
 	return copied
 }
 func deepCopyCredentials(fieldToCopy Credentials) Credentials {
