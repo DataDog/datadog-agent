@@ -15,6 +15,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
@@ -217,6 +218,11 @@ type goStringHeaderType struct {
 }
 type goStringDataType ir.GoStringDataType
 type goMapType ir.GoMapType
+type goTimeType struct {
+	*ir.StructureType
+	wallFieldOffset uint32
+	extFieldOffset  uint32
+}
 type goHMapHeaderType struct {
 	*ir.GoHMapHeaderType
 
@@ -296,6 +302,7 @@ var (
 	_ decoderType = (*goSliceDataType)(nil)
 	_ decoderType = (*goStringHeaderType)(nil)
 	_ decoderType = (*goStringDataType)(nil)
+	_ decoderType = (*goTimeType)(nil)
 	_ decoderType = (*goMapType)(nil)
 	_ decoderType = (*goHMapHeaderType)(nil)
 	_ decoderType = (*goHMapBucketType)(nil)
@@ -431,6 +438,13 @@ func newDecoderType(
 	case *ir.TraceContextType:
 		return (*traceContextType)(s), nil
 	case *ir.StructureType:
+		// Check if this is time.Time and has the expected fields.
+		if s.Name == "time.Time" {
+			if timeType, err := newGoTimeType(s); err == nil {
+				return timeType, nil
+			}
+			// Fall through to treat as normal struct if malformed.
+		}
 		return (*structureType)(s), nil
 	case *ir.GoContextImplementationType:
 		return (*structureType)(s.StructureType), nil
@@ -1989,6 +2003,105 @@ func (s *goStringDataType) formatValueFields(
 	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
 ) error {
 	return errors.New("string data is not formatted")
+}
+
+func (t *goTimeType) irType() ir.Type { return t.StructureType }
+func (t *goTimeType) encodeValueFields(
+	_ *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	unixSec, nsec, isZero := decodeGoTime(
+		data, t.wallFieldOffset, t.extFieldOffset,
+	)
+	if isZero {
+		return writeTokens(enc,
+			jsontext.String("value"),
+			jsontext.Null,
+		)
+	}
+	formatted := time.Unix(unixSec, int64(nsec)).UTC().Format(time.RFC3339Nano)
+	return writeTokens(enc,
+		jsontext.String("value"),
+		jsontext.String(formatted),
+	)
+}
+
+func (t *goTimeType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	unixSec, nsec, isZero := decodeGoTime(
+		data, t.wallFieldOffset, t.extFieldOffset,
+	)
+	if isZero {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+	formatted := time.Unix(unixSec, int64(nsec)).UTC().Format(time.RFC3339Nano)
+	writeBoundedString(buf, limits, formatted)
+	return nil
+}
+
+// newGoTimeType creates a goTimeType from a structure type, validating that
+// it has the expected wall and ext fields.
+func newGoTimeType(s *ir.StructureType) (*goTimeType, error) {
+	wallField, err := getFieldByName(s.RawFields, "wall")
+	if err != nil {
+		return nil, err
+	}
+	extField, err := getFieldByName(s.RawFields, "ext")
+	if err != nil {
+		return nil, err
+	}
+	return &goTimeType{
+		StructureType:   s,
+		wallFieldOffset: wallField.Offset,
+		extFieldOffset:  extField.Offset,
+	}, nil
+}
+
+// decodeGoTime extracts Unix seconds and wall-clock nanoseconds from a Go
+// time.Time captured into the buffer at the given field offsets. It returns
+// isZero=true for the Go zero value (wall == 0 && ext == 0) and for buffers
+// too short to read either field.
+func decodeGoTime(
+	data []byte, wallOffset, extOffset uint32,
+) (unixSec int64, nsec uint32, isZero bool) {
+	if len(data) < int(wallOffset+8) || len(data) < int(extOffset+8) {
+		return 0, 0, true
+	}
+
+	wall := binary.NativeEndian.Uint64(data[wallOffset : wallOffset+8])
+	ext := int64(binary.NativeEndian.Uint64(data[extOffset : extOffset+8]))
+
+	if wall == 0 && ext == 0 {
+		return 0, 0, true
+	}
+
+	// Constants and arithmetic mirror time.Time.sec()/nsec() in the Go
+	// runtime (src/time/time.go).
+	const (
+		secondsPerDay  = 24 * 60 * 60
+		unixToInternal = (1969*365 + 1969/4 - 1969/100 + 1969/400) * secondsPerDay
+		internalToUnix = -unixToInternal
+		wallToInternal = (1884*365 + 1884/4 - 1884/100 + 1884/400) * secondsPerDay
+
+		hasMonotonic = uint64(1) << 63
+		nsecMask     = (uint64(1) << 30) - 1
+		nsecShift    = 30
+	)
+
+	var sec int64
+	if wall&hasMonotonic != 0 {
+		// 33-bit wall seconds since 1885, packed in bits 62..30.
+		sec = wallToInternal + int64((wall<<1)>>(nsecShift+1))
+	} else {
+		sec = ext
+	}
+	return sec + internalToUnix, uint32(wall & nsecMask), false
 }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
