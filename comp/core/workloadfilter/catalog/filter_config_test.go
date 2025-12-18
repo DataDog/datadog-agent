@@ -66,7 +66,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Equal(t, "container.name == 'json-test'", containerRules)
 		podRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.PodType)
 		assert.Equal(t, "pod.namespace == 'test-ns'", podRules)
-		serviceRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ServiceType)
+		serviceRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.KubeServiceType)
 		assert.Equal(t, "service.name == 'test-service'", serviceRules)
 	})
 

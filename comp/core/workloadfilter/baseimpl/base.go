@@ -104,16 +104,16 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	baseFilter.RegisterFactory(workloadfilter.ContainerPaused, catalog.ContainerPausedProgram)
 
 	// Service Filters
-	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyGlobal, legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyMetrics, legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotations, genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Endpoints Filters
-	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyGlobal, legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyMetrics, legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotations, genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Pod Filters
 	baseFilter.RegisterFactory(workloadfilter.PodLegacyMetrics, legacyMetricsPrgFactory)
@@ -167,14 +167,14 @@ func (f *BaseFilterStore) GetContainerAutodiscoveryFilters(filterScope workloadf
 	return f.GetContainerFilters(f.selection.GetContainerAutodiscoveryFilters(filterScope))
 }
 
-// GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
-func (f *BaseFilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
-	return f.GetServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
+// GetKubeServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
+func (f *BaseFilterStore) GetKubeServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetKubeServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
 }
 
-// GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
-func (f *BaseFilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
-	return f.GetEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
+// GetKubeEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
+func (f *BaseFilterStore) GetKubeEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetKubeEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
@@ -217,14 +217,14 @@ func (f *BaseFilterStore) GetPodFilters(podFilters [][]workloadfilter.PodFilter)
 	return getFilterBundle(f, workloadfilter.PodType, podFilters)
 }
 
-// GetServiceFilters returns the filter bundle for the given service filters
-func (f *BaseFilterStore) GetServiceFilters(serviceFilters [][]workloadfilter.ServiceFilter) workloadfilter.FilterBundle {
-	return getFilterBundle(f, workloadfilter.ServiceType, serviceFilters)
+// GetKubeServiceFilters returns the filter bundle for the given service filters
+func (f *BaseFilterStore) GetKubeServiceFilters(serviceFilters [][]workloadfilter.KubeServiceFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.KubeServiceType, serviceFilters)
 }
 
-// GetEndpointFilters returns the filter bundle for the given endpoint filters
-func (f *BaseFilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
-	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
+// GetKubeEndpointFilters returns the filter bundle for the given endpoint filters
+func (f *BaseFilterStore) GetKubeEndpointFilters(endpointFilters [][]workloadfilter.KubeEndpointFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.KubeEndpointType, endpointFilters)
 }
 
 // GetProcessFilters returns the filter bundle for the given process filters
@@ -253,14 +253,14 @@ func (f *BaseFilterStore) String(useColor bool) string {
 	// Service Autodiscovery Filters
 	fmt.Fprintln(&buffer)
 	printSectionHeader(&buffer, "-------- Kube Service Autodiscovery Filters --------", useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
 
 	// Endpoint Autodiscovery Filters
 	fmt.Fprintln(&buffer)
 	printSectionHeader(&buffer, "-------- Kube Endpoint Autodiscovery Filters --------", useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
 
 	// Pod Shared Metric Filters
 	fmt.Fprintln(&buffer)
