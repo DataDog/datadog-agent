@@ -1,6 +1,74 @@
-# Ollama Integration for Drift Detection
+# Embedding Service for Drift Detection
 
-The drift detector uses Ollama for generating semantic embeddings of log templates.
+The drift detector requires an embedding service to generate semantic embeddings of log templates. Two options are available:
+
+1. **Embedded PyTorch Service** (Docker only, recommended) - Built-in service with no external dependencies
+2. **External Ollama Service** - Separate Ollama installation for non-Docker or custom deployments
+
+## Embedded PyTorch Service (Docker Only)
+
+**Docker images include an embedded PyTorch-based embedding service** that automatically starts when drift detection is enabled. This is the recommended option for Docker deployments.
+
+### Features
+
+- **Model**: sentence-transformers/all-MiniLM-L6-v2 (384-dimensional)
+- **API**: Ollama-compatible at `http://localhost:11434/api/embed`
+- **Auto-start**: Enabled automatically when drift detection is enabled
+- **No external dependencies**: Model and PyTorch bundled in Docker image
+- **Size**: ~680MB additional image size
+
+### Configuration
+
+Simply enable drift detection in `datadog.yaml`:
+
+```yaml
+logs_config:
+  drift_detection:
+    enabled: true
+```
+
+The embedding service will start automatically. No additional configuration needed.
+
+### Monitoring
+
+Check if the embedding service is running:
+
+```bash
+# Check service status
+docker exec <container> ps aux | grep embedding_server
+
+# Test health endpoint
+docker exec <container> curl http://localhost:11434/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "model": "all-MiniLM-L6-v2"
+}
+```
+
+### Model Details
+
+- **Dimensions**: 384 (vs 768 for embeddinggemma)
+- **Size**: ~80MB cached in image
+- **Performance**: 50-100ms per batch (CPU-only)
+- **Library**: sentence-transformers with PyTorch backend
+
+### Technical Details
+
+The embedded service:
+- Runs as an s6-supervised process
+- Checks config on startup and auto-disables if drift detection is off
+- Provides Ollama-compatible API for seamless integration
+- Pre-caches model in image to avoid runtime downloads
+
+---
+
+## External Ollama Service
+
+For non-Docker deployments or custom embedding models, you can use an external Ollama installation.
 
 ## Setup
 
@@ -45,15 +113,17 @@ Expected response:
 
 ## Configuration
 
-Add to `datadog.yaml`:
+To use external Ollama instead of the embedded service, specify the embedding URL in `datadog.yaml`:
 
 ```yaml
 logs_config:
   drift_detection:
     enabled: true
-    embedding_url: "http://localhost:11434/api/embed"
+    embedding_url: "http://localhost:11434/api/embed"  # External Ollama
     embedding_model: "embeddinggemma"
 ```
+
+**Note**: If running in Docker without specifying `embedding_url`, the embedded PyTorch service will be used automatically.
 
 ## API Details
 
@@ -164,7 +234,7 @@ logs_config:
     embedding_model: "nomic-embed-text"  # Alternative model
 ```
 
-**Note**: Ensure the model outputs 768-dimensional embeddings, or adjust the DMD analyzer accordingly.
+**Note**: The DMD analyzer is dimension-agnostic and works with any embedding dimension (384-dim for embedded service, 768-dim for embeddinggemma, or other dimensions for alternative models).
 
 ## Monitoring
 

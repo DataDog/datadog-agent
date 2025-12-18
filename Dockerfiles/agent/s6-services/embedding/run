@@ -1,0 +1,13 @@
+#!/usr/bin/execlineb -P
+
+# Start embedding service with config check
+# Script will exit(0) if drift detection is not enabled in datadog.yaml
+# This triggers service disable via finish script
+
+foreground { /initlog.sh "starting embedding-server" }
+/opt/datadog-agent/embedded/bin/python3 /opt/datadog-agent/bin/embedding_server.py \
+    --model-name sentence-transformers/all-MiniLM-L6-v2 \
+    --host 127.0.0.1 \
+    --port 11434 \
+    --config /etc/datadog-agent/datadog.yaml \
+    --check-config

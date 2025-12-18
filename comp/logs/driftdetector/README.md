@@ -169,7 +169,59 @@ Logs structured JSON alerts and updates Prometheus metrics:
 
 - `gonum.org/v1/gonum` - Matrix operations for DMD
 - `github.com/prometheus/client_golang` - Metrics
-- **Embedding Service**: Ollama with embedding model (e.g., `embeddinggemma`)
+- **Embedding Service**: See below for options
+
+## Embedding Service
+
+The drift detector requires an embedding service to convert log templates into semantic vectors. Two options are available:
+
+### Option 1: Docker with Embedded PyTorch Service (Recommended)
+
+**Docker images include an embedded PyTorch-based embedding service** that automatically starts when drift detection is enabled:
+
+```yaml
+logs_config:
+  drift_detection:
+    enabled: true
+```
+
+**Features:**
+- **Model**: sentence-transformers/all-MiniLM-L6-v2 (384-dimensional)
+- **API**: Ollama-compatible at `http://localhost:11434/api/embed`
+- **Auto-start**: Enabled when drift detection is enabled
+- **No external dependencies**: Model and PyTorch bundled in image
+
+**Monitoring:**
+```bash
+# Check if service is running
+docker exec <container> ps aux | grep embedding_server
+docker exec <container> curl http://localhost:11434/health
+```
+
+### Option 2: External Ollama Service
+
+To use external Ollama instead of the embedded service:
+
+```yaml
+logs_config:
+  drift_detection:
+    enabled: true
+    embedding_url: "http://ollama:11434/api/embed"  # Point to external Ollama
+```
+
+**Setup:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull embedding model (768-dimensional)
+ollama pull embeddinggemma
+
+# Test
+curl -X POST http://localhost:11434/api/embed \
+  -H "Content-Type: application/json" \
+  -d '{"model": "embeddinggemma", "input": ["test"]}'
+```
 
 ## Usage
 
@@ -199,10 +251,9 @@ driftDetector.ProcessLog(timestamp, content)
 ## Implementation Notes
 
 - **Disabled by default**: Set `logs_config.drift_detection.enabled: true` to enable
-- **Requires Ollama**: Must run Ollama with an embedding model at configured URL
-  - Install Ollama: `curl -fsSL https://ollama.com/install.sh | sh`
-  - Pull embedding model: `ollama pull embeddinggemma`
-  - Test with: `curl -X POST http://localhost:11434/api/embed -H "Content-Type: application/json" -d '{"model": "embeddinggemma", "input": ["test"]}'`
+- **Embedding service**:
+  - Docker images include embedded PyTorch service (auto-enabled, no setup required)
+  - Non-Docker deployments require external Ollama
 - **Rolling window**: Maintains 2-hour history (120 windows at 60s step)
 - **Recomputation**: DMD recomputed every 10 windows for efficiency
 - **Back-pressure**: Drops logs if input channel is full (10,000 capacity)

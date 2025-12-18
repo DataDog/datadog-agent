@@ -28,7 +28,7 @@ type TemplateResult struct {
 	CompressionRatio float64
 }
 
-// Vector represents an embedding vector (768 dimensions)
+// Vector represents an embedding vector (dimensions depend on model: 384 for all-MiniLM-L6-v2, 768 for embeddinggemma)
 type Vector []float64
 
 // EmbeddingResult represents embeddings for templates
