@@ -3,8 +3,8 @@ github.com/DataDog/agent-payload/v5 v5.0.177 h1:lZ19A2l7p+raX65GFK9BAQ17YWBbLgBG
 github.com/DataDog/agent-payload/v5 v5.0.177/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
 github.com/DataDog/datadog-api-client-go/v2 v2.50.0 h1:AHHJcU9DSZqCzNcwwOo3OYH7e5FaHf8ppa9G52ydJxg=
 github.com/DataDog/datadog-api-client-go/v2 v2.50.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
-github.com/DataDog/datadog-go/v5 v5.8.1 h1:+GOES5W9zpKlhwHptZVW2C0NLVf7ilr7pHkDcbNvpIc=
-github.com/DataDog/datadog-go/v5 v5.8.1/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
+github.com/DataDog/datadog-go/v5 v5.8.2 h1:9IEfH1Mw9AjWwhAMqCAkhbxjuJeMxm2ARX2VdgL+ols=
+github.com/DataDog/datadog-go/v5 v5.8.2/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-sqllexer v0.1.10 h1:lisiFE4du178mdBooAx3KlV3MsdwzJePNHbtdCMmFBw=
 github.com/DataDog/go-sqllexer v0.1.10/go.mod h1:vOw7Ia7z+z6nl3zGZlLIZe0vQlPtCPR906WIPBJadxc=
 github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJxPknv0=
