@@ -25,7 +25,7 @@ type RemoteConfigClient interface {
 // Config contains information needed to create an ImageResolver
 type Config struct {
 	Site           string
-	DDRegistries   []string
+	DDRegistries   map[string]struct{}
 	RCClient       RemoteConfigClient
 	MaxInitRetries int
 	InitRetryDelay time.Duration
@@ -35,7 +35,7 @@ type Config struct {
 func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
-		DDRegistries:   cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
+		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
 		RCClient:       rcClient,
 		MaxInitRetries: 5,
 		InitRetryDelay: 1 * time.Second,
@@ -43,10 +43,10 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 }
 
 // NewTestConfig creates a new Config for testing
-func NewTestConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) Config {
+func NewTestConfig(site string, ddRegistries []string, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) Config {
 	return Config{
 		Site:           site,
-		DDRegistries:   ddRegistries,
+		DDRegistries:   newDatadoghqRegistries(ddRegistries),
 		RCClient:       rcClient,
 		MaxInitRetries: maxRetries,
 		InitRetryDelay: retryDelay,

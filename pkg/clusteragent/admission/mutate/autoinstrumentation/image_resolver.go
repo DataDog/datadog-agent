@@ -281,6 +281,7 @@ func NewImageResolver(cfg imageresolver.Config) ImageResolver {
 	return newRcImageResolver(cfg)
 }
 
+// DEV: Move this to the imageresolver package after the refactor is complete
 func newDatadoghqRegistries(datadogRegistriesList []string) map[string]struct{} {
 	datadoghqRegistries := make(map[string]struct{})
 	for _, registry := range datadogRegistriesList {
