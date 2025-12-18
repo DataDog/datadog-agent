@@ -60,7 +60,7 @@ const (
 	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
 	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
-	envTracerLogsCollectionEnabled = "DD_LOGS_COLLECTION_ENABLED"
+	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
 )
 
 // Windows MSI options
