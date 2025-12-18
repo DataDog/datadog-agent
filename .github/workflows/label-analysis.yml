@@ -138,4 +138,5 @@ jobs:
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          PR_REQUESTED_TEAMS: ${{ toJSON(github.event.pull_request.requested_teams) }}
         run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
