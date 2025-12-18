@@ -95,8 +95,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
 	// logging
-	cfg.SetKnown(join(spNS, "log_file"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown(join(spNS, "log_level")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(spNS, "log_file"), "")
+	cfg.BindEnvAndSetDefault(join(spNS, "log_level"), "")
 	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
@@ -243,7 +243,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
 
-	cfg.SetKnown(join(spNS, "process_service_inference", "use_improved_algorithm")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "use_improved_algorithm"), false)
 
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
