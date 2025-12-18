@@ -39,6 +39,7 @@ type RuntimeSecurityAgent struct {
 	statsdClient         statsd.ClientInterface
 	hostname             string
 	reporter             common.RawReporter
+	secInfoReporter      common.RawReporter
 	eventClient          *RuntimeSecurityEventClient
 	cmdClient            *RuntimeSecurityCmdClient
 	running              *atomic.Bool
@@ -47,6 +48,7 @@ type RuntimeSecurityAgent struct {
 	eventReceived        *atomic.Uint64
 	activityDumpReceived *atomic.Uint64
 	endpoints            *config.Endpoints
+	secInfoEndpoints     *config.Endpoints
 	cancel               context.CancelFunc
 
 	// activity dump
@@ -119,9 +121,11 @@ func (rsa *RuntimeSecurityAgent) SendActivityDumpStream(stream grpc.ClientStream
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints) {
+func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints, secInfoReporter common.RawReporter, secInfoEndpoints *config.Endpoints) {
 	rsa.reporter = reporter
 	rsa.endpoints = endpoints
+	rsa.secInfoReporter = secInfoReporter
+	rsa.secInfoEndpoints = secInfoEndpoints
 
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
@@ -255,10 +259,17 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStreamListener() {
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
-	if rsa.reporter == nil {
-		return
+	if evt.Track == string(common.SecInfo) {
+		if rsa.secInfoReporter == nil {
+			return
+		}
+		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+	} else {
+		if rsa.reporter == nil {
+			return
+		}
+		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 	}
-	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 }
 
 // DispatchActivityDump forwards an activity dump message to the backend
