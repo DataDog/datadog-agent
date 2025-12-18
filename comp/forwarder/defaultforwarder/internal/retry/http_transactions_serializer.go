@@ -269,8 +269,6 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 		return transaction.AllRegions, nil
 	case TransactionDestinationProto_PRIMARY_ONLY:
 		return transaction.PrimaryOnly, nil
-	case TransactionDestinationProto_SECONDARY_ONLY:
-		return transaction.SecondaryOnly, nil
 	default:
 		return transaction.AllRegions, fmt.Errorf("Unsupported destination %v", destination)
 	}
@@ -302,8 +300,6 @@ func toTransactionDestinationProto(destination transaction.Destination) (Transac
 		return TransactionDestinationProto_ALL_REGIONS, nil
 	case transaction.PrimaryOnly:
 		return TransactionDestinationProto_PRIMARY_ONLY, nil
-	case transaction.SecondaryOnly:
-		return TransactionDestinationProto_SECONDARY_ONLY, nil
 	default:
 		return TransactionDestinationProto_ALL_REGIONS, fmt.Errorf("Unsupported destination %v", destination)
 	}

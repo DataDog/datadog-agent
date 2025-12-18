@@ -203,8 +203,6 @@ const (
 	AllRegions = iota
 	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
 	PrimaryOnly
-	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
-	SecondaryOnly
 )
 
 func (d Destination) String() string {
@@ -213,8 +211,6 @@ func (d Destination) String() string {
 		return "AllRegions"
 	case PrimaryOnly:
 		return "PrimaryOnly"
-	case SecondaryOnly:
-		return "SecondaryOnly"
 	default:
 		return "Unknown"
 	}
