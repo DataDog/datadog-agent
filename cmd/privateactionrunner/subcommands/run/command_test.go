@@ -26,7 +26,7 @@ func TestPrivateActionRunnerRunCommand(t *testing.T) {
 		err := commands[0].RunE(nil, []string{"run"})
 		require.NoError(t, err)
 	})
-	
+
 	t.Run("enabled", func(t *testing.T) {
 		// Test when PAR is enabled - should call fxutil.Run
 		fxutil.TestRun(t, func() error {
