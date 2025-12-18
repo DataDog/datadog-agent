@@ -220,7 +220,7 @@ func newCheck() check.Check {
 	wlanCheck := &WLANCheck{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
-	
+
 	// Pre-compile JSON schema for IPC response validation (macOS only)
 	if runtime.GOOS == "darwin" {
 		schema, err := createIPCResponseSchema()
@@ -232,6 +232,6 @@ func newCheck() check.Check {
 		wlanCheck.ipcSchema = schema
 		log.Debug("IPC response JSON schema validation enabled")
 	}
-	
+
 	return wlanCheck
 }
