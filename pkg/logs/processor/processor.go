@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -50,6 +51,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	driftDetector             interface{} // drift detector component
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -60,7 +62,7 @@ type Processor struct {
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, driftDetector interface{}) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -75,6 +77,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		driftDetector:             driftDetector,
 	}
 
 	// Initialize cached failover config
@@ -189,6 +192,24 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
+	// Send to drift detector if enabled
+	if p.driftDetector != nil {
+		timestamp := time.Unix(0, msg.IngestionTimestamp)
+
+		// Try per-source API first (preferred)
+		if dd, ok := p.driftDetector.(interface {
+			ProcessLogWithSource(sourceKey string, timestamp time.Time, content string)
+		}); ok {
+			sourceKey := p.getSourceKey(msg)
+			dd.ProcessLogWithSource(sourceKey, timestamp, string(msg.GetContent()))
+		} else if dd, ok := p.driftDetector.(interface {
+			ProcessLog(timestamp time.Time, content string)
+		}); ok {
+			// Fallback to single-pipeline API
+			dd.ProcessLog(timestamp, string(msg.GetContent()))
+		}
+	}
+
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
@@ -293,6 +314,37 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 	}
 
 	return bytes.Contains(content, []byte(prefix))
+}
+
+// getSourceKey generates a unique key for the log source
+func (p *Processor) getSourceKey(msg *message.Message) string {
+	if msg.Origin == nil || msg.Origin.LogSource == nil {
+		return "unknown"
+	}
+
+	source := msg.Origin.LogSource
+
+	// Build source key from available identifiers
+	// Format: "type:name" or "type:service" depending on what's available
+	sourceType := "unknown"
+	sourceID := "unknown"
+
+	if source.Config != nil {
+		sourceType = source.Config.Type
+
+		// Try to get a meaningful identifier
+		if source.Config.Service != "" {
+			sourceID = source.Config.Service
+		} else if source.Config.Source != "" {
+			sourceID = source.Config.Source
+		} else if source.Name != "" {
+			sourceID = source.Name
+		}
+	} else if source.Name != "" {
+		sourceID = source.Name
+	}
+
+	return sourceType + ":" + sourceID
 }
 
 // GetHostname returns the hostname to applied the given log message
