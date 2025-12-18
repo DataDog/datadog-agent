@@ -632,3 +632,90 @@ func splitYAMLDocuments(content []byte) ([][]byte, error) {
 	}
 	return documents, nil
 }
+
+// It verifies that Scan drives cache mark-and-sweep and avoids stale start
+// times on PID reuse.
+func TestScannerStartTimeCachePurgedOnMissingPIDAndPIDReuse(t *testing.T) {
+	now := ticks(1000)
+
+	type procInfo struct {
+		startTime ticks
+	}
+	procs := map[int32]procInfo{
+		// With delay=0 the window is [lastWatermark, now]. The first scan starts
+		// at lastWatermark=0, so ensure the start time is <= now.
+		1: {startTime: 900},
+	}
+
+	listPids := func() iter.Seq2[uint32, error] {
+		return func(yield func(uint32, error) bool) {
+			pids := make([]int32, 0, len(procs))
+			for pid := range procs {
+				pids = append(pids, pid)
+			}
+			slices.Sort(pids)
+			for _, pid := range pids {
+				if !yield(uint32(pid), nil) {
+					return
+				}
+			}
+		}
+	}
+
+	readCalls := 0
+	readStartTime := func(pid int32) (ticks, error) {
+		readCalls++
+		info, ok := procs[pid]
+		if !ok {
+			return 0, fmt.Errorf("process %d does not exist", pid)
+		}
+		return info.startTime, nil
+	}
+
+	s := newScanner(
+		[]timeWindow{{startDelay: 0}},
+		func() (ticks, error) { return now, nil },
+		listPids,
+		readStartTime,
+		func(int32) (tracermetadata.TracerMetadata, error) {
+			return tracermetadata.TracerMetadata{TracerLanguage: "go"}, nil
+		},
+		func(pid int32) (process.Executable, error) {
+			return process.Executable{Path: fmt.Sprintf("/proc/%d/exe", pid)}, nil
+		},
+	)
+	s.startTimeCache.maxSize = 8
+
+	discovered, removed, err := s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, removed)
+	require.Len(t, discovered, 1)
+	require.Equal(t, uint32(1), discovered[0].PID)
+	require.Equal(t, uint64(900), discovered[0].StartTimeTicks)
+
+	// End-of-scan sweep should have kept the entry and cleared the seen marker.
+	start, ok := s.startTimeCache.entries[1]
+	require.True(t, ok)
+	require.Equal(t, ticks(900), start)
+
+	// Process exits (PID no longer present in procfs).
+	delete(procs, 1)
+	now = 1100
+	discovered, removed, err = s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, discovered)
+	require.Equal(t, []ProcessID{1}, removed)
+	_, ok = s.startTimeCache.entries[1]
+	require.False(t, ok)
+
+	// PID is reused. Cache must not resurrect a stale start time.
+	procs[1] = procInfo{startTime: 1150}
+	now = 1200
+	discovered, removed, err = s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, removed)
+	require.Len(t, discovered, 1)
+	require.Equal(t, uint32(1), discovered[0].PID)
+	require.Equal(t, uint64(1150), discovered[0].StartTimeTicks)
+	require.GreaterOrEqual(t, readCalls, 2)
+}
