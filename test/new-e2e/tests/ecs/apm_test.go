@@ -66,48 +66,54 @@ func (suite *ecsAPMSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
-// getCommonECSTagPatterns returns common ECS tag patterns for metrics and traces.
+// getCommonECSTagPatterns returns ECS tag patterns for metrics and traces.
 // Parameters:
 //   - clusterName: ECS cluster name
 //   - taskName: Task name pattern (e.g., "dogstatsd-uds", "tracegen-tcp")
 //   - appName: Application name (e.g., "dogstatsd", "tracegen")
 //   - includeFullSet: If true, includes all tags (for metrics). If false, returns minimal set (for traces).
 func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName string, includeFullSet bool) []string {
-	// Common tags present in both metrics and traces
-	commonTags := []string{
+	// Minimal tags for traces - just core ECS metadata added by agent tagger
+	if !includeFullSet {
+		return []string{
+			`^cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
+			`^ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
+			`^container_name:`,
+			`^task_arn:`,
+		}
+	}
+
+	// Full tag set for metrics - includes ECS metadata, image metadata, and AWS metadata
+	return []string{
+		// Core ECS metadata
 		`^cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
-		`^container_id:`,
-		`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
-		`^docker_image:ghcr\.io/datadog/apps-` + appName + `:` + regexp.QuoteMeta(apps.Version) + `$`,
 		`^ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
 		`^ecs_container_name:` + appName + `$`,
-		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
-		`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
-		`^image_id:sha256:`,
-		`^image_name:ghcr\.io/datadog/apps-` + appName + `$`,
-		`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
-		`^short_image:apps-` + appName + `$`,
+		`^container_id:`,
+		`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 		`^task_arn:`,
 		`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 		`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 		`^task_version:[[:digit:]]+$`,
-	}
+		`^task_definition_arn:`,
 
-	// Additional tags only present in metrics (not in traces)
-	if includeFullSet {
-		fullTags := append(commonTags,
-			`^aws_account:[[:digit:]]{12}$`,
-			`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/`+regexp.QuoteMeta(clusterName)+`$`,
-			`^ecs_service:`+regexp.QuoteMeta(strings.TrimSuffix(clusterName, "-ecs"))+`-`+appName+`-ud[ps]$`,
-			`^region:us-east-1$`,
-			`^series:`,
-			`^service_arn:`,
-			`^task_definition_arn:`,
-		)
-		return fullTags
-	}
+		// Image metadata
+		`^docker_image:ghcr\.io/datadog/apps-` + appName + `:` + regexp.QuoteMeta(apps.Version) + `$`,
+		`^image_id:sha256:`,
+		`^image_name:ghcr\.io/datadog/apps-` + appName + `$`,
+		`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+		`^short_image:apps-` + appName + `$`,
+		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+		`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
 
-	return commonTags
+		// AWS metadata
+		`^aws_account:[[:digit:]]{12}$`,
+		`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(clusterName) + `$`,
+		`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(clusterName, "-ecs")) + `-` + appName + `-ud[ps]$`,
+		`^region:us-east-1$`,
+		`^service_arn:`,
+		`^series:`,
+	}
 }
 
 // Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
