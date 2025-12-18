@@ -24,7 +24,7 @@ PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Py
 
 
 @task
-def python_version(_):
+def get(_):
     """Print the current embedded Python version."""
     current_version = _get_current_python_version()
     print(current_version)
@@ -35,7 +35,7 @@ def python_version(_):
         "release_note": "Whether to create a release note (default: True).",
     }
 )
-def update_python(
+def update(
     ctx: Context,
     release_note: bool = True,
 ):
@@ -48,7 +48,7 @@ def update_python(
     Minor version updates (e.g., 3.13.x -> 3.14.x) must be done manually.
 
     Example:
-        dda inv update-python
+        dda inv python-version.update
     """
     # Check all optional dependencies upfront
     try:

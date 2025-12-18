@@ -3,7 +3,7 @@ import unittest.mock
 
 from invoke.exceptions import Exit
 
-from tasks.update_python import (
+from tasks.python_version import (
     _get_major_minor_version,
     _validate_sha256,
     _validate_version_string,
@@ -53,10 +53,10 @@ class TestUpdatePython(unittest.TestCase):
 
 
 class TestGetCurrentPythonVersion(unittest.TestCase):
-    @unittest.mock.patch('tasks.update_python.Path')
+    @unittest.mock.patch('tasks.python_version.Path')
     def test_get_current_python_version(self, mock_path):
         """Test reading current Python version from omnibus file."""
-        from tasks.update_python import _get_current_python_version
+        from tasks.python_version import _get_current_python_version
 
         # Mock file content
         mock_file = unittest.mock.MagicMock()
@@ -73,10 +73,10 @@ end
         version = _get_current_python_version()
         self.assertEqual(version, "3.13.7")
 
-    @unittest.mock.patch('tasks.update_python.Path')
+    @unittest.mock.patch('tasks.python_version.Path')
     def test_get_current_python_version_not_found(self, mock_path):
         """Test error when version not found in file."""
-        from tasks.update_python import _get_current_python_version
+        from tasks.python_version import _get_current_python_version
 
         # Mock file without version
         mock_file = unittest.mock.MagicMock()
@@ -88,10 +88,10 @@ end
 
 
 class TestOmnibusUpdate(unittest.TestCase):
-    @unittest.mock.patch('tasks.update_python.Path')
+    @unittest.mock.patch('tasks.python_version.Path')
     def test_update_omnibus_python_version_and_sha(self, mock_path):
         """Test preparing version and SHA256 update for omnibus file."""
-        from tasks.update_python import _prepare_omnibus_update
+        from tasks.python_version import _prepare_omnibus_update
 
         original_content = '''name "python3"
 
@@ -121,10 +121,10 @@ source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
 
 
 class TestBazelUpdate(unittest.TestCase):
-    @unittest.mock.patch('tasks.update_python.Path')
+    @unittest.mock.patch('tasks.python_version.Path')
     def test_update_bazel_python_version_and_sha(self, mock_path):
         """Test preparing version and SHA256 update for Bazel file."""
-        from tasks.update_python import _prepare_bazel_update
+        from tasks.python_version import _prepare_bazel_update
 
         original_content = '''http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -157,10 +157,10 @@ http_archive(
 
 
 class TestGoTestUpdate(unittest.TestCase):
-    @unittest.mock.patch('tasks.update_python.Path')
+    @unittest.mock.patch('tasks.python_version.Path')
     def test_update_test_python_version(self, mock_path):
         """Test preparing expected Python version update for Go tests."""
-        from tasks.update_python import _prepare_test_update
+        from tasks.python_version import _prepare_test_update
 
         original_content = '''package common
 
@@ -190,7 +190,7 @@ const (
 
 class TestGetLatestPythonVersion(unittest.TestCase):
     def test_get_latest_python_version(self):
-        from tasks.update_python import _get_latest_python_version
+        from tasks.python_version import _get_latest_python_version
 
         mock_response = unittest.mock.MagicMock()
         mock_response.text = '''<html><body>
@@ -205,7 +205,7 @@ class TestGetLatestPythonVersion(unittest.TestCase):
             self.assertEqual(version, "3.13.9")
 
     def test_get_latest_python_version_not_found(self):
-        from tasks.update_python import _get_latest_python_version
+        from tasks.python_version import _get_latest_python_version
 
         mock_response = unittest.mock.MagicMock()
         mock_response.text = '<html><body><a href="3.14.0/">3.14.0/</a></body></html>'
