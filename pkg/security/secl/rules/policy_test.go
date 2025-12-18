@@ -419,6 +419,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event.ProcessContext = &model.ProcessContext{
 		Process: model.Process{
 			ContainerContext: model.ContainerContext{
+				Releasable:  &model.Releasable{},
 				ContainerID: "0123456789abcdef",
 			},
 		},
@@ -2384,6 +2385,7 @@ func TestActionSetVariableLength(t *testing.T) {
 	event.ProcessContext = &model.ProcessContext{
 		Process: model.Process{
 			ContainerContext: model.ContainerContext{
+				Releasable:  &model.Releasable{},
 				ContainerID: "0123456789abcdef",
 			},
 		},

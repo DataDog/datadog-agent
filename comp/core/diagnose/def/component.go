@@ -184,7 +184,7 @@ type Diagnosis struct {
 	Category string `json:"category,omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string `json:"description,omitempty"`
-	// run-time (what can be done of what docs need to be consulted to address the issue)
+	// run-time (what can be done or what docs need to be consulted to address the issue)
 	Remediation string `json:"remediation,omitempty"`
 	// run-time
 	RawError string `json:"rawerror,omitempty"`

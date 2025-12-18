@@ -22,7 +22,6 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -114,7 +113,6 @@ const (
 type Agent struct {
 	telemetrySender telemetry.SimpleTelemetrySender
 	wmeta           workloadmeta.Component
-	filterStore     workloadfilter.Component
 	ipc             ipc.Component
 	opts            AgentOptions
 
@@ -179,7 +177,7 @@ func MakeDefaultRuleFilter(ipc ipc.Component) RuleFilter {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, ipc ipc.Component, filterStore workloadfilter.Component, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, ipc ipc.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -204,7 +202,6 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 	return &Agent{
 		telemetrySender: telemetrySender,
 		wmeta:           wmeta,
-		filterStore:     filterStore,
 		ipc:             ipc,
 		opts:            opts,
 		statuses:        make(map[string]*CheckStatus),
@@ -213,7 +210,7 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta, a.filterStore.GetContainerComplianceFilters())
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta, pkgconfigsetup.Datadog(), "compliance_config.")
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
