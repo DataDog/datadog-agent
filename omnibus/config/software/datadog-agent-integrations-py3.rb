@@ -229,12 +229,7 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  test_folders = [
-    '../idlelib/idle_test',
-  ]
-  test_folders.each do |test_folder|
-    delete "#{site_packages_path}/#{test_folder}/"
-  end
+  delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
     block "Remove .exe files" do
