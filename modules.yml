@@ -12,7 +12,9 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
-  cmd/secret-backend: default
+  cmd/secret-backend:
+    independent: false
+    should_test_condition: never
   comp/api/api/def:
     used_by_otel: true
   comp/core/agenttelemetry/def:

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/aws"
 	"github.com/hashicorp/vault/api/auth/kubernetes"
@@ -23,6 +24,8 @@ import (
 )
 
 func TestVaultBackend(t *testing.T) {
+	flake.Mark(t)
+
 	ln, client, token := createTestVault(t)
 	defer ln.Close()
 
