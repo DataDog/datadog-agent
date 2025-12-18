@@ -760,6 +760,8 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 
 	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
 		tagList.AddLow(tags.GPUSlicingMode, "mig")
+	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
+		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
 	} else {
 		tagList.AddLow(tags.GPUSlicingMode, "none")
 	}

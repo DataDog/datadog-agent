@@ -69,6 +69,9 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	switch d := device.(type) {
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+		for _, child := range d.MIGChildren {
+			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
+		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
 		if d.Parent != nil {

@@ -2521,6 +2521,45 @@ func TestHandleGPU(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "MIG parent",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_uuid:gpu-1234",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2877,7 +2916,7 @@ func TestHandleProcess(t *testing.T) {
 		gpuDevice         = "Tesla V100"
 		gpuDriverVersion  = "525.60.13"
 		gpuVirtMode       = "none"
-		gpuSlicingMode = "none"
+		gpuSlicingMode    = "none"
 	)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

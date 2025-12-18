@@ -2012,6 +2012,9 @@ type GPU struct {
 
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
+
+	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
+	ChildrenGPUUUIDs []string
 }
 
 var _ Entity = &GPU{}
@@ -2031,6 +2034,11 @@ func (g *GPU) Merge(e Entity) error {
 	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
+	}
+
+	// If the source has children GPU UUIDs, remove the ones from the destination so merge() takes latest children GPU UUIDs from the source
+	if gg.ChildrenGPUUUIDs != nil {
+		g.ChildrenGPUUUIDs = nil
 	}
 
 	return merge(g, gg)
