@@ -223,8 +223,14 @@ func (h *healthPlatformImpl) ClearIssuesForCheck(checkID string) {
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
 
-	delete(h.issues, checkID)
-	h.log.Info("Cleared issue for check: " + checkID)
+	// Only log if there was actually an issue to clear
+	if _, existed := h.issues[checkID]; existed {
+		delete(h.issues, checkID)
+		h.log.Info("Cleared issue for check: " + checkID)
+	} else {
+		// No issue existed, just ensure it's not in the map (idempotent)
+		delete(h.issues, checkID)
+	}
 }
 
 // ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
