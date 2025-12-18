@@ -93,7 +93,6 @@ async def _submit_scan(
             raise Exception(f"Failed to submit file for scan: {e}") from e
 
 
-
 async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 600, poll_interval: int = 30):
     """Poll analysis results until completion and return malicious/suspicious counts."""
 
