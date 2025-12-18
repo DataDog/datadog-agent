@@ -504,7 +504,11 @@ impl SocketActivationService {
                         break;
                     }
 
-                    // Exit the monitoring loop - child will take over the socket
+                    // Continue monitoring for more connections
+                    // Unlike the old implementation that broke out of the loop,
+                    // we keep listening so socket activation can re-trigger if the
+                    // child process crashes or exits.
+                    // 
                     // Note: We do NOT call closesocket() here because on Windows,
                     // closing the socket in the parent can invalidate it for the child
                     // before the child has a chance to use it.
@@ -512,9 +516,11 @@ impl SocketActivationService {
                     info!(
                         socket = %socket_name,
                         service = %service_name,
-                        "Socket activation complete - child will take over socket"
+                        "Socket activation triggered - continuing to monitor for re-activation"
                     );
-                    break;
+                    
+                    // Sleep briefly to avoid busy-looping and give the child time to start
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
                 // If result == 0, timeout occurred, just loop and try again
             }
