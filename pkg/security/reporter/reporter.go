@@ -61,6 +61,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		nil,   // drift detector not used in security-agent
 	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
