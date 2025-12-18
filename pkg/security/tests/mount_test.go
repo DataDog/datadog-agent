@@ -363,7 +363,7 @@ func testMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid)
+		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid, true)
 		if err != nil {
 			t.Error(err)
 			return
