@@ -33,6 +33,7 @@ func TestDockerPermissionSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(os.AmazonLinuxECSDefault)), // ECS AMI has Docker pre-installed
 				ec2.WithAgentOptions(
+					agentparams.WithPipeline("87504962"),
 					agentparams.WithAgentConfig(`health_platform:
   enabled: true
   forwarder:
@@ -56,24 +57,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
 	host := suite.Env().RemoteHost
 	fakeIntake := suite.Env().FakeIntake.Client()
 
-	// Docker is pre-installed on the ECS AMI, just create containers
-	suite.T().Log("Creating Docker containers to trigger log collection...")
-	host.MustExecute(`
-sudo docker pull public.ecr.aws/docker/library/busybox:latest
-
-for i in {1..5}; do
-  sudo docker run -d \
-    --name "spam$i" \
-    --log-opt max-size=10m \
-    --log-opt max-file=2 \
-    busybox:latest \
-    sh -c "while true; do echo container-$i: \$(date); sleep 0.5; done"
-done
-
-# Restart agent to pick up the new containers
-sudo systemctl restart datadog-agent
-`)
-
 	// Wait for health report to be sent to fake intake
 	var healthReports []*aggregator.AgentHealthPayload
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
@@ -87,7 +70,7 @@ sudo systemctl restart datadog-agent
 	report := healthReports[len(healthReports)-1]
 
 	// Verify docker permission issue is present
-	dockerIssue, found := report.Issues["docker-permission-check"]
+	dockerIssue, found := report.Issues["docker-socket-check"]
 	require.True(suite.T(), found, "Docker permission issue not found in health report")
 	require.NotNil(suite.T(), dockerIssue)
 
