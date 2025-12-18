@@ -65,13 +65,13 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 	// Add version-specific step if version is available
 	if checkVersion != "" {
 		remediationSteps = append(remediationSteps, healthplatform.RemediationStep{
-			Order: 6,
+			Order: len(remediationSteps) + 1,
 			Text:  fmt.Sprintf("Check if there are known issues with version %s of the integration", checkVersion),
 		})
 	}
 
 	remediationSteps = append(remediationSteps, healthplatform.RemediationStep{
-		Order: 7,
+		Order: len(remediationSteps) + 1,
 		Text:  "If the issue persists, enable debug logging: set 'log_level: debug' in datadog.yaml and restart the agent",
 	})
 
