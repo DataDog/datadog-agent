@@ -65,7 +65,11 @@ jobs:
           EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
         run: |
-          labels="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | (join(" "))')"
+          labels="$(curl --retry 4 -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GH_REPO/pulls/$PR_NUMBER" \
+            | jq -r '[.labels[].name] | join(" ")')"
           echo "Fetched labels for PR $EVENT_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
   team-label-check:
