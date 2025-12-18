@@ -76,8 +76,20 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
 
     app.display_info(f"Deleting {env.env_type} environment '{id}'...")
 
+    from lab.providers import ProviderConfig
+
     try:
         provider = get_provider(env.env_type)
+        config = ProviderConfig(name=id)
+        options = provider.options_class.from_config(config)
+        missing = [p for p in provider.check_prerequisites(app, options) if "delete" in p.actions]
+        if missing:
+            lines = ["Missing prerequisites:"]
+            for prereq in missing:
+                lines.append(f"  • {prereq.name}")
+                lines.append(f"    → {prereq.remediation}")
+            app.abort("\n".join(lines))
+
         provider.destroy(app, id)
     except ValueError:
         app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")

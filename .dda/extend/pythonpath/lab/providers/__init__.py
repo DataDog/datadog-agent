@@ -33,13 +33,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from click import Option
     from dda.cli.application import Application
 
     from lab.config import LabConfig
+
+ProviderAction = Literal["create", "delete"]
 
 
 @dataclass
@@ -51,6 +53,9 @@ class MissingPrerequisite:
 
     remediation: str
     """How to fix it (e.g., 'brew install kind', 'dda env dev start')."""
+
+    actions: set[ProviderAction] = field(default_factory=lambda: {"create", "delete"})
+    """Actions this prerequisite should be checked for."""
 
     def __str__(self) -> str:
         return f"{self.name} ({self.remediation})"
@@ -155,12 +160,13 @@ class BaseProvider(ABC):
         ...
 
     def check_prerequisites(self, app: Application, options: ProviderOptions) -> list[MissingPrerequisite]:
-        """Return list of missing prerequisites. Override in subclasses."""
+        """Return list of missing prerequisites. Each prerequisite declares when it applies."""
         return []
 
 
 # Provider registry
 _PROVIDERS: dict[str, type[BaseProvider]] = {}
+_BUILTINS_LOADED = False
 
 
 def register_provider(cls: type[BaseProvider]) -> type[BaseProvider]:

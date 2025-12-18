@@ -6,6 +6,7 @@
 
 ## Prerequisites
 
+- Docker (or an equivalent container runtime)
 - [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [helm](https://helm.sh/docs/intro/install/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
@@ -13,79 +14,70 @@
 ## Quick start
 
 ```bash
-# Create cluster with agent
-dda lab local kind --name dev --install-agent
+# Create a local Kind lab environment (installs the Agent by default)
+dda lab local kind --id dev
 ```
 
 ## Create cluster
 
 ```bash
-# Basic cluster (no agent)
-dda lab local kind --name dev
-
-# With agent installation
-dda lab local kind --name dev --install-agent
+# Create a cluster without installing the Agent
+dda lab local kind --id dev --no-agent
 
 # With specific Kubernetes version
-dda lab local kind --name dev --k8s-version v1.30.0
+dda lab local kind --id dev --k8s-version v1.30.0
 
 # Recreate existing cluster
-dda lab local kind --name dev --force
+dda lab local kind --id dev --force
 ```
 
 ## Deploy agent
 
+By default, `dda lab local kind` installs the Datadog Agent via Helm. Provide an API key with `E2E_API_KEY` or `~/.test_infra_config.yaml` (see [Lab environments](index.md#configuration)).
+
 ### From registry
 
 ```bash
-# Default agent image
-dda lab local kind --name dev --install-agent
+# Default agent image (Agent installation is enabled by default)
+dda lab local kind --id dev
 
 # Custom image
-dda lab local kind --name dev --install-agent --agent-image gcr.io/datadoghq/agent:7.50.0
+dda lab local kind --id dev --agent-image gcr.io/datadoghq/agent:7.50.0
 
 # With custom Helm values
-dda lab local kind --name dev --install-agent --helm-values ./values.yaml
+dda lab local kind --id dev --helm-values ./values.yaml
 ```
 
-### Build locally
+### Build locally (custom build command)
 
-Builds run inside a [developer environment](../env.md) to ensure proper build tooling.
+If you want to build a local Agent image using a custom command, pass `--build-command`.
 
 /// note
-The developer environment must be running before building. Start it with:
+The build runs inside a developer environment (see [Using developer environments](../env.md)). Ensure it is started first:
+
 ```bash
 dda env dev start
 ```
 ///
 
 ```bash
-# Build and deploy agent
-dda lab local kind --name dev --build-agent
-
-# Include additional components
-dda lab local kind --name dev --build-agent \
-    --with-process-agent \
-    --with-trace-agent \
-    --with-system-probe \
-    --with-security-agent
-
-# Use a specific developer environment
-dda lab local kind --name dev --build-agent --devenv myenv
+# Example: build an image tagged datadog/agent-dev:local, then load+install it
+dda lab local kind --id dev \
+  --build-command "dda inv agent.hacky-dev-image-build --target-image datadog/agent-dev:local"
 ```
 
 ### Load existing image
 
 ```bash
 # Load pre-built local image
-dda lab local kind --name dev --load-image myagent:dev
+dda lab local kind --id dev --load-image myagent:dev
 ```
 
 ## Working with the cluster
 
 ```bash
 # Switch kubectl context
-kubectl config use-context kind-dev
+kubectl config use-context kind-<id>
 
 # Check agent pods
 kubectl get pods -n datadog
@@ -101,16 +93,13 @@ kubectl logs -n datadog -l app=datadog -f
 
 | Option | Description |
 |--------|-------------|
-| `--name`, `-n` | Cluster name (required) |
+| `--id`, `-i` | Environment id |
 | `--k8s-version` | Kubernetes version (default: v1.32.0) |
-| `--install-agent` | Install Datadog Agent |
+| `--no-agent` | Do not install the Datadog Agent |
 | `--agent-image` | Custom agent image |
-| `--helm-values` | Path to Helm values.yaml |
-| `--build-agent` | Build local agent image |
-| `--load-image` | Load local Docker image |
-| `--with-process-agent` | Include process-agent in build |
-| `--with-trace-agent` | Include trace-agent in build |
-| `--with-system-probe` | Include system-probe in build |
-| `--with-security-agent` | Include security-agent in build |
-| `--devenv` | Developer environment ID for building |
+| `--load-image` | Load existing local docker image into the cluster |
+| `--helm-values` | Path to custom Helm values.yaml file |
+| `--build-command` | Command to build the agent image (must output an image tagged `datadog/agent-dev:local`) |
+| `--devenv` | Developer environment ID (see `dda env dev`) |
 | `--force`, `-f` | Recreate cluster if exists |
+| `--nodes-count` | Number of nodes in the cluster (default: 2) |

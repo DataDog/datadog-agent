@@ -16,6 +16,7 @@ def build_local_image(
     app: Application,
     tag: str = DEFAULT_LOCAL_IMAGE_TAG,
     devenv: str = "",
+    build_command: str = "",
 ) -> str:
     """
     Build a local agent image using hacky-dev-image-build.
@@ -41,11 +42,10 @@ def build_local_image(
         "agent.hacky-dev-image-build",
         "--target-image",
         tag,
-        "--process-agent",
-        "--trace-agent",
-        "--system-probe",
-        "--security-agent",
     ]
+
+    if build_command:
+        cmd = build_command.split(" ")
 
     # Run in devcontainer for proper build environment
     devenv_cmd = ["dda", "env", "dev", "run"]

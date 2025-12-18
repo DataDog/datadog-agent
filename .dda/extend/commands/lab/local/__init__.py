@@ -15,9 +15,6 @@ from __future__ import annotations
 
 from lab.providers.commands import create_provider_group
 
-# Import providers to register them
-from lab.providers.local import kind  # noqa: F401
-
 # Auto-generate commands for all "local" category providers
 cmd = create_provider_group(
     category="local",

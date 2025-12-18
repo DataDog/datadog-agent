@@ -85,8 +85,8 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         # Create typed options for this provider
         options = provider.options_class.from_config(config)
 
-        # Check prerequisites
-        missing = provider.check_prerequisites(app, options)
+        # Check prerequisites (action-specific filtering)
+        missing = [p for p in provider.check_prerequisites(app, options) if "create" in p.actions]
         if missing:
             lines = ["Missing prerequisites:"]
             for prereq in missing:

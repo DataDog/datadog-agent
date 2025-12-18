@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -35,6 +36,7 @@ class KindOptions(ProviderOptions):
     # Credentials (resolved from config/env)
     api_key: str = ""
     app_key: str = ""
+    build_command: str = ""
     # Internal state (set during create)
     _local_image: bool = False
     nodes_count: int = 2
@@ -55,6 +57,7 @@ class KindOptions(ProviderOptions):
             api_key=config.get_api_key() or "",
             app_key=config.get_app_key() or "",
             nodes_count=config.options.get("nodes_count", 2),
+            build_command=config.options.get("build_command", ""),
         )
 
     @property
@@ -74,10 +77,15 @@ class KindProvider(BaseProvider):
 
     create_options = [
         click.option("--k8s-version", default="v1.32.0", help="Kubernetes version"),
-        click.option("--no-agent", is_flag=True, default=True, help="Install Datadog Agent"),
+        click.option("--no-agent", is_flag=True, default=False, help="Do not install the Datadog Agent"),
         click.option("--agent-image", default="", help="Custom agent image"),
         click.option("--load-image", default="", help="Load existing local docker image into cluster"),
         click.option("--helm-values", default="", help="Path to custom Helm values.yaml file"),
+        click.option(
+            "--build-command",
+            default="",
+            help="Command to build the agent image, output must be an image tagged with'datadog/agent-dev:local'",
+        ),
         click.option("--devenv", default="", help="Developer environment ID for building (see dda env dev)"),
         click.option("--force", "-f", is_flag=True, help="Recreate if exists"),
         click.option("--nodes-count", default=2, help="Number of nodes in the cluster"),
@@ -88,29 +96,47 @@ class KindProvider(BaseProvider):
         options = cast(KindOptions, opts)
         missing: list[MissingPrerequisite] = []
 
+        retcode = app.subprocess.attach(
+            ["docker", "ps"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL, check=False
+        ).returncode
+        if retcode != 0:
+            missing.append(
+                MissingPrerequisite(
+                    name="Docker installed and running",
+                    remediation="docker ps failed, please check if Docker is installed and running",
+                    actions={"create", "delete"},
+                )
+            )
+
+        # Check if kind is installed
         if not shutil.which("kind"):
             missing.append(
                 MissingPrerequisite(
                     name="kind",
                     remediation="https://kind.sigs.k8s.io/docs/user/quick-start/#installation",
+                    actions={"create", "delete"},
                 )
             )
-        if not shutil.which("helm"):
+
+        # Helm only needed when we're installing the Agent
+        if options.wants_agent and not shutil.which("helm"):
             missing.append(
                 MissingPrerequisite(
                     name="helm",
                     remediation="https://helm.sh/docs/intro/install/",
+                    actions={"create"},
                 )
             )
 
-        # Check dev environment is running if building locally
-        if not options.agent_image and not options.load_image:
+        # A dev environment is only needed if we're going to build a local image.
+        if options.wants_agent and not options.agent_image and not options.load_image:
             if not self._is_devenv_running(options.devenv):
                 env_id = options.devenv or "default"
                 missing.append(
                     MissingPrerequisite(
                         name=f"Developer environment '{env_id}' not running",
                         remediation="dda env dev start" + (f" --id {options.devenv}" if options.devenv else ""),
+                        actions={"create"},
                     )
                 )
 
@@ -124,12 +150,11 @@ class KindProvider(BaseProvider):
 
         name = options.name
 
-        # Build local agent image if requested (do this before cluster operations)
-        if not options.agent_image and not options.load_image:
+        # Build local agent image if we are going to install the agent and no image was provided.
+        # (Do this before cluster operations.)
+        if options.wants_agent and not options.agent_image and not options.load_image:
             options.agent_image = build_local_image(
-                app,
-                tag="datadog/agent-dev:local",
-                devenv=options.devenv,
+                app, tag="datadog/agent-dev:local", devenv=options.devenv, build_command=options.build_command
             )
             options._local_image = True
 

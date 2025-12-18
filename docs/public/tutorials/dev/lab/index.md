@@ -27,15 +27,15 @@ dda lab list --json
 ### Delete environment
 
 ```bash
-dda lab delete --name <name>
+dda lab delete
 
-# Skip confirmation
-dda lab delete --name <name> --force
+# Non-interactive deletion
+dda lab delete --id <id> --yes
 ```
 
 ## Configuration
 
-API keys can be configured via environment variables:
+If the environment provider installs the Agent (for example `dda lab local kind`), you must provide an API key. API keys can be configured via environment variables:
 
 ```bash
 export E2E_API_KEY=your_api_key
