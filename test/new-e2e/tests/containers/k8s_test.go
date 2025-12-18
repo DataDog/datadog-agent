@@ -736,6 +736,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -793,6 +796,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
