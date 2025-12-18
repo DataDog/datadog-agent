@@ -931,7 +931,7 @@ class TestShouldBypassFailure(unittest.TestCase):
     """Test the should_bypass_failure function for delta-based non-blocking failures."""
 
     def test_bypass_when_disk_delta_zero(self):
-        """Should bypass when on-disk size delta is 0."""
+        """Should bypass when on-disk size delta is exactly 0."""
         from tasks.quality_gates import should_bypass_failure
 
         handler = GateMetricHandler("main", "dev")
@@ -946,7 +946,18 @@ class TestShouldBypassFailure(unittest.TestCase):
 
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
-            "relative_on_disk_size": -500,
+            "relative_on_disk_size": -500000,  # -500KB
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_when_disk_delta_within_threshold(self):
+        """Should bypass when on-disk size delta is positive but within threshold (~1KB)."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Small positive delta (500 bytes) should be treated as 0
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 500,  # 500 bytes - within threshold
         }
         self.assertTrue(should_bypass_failure("test_gate", handler))
 
@@ -955,21 +966,31 @@ class TestShouldBypassFailure(unittest.TestCase):
         from tasks.quality_gates import should_bypass_failure
 
         handler = GateMetricHandler("main", "dev")
-        # Even with positive wire delta, should bypass if disk delta is <= 0
+        # Even with positive wire delta, should bypass if disk delta is within threshold
         handler.metrics["test_gate"] = {
-            "relative_on_wire_size": 100,  # Positive wire delta
+            "relative_on_wire_size": 1000000,  # Positive wire delta (1MB)
             "relative_on_disk_size": 0,  # Zero disk delta
         }
         self.assertTrue(should_bypass_failure("test_gate", handler))
 
-    def test_no_bypass_when_disk_delta_positive(self):
-        """Should NOT bypass when on-disk size delta is positive."""
+    def test_no_bypass_when_disk_delta_exceeds_threshold(self):
+        """Should NOT bypass when on-disk size delta exceeds threshold."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Delta of 5KB exceeds threshold of ~1KB
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 5000,  # 5KB - exceeds threshold
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_disk_delta_significantly_positive(self):
+        """Should NOT bypass when on-disk size delta is significantly positive."""
         from tasks.quality_gates import should_bypass_failure
 
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
-            "relative_on_wire_size": 0,
-            "relative_on_disk_size": 100,
+            "relative_on_disk_size": 1000000,  # 1MB - way over threshold
         }
         self.assertFalse(should_bypass_failure("test_gate", handler))
 

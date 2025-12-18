@@ -65,7 +65,7 @@ def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> 
         metric_handler: The metric handler containing relative size metrics
 
     Returns:
-        True if on-disk size delta is <= 0 (bypass eligible), False otherwise
+        True if on-disk size delta is effectively <= 0 (bypass eligible), False otherwise
     """
     gate_metrics = metric_handler.metrics.get(gate_name, {})
     disk_delta = gate_metrics.get("relative_on_disk_size")
@@ -74,8 +74,13 @@ def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> 
     if disk_delta is None:
         return False
 
-    # Bypass if on-disk size hasn't increased from ancestor
-    return disk_delta <= 0
+    # Threshold: values smaller than 0.001 MiB (~1KB) are treated as 0
+    # This matches the display rounding (byte_to_string rounds to 2 decimal places in MiB)
+    # Small variations due to build non-determinism should not block PRs
+    delta_threshold_bytes = int(0.001 * 1024 * 1024)  # ~1KB
+
+    # Bypass if on-disk size hasn't meaningfully increased from ancestor
+    return disk_delta <= delta_threshold_bytes
 
 
 def display_pr_comment(
