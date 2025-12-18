@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-secret-backend
 
-go 1.25.3
+go 1.25.5
 
 replace (
 	github.com/DataDog/datadog-secret-backend/backend => ./backend

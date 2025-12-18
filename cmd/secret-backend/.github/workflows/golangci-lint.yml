@@ -15,7 +15,7 @@ jobs:
   golangci:
     strategy:
       matrix:
-        go: [1.25.3]
+        go: [1.25.5]
         os: [ubuntu-latest, macos-latest, windows-latest]
     name: lint
     runs-on: ${{ matrix.os }}
