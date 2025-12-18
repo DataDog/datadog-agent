@@ -637,13 +637,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-
-	for _, serviceCtx := range serviceCtxs {
-		if serviceCtx != "" {
-			tagsStr = append(tagsStr, serviceCtx)
-		}
-	}
-
+	tagsStr = append(tagsStr, serviceCtxs...)
 	return tagsStr
 }
 
