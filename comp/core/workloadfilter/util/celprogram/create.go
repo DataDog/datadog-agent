@@ -42,9 +42,9 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.workloadfilter.FilterContainer"
 	case workloadfilter.PodType:
 		return "datadog.workloadfilter.FilterPod"
-	case workloadfilter.ServiceType:
+	case workloadfilter.KubeServiceType:
 		return "datadog.workloadfilter.FilterKubeService"
-	case workloadfilter.EndpointType:
+	case workloadfilter.KubeEndpointType:
 		return "datadog.workloadfilter.FilterKubeEndpoint"
 	case workloadfilter.ProcessType:
 		return "datadog.workloadfilter.FilterProcess"

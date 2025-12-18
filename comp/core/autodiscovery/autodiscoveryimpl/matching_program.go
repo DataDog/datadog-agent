@@ -64,9 +64,9 @@ func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectT
 	case len(rules.Processes) > 0:
 		return rules.Processes, workloadfilter.ProcessType, adtypes.CelProcessIdentifier
 	case len(rules.KubeServices) > 0:
-		return rules.KubeServices, workloadfilter.ServiceType, adtypes.CelServiceIdentifier
+		return rules.KubeServices, workloadfilter.KubeServiceType, adtypes.CelServiceIdentifier
 	case len(rules.KubeEndpoints) > 0:
-		return rules.KubeEndpoints, workloadfilter.EndpointType, adtypes.CelEndpointIdentifier
+		return rules.KubeEndpoints, workloadfilter.KubeEndpointType, adtypes.CelEndpointIdentifier
 	default:
 		return nil, "", ""
 	}
