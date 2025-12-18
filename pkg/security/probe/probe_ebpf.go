@@ -188,6 +188,10 @@ type EBPFProbe struct {
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
 
+	// remediation tracking
+	activeRemediations     map[string]*remediationAction
+	activeRemediationsLock sync.RWMutex
+
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 }
@@ -838,8 +842,13 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
+		if event.ProcessCacheEntry != nil {
+			event.ProcessCacheEntry.Release()
+		}
 		p.putBackPoolEvent(event)
 	}
+	// send not triggered remediations
+	p.handleRemediationNotTriggered()
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1043,15 +1052,14 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 
 func (p *EBPFProbe) getPoolEvent() *model.Event {
 	event := p.eventPool.Get()
+	relatedEventZeroer(event)
 	event.FieldHandlers = p.fieldHandlers
 	return event
 }
 
+var relatedEventZeroer = model.NewEventZeroer()
+
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	if event.ProcessCacheEntry != nil {
-		event.ProcessCacheEntry.Release()
-	}
-	probeEventZeroer(event)
 	p.eventPool.Put(event)
 }
 
@@ -1376,7 +1384,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
-		resolveTargetProcessContext(event, p, newEntryCb)
+		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1494,7 +1502,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			tags = append(tags, "service:"+service)
 		}
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
 			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 		)
 		return false
@@ -1550,15 +1558,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
-		// resolve target process context
-		var pce *model.ProcessCacheEntry
-		if event.Setrlimit.TargetPid > 0 {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, 0, false, newEntryCb)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
-		}
-		event.Setrlimit.Target = &pce.ProcessContext
+		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p, newEntryCb)
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1749,15 +1749,15 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 	return true
 }
 
-func resolveTargetProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) {
+func resolveTargetProcessContext(pid uint32, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
-	if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
+	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
+		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
 	}
 	if pce == nil {
-		pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
 	}
-	event.Signal.Target = &pce.ProcessContext
+	return &pce.ProcessContext
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -2527,6 +2527,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+
+	p.handleRemediationStatus(rs)
 }
 
 // NewEvent returns a new event
@@ -2914,6 +2916,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		activeRemediations:   make(map[string]*remediationAction),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3403,6 +3406,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+			p.handleKillRemediaitonAction(rule, ev)
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
@@ -3424,7 +3428,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
-
+			var reportStatus string
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
@@ -3437,21 +3441,25 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
-
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
+					reportStatus = "error"
+				} else {
+					reportStatus = "applied"
 				}
-
-				report := &RawPacketActionReport{
-					Filter: action.Def.NetworkFilter.BPFFilter,
-					Policy: policy.String(),
-					rule:   rule,
-				}
-
-				ev.ActionReports = append(ev.ActionReports, report)
-
-				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+
+			report := &RawPacketActionReport{
+				Filter: action.Def.NetworkFilter.BPFFilter,
+				Policy: policy.String(),
+				rule:   rule,
+			}
+
+			ev.ActionReports = append(ev.ActionReports, report)
+
+			p.probe.onRuleActionPerformed(rule, action.Def)
+
+			p.handleNetworkRemediaitonAction(rule, ev, policy, reportStatus)
 		}
 	}
 }
