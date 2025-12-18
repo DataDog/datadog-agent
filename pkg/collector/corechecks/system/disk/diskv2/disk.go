@@ -432,10 +432,16 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	}
 	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
 	if err != nil {
+		if len(partitions) == 0 {
+			// Complete failure - no partitions retrieved
+			log.Warnf("Unable to get disk partitions: %v", err)
+			return err
+		}
+		// Partial success - some partitions retrieved despite error
 		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(partitions), err)
-	}
-	if len(partitions) == 0 {
-		log.Debug("No disk partitions found")
+	} else if len(partitions) == 0 {
+		// No error but no partitions - unusual, could indicate a problem
+		log.Warn("No disk partitions found - this may indicate a configuration or access issue")
 		return nil
 	}
 	rootDevices := make(map[string]string)
