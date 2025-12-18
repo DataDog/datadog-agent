@@ -314,6 +314,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
 func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
+	cfg := pkgconfigsetup.Datadog()
 
 	for _, desc := range getPassthroughPipelines() {
 		//nolint:misspell
@@ -322,8 +323,8 @@ func Diagnose() []diagnose.Diagnosis {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
 			continue
 		}
-		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
@@ -335,7 +336,7 @@ func Diagnose() []diagnose.Diagnosis {
 			continue
 		}
 
-		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, cfg)
 		name := "Connectivity to " + url
 		if err == nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
@@ -345,18 +346,40 @@ func Diagnose() []diagnose.Diagnosis {
 				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
 			})
 		} else {
-			diagnoses = append(diagnoses, diagnose.Diagnosis{
+			diag := diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
 				Category:    desc.category,
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
 				RawError:    err.Error(),
-			})
+			}
+			if cfg.GetBool("convert_dd_site_fqdn.enabled") {
+				diag = testConnectivityWithPQDN(cfg, endpoints.Main, diag)
+			}
+			diagnoses = append(diagnoses, diag)
 		}
 	}
 
 	return diagnoses
+}
+
+// Detect if the connection failed because of using a FQDN by trying with a PQDN
+func testConnectivityWithPQDN(cfg model.Reader, endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
+	fqdn := endpoint.Host
+	if strings.HasSuffix(fqdn, ".") {
+		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", fqdn)
+
+		// This function takes `endpoint` by value, so it's safe to mutate here
+		endpoint.Host = strings.TrimSuffix(fqdn, ".")
+		_, err := logshttp.CheckConnectivityDiagnose(endpoint, cfg)
+		if err == nil {
+			diag.Remediation = fmt.Sprintf(
+				"The connection to the fully qualified domain name (FQDN) %q failed, but the connection to %q (without trailing dot) succeeded. Update your firewall and/or proxy configuration to accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false in the agent configuration.",
+				fqdn, endpoint.Host)
+		}
+	}
+	return diag
 }
 
 // SendEventPlatformEventBlocking sends messages to the event platform intake.
