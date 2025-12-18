@@ -1,0 +1,42 @@
+[package]
+name = "fine-grained-monitor"
+version = "0.1.0"
+edition = "2021"
+description = "Fine-grained container resource monitoring for datadog-agent development"
+license = "Apache-2.0"
+
+[dependencies]
+# Metrics capture and output (REQ-FM-004, REQ-FM-005)
+lading-capture = { git = "https://github.com/DataDog/lading.git" }
+lading-signal = { git = "https://github.com/DataDog/lading.git" }
+
+# Metrics facade - observer emits via gauge!(), counter!()
+metrics = "0.24"
+
+# Async runtime
+tokio = { version = "1.47", features = ["full", "signal"] }
+
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Fast hash maps (matches lading)
+rustc-hash = "2"
+
+# Hostname detection
+hostname = "0.4"
+
+[dev-dependencies]
+proptest = "1.5"
+proptest-derive = "0.5"
+
+[[bin]]
+name = "fine-grained-monitor"
+path = "src/main.rs"
