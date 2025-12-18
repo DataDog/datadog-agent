@@ -338,6 +338,23 @@ impl SocketActivationService {
                             break;
                         }
 
+                        // Close the daemon's copy of the client socket after passing it to the child.
+                        // This is important because:
+                        // 1. The child has a duplicate of this FD
+                        // 2. If we keep our copy open, the TCP connection stays ESTABLISHED
+                        // 3. Clients might reuse the connection (HTTP keep-alive), which means
+                        //    no NEW connection arrives on the listening socket
+                        // 4. This would prevent socket re-activation from triggering
+                        // By closing our copy, we force clients to make new connections.
+                        if let Some(cfd) = client_fd {
+                            info!(
+                                socket = %socket_name,
+                                client_fd = cfd,
+                                "Closing daemon's copy of client socket to force new connections"
+                            );
+                            libc::close(cfd);
+                        }
+
                         std::thread::sleep(std::time::Duration::from_millis(100));
                     } else if result == -1 {
                         let err = std::io::Error::last_os_error();
@@ -508,17 +525,32 @@ impl SocketActivationService {
                     // Unlike the old implementation that broke out of the loop,
                     // we keep listening so socket activation can re-trigger if the
                     // child process crashes or exits.
-                    // 
-                    // Note: We do NOT call closesocket() here because on Windows,
-                    // closing the socket in the parent can invalidate it for the child
-                    // before the child has a chance to use it.
-                    // The child inherits the handle and will close it when done.
                     info!(
                         socket = %socket_name,
                         service = %service_name,
                         "Socket activation triggered - continuing to monitor for re-activation"
                     );
-                    
+
+                    // Close the daemon's copy of the client socket after passing it to the child.
+                    // This is important because:
+                    // 1. The child has inherited a duplicate of this handle
+                    // 2. If we keep our copy open, the TCP connection stays ESTABLISHED
+                    // 3. Clients might reuse the connection (HTTP keep-alive), which means
+                    //    no NEW connection arrives on the listening socket
+                    // 4. This would prevent socket re-activation from triggering
+                    // By closing our copy, we force clients to make new connections.
+                    if let Some(client_handle) = client_fd {
+                        use windows::Win32::Networking::WinSock::closesocket;
+                        info!(
+                            socket = %socket_name,
+                            client_handle = client_handle,
+                            "Closing daemon's copy of client socket to force new connections"
+                        );
+                        unsafe {
+                            let _ = closesocket(SOCKET(client_handle as usize));
+                        }
+                    }
+
                     // Sleep briefly to avoid busy-looping and give the child time to start
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
