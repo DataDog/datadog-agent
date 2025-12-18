@@ -100,17 +100,11 @@ def signal_handler(signum, frame):
     shutdown_flag = True
 
 
-def check_drift_detection_enabled(config_path: str) -> bool:
-    """Check if drift detection is enabled in datadog.yaml."""
-    try:
-        import yaml
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f) or {}
-        drift_config = config.get('logs_config', {}).get('drift_detection', {})
-        return bool(drift_config.get('enabled', False))
-    except Exception as e:
-        logger.warning(f"Could not read config: {e}")
-        return False
+def check_drift_detection_enabled() -> bool:
+    """Check if drift detection is enabled via environment variable."""
+    import os
+    enabled = os.environ.get('DD_LOGS_CONFIG_DRIFT_DETECTION_ENABLED', 'false')
+    return enabled.lower() in ('true', '1', 'yes')
 
 
 def main():
@@ -119,12 +113,11 @@ def main():
     parser.add_argument("--model-name", default=default_model)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=11434)
-    parser.add_argument("--config", default="/etc/datadog-agent/datadog.yaml")
     parser.add_argument("--check-config", action="store_true")
 
     args = parser.parse_args()
 
-    if args.check_config and not check_drift_detection_enabled(args.config):
+    if args.check_config and not check_drift_detection_enabled():
         logger.info("Drift detection not enabled. Exiting.")
         sys.exit(0)
 
