@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -874,52 +873,4 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
-}
-
-func TestCreateTransactionsWithLocal(t *testing.T) {
-	log := logmock.New(t)
-	secrets := secretsmock.New(t)
-	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("api_key", "test_key")
-	mockConfig.SetWithoutSource("dd_url", "https://example.test")
-	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
-	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
-	mockConfig.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
-	mockConfig.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
-
-	opts, err := createOptions(NewParams(), mockConfig, log, secrets)
-	require.NoError(t, err)
-	f := NewDefaultForwarder(mockConfig, log, opts)
-
-	genericPayload := transaction.NewBytesPayload([]byte("content"), 0)
-	genericPayload.Destination = transaction.AllRegions
-	localPayload := transaction.NewBytesPayload([]byte("local"), 0)
-	localPayload.Destination = transaction.LocalOnly
-
-	txn := f.createAdvancedHTTPTransactions(
-		endpoints.SeriesEndpoint,
-		transaction.BytesPayloads{genericPayload, localPayload},
-		http.Header{},
-		transaction.TransactionPriorityNormal,
-		transaction.Series,
-		true,
-	)
-
-	require.Len(t, txn, 2)
-	// Resolvers are stored in a map and can be visited in any order.
-	sort.Slice(txn, func(i, j int) bool { return txn[i].Domain < txn[j].Domain })
-	assert.Equal(t, "https://cluster.agent.svc", txn[0].Domain)
-	assert.Equal(t, "https://example.test", txn[1].Domain)
-
-	txn = f.createAdvancedHTTPTransactions(
-		endpoints.V1IntakeEndpoint,
-		transaction.BytesPayloads{genericPayload},
-		http.Header{},
-		transaction.TransactionPriorityNormal,
-		transaction.Metadata,
-		true,
-	)
-
-	require.Len(t, txn, 1)
-	assert.Equal(t, "https://example.test", txn[0].Domain)
 }
