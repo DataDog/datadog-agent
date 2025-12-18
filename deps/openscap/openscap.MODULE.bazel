@@ -6,10 +6,23 @@ VERSION = "1.4.2"
 
 http_archive(
     name = "openscap",
-    files = {
-        "BUILD.bazel": "//deps/openscap:overlay/overlay.BUILD.bazel",
-    },
+    url = "https://github.com/OpenSCAP/openscap/releases/download/1.4.2/openscap-1.4.2.tar.gz",
     sha256 = "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d",
-    strip_prefix = "openscap-{version}".format(version = VERSION),
-    url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz".format(version = VERSION),
+    files = {
+        "BUILD.bazel": "//deps:openscap/openscap.BUILD.bazel",
+    },
+    patches = [
+        "//deps:openscap/patches/fsdev-ignore-host.patch",
+        "//deps:openscap/patches/systemd-dbus-address.patch",
+        "//deps:openscap/patches/rpm-verbosity-err.patch",
+        "//deps:openscap/patches/session-print-syschar.patch",
+        "//deps:openscap/patches/memusage-cgroup.patch",
+        "//deps:openscap/patches/oval_probe_session_reset.patch",
+        "//deps:openscap/patches/sysctl-probe-offline-skip.patch",
+        "//deps:openscap/patches/probes-no-procfs.patch",
+        "//deps:openscap/patches/oscap-io.patch",
+    ],
+    patch_tool = "patch",
+    patch_strip = 1,
+    strip_prefix = "openscap-1.4.2",
 )
