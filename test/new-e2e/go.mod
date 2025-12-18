@@ -7,7 +7,7 @@ go 1.25.0
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.177
+	github.com/DataDog/agent-payload/v5 v5.0.178
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.9 // indirect
