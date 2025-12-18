@@ -8,6 +8,7 @@
 package run
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -19,23 +20,34 @@ import (
 )
 
 func TestPrivateActionRunnerRunCommand(t *testing.T) {
-	fxutil.TestRun(t, func() error {
-		commands := Commands(newGlobalParamsTest(t))
-		return commands[0].RunE(nil, []string{"run"})
+	t.Run("disabled", func(t *testing.T) {
+		// Test when PAR is disabled - should exit cleanly without calling fxutil.Run
+		commands := Commands(newGlobalParamsTest(t, false))
+		err := commands[0].RunE(nil, []string{"run"})
+		require.NoError(t, err)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		// Test when PAR is enabled - should call fxutil.Run
+		fxutil.TestRun(t, func() error {
+			commands := Commands(newGlobalParamsTest(t, true))
+			return commands[0].RunE(nil, []string{"run"})
+		})
 	})
 }
 
-func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
+func newGlobalParamsTest(t *testing.T, enabled bool) *command.GlobalParams {
 	// Create minimal config for private action runner testing
 	configPath := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(configPath, []byte(`
+	configContent := `
 hostname: test
 privateactionrunner:
-  enabled: false
+  enabled: %v
   private_key: test_private_key
   urn: test_urn
 api_key: test_key
-`), 0644)
+`
+	err := os.WriteFile(configPath, []byte(fmt.Sprintf(configContent, enabled)), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{

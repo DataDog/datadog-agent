@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import re
@@ -21,7 +22,7 @@ def ask_reviews(_, pr_id):
         return
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
-        reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
         print(f"Reviewers: {reviewers}")
 
         from slack_sdk import WebClient

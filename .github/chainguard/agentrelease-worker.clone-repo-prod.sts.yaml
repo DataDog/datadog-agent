@@ -1,0 +1,9 @@
+issuer: https://vault.us1.ddbuild.io/v1/identity/oidc
+
+# ddtool auth whois --datacenter us1.ddbuild.io agent-delivery-agentrelease-worker --format json | jq -r .id
+subject_pattern: "4f726413-caa9-061a-f03a-715a80d4850b"
+claim_pattern:
+  name: "agent-delivery-agentrelease-worker"
+
+permissions:
+  contents: read

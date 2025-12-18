@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -20,9 +21,15 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 )
 
+// IsEnabled checks if the private action runner is enabled in the configuration
+func IsEnabled(cfg config.Component) bool {
+	return cfg.GetBool("privateactionrunner.enabled")
+}
+
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config    config.Component
+	Log       log.Component
 	Lifecycle compdef.Lifecycle
 	RcClient  rcclient.Component
 }
@@ -38,8 +45,7 @@ type privateactionrunnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	enabled := reqs.Config.GetBool("privateactionrunner.enabled")
-	if !enabled {
+	if !IsEnabled(reqs.Config) {
 		// Return a no-op component when disabled
 		return Provides{
 			Comp: &privateactionrunnerImpl{},
