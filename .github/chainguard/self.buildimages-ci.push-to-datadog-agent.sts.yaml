@@ -6,8 +6,8 @@ issuer: https://gitlab.ddbuild.io
 subject_pattern: "project_path:DataDog/datadog-agent-buildimages:.*"
 
 claim_pattern:
-  event_name: workflow_dispatch
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/buildimages-update\.yml@refs/heads/main
+  project_path: DataDog/datadog-agent-buildimages
+  pipeline_source: push
 
 permissions:
   contents: write
