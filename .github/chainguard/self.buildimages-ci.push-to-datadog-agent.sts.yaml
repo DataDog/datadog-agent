@@ -10,5 +10,4 @@ claim_pattern:
   pipeline_source: push
 
 permissions:
-  contents: write
-  pull_requests: write
+  actions: write
