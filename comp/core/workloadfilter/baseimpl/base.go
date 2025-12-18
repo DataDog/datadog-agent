@@ -95,6 +95,8 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyACExclude, legacyACExcludePrgFactory)
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyGlobal, legacyGlobalPrgFactory)
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacySBOM, catalog.LegacyContainerSBOMProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyRuntimeSecurity, catalog.ContainerLegacyRuntimeSecurityProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyCompliance, catalog.ContainerLegacyComplianceProgram)
 
 	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotations, genericADProgramFactory)
 	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsMetrics, genericADMetricsProgramFactory)
@@ -177,22 +179,32 @@ func (f *BaseFilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfi
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
 func (f *BaseFilterStore) GetContainerSharedMetricFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerSharedMetricFilters())
+	return f.GetContainerFilters(f.selection.containerSharedMetric)
 }
 
 // GetContainerPausedFilters returns the pre-computed container paused filters
 func (f *BaseFilterStore) GetContainerPausedFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerPausedFilters())
+	return f.GetContainerFilters(f.selection.containerPaused)
 }
 
 // GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
 func (f *BaseFilterStore) GetPodSharedMetricFilters() workloadfilter.FilterBundle {
-	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
+	return f.GetPodFilters(f.selection.podSharedMetric)
 }
 
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
 func (f *BaseFilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle {
-	return f.GetContainerFilters(f.selection.GetContainerSBOMFilters())
+	return f.GetContainerFilters(f.selection.containerSBOM)
+}
+
+// GetContainerRuntimeSecurityFilters returns the pre-computed container runtime security filters
+func (f *BaseFilterStore) GetContainerRuntimeSecurityFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerRuntimeSecurity)
+}
+
+// GetContainerComplianceFilters returns the pre-computed container compliance filters
+func (f *BaseFilterStore) GetContainerComplianceFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerCompliance)
 }
 
 // GetContainerFilters returns the filter bundle for the given container filters

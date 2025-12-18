@@ -1,0 +1,6 @@
+fixes:
+    - |
+      Fixed ownership and permissions for the `/opt/datadog-agent/run` directory 
+      in Agent and Cluster Agent Docker images. This resolves permission errors 
+      encountered by Remote Configuration when running as a non-root user 
+      (UID 100), such as in AWS ECS Fargate environments.

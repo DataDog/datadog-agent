@@ -73,6 +73,49 @@ PID     | PPID    | Name                      | Command
 ```
 
 
+### `usm symbols ls`
+
+Lists symbols from ELF binaries, similar to the Unix `nm` utility. Useful for analyzing symbol visibility, library versions, and linkage in monitored applications.
+
+**Usage:**
+```bash
+sudo ./system-probe usm symbols ls <binary-file>          # List static symbols
+sudo ./system-probe usm symbols ls --dynamic <binary-file> # List dynamic symbols
+```
+
+**Options:**
+- `--dynamic` - Display dynamic symbols instead of static symbols
+
+**Output:**
+- Symbol address (16 hex digits or blank for undefined symbols)
+- Symbol type (single character: T=text, D=data, B=BSS, U=undefined, w=weak, etc.)
+- Symbol name with version information for dynamic symbols (e.g., `abort@GLIBC_2.17`)
+
+**Example (dynamic symbols):**
+```
+                 U abort@GLIBC_2.17
+                 U acos@GLIBC_2.17
+                 w __cxa_finalize@GLIBC_2.17
+0000000002fbe4d0 T lua_atpanic
+0000000002fbe4e0 T lua_error
+```
+
+**Example (static symbols):**
+```
+0000000000000000 a $d.0
+0000000000000008 d my_global_var
+0000000000000020 D _ZN6myclass5valueE
+0000000000000090 b thread_local_data
+0000000002fbe4d0 T my_function
+```
+
+**Use Cases:**
+- Check which GLIBC versions are required by a binary
+- Verify symbol visibility (global vs local, weak vs strong)
+- Debug symbol resolution issues in monitored applications
+- Analyze library dependencies and symbol versions
+- Identify exported/imported functions for troubleshooting
+
 ## Use Cases
 
 ### Debugging USM Configuration Issues
@@ -125,3 +168,15 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 - Output truncates long process names (default 25 chars) and command lines (default 50 chars) for readability
 - Both truncation limits are configurable via flags
 - Use `--max-cmdline-length 0` and `--max-name-length 0` for unlimited display
+
+### Symbols Ls Command
+- Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading
+- Supports both static symbols (`.symtab`) and dynamic symbols (`.dynsym`)
+- Extracts symbol version information from `.gnu.version`, `.gnu.version_r`, and `.gnu.version_d` sections
+- Handles off-by-one indexing between Go's `DynamicSymbols()` and `.gnu.version` array
+- Filters out FILE-type symbols by default (matching standard `nm` behavior)
+- Symbol types determined based on ELF section properties (SHF_EXECINSTR, SHF_ALLOC, SHF_WRITE, etc.)
+- Version information shown with `@` prefix for requirements and `@@` for definitions
+- Weak undefined symbols displayed as lowercase 'w' (not 'U')
+- Symbols sorted by address for consistent output
+- Linux-only implementation (returns nil on other platforms)

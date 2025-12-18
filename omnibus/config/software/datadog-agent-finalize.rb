@@ -58,6 +58,10 @@ build do
             delete "#{install_dir}/embedded/lib/cmake"
             # and for libtool files
             delete "#{install_dir}/embedded/lib/*.la"
+
+            # Delete the leftovers of static linking.
+            delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/include/dbus-1.0"
         end
 
         if linux_target?

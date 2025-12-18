@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -541,6 +542,10 @@ func TestMountEvent(t *testing.T) {
 			t.Skip("Skip test where docker is unavailable")
 		}
 
+		checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *ebpfkernel.Version) bool {
+			return kv.IsSuse12Kernel()
+		})
+
 		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
@@ -573,6 +578,10 @@ func TestMountEvent(t *testing.T) {
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
 		}
+
+		checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *ebpfkernel.Version) bool {
+			return kv.IsSuse12Kernel()
+		})
 
 		legitimateSourcePath := testDrive.Path("legitimate_source")
 		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {

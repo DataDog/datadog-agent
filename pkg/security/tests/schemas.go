@@ -296,6 +296,13 @@ func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 }
 
 //nolint:deadcode,unused
+func validateRawPacketActionSchema(t *testing.T, msg string) bool {
+	t.Helper()
+
+	return validateStringSchema(t, msg, "file:///rawpacket_action.schema.json")
+}
+
+//nolint:deadcode,unused
 func validateHeartbeatSchema(t *testing.T, event *events.CustomEvent) bool {
 	t.Helper()
 
