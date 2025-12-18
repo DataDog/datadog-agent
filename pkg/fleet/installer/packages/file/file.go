@@ -155,7 +155,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := Chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -240,7 +240,16 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	return uid, gid, nil
 }
 
-func chown(path string, username string, group string) (err error) {
+// Chown changes the ownership of a file to the specified owner and group.
+func Chown(ctx context.Context, path string, username string, group string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "chown")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("path", path)
+	span.SetTag("owner", username)
+	span.SetTag("group", group)
+
 	uid, gid, err := getUserAndGroup(username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
