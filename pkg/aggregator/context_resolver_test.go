@@ -320,8 +320,8 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"distribution.metric": {
-			Tags:    []string{"env", "pod_name"},
-			Negated: true,
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
 		},
 	})
 
@@ -368,8 +368,8 @@ func TestTrackContextStrippingOriginTags(t *testing.T) {
 func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store) {
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"distribution.metric": {
-			Tags:    []string{"env"},
-			Negated: true,
+			Tags:   []string{"env"},
+			Action: "exclude",
 		},
 	})
 
@@ -411,8 +411,8 @@ func TestTrackContextStrippingOriginTagsDiffers(t *testing.T) {
 func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"distribution.metric": {
-			Tags:    []string{"env", "pod_name", "thing"},
-			Negated: true,
+			Tags:   []string{"env", "pod_name", "thing"},
+			Action: "exclude",
 		},
 	})
 
@@ -458,8 +458,8 @@ func TestTrackContextStrippingMetricTags(t *testing.T) {
 func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store) {
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"distribution.metric": {
-			Tags:    []string{"env", "pod_name"},
-			Negated: true,
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
 		},
 	})
 
@@ -501,8 +501,8 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 	// Tag aggregation on Gauges is currently not supported
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"distribution.metric": {
-			Tags:    []string{"env", "pod_name"},
-			Negated: true,
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
 		},
 	})
 

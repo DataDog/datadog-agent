@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/twmb/murmur3"
 )
 
@@ -30,16 +31,12 @@ func tagName(tag string) string {
 	return tag[:tagNamePos]
 }
 
-type tagMatcher interface {
-	KeepTag(string) bool
-}
-
 // FilterTags removes configured tags and their hashes from the accumulated tags.
-func (h *HashingTagsAccumulator) FilterTags(tagMatcher tagMatcher) {
+func (h *HashingTagsAccumulator) FilterTags(tagMatcher filterlist.HashedMetricTagList) {
 	idx := 0
 	for arridx, tag := range h.data {
 		tagName := tagName(tag)
-		if tagMatcher.KeepTag(tagName) {
+		if tagMatcher.KeepTag(murmur3.StringSum64(tagName)) {
 			h.data[idx] = h.data[arridx]
 			h.hash[idx] = h.hash[arridx]
 			idx++

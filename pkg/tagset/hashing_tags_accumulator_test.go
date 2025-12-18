@@ -126,8 +126,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "no tags config for name (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: true,
+				Tags:   []string{"env", "host"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric2",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
@@ -136,8 +136,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "strip single tag with value (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: true,
+				Tags:   []string{"env"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
@@ -146,8 +146,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "strip multiple tags (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: true,
+				Tags:   []string{"env", "host"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
@@ -156,8 +156,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "strip all tags (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host", "region", "version"},
-				Negated: true,
+				Tags:   []string{"env", "host", "region", "version"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
@@ -166,8 +166,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "no matching tags to strip (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"foo", "bar"},
-				Negated: true,
+				Tags:   []string{"foo", "bar"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1"},
@@ -176,8 +176,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "empty input tags (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: true,
+				Tags:   []string{"env", "host"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{},
@@ -186,8 +186,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "tags without values (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: true,
+				Tags:   []string{"env", "host"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env", "host:server1", "version"},
@@ -196,8 +196,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "invalid tag starting with colon (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "invalid"},
-				Negated: true,
+				Tags:   []string{"env", "invalid"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
@@ -206,8 +206,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "partial tag name match should not strip (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: true,
+				Tags:   []string{"env"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"environment:prod", "env_var:test", "host:server1"},
@@ -216,8 +216,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "tag name with empty value (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: true,
+				Tags:   []string{"env"},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:", "host:server1"},
@@ -233,8 +233,8 @@ func TestStripTags(t *testing.T) {
 		{
 			name: "empty tags to strip list (deny list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{},
-				Negated: true,
+				Tags:   []string{},
+				Action: "exclude",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1"},
@@ -274,8 +274,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "keep single tag (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: false,
+				Tags:   []string{"env"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
@@ -284,8 +284,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "keep multiple tags (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: false,
+				Tags:   []string{"env", "host"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
@@ -294,8 +294,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "keep all tags (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host", "region", "version"},
-				Negated: false,
+				Tags:   []string{"env", "host", "region", "version"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0", "region:us"},
@@ -304,8 +304,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "no matching tags in allow list",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"foo", "bar"},
-				Negated: false,
+				Tags:   []string{"foo", "bar"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1"},
@@ -314,8 +314,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "empty input tags (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: false,
+				Tags:   []string{"env", "host"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{},
@@ -324,8 +324,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "tags without values (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "host"},
-				Negated: false,
+				Tags:   []string{"env", "host"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env", "host:server1", "version"},
@@ -334,8 +334,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "invalid tag starting with colon (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env", "invalid"},
-				Negated: false,
+				Tags:   []string{"env", "invalid"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", ":invalid", "host:server1"},
@@ -344,8 +344,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "partial tag name match should not keep (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: false,
+				Tags:   []string{"env"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"environment:prod", "env_var:test", "env:prod", "host:server1"},
@@ -354,8 +354,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "tag name with empty value (allow list)",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{"env"},
-				Negated: false,
+				Tags:   []string{"env"},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:", "host:server1"},
@@ -364,8 +364,8 @@ func TestStripTagsAllowList(t *testing.T) {
 		{
 			name: "empty allow list strips all tags",
 			matcherTags: map[string]filterlist.MetricTagList{"metric1": {
-				Tags:    []string{},
-				Negated: false,
+				Tags:   []string{},
+				Action: "include",
 			}},
 			lookupName:   "metric1",
 			inputTags:    []string{"env:prod", "host:server1"},

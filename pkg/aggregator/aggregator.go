@@ -369,17 +369,17 @@ func loadTagFilterList() *filterlist.TagMatcher {
 
 	tagFilterList := make(map[string]filterlist.MetricTagList, len(tagFilterListInterface))
 	for metricName, tags := range tagFilterListInterface {
-		// Tags can be configured as a simple array of tags - default to negated.
+		// Tags can be configured as a simple array of tags - default to exclude.
 		arr, ok := tags.([]string)
 		if ok {
 			tagFilterList[metricName] = filterlist.MetricTagList{
-				Tags:    arr,
-				Negated: true,
+				Tags:   arr,
+				Action: "exclude",
 			}
 		} else {
 			// Or tags can be configured as an object with fields:
 			// tags - array of tags
-			// tags_negated - boolean to indicate negated.
+			// action - either `include` or `exclude`.
 			// Roundtrip the struct through yaml to load it.
 			tagBytes, err := yaml.Marshal(tags)
 			if err != nil {
@@ -395,9 +395,7 @@ func loadTagFilterList() *filterlist.TagMatcher {
 			}
 		}
 	}
-	return &filterlist.TagMatcher{
-		Metrics: tagFilterList,
-	}
+	return filterlist.NewTagMatcher(tagFilterList)
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
