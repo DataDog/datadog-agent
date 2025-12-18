@@ -329,7 +329,7 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
-	// Test 1: Two distributions with different tagger tags that will be stripped should get the same context key
+	// Two distributions with different tagger tags that will be stripped should get the same context key
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
@@ -377,7 +377,7 @@ func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store)
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
-	// Test 1: Two distributions with different tagger tags that will be stripped should get the same context key
+	// Two distributions with different tagger tags that will be stripped should get the same context key
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
@@ -420,7 +420,6 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
-	// Test 1: Two distributions with different tagger tags that will be stripped should get the same context key
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
@@ -468,7 +467,6 @@ func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store)
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
-	// Test 1: Two distributions with different tagger tags that will be stripped should get the same context key
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,

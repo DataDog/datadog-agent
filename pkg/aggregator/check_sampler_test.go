@@ -39,7 +39,6 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
-	matcher := strings.NewMatcher([]string{}, false)
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -68,6 +67,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample1, tagmatcher)
 	checkSampler.addSample(&mSample2, tagmatcher)
 	checkSampler.addSample(&mSample3, tagmatcher)
+	matcher := strings.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
@@ -104,7 +104,6 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
-	matcher := strings.NewMatcher([]string{}, false)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -135,6 +134,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2, tagmatcher)
 	checkSampler.addSample(&mSample3, tagmatcher)
 
+	matcher := strings.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
@@ -313,7 +313,6 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
-	matcher := strings.NewMatcher([]string{}, false)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -328,6 +327,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket1, tagmatcher)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
+	matcher := strings.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 0, len(flushed))
@@ -372,7 +372,6 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
-	matcher := strings.NewMatcher([]string{}, false)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -383,7 +382,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		Monotonic:       true,
 		FlushFirstValue: false,
 	}, tagmatcher)
-	checkSampler.commit(12401, &matcher)
+	checkSampler.commit(12401, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -395,7 +394,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: true,
 	}, tagmatcher)
 
-	checkSampler.commit(12411, &matcher)
+	checkSampler.commit(12411, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -407,7 +406,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: true,
 	}, tagmatcher)
 
-	checkSampler.commit(12421, &matcher)
+	checkSampler.commit(12421, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -419,7 +418,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: false,
 	}, tagmatcher)
 
-	checkSampler.commit(12441, &matcher)
+	checkSampler.commit(12441, nil)
 
 	_, flushed := checkSampler.flush()
 
@@ -495,7 +494,6 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
-	matcher := strings.NewMatcher([]string{}, false)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -507,6 +505,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	}
 
 	checkSampler.addSample(&mSample1, tagmatcher)
+	matcher := strings.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 
 	_, sketches := checkSampler.flush()
@@ -582,8 +581,8 @@ func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample5, tagmatcher)
 
 	// Filter out two and four
-	flushMatcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false)
-	checkSampler.commit(12346.0, &flushMatcher)
+	matcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false)
+	checkSampler.commit(12346.0, &matcher)
 	series, _ := checkSampler.flush()
 
 	require.Equal(t, 3, len(series))
@@ -660,8 +659,8 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample5, tagmatcher)
 
 	// Filter out two and four
-	flushMatcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false)
-	checkSampler.commit(12346.0, &flushMatcher)
+	matcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false)
+	checkSampler.commit(12346.0, &matcher)
 	_, sketches := checkSampler.flush()
 
 	// Check that only non-filtered sketches are present

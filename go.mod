@@ -108,7 +108,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/filterlist v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/fips v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
@@ -1113,7 +1112,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ./pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
-	github.com/DataDog/datadog-agent/pkg/filterlist => ./pkg/filterlist
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ./pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ./pkg/linters/components/pkgconfigusage

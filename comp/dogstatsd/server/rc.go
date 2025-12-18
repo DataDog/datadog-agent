@@ -98,7 +98,6 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		// apply this new blocklist to all the running workers
 		s.tlmFilterListUpdates.Inc()
 		s.tlmFilterListSize.Set(float64(len(metricNames)))
-
 		s.SetFilterList(metricNames, false)
 	} else {
 		// special case: if the metric names list is empty, fallback to local
