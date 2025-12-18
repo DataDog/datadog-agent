@@ -116,7 +116,7 @@ core,github.com/Code-Hex/go-generics-cache/policy/lru,MIT,Copyright (c) 2021 cod
 core,github.com/Code-Hex/go-generics-cache/policy/mru,MIT,Copyright (c) 2021 codehex
 core,github.com/Code-Hex/go-generics-cache/policy/simple,MIT,Copyright (c) 2021 codehex
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
-core,github.com/DataDog/agent-payload/v5/autoscaling/kubernetes,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
+core,github.com/DataDog/agent-payload/v5/autoscaling/kubernetes,BSD-3-Clause,Copyright (c) 2017, Datadog, Inc
 core,github.com/DataDog/agent-payload/v5/contimage,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/cws/dumpsv1,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
