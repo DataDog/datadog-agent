@@ -589,7 +589,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/expr-lang/expr v1.17.6 // indirect
+	github.com/expr-lang/expr v1.17.7 // indirect
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d // indirect
@@ -978,7 +978,13 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/modelcontextprotocol/go-sdk v1.1.0
 	gitlab.com/gitlab-org/api/client-go v1.8.0
+)
+
+require (
+	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 )
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
