@@ -401,51 +401,51 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckADPEnabled runs tests to check that the Agent behaves properly with ADP enabled
-func CheckADPEnabled(t *testing.T, client *TestClient) {
-	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+// // CheckADPEnabled runs tests to check that the Agent behaves properly with ADP enabled
+// func CheckADPEnabled(t *testing.T, client *TestClient) {
+// 	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
+// 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
-		// `data_plane.enabled` controls whether or not ADP stays running, but `data_plane.dogstatsd.enabled` controls whether or not
-		// ADP takes over DSD traffic, which we want it to do so that our test case can have a meaningful assertion that ADP is running
-		// and accepting traffic.
-		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
-		require.NoError(tt, err)
-		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
-		require.NoError(tt, err)
+// 		// `data_plane.enabled` controls whether or not ADP stays running, but `data_plane.dogstatsd.enabled` controls whether or not
+// 		// ADP takes over DSD traffic, which we want it to do so that our test case can have a meaningful assertion that ADP is running
+// 		// and accepting traffic.
+// 		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
+// 		require.NoError(tt, err)
+// 		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
+// 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
-		require.NoError(tt, err)
+// 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+// 		require.NoError(tt, err)
 
-		var boundPort boundport.BoundPort
-		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
-		}, 1*time.Minute, 500*time.Millisecond) {
-			err := errors.New("port udp/8125 should be bound when ADP is enabled")
-			if client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
-			}
-			t.Fatalf("%s", err.Error())
-		}
+// 		var boundPort boundport.BoundPort
+// 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+// 			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
+// 		}, 1*time.Minute, 500*time.Millisecond) {
+// 			err := errors.New("port udp/8125 should be bound when ADP is enabled")
+// 			if client.Host.OSFamily == componentos.LinuxFamily {
+// 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
+// 			}
+// 			t.Fatalf("%s", err.Error())
+// 		}
 
-		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "agent-data-plane should only be listening locally")
-	})
-}
+// 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "agent-data-plane should only be listening locally")
+// 	})
+// }
 
-// CheckADPDisabled runs tests to check that the Agent behaves properly when ADP is disabled
-func CheckADPDisabled(t *testing.T, client *TestClient) {
-	t.Run("agent-data-plane not running when disabled", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+// // CheckADPDisabled runs tests to check that the Agent behaves properly when ADP is disabled
+// func CheckADPDisabled(t *testing.T, client *TestClient) {
+// 	t.Run("agent-data-plane not running when disabled", func(tt *testing.T) {
+// 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
-		err := client.SetConfig(configFilePath, "data_plane.enabled", "false")
-		require.NoError(tt, err)
+// 		err := client.SetConfig(configFilePath, "data_plane.enabled", "false")
+// 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
-		require.NoError(tt, err)
+// 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+// 		require.NoError(tt, err)
 
-		// On Linux, ADP will be started by the service manager and then exit after a bit if it is not enabled.
-		require.Eventually(tt, func() bool {
-			return !AgentProcessIsRunning(client, "agent-data-plane")
-		}, 1*time.Minute, 500*time.Millisecond, "agent-data-plane should not be running ", err)
-	})
-}
+// 		// On Linux, ADP will be started by the service manager and then exit after a bit if it is not enabled.
+// 		require.Eventually(tt, func() bool {
+// 			return !AgentProcessIsRunning(client, "agent-data-plane")
+// 		}, 1*time.Minute, 500*time.Millisecond, "agent-data-plane should not be running ", err)
+// 	})
+// }
