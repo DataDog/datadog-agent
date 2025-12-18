@@ -1,0 +1,13 @@
+# openscap
+
+alias(
+    name = "all_deps",
+    actual = "@openscap//:all_deps",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = [
+        "//compliance:__pkg__",
+        "//packages:__subpackages__",
+    ],
+)
