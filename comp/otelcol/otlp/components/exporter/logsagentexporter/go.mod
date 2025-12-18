@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.177
+	github.com/DataDog/agent-payload/v5 v5.0.178
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.73.0-rc.9
@@ -186,6 +186,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/secret-backend => ../../../../../../cmd/secret-backend
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../../../comp/core/agenttelemetry/fx

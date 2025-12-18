@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/processor
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.177
+	github.com/DataDog/agent-payload/v5 v5.0.178
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
@@ -99,6 +99,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/secret-backend => ../../../cmd/secret-backend
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx

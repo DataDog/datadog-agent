@@ -54,9 +54,13 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
+	google.golang.org/genproto v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 )
 
 require (
@@ -64,13 +68,13 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.177 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.178 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.9 // indirect
@@ -219,7 +223,7 @@ require (
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/strfmt v0.24.0 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
+	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -497,7 +501,7 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
-	google.golang.org/api v0.250.0 // indirect
+	google.golang.org/api v0.251.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/grpc v1.77.0 // indirect
@@ -532,6 +536,7 @@ replace github.com/openshift/api => github.com/openshift/api v0.0.0-202307261628
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/secret-backend => ../../../../cmd/secret-backend
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx

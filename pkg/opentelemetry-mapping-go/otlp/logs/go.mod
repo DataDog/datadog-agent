@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.177
+	github.com/DataDog/agent-payload/v5 v5.0.178
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.0.0-00010101000000-000000000000
@@ -60,6 +60,7 @@ retract v0.4.0 // see #107
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/secret-backend => ../../../../cmd/secret-backend
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx
