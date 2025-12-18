@@ -71,7 +71,7 @@ func TestGetAllCheckConfigs_CustomConfig(t *testing.T) {
 
 	// create config file
 	tempDir := t.TempDir()
-	tempConfig, err := os.CreateTemp(tempDir, "config-*.yaml")
+	tempConfigFile, err := os.CreateTemp(tempDir, "config-*.yaml")
 	require.NoError(t, err)
 
 	// write in config file
@@ -83,12 +83,13 @@ instances:
   - ghi: 789
 `
 
-	_, err = tempConfig.WriteString(configYaml)
+	_, err = tempConfigFile.WriteString(configYaml)
 	require.NoError(t, err)
+	tempConfigFile.Close()
 
 	cliParams := cliParams{
 		checkName:    "custom",
-		customConfig: tempConfig.Name(),
+		customConfig: tempConfigFile.Name(),
 	}
 
 	checkConfigs, err := getAllCheckConfigs(ac, cliParams)
