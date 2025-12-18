@@ -84,7 +84,7 @@ func TestGetProductConfigs(t *testing.T) {
 	// Check global product
 	globalRules, exists := results[workloadfilter.ProductGlobal]
 	require.True(t, exists)
-	assert.Len(t, globalRules[workloadfilter.ServiceType], 1)
+	assert.Len(t, globalRules[workloadfilter.KubeServiceType], 1)
 }
 
 func TestConsolidateRulesByProduct(t *testing.T) {
