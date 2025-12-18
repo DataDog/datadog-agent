@@ -556,6 +556,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -73,12 +72,12 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
 	}
-	crtelemetry, err := telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta, filterStore)
+	crtelemetry, err := telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta)
 	if err != nil {
 		return nil, err
 	}
