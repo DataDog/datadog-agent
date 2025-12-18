@@ -1975,6 +1975,20 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Drift detection configuration
+	config.BindEnvAndSetDefault("logs_config.drift_detection.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.embedding_url", "http://localhost:11434/api/embed")
+	config.BindEnvAndSetDefault("logs_config.drift_detection.embedding_model", "embeddinggemma")
+	config.BindEnvAndSetDefault("logs_config.drift_detection.window_size", 120*time.Second)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.window_step", 60*time.Second)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.entropy_threshold", 2.5)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.warning_threshold", 2.0)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.critical_threshold", 3.0)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.dmd_time_delay", 5)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.dmd_rank", 50)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.cleanup_interval", 5*time.Minute)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.max_idle_time", 30*time.Minute)
 }
 
 // vector integration
