@@ -1,0 +1,2138 @@
+{
+  "total_commands": 192,
+  "generated_from": "extract_commands.py - static code analysis",
+  "enhanced_at": "2025-12-17 - live agent exploration, deduplicated CLI/HTTP",
+  "mcp_tools": {
+    "_legend": {
+      "rw": "R=read-only (no state change), W=write (modifies state or sends data externally)",
+      "type": "cli=kubectl exec agent <cmd>, http=kubectl exec curl <endpoint>",
+      "winner": "When CLI and HTTP overlap, winner indicates better output format"
+    },
+    "tier1_workload_data": [
+      {"id": "tagger-list", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/tagger-list", "desc": "All entities with tags from all sources", "output": "JSON", "use_case": "troubleshoot tagging", "note": "HTTP preferred over CLI - native JSON"},
+      {"id": "workload-list", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/workload-list", "desc": "Container/pod metadata store", "output": "JSON", "use_case": "troubleshoot workload detection", "note": "HTTP preferred - native JSON; CLI -v for verbose text"},
+      {"id": "metamap", "rw": "R", "type": "cli", "cmd": "datadog-cluster-agent metamap [nodeName]", "desc": "Pod/service mapping per node", "output": "text hierarchy", "use_case": "troubleshoot service discovery", "note": "Run on cluster-agent pod"},
+      {"id": "status-collector", "rw": "R", "type": "cli", "cmd": "agent status collector --json", "desc": "Check execution stats, errors, timing", "output": "JSON", "use_case": "troubleshoot monitoring gaps"}
+    ],
+    "tier2_diagnostics": [
+      {"id": "inventory-host", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/metadata/inventory-host", "desc": "Host metadata (cpu, memory, os, kernel)", "output": "JSON", "use_case": "troubleshoot host detection"},
+      {"id": "check", "rw": "R", "type": "cli", "cmd": "agent check <name> --json", "desc": "Run check and return metrics", "output": "JSON", "use_case": "validate check config", "note": "Executes check but doesn't persist"},
+      {"id": "config-check", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/config-check", "desc": "Loaded & resolved check configs", "output": "JSON", "use_case": "troubleshoot autodiscovery", "note": "HTTP preferred - native JSON"},
+      {"id": "processchecks", "rw": "R", "type": "cli", "cmd": "agent processchecks container --json", "desc": "Container process info", "output": "JSON", "use_case": "troubleshoot container monitoring"},
+      {"id": "health", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/status/health", "desc": "Component health status", "output": "JSON {Healthy:[], Unhealthy:[]}", "use_case": "quick health check", "note": "HTTP preferred - native JSON"}
+    ],
+    "tier3_specialized": [
+      {"id": "dogstatsd-top", "rw": "R", "type": "cli", "cmd": "agent dogstatsd top", "desc": "Metrics with most contexts", "output": "text table", "use_case": "cardinality issues"},
+      {"id": "clusterchecks", "rw": "R", "type": "cli", "cmd": "datadog-cluster-agent clusterchecks", "desc": "Cluster check distribution", "output": "text", "use_case": "troubleshoot cluster checks", "note": "Run on cluster-agent pod"},
+      {"id": "integration-freeze", "rw": "R", "type": "cli", "cmd": "agent integration freeze", "desc": "Installed Python integrations", "output": "text list", "use_case": "verify installed packages"},
+      {"id": "workloadfilter", "rw": "R", "type": "cli", "cmd": "agent workloadfilter", "desc": "Autodiscovery filter status", "output": "text", "use_case": "troubleshoot container filtering"},
+      {"id": "diagnose", "rw": "R", "type": "cli", "cmd": "agent diagnose --list", "desc": "Run diagnostic suites", "output": "text/JSON", "use_case": "connectivity & config validation"},
+      {"id": "jmx-list", "rw": "R", "type": "cli", "cmd": "agent jmx list collected", "desc": "JMX beans collected", "output": "text", "use_case": "troubleshoot JMX monitoring"},
+      {"id": "snmp-walk", "rw": "R", "type": "cli", "cmd": "agent snmp walk <ip> <oid>", "desc": "SNMP walk device", "output": "text", "use_case": "troubleshoot SNMP monitoring"}
+    ],
+    "tier4_config_inspection": [
+      {"id": "config", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/config", "desc": "Full runtime config", "output": "YAML", "use_case": "inspect resolved config"},
+      {"id": "config-get", "rw": "R", "type": "cli", "cmd": "agent config get <setting>", "desc": "Get specific config value", "output": "text", "use_case": "check specific setting"},
+      {"id": "config-list-runtime", "rw": "R", "type": "cli", "cmd": "agent config list-runtime", "desc": "List runtime-configurable settings", "output": "text", "use_case": "find tunable settings"},
+      {"id": "secret", "rw": "R", "type": "cli", "cmd": "agent secret", "desc": "Show secret backend info", "output": "text", "use_case": "troubleshoot secrets"},
+      {"id": "version", "rw": "R", "type": "http", "cmd": "curl -sk -H 'Authorization: Bearer $TOKEN' https://localhost:5001/agent/version", "desc": "Agent version info", "output": "JSON", "use_case": "verify agent version"},
+      {"id": "hostname", "rw": "R", "type": "cli", "cmd": "agent hostname", "desc": "Resolved hostname", "output": "text", "use_case": "troubleshoot hostname resolution"}
+    ],
+    "tier5_trace_agent": [
+      {"id": "trace-info", "rw": "R", "type": "http", "cmd": "curl --unix-socket /var/run/datadog/apm.socket http://localhost/info", "desc": "Trace-agent config & endpoints", "output": "JSON", "use_case": "inspect APM config", "note": "No auth required"}
+    ],
+    "write_operations": [
+      {"id": "config-set", "rw": "W", "type": "cli", "cmd": "agent config set <setting> <value>", "desc": "Set runtime config value", "risk": "medium - changes agent behavior"},
+      {"id": "secret-refresh", "rw": "W", "type": "cli", "cmd": "agent secret refresh", "desc": "Refresh secrets from backend", "risk": "low - reloads secrets"},
+      {"id": "flare", "rw": "W", "type": "cli", "cmd": "agent flare <case_id>", "desc": "Create & send support flare", "risk": "high - sends data to Datadog", "note": "Use --local to only create locally"},
+      {"id": "clusterchecks-rebalance", "rw": "W", "type": "cli", "cmd": "datadog-cluster-agent clusterchecks rebalance", "desc": "Rebalance cluster checks", "risk": "medium - redistributes checks"},
+      {"id": "dogstatsd-dump", "rw": "W", "type": "http", "cmd": "curl -X POST ... /agent/dogstatsd-contexts-dump", "desc": "Dump DogStatsD contexts to file", "risk": "low - writes local file"}
+    ],
+    "avoid_as_tools": [
+      {"cmd": "agent run", "reason": "Lifecycle - starts agent process"},
+      {"cmd": "agent stop", "reason": "Lifecycle - stops agent process"},
+      {"cmd": "integration install", "reason": "Mutating - installs packages"},
+      {"cmd": "integration remove", "reason": "Mutating - removes packages"},
+      {"cmd": "flare (without --local)", "reason": "Sends data externally to Datadog"}
+    ]
+  },
+  "subcommand_trees": {
+    "agent status": {
+      "sections": ["header", "collector", "aggregator", "apm agent", "autodiscovery", "datadog cluster agent", "dogstatsd", "endpoints", "fleet automation", "forwarder", "jmx fetch", "logs agent", "otel agent", "otlp", "process agent", "process component", "remote configuration", "secrets", "snmp", "ssi", "transport proxy warnings"],
+      "flags": ["--list", "--json", "--pretty-json", "--verbose", "--file"]
+    },
+    "agent diagnose": {
+      "subcommands": {
+        "show-metadata": ["agent-full-telemetry", "agent-telemetry", "gohai", "ha-agent", "host-gpu", "inventory-agent", "inventory-checks", "inventory-host", "inventory-otel", "package-signing", "security-agent", "system-probe", "v5"]
+      },
+      "suites": ["check-datadog", "connectivity-datadog-autodiscovery", "connectivity-datadog-core-endpoints", "connectivity-datadog-event-platform", "firewall-scan", "port-conflict"],
+      "flags": ["--list", "--json", "--include", "--exclude", "--verbose", "--local"]
+    },
+    "agent config": {
+      "subcommands": ["get <setting>", "list-runtime", "set <setting> <val>", "otel-agent"],
+      "flags": ["--all"]
+    },
+    "agent dogstatsd": {
+      "subcommands": ["dump-contexts", "top"],
+      "top_flags": ["--num-metrics", "--num-tags", "--path"]
+    },
+    "agent integration": {
+      "subcommands": ["freeze", "install <pkg>", "remove <pkg>", "show <pkg>"],
+      "flags": ["--allow-root", "--verbose"]
+    },
+    "agent jmx": {
+      "subcommands": ["list", "collect", "everything", "matching", "with-metrics", "with-rate-metrics", "limited", "collected", "not-matching"],
+      "flags": ["--instance-filter", "--discovery-timeout", "--discovery-min-instances"]
+    },
+    "agent snmp": {
+      "subcommands": ["walk <ip> <oid>", "scan <ip>"]
+    },
+    "agent secret": {
+      "subcommands": ["refresh"],
+      "note": "no subcommand shows secret info"
+    },
+    "agent processchecks": {
+      "types": ["process", "rtprocess", "container", "rtcontainer", "process_discovery"],
+      "flags": ["--json", "--wait"]
+    },
+    "agent workloadfilter": {
+      "subcommands": ["verify-cel"]
+    },
+    "datadog-cluster-agent clusterchecks": {
+      "subcommands": ["isolate <check>", "rebalance"],
+      "flags": ["--check"]
+    },
+    "datadog-cluster-agent metamap": {
+      "usage": "metamap [nodeName]",
+      "output": "Node -> Namespace -> Pod -> Services mapping"
+    },
+    "datadog-cluster-agent autoscaler-list": {
+      "flags": ["--localstore"]
+    }
+  },
+  "http_endpoints": {
+    "_note": "HTTP endpoints accessible via curl from inside containers. Authentication required for most IPC endpoints.",
+    "access_methods": {
+      "uds_socket": "kubectl exec <pod> -c <container> -- curl --unix-socket <socket_path> http://localhost/<endpoint>",
+      "ipc_https": "kubectl exec <pod> -c <container> -- sh -c 'TOKEN=$(cat /etc/datadog-agent/auth_token) && curl -sk -H \"Authorization: Bearer $TOKEN\" https://localhost:<port>/agent/<endpoint>'",
+      "tcp_http": "kubectl exec <pod> -c <container> -- curl http://localhost:<port>/<endpoint>"
+    },
+    "trace_agent": {
+      "socket_path": "/var/run/datadog/apm.socket",
+      "tcp_port": 8126,
+      "protocol": "HTTP (no auth required)",
+      "endpoints": [
+        {"path": "/info", "method": "GET", "desc": "Discovery endpoint - lists all endpoints, config, features"},
+        {"path": "/v0.7/config", "method": "POST", "desc": "Remote config (POST with tracer data)"},
+        {"path": "/v0.3/traces", "method": "POST", "desc": "Submit traces"},
+        {"path": "/v0.4/traces", "method": "POST", "desc": "Submit traces"},
+        {"path": "/v0.5/traces", "method": "POST", "desc": "Submit traces"},
+        {"path": "/v0.7/traces", "method": "POST", "desc": "Submit traces"},
+        {"path": "/v0.6/stats", "method": "POST", "desc": "Pipeline statistics"},
+        {"path": "/profiling/v1/input", "method": "POST", "desc": "Profiling data submission"},
+        {"path": "/debugger/v1/input", "method": "POST", "desc": "Debugger logs"},
+        {"path": "/debugger/v1/diagnostics", "method": "POST", "desc": "Debugger diagnostics"},
+        {"path": "/tracer_flare/v1", "method": "POST", "desc": "Tracer flare data"}
+      ],
+      "mcp_useful": ["/info"]
+    },
+    "agent_ipc": {
+      "tcp_port": 5001,
+      "protocol": "HTTPS with Bearer token auth",
+      "auth": "Authorization: Bearer $(cat /etc/datadog-agent/auth_token)",
+      "endpoints": [
+        {"path": "/agent/status/health", "method": "GET", "desc": "Health status of all components (JSON)"},
+        {"path": "/agent/status", "method": "GET", "desc": "Full agent status (text)"},
+        {"path": "/agent/version", "method": "GET", "desc": "Agent version info (JSON)"},
+        {"path": "/agent/hostname", "method": "GET", "desc": "Agent hostname"},
+        {"path": "/agent/install-info", "method": "GET", "desc": "Installation info (tool, version)"},
+        {"path": "/agent/tagger-list", "method": "GET", "desc": "Entities with tags (JSON)"},
+        {"path": "/agent/workload-list", "method": "GET", "desc": "Workload metadata (JSON)"},
+        {"path": "/agent/config", "method": "GET", "desc": "Full runtime config (YAML)"},
+        {"path": "/agent/config/{setting}", "method": "GET", "desc": "Get specific config value"},
+        {"path": "/agent/config-check", "method": "GET", "desc": "Loaded check configs (JSON)"},
+        {"path": "/agent/secrets", "method": "GET", "desc": "Secret info"},
+        {"path": "/agent/secret/refresh", "method": "GET", "desc": "Refresh secrets"},
+        {"path": "/agent/diagnose", "method": "GET", "desc": "Run diagnostics"},
+        {"path": "/agent/dogstatsd-stats", "method": "GET", "desc": "DogStatsD statistics"},
+        {"path": "/agent/dogstatsd-contexts-dump", "method": "POST", "desc": "Dump DogStatsD contexts"},
+        {"path": "/agent/metadata/inventory-host", "method": "GET", "desc": "Host metadata (JSON)"},
+        {"path": "/agent/metadata/inventory-agent", "method": "GET", "desc": "Agent inventory (JSON)"},
+        {"path": "/agent/metadata/inventory-checks", "method": "GET", "desc": "Check inventory (JSON)"},
+        {"path": "/agent/metadata/v5", "method": "GET", "desc": "V5 host metadata"},
+        {"path": "/agent/metadata/gohai", "method": "GET", "desc": "Gohai system info"},
+        {"path": "/agent/metadata/host-gpu", "method": "GET", "desc": "GPU metadata"},
+        {"path": "/agent/py/status", "method": "GET", "desc": "Python runtime status"},
+        {"path": "/agent/jmx/configs", "method": "GET", "desc": "JMX configs"},
+        {"path": "/agent/flare", "method": "POST", "desc": "Create flare"},
+        {"path": "/agent/stream-logs", "method": "POST", "desc": "Stream log events"},
+        {"path": "/agent/stream-event-platform", "method": "POST", "desc": "Stream event platform events"}
+      ],
+      "mcp_useful": [
+        "/agent/status/health",
+        "/agent/status",
+        "/agent/tagger-list",
+        "/agent/workload-list",
+        "/agent/config-check",
+        "/agent/metadata/inventory-host",
+        "/agent/diagnose"
+      ]
+    },
+    "system_probe": {
+      "socket_path": "{install_path}/run/sysprobe.sock",
+      "protocol": "HTTP over UDS (no auth)",
+      "note": "Only available when system-probe is enabled",
+      "endpoints": [
+        {"path": "/debug/stats", "method": "GET", "desc": "System-probe statistics and readiness"},
+        {"path": "/debug/pprof/", "method": "GET", "desc": "Go pprof profiling index"},
+        {"path": "/debug/vars", "method": "GET", "desc": "Expvar metrics"},
+        {"path": "/debug/ebpf_btf_loader_info", "method": "GET", "desc": "BTF loader info (Linux)"},
+        {"path": "/debug/dmesg", "method": "GET", "desc": "Kernel dmesg (Linux)"},
+        {"path": "/debug/selinux_sestatus", "method": "GET", "desc": "SELinux status (Linux)"},
+        {"path": "/telemetry", "method": "GET", "desc": "Telemetry data"},
+        {"path": "/network_tracer/connections", "method": "GET", "desc": "Active connections (NPM)"},
+        {"path": "/network_tracer/debug/ebpf_maps", "method": "GET", "desc": "eBPF map debugging"},
+        {"path": "/language_detection/detect", "method": "POST", "desc": "Detect programming languages"}
+      ],
+      "mcp_useful": ["/debug/stats", "/debug/vars", "/network_tracer/connections"]
+    },
+    "cluster_agent": {
+      "tcp_port": 5005,
+      "protocol": "HTTPS with token auth",
+      "endpoints": [
+        {"path": "/api/v1/clusterchecks", "method": "GET", "desc": "Cluster checks state"},
+        {"path": "/api/v1/clusterchecks/status/{id}", "method": "POST", "desc": "Post check status"},
+        {"path": "/api/v1/clusterchecks/configs/{id}", "method": "GET", "desc": "Get check configs"},
+        {"path": "/api/v1/clusterchecks/rebalance", "method": "POST", "desc": "Rebalance checks"},
+        {"path": "/api/v1/tags/pod/{node}/{ns}/{pod}", "method": "GET", "desc": "Pod metadata"},
+        {"path": "/api/v1/tags/node/{node}", "method": "GET", "desc": "Node tags"},
+        {"path": "/api/v1/metadata/namespace/{ns}", "method": "GET", "desc": "Namespace metadata"},
+        {"path": "/api/v1/cluster/id", "method": "GET", "desc": "Cluster ID"},
+        {"path": "/api/v2/nodes/metadata", "method": "GET", "desc": "Node metrics"}
+      ]
+    },
+    "dogstatsd": {
+      "socket_path": "/var/run/datadog/dsd.socket",
+      "protocol": "StatsD (NOT HTTP)",
+      "note": "Use CLI commands (dogstatsd-stats) or agent IPC endpoints for DogStatsD info"
+    }
+  },
+  "by_binary": {
+    "sbomgen": 5,
+    "secrethelper": 2,
+    "dogstatsd": 2,
+    "process-agent": 9,
+    "cws-instrumentation": 5,
+    "privateactionrunner": 2,
+    "security-agent": 16,
+    "system-probe": 36,
+    "otel-agent": 5,
+    "agent": 60,
+    "cluster-agent-cloudfoundry": 1,
+    "host-profiler": 2,
+    "installer": 13,
+    "trace-agent": 7,
+    "cluster-agent": 9,
+    "shared": 18
+  },
+  "commands": [
+    {
+      "binary": "sbomgen",
+      "use": "sbomgen",
+      "short": "A generator for SBOMs",
+      "subcommand_path": [],
+      "source_file": "cmd/sbomgen/main.go",
+      "line": 32
+    },
+    {
+      "binary": "sbomgen",
+      "use": "fs",
+      "short": "",
+      "subcommand_path": [],
+      "source_file": "cmd/sbomgen/main.go",
+      "line": 64
+    },
+    {
+      "binary": "sbomgen",
+      "use": "docker",
+      "short": "",
+      "subcommand_path": [],
+      "source_file": "cmd/sbomgen/main.go",
+      "line": 74
+    },
+    {
+      "binary": "sbomgen",
+      "use": "containerd",
+      "short": "",
+      "subcommand_path": [],
+      "source_file": "cmd/sbomgen/main.go",
+      "line": 89
+    },
+    {
+      "binary": "sbomgen",
+      "use": "crio",
+      "short": "",
+      "subcommand_path": [],
+      "source_file": "cmd/sbomgen/main.go",
+      "line": 104
+    },
+    {
+      "binary": "secrethelper",
+      "use": "read",
+      "short": "Read secrets",
+      "subcommand_path": [],
+      "source_file": "cmd/secrethelper/secret_helper.go",
+      "line": 64
+    },
+    {
+      "binary": "secrethelper",
+      "use": "secret-helper",
+      "short": "Secret management provider helper",
+      "subcommand_path": [],
+      "source_file": "cmd/secrethelper/secret_helper.go",
+      "line": 78
+    },
+    {
+      "binary": "dogstatsd",
+      "use": "dogstatsd [command]",
+      "short": "Datadog dogstatsd at your service.",
+      "subcommand_path": [],
+      "source_file": "cmd/dogstatsd/command/command.go",
+      "line": 24
+    },
+    {
+      "binary": "dogstatsd",
+      "use": "start",
+      "short": "Start DogStatsD",
+      "subcommand_path": [
+        "start"
+      ],
+      "source_file": "cmd/dogstatsd/subcommands/start/command.go",
+      "line": 88
+    },
+    {
+      "binary": "process-agent",
+      "use": "tagger-list",
+      "short": "Print the tagger content of a running agent",
+      "subcommand_path": [
+        "taggerlist"
+      ],
+      "source_file": "cmd/process-agent/subcommands/taggerlist/tagger_list.go",
+      "line": 33
+    },
+    {
+      "binary": "process-agent",
+      "use": "config",
+      "short": "Print the runtime configuration of a running agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/process-agent/subcommands/config/config.go",
+      "line": 51
+    },
+    {
+      "binary": "process-agent",
+      "use": "list-runtime",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/process-agent/subcommands/config/config.go",
+      "line": 69
+    },
+    {
+      "binary": "process-agent",
+      "use": "set [setting] [value]",
+      "short": "Set, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/process-agent/subcommands/config/config.go",
+      "line": 86
+    },
+    {
+      "binary": "process-agent",
+      "use": "get [setting]",
+      "short": "Get, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/process-agent/subcommands/config/config.go",
+      "line": 102
+    },
+    {
+      "binary": "process-agent",
+      "use": "status",
+      "short": "Print the current status",
+      "subcommand_path": [
+        "status"
+      ],
+      "source_file": "cmd/process-agent/subcommands/status/status.go",
+      "line": 76
+    },
+    {
+      "binary": "process-agent",
+      "use": "workload-list",
+      "short": "Print the workload content of a running agent",
+      "subcommand_path": [
+        "workloadlist"
+      ],
+      "source_file": "cmd/process-agent/subcommands/workloadlist/command.go",
+      "line": 41
+    },
+    {
+      "binary": "process-agent",
+      "use": "coverage",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/process-agent/subcommands/coverage/command.go",
+      "line": 38
+    },
+    {
+      "binary": "process-agent",
+      "use": "generate",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/process-agent/subcommands/coverage/command.go",
+      "line": 45
+    },
+    {
+      "binary": "cws-instrumentation",
+      "use": "health",
+      "short": "Prints OK to stdout",
+      "subcommand_path": [
+        "healthcmd"
+      ],
+      "source_file": "cmd/cws-instrumentation/subcommands/healthcmd/health.go",
+      "line": 18
+    },
+    {
+      "binary": "cws-instrumentation",
+      "use": "trace",
+      "short": "trace the syscalls and signals of the given binary",
+      "subcommand_path": [
+        "tracecmd"
+      ],
+      "source_file": "cmd/cws-instrumentation/subcommands/tracecmd/trace.go",
+      "line": 91
+    },
+    {
+      "binary": "cws-instrumentation",
+      "use": "selftests",
+      "short": "run selftests against the tracer",
+      "subcommand_path": [
+        "selftestscmd"
+      ],
+      "source_file": "cmd/cws-instrumentation/subcommands/selftestscmd/selftests.go",
+      "line": 41
+    },
+    {
+      "binary": "cws-instrumentation",
+      "use": "inject",
+      "short": "Forwards the input user context to the CWS agent with eRPC",
+      "subcommand_path": [
+        "injectcmd"
+      ],
+      "source_file": "cmd/cws-instrumentation/subcommands/injectcmd/inject.go",
+      "line": 44
+    },
+    {
+      "binary": "cws-instrumentation",
+      "use": "setup",
+      "short": "Copies the cws-instrumentation binary to the CWS volume mount",
+      "subcommand_path": [
+        "setupcmd"
+      ],
+      "source_file": "cmd/cws-instrumentation/subcommands/setupcmd/setup.go",
+      "line": 31
+    },
+    {
+      "binary": "privateactionrunner",
+      "use": "datadog-private-action-runner [command]",
+      "short": "Datadog Private Action Runner.",
+      "subcommand_path": [],
+      "source_file": "cmd/privateactionrunner/command/command.go",
+      "line": 38
+    },
+    {
+      "binary": "privateactionrunner",
+      "use": "run",
+      "short": "Run the Private Action Runner",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/privateactionrunner/subcommands/run/command.go",
+      "line": 41
+    },
+    {
+      "binary": "security-agent",
+      "use": "datadog-security-agent [command]",
+      "short": "Datadog Security Agent at your service.",
+      "subcommand_path": [],
+      "source_file": "cmd/security-agent/command/command.go",
+      "line": 59
+    },
+    {
+      "binary": "security-agent",
+      "use": "config",
+      "short": "Print the runtime configuration of a running agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/security-agent/subcommands/config/config.go",
+      "line": 48
+    },
+    {
+      "binary": "security-agent",
+      "use": "by-source",
+      "short": "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/security-agent/subcommands/config/config.go",
+      "line": 71
+    },
+    {
+      "binary": "security-agent",
+      "use": "list-runtime",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/security-agent/subcommands/config/config.go",
+      "line": 92
+    },
+    {
+      "binary": "security-agent",
+      "use": "set [setting] [value]",
+      "short": "Set, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/security-agent/subcommands/config/config.go",
+      "line": 113
+    },
+    {
+      "binary": "security-agent",
+      "use": "get [setting]",
+      "short": "Get, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/security-agent/subcommands/config/config.go",
+      "line": 134
+    },
+    {
+      "binary": "security-agent",
+      "use": "start",
+      "short": "Start the Security Agent",
+      "subcommand_path": [
+        "start"
+      ],
+      "source_file": "cmd/security-agent/subcommands/start/command.go",
+      "line": 88
+    },
+    {
+      "binary": "security-agent",
+      "use": "status",
+      "short": "Print the current status",
+      "subcommand_path": [
+        "status"
+      ],
+      "source_file": "cmd/security-agent/subcommands/status/command.go",
+      "line": 46
+    },
+    {
+      "binary": "security-agent",
+      "use": "compliance",
+      "short": "Compliance Agent utility commands",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/security-agent/subcommands/compliance/command.go",
+      "line": 32
+    },
+    {
+      "binary": "security-agent",
+      "use": "check",
+      "short": "Run compliance check(s)",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/security-agent/subcommands/compliance/command.go",
+      "line": 47
+    },
+    {
+      "binary": "security-agent",
+      "use": "load <conf-type>",
+      "short": "Load compliance config",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/security-agent/subcommands/compliance/command.go",
+      "line": 82
+    },
+    {
+      "binary": "security-agent",
+      "use": "version",
+      "short": "Print the version info",
+      "subcommand_path": [
+        "version"
+      ],
+      "source_file": "cmd/security-agent/subcommands/version/command.go",
+      "line": 29
+    },
+    {
+      "binary": "security-agent",
+      "use": "workload-list",
+      "short": "Print the workload content of a running agent",
+      "subcommand_path": [
+        "workloadlist"
+      ],
+      "source_file": "cmd/security-agent/subcommands/workloadlist/command.go",
+      "line": 41
+    },
+    {
+      "binary": "security-agent",
+      "use": "coverage",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/security-agent/subcommands/coverage/command.go",
+      "line": 35
+    },
+    {
+      "binary": "security-agent",
+      "use": "generate",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/security-agent/subcommands/coverage/command.go",
+      "line": 42
+    },
+    {
+      "binary": "security-agent",
+      "use": "flare [caseID]",
+      "short": "Collect a flare and send it to Datadog",
+      "subcommand_path": [
+        "flare"
+      ],
+      "source_file": "cmd/security-agent/subcommands/flare/command.go",
+      "line": 46
+    },
+    {
+      "binary": "system-probe",
+      "use": "config",
+      "short": "Print the runtime configuration of a running agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/system-probe/subcommands/config/command.go",
+      "line": 60
+    },
+    {
+      "binary": "system-probe",
+      "use": "by-source",
+      "short": "Print the runtime configuration of a running agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/system-probe/subcommands/config/command.go",
+      "line": 68
+    },
+    {
+      "binary": "system-probe",
+      "use": "list-runtime",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/system-probe/subcommands/config/command.go",
+      "line": 77
+    },
+    {
+      "binary": "system-probe",
+      "use": "set [setting] [value]",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/system-probe/subcommands/config/command.go",
+      "line": 86
+    },
+    {
+      "binary": "system-probe",
+      "use": "get [setting]",
+      "short": "Get, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/system-probe/subcommands/config/command.go",
+      "line": 95
+    },
+    {
+      "binary": "system-probe",
+      "use": "runtime",
+      "short": "Runtime Security Agent (CWS) utility commands",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command_linux.go",
+      "line": 23
+    },
+    {
+      "binary": "system-probe",
+      "use": "policy",
+      "short": "Policy related commands",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 54
+    },
+    {
+      "binary": "system-probe",
+      "use": "eval",
+      "short": "Evaluate given event data against the give rule",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 82
+    },
+    {
+      "binary": "system-probe",
+      "use": "check",
+      "short": "Check policies and return a report",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 115
+    },
+    {
+      "binary": "system-probe",
+      "use": "reload",
+      "short": "Reload policies",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 140
+    },
+    {
+      "binary": "system-probe",
+      "use": "self-test",
+      "short": "Run runtime self test",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 158
+    },
+    {
+      "binary": "system-probe",
+      "use": "download",
+      "short": "Download policies",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 188
+    },
+    {
+      "binary": "system-probe",
+      "use": "dump",
+      "short": "dump the process cache",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 224
+    },
+    {
+      "binary": "system-probe",
+      "use": "process-cache",
+      "short": "process cache",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 241
+    },
+    {
+      "binary": "system-probe",
+      "use": "network-namespace",
+      "short": "network namespace command",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 279
+    },
+    {
+      "binary": "system-probe",
+      "use": "discarders",
+      "short": "discarders commands",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/command.go",
+      "line": 305
+    },
+    {
+      "binary": "system-probe",
+      "use": "activity-dump",
+      "short": "activity dump command",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 54
+    },
+    {
+      "binary": "system-probe",
+      "use": "list",
+      "short": "get the list of running activity dumps",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 67
+    },
+    {
+      "binary": "system-probe",
+      "use": "stop",
+      "short": "stops the first activity dump that matches the provided selector",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 89
+    },
+    {
+      "binary": "system-probe",
+      "use": "generate",
+      "short": "generate command for activity dumps",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 126
+    },
+    {
+      "binary": "system-probe",
+      "use": "encoding",
+      "short": "encode an activity dump to the requested formats",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 220
+    },
+    {
+      "binary": "system-probe",
+      "use": "diff",
+      "short": "compute the diff between two activity dumps",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/activity_dump.go",
+      "line": 281
+    },
+    {
+      "binary": "system-probe",
+      "use": "security-profile",
+      "short": "security profile commands",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/security_profile.go",
+      "line": 41
+    },
+    {
+      "binary": "system-probe",
+      "use": "show",
+      "short": "dump the content of a security-profile file",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/security_profile.go",
+      "line": 58
+    },
+    {
+      "binary": "system-probe",
+      "use": "save",
+      "short": "saves the requested security profile to disk",
+      "subcommand_path": [
+        "runtime"
+      ],
+      "source_file": "cmd/system-probe/subcommands/runtime/security_profile.go",
+      "line": 218
+    },
+    {
+      "binary": "system-probe",
+      "use": "compliance",
+      "short": "Compliance Agent utility commands",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/system-probe/subcommands/compliance/command.go",
+      "line": 30
+    },
+    {
+      "binary": "system-probe",
+      "use": "load <conf-type>",
+      "short": "Load compliance config",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/system-probe/subcommands/compliance/command.go",
+      "line": 80
+    },
+    {
+      "binary": "system-probe",
+      "use": "check-maps",
+      "short": "Check USM eBPF maps for leaked entries",
+      "subcommand_path": [
+        "usm"
+      ],
+      "source_file": "cmd/system-probe/subcommands/usm/checkmaps.go",
+      "line": 21
+    },
+    {
+      "binary": "system-probe",
+      "use": "usm",
+      "short": "Universal Service Monitoring commands",
+      "subcommand_path": [
+        "usm"
+      ],
+      "source_file": "cmd/system-probe/subcommands/usm/command.go",
+      "line": 18
+    },
+    {
+      "binary": "system-probe",
+      "use": "run",
+      "short": "Run the System Probe",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/system-probe/subcommands/run/command.go",
+      "line": 98
+    },
+    {
+      "binary": "system-probe",
+      "use": "ebpf",
+      "short": "Inspect eBPF objects",
+      "subcommand_path": [
+        "ebpf"
+      ],
+      "source_file": "cmd/system-probe/subcommands/ebpf/command_linux.go",
+      "line": 31
+    },
+    {
+      "binary": "system-probe",
+      "use": "map",
+      "short": "Operations on eBPF maps",
+      "subcommand_path": [
+        "ebpf"
+      ],
+      "source_file": "cmd/system-probe/subcommands/ebpf/command_linux.go",
+      "line": 40
+    },
+    {
+      "binary": "system-probe",
+      "use": "dump {id <id> | name <name>}",
+      "short": "Dump contents of an eBPF map",
+      "subcommand_path": [
+        "ebpf"
+      ],
+      "source_file": "cmd/system-probe/subcommands/ebpf/command_linux.go",
+      "line": 96
+    },
+    {
+      "binary": "system-probe",
+      "use": "module-restart [module]",
+      "short": "Restart a given system-probe module",
+      "subcommand_path": [
+        "modrestart"
+      ],
+      "source_file": "cmd/system-probe/subcommands/modrestart/command.go",
+      "line": 40
+    },
+    {
+      "binary": "system-probe",
+      "use": "coverage",
+      "short": "Handle running system-probe code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/system-probe/subcommands/coverage/command.go",
+      "line": 36
+    },
+    {
+      "binary": "system-probe",
+      "use": "debug [module] [state]",
+      "short": "Print the runtime state of a running system-probe",
+      "subcommand_path": [
+        "debug"
+      ],
+      "source_file": "cmd/system-probe/subcommands/debug/command.go",
+      "line": 43
+    },
+    {
+      "binary": "otel-agent",
+      "use": "status",
+      "short": "Print the current status",
+      "subcommand_path": [
+        "status"
+      ],
+      "source_file": "cmd/otel-agent/subcommands/status/command.go",
+      "line": 37
+    },
+    {
+      "binary": "otel-agent",
+      "use": "start-service",
+      "short": "starts the otel-agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/otel-agent/subcommands/controlsvc/command.go",
+      "line": 23
+    },
+    {
+      "binary": "otel-agent",
+      "use": "stop-service",
+      "short": "starts the otel-agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/otel-agent/subcommands/controlsvc/command.go",
+      "line": 32
+    },
+    {
+      "binary": "otel-agent",
+      "use": "restart-service",
+      "short": "stops the otel-agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/otel-agent/subcommands/controlsvc/command.go",
+      "line": 41
+    },
+    {
+      "binary": "otel-agent",
+      "use": "run",
+      "short": "Starting OpenTelemetry Collector",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/otel-agent/subcommands/run/command_windows.go",
+      "line": 46
+    },
+    {
+      "binary": "agent",
+      "use": "dogstatsd",
+      "short": "Inspect dogstatsd pipeline status",
+      "subcommand_path": [
+        "dogstatsd"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsd/command.go",
+      "line": 44
+    },
+    {
+      "binary": "agent",
+      "use": "top",
+      "short": "Inspect dogstatsd pipeline status",
+      "subcommand_path": [
+        "dogstatsd"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsd/command.go",
+      "line": 51
+    },
+    {
+      "binary": "agent",
+      "use": "dump-contexts",
+      "short": "Write currently tracked contexts as JSON",
+      "subcommand_path": [
+        "dogstatsd"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsd/command.go",
+      "line": 73
+    },
+    {
+      "binary": "agent",
+      "use": "dogstatsd-replay",
+      "short": "Replay dogstatsd traffic",
+      "subcommand_path": [
+        "dogstatsdreplay"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsdreplay/command.go",
+      "line": 61
+    },
+    {
+      "binary": "agent",
+      "use": "dogstatsd-stats",
+      "short": "Print basic statistics on the metrics processed by dogstatsd",
+      "subcommand_path": [
+        "dogstatsdstats"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsdstats/command.go",
+      "line": 52
+    },
+    {
+      "binary": "agent",
+      "use": "stream-event-platform",
+      "short": "Stream the event platform payloads being processed by a running agent",
+      "subcommand_path": [
+        "streamep"
+      ],
+      "source_file": "cmd/agent/subcommands/streamep/command.go",
+      "line": 43
+    },
+    {
+      "binary": "agent",
+      "use": "snmp",
+      "short": "Snmp tools",
+      "subcommand_path": [
+        "snmp"
+      ],
+      "source_file": "cmd/agent/subcommands/snmp/command.go",
+      "line": 78
+    },
+    {
+      "binary": "agent",
+      "use": "walk <IP Address>[:Port] [OID]",
+      "short": "Snmp tools",
+      "subcommand_path": [
+        "snmp"
+      ],
+      "source_file": "cmd/agent/subcommands/snmp/command.go",
+      "line": 84
+    },
+    {
+      "binary": "agent",
+      "use": "scan <ipaddress>[:port]",
+      "short": "Scan a device for the profile editor.",
+      "subcommand_path": [
+        "snmp"
+      ],
+      "source_file": "cmd/agent/subcommands/snmp/command.go",
+      "line": 149
+    },
+    {
+      "binary": "agent",
+      "use": "jmx",
+      "short": "Run troubleshooting commands on JMXFetch integrations",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 80
+    },
+    {
+      "binary": "agent",
+      "use": "collect",
+      "short": "Start the collection of metrics based on your current configuration and display them in the console.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 146
+    },
+    {
+      "binary": "agent",
+      "use": "everything",
+      "short": "List every attributes available that has a type supported by JMXFetch.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 160
+    },
+    {
+      "binary": "agent",
+      "use": "matching",
+      "short": "List attributes that match at least one of your instances configuration.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 171
+    },
+    {
+      "binary": "agent",
+      "use": "with-metrics",
+      "short": "List attributes and metrics data that match at least one of your instances configuration.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 182
+    },
+    {
+      "binary": "agent",
+      "use": "with-rate-metrics",
+      "short": "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 193
+    },
+    {
+      "binary": "agent",
+      "use": "limited",
+      "short": "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 204
+    },
+    {
+      "binary": "agent",
+      "use": "collected",
+      "short": "List attributes that will actually be collected by your current instances configuration.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 215
+    },
+    {
+      "binary": "agent",
+      "use": "not-matching",
+      "short": "List attributes that don\u2019t match any of your instances configuration.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 226
+    },
+    {
+      "binary": "agent",
+      "use": "list",
+      "short": "List attributes matched by JMXFetch.",
+      "subcommand_path": [
+        "jmx"
+      ],
+      "source_file": "cmd/agent/subcommands/jmx/command.go",
+      "line": 237
+    },
+    {
+      "binary": "agent",
+      "use": "remote-config",
+      "short": "Remote configuration state command",
+      "subcommand_path": [
+        "remoteconfig"
+      ],
+      "source_file": "cmd/agent/subcommands/remoteconfig/command.go",
+      "line": 46
+    },
+    {
+      "binary": "agent",
+      "use": "reset",
+      "short": "Reset the remote configuration state",
+      "subcommand_path": [
+        "remoteconfig"
+      ],
+      "source_file": "cmd/agent/subcommands/remoteconfig/command.go",
+      "line": 66
+    },
+    {
+      "binary": "agent",
+      "use": "configcheck",
+      "short": "Print all configurations loaded & resolved of a running agent",
+      "subcommand_path": [
+        "configcheck"
+      ],
+      "source_file": "cmd/agent/subcommands/configcheck/command.go",
+      "line": 44
+    },
+    {
+      "binary": "agent",
+      "use": "launch-gui",
+      "short": "starts the Datadog Agent GUI",
+      "subcommand_path": [
+        "launchgui"
+      ],
+      "source_file": "cmd/agent/subcommands/launchgui/command.go",
+      "line": 39
+    },
+    {
+      "binary": "agent",
+      "use": "stop",
+      "short": "Stops a running Agent",
+      "subcommand_path": [
+        "stop"
+      ],
+      "source_file": "cmd/agent/subcommands/stop/command.go",
+      "line": 40
+    },
+    {
+      "binary": "agent",
+      "use": "status [section]",
+      "short": "Display the current status",
+      "subcommand_path": [
+        "status"
+      ],
+      "source_file": "cmd/agent/subcommands/status/command.go",
+      "line": 56
+    },
+    {
+      "binary": "agent",
+      "use": "diagnose",
+      "short": "Validate Agent installation, configuration and environment",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 99
+    },
+    {
+      "binary": "agent",
+      "use": "show-metadata",
+      "short": "Print metadata payloads sent by the agent",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 153
+    },
+    {
+      "binary": "agent",
+      "use": "v5",
+      "short": "[internal] Print the metadata payload for the agent.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 164
+    },
+    {
+      "binary": "agent",
+      "use": "gohai",
+      "short": "[internal] Print the gohai payload for the agent.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 180
+    },
+    {
+      "binary": "agent",
+      "use": "inventory-agent",
+      "short": "[internal] Print the Inventory agent metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 196
+    },
+    {
+      "binary": "agent",
+      "use": "host-gpu",
+      "short": "[internal] Print the host-gpu agent metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 212
+    },
+    {
+      "binary": "agent",
+      "use": "inventory-host",
+      "short": "[internal] Print the Inventory host metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 228
+    },
+    {
+      "binary": "agent",
+      "use": "inventory-otel",
+      "short": "Print the Inventory otel metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 244
+    },
+    {
+      "binary": "agent",
+      "use": "ha-agent",
+      "short": "Print the HA Agent Metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 260
+    },
+    {
+      "binary": "agent",
+      "use": "inventory-checks",
+      "short": "[internal] Print the Inventory checks metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 276
+    },
+    {
+      "binary": "agent",
+      "use": "package-signing",
+      "short": "[internal] Print the Inventory package signing payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 292
+    },
+    {
+      "binary": "agent",
+      "use": "system-probe",
+      "short": "[internal] Print the inventory systemprobe metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 308
+    },
+    {
+      "binary": "agent",
+      "use": "security-agent",
+      "short": "[internal] Print the security-agent process metadata payload.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 324
+    },
+    {
+      "binary": "agent",
+      "use": "agent-telemetry",
+      "short": "[internal] Print agent telemetry payloads sent by the agent.",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 340
+    },
+    {
+      "binary": "agent",
+      "use": "agent-full-telemetry",
+      "short": "[internal] Print the full agent telemetry metrics exposed by the agent",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/agent/subcommands/diagnose/command.go",
+      "line": 355
+    },
+    {
+      "binary": "agent",
+      "use": "integration [command]",
+      "short": "Datadog integration manager",
+      "subcommand_path": [
+        "integrations"
+      ],
+      "source_file": "cmd/agent/subcommands/integrations/command.go",
+      "line": 91
+    },
+    {
+      "binary": "agent",
+      "use": "install [package==version]",
+      "short": "Install Datadog integration core/extra packages",
+      "subcommand_path": [
+        "integrations"
+      ],
+      "source_file": "cmd/agent/subcommands/integrations/command.go",
+      "line": 122
+    },
+    {
+      "binary": "agent",
+      "use": "remove [package]",
+      "short": "Remove Datadog integration core/extra packages",
+      "subcommand_path": [
+        "integrations"
+      ],
+      "source_file": "cmd/agent/subcommands/integrations/command.go",
+      "line": 146
+    },
+    {
+      "binary": "agent",
+      "use": "freeze",
+      "short": "Print the list of installed packages in the agent's python environment",
+      "subcommand_path": [
+        "integrations"
+      ],
+      "source_file": "cmd/agent/subcommands/integrations/command.go",
+      "line": 157
+    },
+    {
+      "binary": "agent",
+      "use": "show [package]",
+      "short": "Print out information about [package]",
+      "subcommand_path": [
+        "integrations"
+      ],
+      "source_file": "cmd/agent/subcommands/integrations/command.go",
+      "line": 168
+    },
+    {
+      "binary": "agent",
+      "use": "dogstatsd-capture",
+      "short": "Start a dogstatsd UDS traffic capture",
+      "subcommand_path": [
+        "dogstatsdcapture"
+      ],
+      "source_file": "cmd/agent/subcommands/dogstatsdcapture/command.go",
+      "line": 56
+    },
+    {
+      "binary": "agent",
+      "use": "start-service",
+      "short": "starts the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/agent/subcommands/controlsvc/command.go",
+      "line": 26
+    },
+    {
+      "binary": "agent",
+      "use": "stop-service",
+      "short": "stops the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/agent/subcommands/controlsvc/command.go",
+      "line": 35
+    },
+    {
+      "binary": "agent",
+      "use": "restart-service",
+      "short": "restarts the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/agent/subcommands/controlsvc/command.go",
+      "line": 44
+    },
+    {
+      "binary": "agent",
+      "use": "stream-logs",
+      "short": "Stream the logs being processed by a running agent",
+      "subcommand_path": [
+        "streamlogs"
+      ],
+      "source_file": "cmd/agent/subcommands/streamlogs/command.go",
+      "line": 60
+    },
+    {
+      "binary": "agent",
+      "use": "hostname",
+      "short": "Print the hostname used by the Agent",
+      "subcommand_path": [
+        "hostname"
+      ],
+      "source_file": "cmd/agent/subcommands/hostname/command.go",
+      "line": 44
+    },
+    {
+      "binary": "agent",
+      "use": "secret",
+      "short": "Display information about secrets in configuration.",
+      "subcommand_path": [
+        "secret"
+      ],
+      "source_file": "cmd/agent/subcommands/secret/command.go",
+      "line": 39
+    },
+    {
+      "binary": "agent",
+      "use": "refresh",
+      "short": "Refresh secrets in configuration.",
+      "subcommand_path": [
+        "secret"
+      ],
+      "source_file": "cmd/agent/subcommands/secret/command.go",
+      "line": 52
+    },
+    {
+      "binary": "agent",
+      "use": "run",
+      "short": "Run the Agent",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/agent/subcommands/run/command.go",
+      "line": 237
+    },
+    {
+      "binary": "agent",
+      "use": "start",
+      "short": "",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/agent/subcommands/run/command.go",
+      "line": 245
+    },
+    {
+      "binary": "agent",
+      "use": "import <old_configuration_dir> <destination_dir>",
+      "short": "Import and convert configuration files from previous versions of the Agent",
+      "subcommand_path": [
+        "import"
+      ],
+      "source_file": "cmd/agent/subcommands/import/command.go",
+      "line": 40
+    },
+    {
+      "binary": "agent",
+      "use": "coverage",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/agent/subcommands/coverage/command.go",
+      "line": 36
+    },
+    {
+      "binary": "agent",
+      "use": "generate",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/agent/subcommands/coverage/command.go",
+      "line": 43
+    },
+    {
+      "binary": "agent",
+      "use": "flare [caseID]",
+      "short": "Collect a flare and send it to Datadog",
+      "subcommand_path": [
+        "flare"
+      ],
+      "source_file": "cmd/agent/subcommands/flare/command.go",
+      "line": 107
+    },
+    {
+      "binary": "agent",
+      "use": "analyze-logs",
+      "short": "Analyze logs configuration in isolation",
+      "subcommand_path": [
+        "analyzelogs"
+      ],
+      "source_file": "cmd/agent/subcommands/analyzelogs/command.go",
+      "line": 71
+    },
+    {
+      "binary": "cluster-agent-cloudfoundry",
+      "use": "run",
+      "short": "Run the Cluster Agent for Cloud Foundry",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/cluster-agent-cloudfoundry/subcommands/run/command.go",
+      "line": 96
+    },
+    {
+      "binary": "host-profiler",
+      "use": "host-profiler [command]",
+      "short": "Collects host profiling data and sends it to Datadog.",
+      "subcommand_path": [],
+      "source_file": "cmd/host-profiler/command/command.go",
+      "line": 22
+    },
+    {
+      "binary": "host-profiler",
+      "use": "run",
+      "short": "Start Host Profiler",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/host-profiler/subcommands/run/command.go",
+      "line": 56
+    },
+    {
+      "binary": "installer",
+      "use": "daemon [command]",
+      "short": "Interact with the installer daemon",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/command.go",
+      "line": 18
+    },
+    {
+      "binary": "installer",
+      "use": "run",
+      "short": "Runs the installer",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/run.go",
+      "line": 35
+    },
+    {
+      "binary": "installer",
+      "use": "set-catalog catalog",
+      "short": "Internal command to set the catalog to use",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 40
+    },
+    {
+      "binary": "installer",
+      "use": "set-config-catalog configs",
+      "short": "Internal command to set the config catalog to use",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 53
+    },
+    {
+      "binary": "installer",
+      "use": "install package version",
+      "short": "Installs a package to the expected version",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 65
+    },
+    {
+      "binary": "installer",
+      "use": "remove package",
+      "short": "Removes a package",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 78
+    },
+    {
+      "binary": "installer",
+      "use": "start-experiment package version",
+      "short": "Starts an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 89
+    },
+    {
+      "binary": "installer",
+      "use": "stop-experiment package",
+      "short": "Stops an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 102
+    },
+    {
+      "binary": "installer",
+      "use": "promote-experiment package",
+      "short": "Promotes an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 114
+    },
+    {
+      "binary": "installer",
+      "use": "start-config-experiment package version",
+      "short": "Starts an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 126
+    },
+    {
+      "binary": "installer",
+      "use": "stop-config-experiment package",
+      "short": "Stops an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 139
+    },
+    {
+      "binary": "installer",
+      "use": "promote-config-experiment package",
+      "short": "Promotes an experiment",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 151
+    },
+    {
+      "binary": "installer",
+      "use": "rc-status",
+      "short": "Internal command to print the installer Remote Config status as a JSON",
+      "subcommand_path": [
+        "daemon"
+      ],
+      "source_file": "cmd/installer/subcommands/daemon/api.go",
+      "line": 164
+    },
+    {
+      "binary": "trace-agent",
+      "use": "config",
+      "short": "Print the runtime configuration of a running trace-agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/config/command.go",
+      "line": 30
+    },
+    {
+      "binary": "trace-agent",
+      "use": "info",
+      "short": "Gather Datadog trace-agent information.",
+      "subcommand_path": [
+        "info"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/info/command.go",
+      "line": 31
+    },
+    {
+      "binary": "trace-agent",
+      "use": "start-service",
+      "short": "starts the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/controlsvc/command.go",
+      "line": 23
+    },
+    {
+      "binary": "trace-agent",
+      "use": "stop-service",
+      "short": "stops the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/controlsvc/command.go",
+      "line": 34
+    },
+    {
+      "binary": "trace-agent",
+      "use": "restart-service",
+      "short": "restarts the agent within the service control manager",
+      "subcommand_path": [
+        "controlsvc"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/controlsvc/command.go",
+      "line": 45
+    },
+    {
+      "binary": "trace-agent",
+      "use": "run",
+      "short": "Start datadog trace-agent.",
+      "subcommand_path": [
+        "run"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/run/command.go",
+      "line": 46
+    },
+    {
+      "binary": "trace-agent",
+      "use": "coverage",
+      "short": "Handle coverage generation for a running trace-agent",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/trace-agent/subcommands/coverage/command.go",
+      "line": 36
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "metamap [nodeName]",
+      "short": "Print the map between the metadata and the pods associated",
+      "subcommand_path": [
+        "metamap"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/metamap/command.go",
+      "line": 39
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "start",
+      "short": "Start the Cluster Agent",
+      "subcommand_path": [
+        "start"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/start/command.go",
+      "line": 143
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "status",
+      "short": "Print the current status",
+      "subcommand_path": [
+        "status"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/status/command.go",
+      "line": 44
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "compliance",
+      "short": "compliance utility commands",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/compliance/command.go",
+      "line": 30
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "check",
+      "short": "Run compliance check(s)",
+      "subcommand_path": [
+        "compliance"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/compliance/command.go",
+      "line": 43
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "diagnose",
+      "short": "Execute some connectivity diagnosis on your system",
+      "subcommand_path": [
+        "diagnose"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/diagnose/command.go",
+      "line": 38
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "telemetry",
+      "short": "Print the telemetry metrics exposed by the cluster agent",
+      "subcommand_path": [
+        "telemetry"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/telemetry/command.go",
+      "line": 25
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "coverage",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/coverage/command.go",
+      "line": 36
+    },
+    {
+      "binary": "cluster-agent",
+      "use": "generate",
+      "short": "Handle running agent code coverage",
+      "subcommand_path": [
+        "coverage"
+      ],
+      "source_file": "cmd/cluster-agent/subcommands/coverage/command.go",
+      "line": 43
+    },
+    {
+      "binary": "shared",
+      "use": "autoscaler-list",
+      "short": "Print the autoscaling store content of a running agent",
+      "subcommand_path": [
+        "autoscalerlist"
+      ],
+      "source_file": "pkg/cli/subcommands/autoscalerlist/command.go",
+      "line": 55
+    },
+    {
+      "binary": "shared",
+      "use": "tagger-list",
+      "short": "Print the tagger content of a running agent",
+      "subcommand_path": [
+        "taggerlist"
+      ],
+      "source_file": "pkg/cli/subcommands/taggerlist/command.go",
+      "line": 51
+    },
+    {
+      "binary": "shared",
+      "use": "config",
+      "short": "Print the runtime configuration of a running agent",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "pkg/cli/subcommands/config/command.go",
+      "line": 81
+    },
+    {
+      "binary": "shared",
+      "use": "list-runtime",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "pkg/cli/subcommands/config/command.go",
+      "line": 89
+    },
+    {
+      "binary": "shared",
+      "use": "set [setting] [value]",
+      "short": "List settings that can be changed at runtime",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "pkg/cli/subcommands/config/command.go",
+      "line": 97
+    },
+    {
+      "binary": "shared",
+      "use": "get [setting]",
+      "short": "Set, for the current runtime, the value of a given configuration setting",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "pkg/cli/subcommands/config/command.go",
+      "line": 105
+    },
+    {
+      "binary": "shared",
+      "use": "otel-agent",
+      "short": "Otel-agent, prints out the read-only runtime configs of otel-agent if otel-agent is present and converter is enabled",
+      "subcommand_path": [
+        "config"
+      ],
+      "source_file": "pkg/cli/subcommands/config/command.go",
+      "line": 114
+    },
+    {
+      "binary": "shared",
+      "use": "health",
+      "short": "Print the current agent health",
+      "subcommand_path": [
+        "health"
+      ],
+      "source_file": "pkg/cli/subcommands/health/command.go",
+      "line": 58
+    },
+    {
+      "binary": "shared",
+      "use": "flare [caseID]",
+      "short": "Collect a flare and send it to Datadog",
+      "subcommand_path": [
+        "dcaflare"
+      ],
+      "source_file": "pkg/cli/subcommands/dcaflare/command.go",
+      "line": 68
+    },
+    {
+      "binary": "shared",
+      "use": "version",
+      "short": "Print the version info",
+      "subcommand_path": [
+        "version"
+      ],
+      "source_file": "pkg/cli/subcommands/version/command.go",
+      "line": 28
+    },
+    {
+      "binary": "shared",
+      "use": "configcheck",
+      "short": "Print all configurations loaded & resolved of a running cluster agent",
+      "subcommand_path": [
+        "dcaconfigcheck"
+      ],
+      "source_file": "pkg/cli/subcommands/dcaconfigcheck/command.go",
+      "line": 44
+    },
+    {
+      "binary": "shared",
+      "use": "workloadfilter",
+      "short": "Print the workload filter status of a running agent",
+      "subcommand_path": [
+        "workloadfilterlist"
+      ],
+      "source_file": "pkg/cli/subcommands/workloadfilterlist/command.go",
+      "line": 47
+    },
+    {
+      "binary": "shared",
+      "use": "verify-cel",
+      "short": "Validate CEL workload filter rules from a YAML file",
+      "subcommand_path": [
+        "workloadfilterlist"
+      ],
+      "source_file": "pkg/cli/subcommands/workloadfilterlist/command.go",
+      "line": 73
+    },
+    {
+      "binary": "shared",
+      "use": "check <check_name>",
+      "short": "Run the specified check",
+      "subcommand_path": [
+        "check"
+      ],
+      "source_file": "pkg/cli/subcommands/check/command.go",
+      "line": 146
+    },
+    {
+      "binary": "shared",
+      "use": "workload-list",
+      "short": "Print the workload content of a running agent",
+      "subcommand_path": [
+        "workloadlist"
+      ],
+      "source_file": "pkg/cli/subcommands/workloadlist/command.go",
+      "line": 55
+    },
+    {
+      "binary": "shared",
+      "use": "clusterchecks",
+      "short": "Prints the active cluster check configurations",
+      "subcommand_path": [
+        "clusterchecks"
+      ],
+      "source_file": "pkg/cli/subcommands/clusterchecks/command.go",
+      "line": 59
+    },
+    {
+      "binary": "shared",
+      "use": "rebalance",
+      "short": "Rebalances cluster checks",
+      "subcommand_path": [
+        "clusterchecks"
+      ],
+      "source_file": "pkg/cli/subcommands/clusterchecks/command.go",
+      "line": 78
+    },
+    {
+      "binary": "shared",
+      "use": "isolate",
+      "short": "Isolates a single check in the cluster runner",
+      "subcommand_path": [
+        "clusterchecks"
+      ],
+      "source_file": "pkg/cli/subcommands/clusterchecks/command.go",
+      "line": 99
+    }
+  ]
+}
