@@ -201,16 +201,12 @@ type Destination int
 const (
 	// AllRegions indicates the transaction should be sent to all regions (default behavior)
 	AllRegions = iota
-	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
-	PrimaryOnly
 )
 
 func (d Destination) String() string {
 	switch d {
 	case AllRegions:
 		return "AllRegions"
-	case PrimaryOnly:
-		return "PrimaryOnly"
 	default:
 		return "Unknown"
 	}

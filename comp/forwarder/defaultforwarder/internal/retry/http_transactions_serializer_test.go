@@ -222,7 +222,6 @@ func createHTTPTransactionWithHeaderTests(header http.Header, domain string) *tr
 	tr.CreatedAt = time.Now()
 	tr.Retryable = true
 	tr.Priority = transaction.TransactionPriorityHigh
-	tr.Destination = transaction.PrimaryOnly
 	return tr
 }
 
