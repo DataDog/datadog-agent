@@ -783,21 +783,54 @@ func TestVariableFieldConflictProtection(t *testing.T) {
 		}
 	})
 
-	t.Run("fallback-to-field-when-variable-not-found", func(t *testing.T) {
-		// When a variable doesn't exist, SECL falls back to checking if it's a field
-		// This is the backup behavior in evaluatorFromVariable()
+	t.Run("field-reference-with-percent-syntax", func(t *testing.T) {
+		// With the new syntax, fields must be referenced with %{field} not ${variable}
 		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
-				ID: "use_field_as_variable_syntax",
-				// Using ${process.pid} without creating a variable
-				// Should fallback to the field process.pid
-				Expression: `open.file.path == "/tmp/test" && ${process.pid} > 0`,
+				ID: "use_field_reference_syntax",
+				// Using %{process.pid} to reference a field
+				Expression: `open.file.path == "/tmp/test" && %{process.pid} > 0`,
 			}},
 		}
 
 		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 		if err != nil {
-			t.Errorf("expected policy to load successfully (fallback to field), got: %v", err)
+			t.Errorf("expected policy to load successfully with %%{field} syntax, got: %v", err)
+		}
+	})
+
+	t.Run("variable-syntax-without-variable-should-fail", func(t *testing.T) {
+		// Using ${variable} in a string without creating the variable should now fail (no fallback to field)
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_variable_syntax_for_field",
+				// Using ${my_nonexistent_var} in a string without creating a variable
+				// Should fail because there's no fallback to fields anymore
+				Expression: `open.file.path == "/tmp/test" && "value:${my_nonexistent_var}" != ""`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err == nil {
+			t.Error("expected policy to fail to load (no variable named 'my_nonexistent_var')")
+		} else {
+			t.Logf("Expected error: %v", err)
+		}
+	})
+
+	t.Run("field-reference-in-string-works", func(t *testing.T) {
+		// Using %{field} in a string should work
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_field_reference_in_string",
+				// Using %{process.pid} to reference a field in a string
+				Expression: `open.file.path == "/tmp/test" && "pid:%{process.pid}" != ""`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully with %%{field} in string, got: %v", err)
 		}
 	})
 
@@ -2638,6 +2671,91 @@ func TestArrayIndexAccessInExpressions(t *testing.T) {
 	rule3 := rs.GetRuleByID("test_field_array_index_in_expression")
 	if rule3 == nil {
 		t.Fatal("failed to find test_field_array_index_in_expression")
+	}
+}
+
+func TestVariableVsFieldReferenceSyntax(t *testing.T) {
+	// Comprehensive test demonstrating the difference between ${variable} and %{field}
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "setup_variables",
+				Expression: `open.file.path == "/tmp/setup"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "my_var",
+							Value: "variable_value",
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:  "my_count",
+							Value: 42,
+							Scope: "container",
+						},
+					},
+				},
+			},
+			{
+				ID: "use_variable_syntax",
+				// ${xxx} is for variables only
+				Expression: `open.file.path == "/tmp/test1" && "${my_var}" == "variable_value"`,
+			},
+			{
+				ID: "use_field_reference_syntax",
+				// %{xxx} is for fields only
+				Expression: `open.file.path == "/tmp/test2" && %{process.pid} > 0`,
+			},
+			{
+				ID: "mix_both_in_string",
+				// Can mix variables and fields in the same string
+				Expression: `open.file.path == "/tmp/test3" && "var:${my_var} pid:%{process.pid}" != ""`,
+			},
+			{
+				ID: "field_reference_with_array_index",
+				// Field references support array index access
+				Expression: `open.file.name == "test" && "%{open.file.hashes[0]}" =~ "^sha256:.*"`,
+			},
+			{
+				ID: "scoped_variable_reference",
+				// Scoped variables work with ${scope.name}
+				Expression: `open.file.path == "/tmp/test4" && ${container.my_count} == 42`,
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Errorf("expected all rules to load successfully, got: %v", err)
+	}
+
+	// Verify all rules loaded
+	expectedRules := []string{
+		"setup_variables",
+		"use_variable_syntax",
+		"use_field_reference_syntax",
+		"mix_both_in_string",
+		"field_reference_with_array_index",
+		"scoped_variable_reference",
+	}
+
+	for _, ruleID := range expectedRules {
+		if rule := rs.GetRuleByID(ruleID); rule == nil {
+			t.Errorf("rule %s should have been loaded", ruleID)
+		}
 	}
 }
 
