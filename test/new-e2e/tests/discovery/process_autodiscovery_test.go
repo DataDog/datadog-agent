@@ -8,7 +8,6 @@ package discovery
 import (
 	_ "embed"
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -64,31 +63,40 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 // TestRedisCheckScheduledViaProcessAutodiscovery verifies that the redis check
 // is automatically scheduled when a redis-server process is detected via
 // the process autodiscovery listener (cel://process).
-//
-// This test validates that:
-// 1. The process listener detects the redis-server process
-// 2. The cel_selector in the check config matches the process
-// 3. The check is scheduled with a process:// service ID (not just from file)
-// 4. The check runs successfully
 func (s *processAutodiscoverySuite) TestRedisCheckScheduledViaProcessAutodiscovery() {
 	t := s.T()
 
-	// Wait for the agent to discover the process and schedule the check
-	// Process discovery runs on an interval, so we need to wait for:
-	// 1. Process to be detected and added to workloadmeta
-	// 2. Process listener to receive the event and create a service
-	// 3. Autodiscovery to match the service with the redis check config
-	// 4. Check to be scheduled and run
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		s.verifyRedisCheckScheduledViaProcess(c)
 	}, 3*time.Minute, 10*time.Second, "Redis check should be scheduled via process autodiscovery")
 }
 
 // verifyRedisCheckScheduledViaProcess verifies that the redisdb check is scheduled
-// AND that it was scheduled via process autodiscovery (not just loaded from file)
+// via process autodiscovery and running correctly
 func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *assert.CollectT) {
 	t := s.T()
 
+	// Verify check configuration via config-check
+	configCheckOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent configcheck")
+
+	if !assert.Contains(c, configCheckOutput, "=== redisdb check ===", "redisdb check should be configured") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
+
+	// Verify the check has cel://process AD identifier
+	if !assert.Contains(c, configCheckOutput, "cel://process", "redisdb check should have cel://process AD identifier") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
+
+	// Verify host was resolved to localhost
+	if !assert.Contains(c, configCheckOutput, "host: 127.0.0.1", "redisdb check should have host resolved to 127.0.0.1") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
+
+	// Verify the check is running via collector status
 	statusOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent status collector --json")
 
 	var status collectorStatus
@@ -98,40 +106,21 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 		return
 	}
 
-	// Check if redisdb check is in the scheduled checks
 	instances, exists := status.RunnerStats.Checks["redisdb"]
-	if !assert.True(c, exists, "redisdb check should be scheduled") {
+	if !assert.True(c, exists, "redisdb check should be running") {
 		t.Logf("Available checks: %v", getCheckNames(status.RunnerStats.Checks))
 		return
 	}
 
-	// Verify the check was scheduled via process autodiscovery
-	// The CheckConfigSource should contain "process://" indicating it was
-	// resolved against a process service, not just loaded from file
-	foundProcessService := false
+	// Verify the check has executed successfully
 	for instanceName, checkStat := range instances {
-		t.Logf("Redis check instance %s: runs=%d, source=%s",
-			instanceName, len(checkStat.ExecutionTimes), checkStat.CheckConfigSource)
-
-		// Check if this instance was scheduled via process autodiscovery
-		// The source should indicate it came from a process service
-		if strings.Contains(checkStat.CheckConfigSource, "process://") {
-			foundProcessService = true
-			if len(checkStat.ExecutionTimes) > 0 {
-				t.Log("Redis check is scheduled via process autodiscovery and has run successfully")
-				return
-			}
+		if len(checkStat.ExecutionTimes) > 0 {
+			t.Logf("Redis check instance %s: runs=%d", instanceName, len(checkStat.ExecutionTimes))
+			return
 		}
 	}
 
-	if !foundProcessService {
-		assert.Fail(c, "Redis check was not scheduled via process autodiscovery. "+
-			"The check source should contain 'process://' but found only file-based configs. "+
-			"This indicates the process listener is not working correctly.")
-		return
-	}
-
-	assert.Fail(c, "Redis check is scheduled via process autodiscovery but has not run yet")
+	assert.Fail(c, "Redis check is configured but has not run yet")
 }
 
 // getCheckNames returns the names of all scheduled checks
