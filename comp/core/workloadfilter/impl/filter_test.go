@@ -327,6 +327,164 @@ container_exclude_metrics: ["kube_namespace:datadog-agent"]
 	}
 }
 
+func TestLegacySharedMetricFilter(t *testing.T) {
+	t.Run("Legacy config with pause container excluded", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Legacy config with pause container included", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("exclude_pause_container", false)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+	})
+
+	t.Run("New config with metrics specific filters", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("exclude_pause_container", false)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:nginx.*"})
+		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:ddmetric-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "ddmetric-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "ddmetric-152462", "nginx:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+	})
+}
+
+func TestLegacyAutodiscoveryFilter(t *testing.T) {
+	t.Run("Global legacy config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Global new config with legacy config ignored", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache/legacy.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd/legacy-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd/legacy-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Metrics new config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Logs new config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include_logs", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude_logs", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Filter errors with invalid regex", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*", "kube_namespace:?"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+
+		errs := f.GetErrors()
+		assert.NotEmpty(t, errs)
+		assert.True(t, containsErrorWithMessage(errs, "Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'"))
+	})
+}
+
+func createTestContainer(annotations map[string]string, name, image, namespace string) *workloadfilter.Container {
+	return workloadmetafilter.CreateContainer(
+		&workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: name,
+			},
+			Image: workloadmeta.ContainerImage{
+				RawName: image,
+			},
+		},
+		workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "test-pod",
+					Namespace:   namespace,
+					Annotations: annotations,
+				},
+			},
+		),
+	)
+}
+
 func TestContainerSBOMFilter(t *testing.T) {
 
 	tests := []struct {
@@ -1178,4 +1336,46 @@ cel_workload_exclude:
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
+}
+
+func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockSystemProbe := configmock.NewSystemProbe(t)
+
+	// Setup Compliance Config
+	mockConfig.SetWithoutSource("compliance_config.container_include", []string{"image:compliance-agent"})
+	mockConfig.SetWithoutSource("compliance_config.container_exclude", []string{"image:malicious"})
+
+	// Setup Runtime Security Config
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_include", []string{"image:security-agent"})
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_exclude", []string{"image:suspicious"})
+
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	// Test Compliance Filter
+	t.Run("Compliance Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("compliance-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("malicious")
+		unknownContainer := workloadfilter.CreateContainerImage("security-agent")
+
+		filterBundle := filterStore.GetContainerComplianceFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
+	// Test Runtime Security Filter
+	t.Run("Runtime Security Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("security-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("suspicious")
+		unknownContainer := workloadfilter.CreateContainerImage("malicious")
+
+		filterBundle := filterStore.GetContainerRuntimeSecurityFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
 }
