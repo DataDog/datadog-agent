@@ -282,7 +282,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		if !ok {
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
-		return evaluatorFromVariable(varName, array.Pos, opts, state)
+		return evaluatorFromVariable(varName, array.Pos, opts)
 	} else if array.FieldReference != nil {
 		fieldName, ok := isFieldReferenceName(*array.FieldReference)
 		if !ok {
@@ -389,7 +389,7 @@ func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *St
 	return evaluator, pos, nil
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
 	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
 	if variable != nil {
@@ -446,7 +446,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, sta
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts, state)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
 			if err != nil {
 				return err
 			}
@@ -1610,7 +1610,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return evaluatorFromVariable(varname, obj.Pos, opts, state)
+			return evaluatorFromVariable(varname, obj.Pos, opts)
 		case obj.FieldReference != nil:
 			fieldname, ok := isFieldReferenceName(*obj.FieldReference)
 			if !ok {
