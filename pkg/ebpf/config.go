@@ -80,8 +80,9 @@ type Config struct {
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
 
-	// BypassEnabled is used in tests only.
-	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	// BypassEnabled enables the ebpf-manager bypass feature which allows
+	// dynamic pause/resume of eBPF probes without unloading them.
+	// Configure via system_probe_config.bypass_enabled in datadog.yaml.
 	BypassEnabled bool
 
 	// RemoteConfigBTFEnabled indicates whether we can use remote config to obtain BTF
@@ -126,6 +127,9 @@ func NewConfig() *Config {
 		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),
+
+		// BypassEnabled enables the ebpf-manager bypass feature for dynamic pause/resume of probes
+		BypassEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "bypass_enabled")),
 	}
 
 	if !configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {

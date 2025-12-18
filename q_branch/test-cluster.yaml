@@ -16,6 +16,13 @@ spec:
         # localhost/ prefix required - operator prepends default registry without it
         name: localhost/datadog-agent:local
         pullPolicy: Never
+      # Run on single node to avoid kprobe conflicts in Kind (shared kernel)
+      nodeSelector:
+        kubernetes.io/hostname: gadget-dev-worker
+      # Enable bypass for dynamic USM/NPM pause/resume via MCP
+      env:
+        - name: DD_SYSTEM_PROBE_CONFIG_BYPASS_ENABLED
+          value: "true"
   features:
     logCollection:
       enabled: true
@@ -25,18 +32,19 @@ spec:
       enabled: true
     processDiscovery:
       enabled: true
+    # System-probe features enabled for testing control endpoints
     oomKill:
-      enabled: true
+      enabled: false
     tcpQueueLength:
-      enabled: true
+      enabled: false
     ebpfCheck:
-      enabled: true
+      enabled: false
     apm:
       enabled: true
     cspm:
-      enabled: true
+      enabled: false
     cws:
-      enabled: true
+      enabled: false
     npm:
       enabled: true
     usm:

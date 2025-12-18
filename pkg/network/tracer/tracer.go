@@ -404,6 +404,37 @@ func (t *Tracer) Resume() error {
 	return nil
 }
 
+// PauseUSM bypasses only the USM eBPF programs
+func (t *Tracer) PauseUSM() error {
+	if t.usmMonitor == nil {
+		return fmt.Errorf("USM is not enabled")
+	}
+	return t.usmMonitor.Pause()
+}
+
+// ResumeUSM enables only the previously bypassed USM eBPF programs
+func (t *Tracer) ResumeUSM() error {
+	if t.usmMonitor == nil {
+		return fmt.Errorf("USM is not enabled")
+	}
+	return t.usmMonitor.Resume()
+}
+
+// PauseNPM bypasses only the NPM eBPF programs
+func (t *Tracer) PauseNPM() error {
+	return t.ebpfTracer.Pause()
+}
+
+// ResumeNPM enables only the previously bypassed NPM eBPF programs
+func (t *Tracer) ResumeNPM() error {
+	return t.ebpfTracer.Resume()
+}
+
+// IsUSMEnabled returns whether USM is enabled
+func (t *Tracer) IsUSMEnabled() bool {
+	return t.usmMonitor != nil
+}
+
 // Stop stops the tracer
 func (t *Tracer) Stop() {
 	if t.reverseDNS != nil {

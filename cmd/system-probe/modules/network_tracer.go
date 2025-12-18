@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -32,6 +33,26 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
+
+// moduleControlRequest represents the request body for module control
+type moduleControlRequest struct {
+	Module  string `json:"module"`  // "usm" or "npm"
+	Enabled bool   `json:"enabled"` // true to enable/resume, false to pause
+}
+
+// moduleControlResponse represents the response for module control
+type moduleControlResponse struct {
+	Module   string `json:"module"`
+	State    string `json:"state"`    // "running", "paused", "disabled"
+	Previous string `json:"previous"` // previous state before the operation
+	Error    string `json:"error,omitempty"`
+}
+
+// moduleStatusResponse represents the response for module status
+type moduleStatusResponse struct {
+	USM string `json:"usm"` // "running", "paused", "disabled"
+	NPM string `json:"npm"` // "running", "paused"
+}
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
@@ -63,6 +84,9 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	cfg          *networkconfig.Config
 	restartTimer *time.Timer
+	// Module pause state tracking
+	usmPaused atomic.Bool
+	npmPaused atomic.Bool
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -198,6 +222,39 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 	registerUSMEndpoints(nt, httpMux)
 
+	// Module control endpoint for dynamic pause/resume
+	httpMux.HandleFunc("/module/control", func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			writeModuleControlError(w, "", "failed to read request body", http.StatusBadRequest)
+			return
+		}
+		defer req.Body.Close()
+
+		var ctrlReq moduleControlRequest
+		if err := json.Unmarshal(body, &ctrlReq); err != nil {
+			writeModuleControlError(w, "", "invalid JSON request", http.StatusBadRequest)
+			return
+		}
+
+		resp := nt.handleModuleControl(ctrlReq)
+		if resp.Error != "" {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		utils.WriteAsJSON(w, resp, utils.CompactOutput)
+	}).Methods("POST")
+
+	// Module status endpoint
+	httpMux.HandleFunc("/module/status", func(w http.ResponseWriter, req *http.Request) {
+		status := nt.getModuleStatus()
+		utils.WriteAsJSON(w, status, utils.CompactOutput)
+	})
+
 	return nt.platformRegister(httpMux)
 }
 
@@ -256,4 +313,158 @@ func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWrite
 		log.Errorf("unable to dump conntrack: %s", err)
 		w.WriteHeader(500)
 	}
+}
+
+// handleModuleControl handles the module control request
+func (nt *networkTracer) handleModuleControl(req moduleControlRequest) moduleControlResponse {
+	resp := moduleControlResponse{
+		Module: req.Module,
+	}
+
+	switch strings.ToLower(req.Module) {
+	case "usm":
+		resp = nt.handleUSMControl(req.Enabled)
+	case "npm", "cnm":
+		resp = nt.handleNPMControl(req.Enabled)
+	default:
+		resp.Error = fmt.Sprintf("unknown module: %s (valid: usm, npm)", req.Module)
+		resp.State = "unknown"
+	}
+
+	return resp
+}
+
+// handleUSMControl handles USM pause/resume
+func (nt *networkTracer) handleUSMControl(enabled bool) moduleControlResponse {
+	resp := moduleControlResponse{Module: "usm"}
+
+	// Check if USM is available
+	if !nt.tracer.IsUSMEnabled() {
+		resp.State = "disabled"
+		resp.Previous = "disabled"
+		resp.Error = "USM is not enabled (was not enabled at startup)"
+		return resp
+	}
+
+	// Get previous state
+	wasPaused := nt.usmPaused.Load()
+	if wasPaused {
+		resp.Previous = "paused"
+	} else {
+		resp.Previous = "running"
+	}
+
+	if enabled {
+		// Resume USM
+		if !wasPaused {
+			resp.State = "running"
+			log.Info("USM already running, no action needed")
+			return resp
+		}
+		if err := nt.tracer.ResumeUSM(); err != nil {
+			resp.State = "paused"
+			resp.Error = fmt.Sprintf("failed to resume USM: %v", err)
+			return resp
+		}
+		nt.usmPaused.Store(false)
+		resp.State = "running"
+		log.Info("USM resumed via module control")
+	} else {
+		// Pause USM
+		if wasPaused {
+			resp.State = "paused"
+			log.Info("USM already paused, no action needed")
+			return resp
+		}
+		if err := nt.tracer.PauseUSM(); err != nil {
+			resp.State = "running"
+			resp.Error = fmt.Sprintf("failed to pause USM: %v", err)
+			return resp
+		}
+		nt.usmPaused.Store(true)
+		resp.State = "paused"
+		log.Info("USM paused via module control")
+	}
+
+	return resp
+}
+
+// handleNPMControl handles NPM pause/resume
+func (nt *networkTracer) handleNPMControl(enabled bool) moduleControlResponse {
+	resp := moduleControlResponse{Module: "npm"}
+
+	// Get previous state
+	wasPaused := nt.npmPaused.Load()
+	if wasPaused {
+		resp.Previous = "paused"
+	} else {
+		resp.Previous = "running"
+	}
+
+	if enabled {
+		// Resume NPM
+		if !wasPaused {
+			resp.State = "running"
+			log.Info("NPM already running, no action needed")
+			return resp
+		}
+		if err := nt.tracer.ResumeNPM(); err != nil {
+			resp.State = "paused"
+			resp.Error = fmt.Sprintf("failed to resume NPM: %v", err)
+			return resp
+		}
+		nt.npmPaused.Store(false)
+		resp.State = "running"
+		log.Info("NPM resumed via module control")
+	} else {
+		// Pause NPM
+		if wasPaused {
+			resp.State = "paused"
+			log.Info("NPM already paused, no action needed")
+			return resp
+		}
+		if err := nt.tracer.PauseNPM(); err != nil {
+			resp.State = "running"
+			resp.Error = fmt.Sprintf("failed to pause NPM: %v", err)
+			return resp
+		}
+		nt.npmPaused.Store(true)
+		resp.State = "paused"
+		log.Info("NPM paused via module control")
+	}
+
+	return resp
+}
+
+// getModuleStatus returns the current status of USM and NPM modules
+func (nt *networkTracer) getModuleStatus() moduleStatusResponse {
+	status := moduleStatusResponse{}
+
+	// USM status
+	if !nt.tracer.IsUSMEnabled() {
+		status.USM = "disabled"
+	} else if nt.usmPaused.Load() {
+		status.USM = "paused"
+	} else {
+		status.USM = "running"
+	}
+
+	// NPM status
+	if nt.npmPaused.Load() {
+		status.NPM = "paused"
+	} else {
+		status.NPM = "running"
+	}
+
+	return status
+}
+
+// writeModuleControlError writes an error response for module control
+func writeModuleControlError(w http.ResponseWriter, module, errMsg string, statusCode int) {
+	resp := moduleControlResponse{
+		Module: module,
+		Error:  errMsg,
+	}
+	w.WriteHeader(statusCode)
+	utils.WriteAsJSON(w, resp, utils.CompactOutput)
 }
