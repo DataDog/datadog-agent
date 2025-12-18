@@ -1,8 +1,6 @@
 name "libkrb5"
 default_version "1.21.3"
 
-dependency "openssl3"
-
 build do
   pc_files = [
     'gssrpc.pc',
