@@ -330,6 +330,9 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
     repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
+    #
+    # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
+    # Sending a dict will result in: `400: variables is invalid`.
     variables = {}
     if variable:
         for v in variable:
@@ -352,7 +355,8 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
     )
 
     try:
-        pipeline = repo.trigger_pipeline(git_ref, token, variables=variables)
+        variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
+        pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
 
