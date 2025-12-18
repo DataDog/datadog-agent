@@ -201,7 +201,7 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	tr := transaction.HTTPTransaction{}
 	transactionType := reflect.TypeOf(tr)
-	assert.Equalf(t, 13, transactionType.NumField(),
+	assert.Equalf(t, 12, transactionType.NumField(),
 		"A field was added or removed from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"HTTPTransactionsSerializer and then adjust this unit test.")
@@ -232,7 +232,6 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 	a.Equal(tr1.Retryable, tr2.Retryable)
 	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
-	a.Equal(tr1.Destination, tr2.Destination)
 
 	a.NotNil(tr1.Payload)
 	a.NotNil(tr2.Payload)

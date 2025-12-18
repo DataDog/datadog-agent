@@ -27,7 +27,6 @@ type testTransaction struct {
 	processed    chan bool
 	pointCount   int
 	kind         transaction.Kind
-	destination  transaction.Destination
 	shouldBlock  bool
 	Name         string
 }
@@ -87,10 +86,6 @@ func (t *testTransaction) GetPriority() transaction.Priority {
 
 func (t *testTransaction) GetKind() transaction.Kind {
 	return t.kind
-}
-
-func (t *testTransaction) GetDestination() transaction.Destination {
-	return t.destination
 }
 
 func (t *testTransaction) GetEndpointName() string {

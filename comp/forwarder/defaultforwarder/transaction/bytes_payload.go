@@ -8,9 +8,8 @@ package transaction
 // BytesPayload is a payload stored as bytes.
 // It contains metadata about the payload.
 type BytesPayload struct {
-	content     []byte
-	pointCount  int
-	Destination Destination
+	content    []byte
+	pointCount int
 }
 
 // NewBytesPayload creates a new instance of BytesPayload.

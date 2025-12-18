@@ -546,7 +546,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Priority = priority
 				t.Kind = kind
 				t.StorableOnDisk = storableOnDisk
-				t.Destination = payload.Destination
 				auth.Authorize(t)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
