@@ -8,11 +8,15 @@ from enum import Enum
 from time import sleep, time
 from typing import cast
 
+import requests
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
+from invoke.context import Context
+from requests.sessions import HTTPAdapter
 
 from tasks.libs.ciproviders.gitlab_api import cancel_pipeline, refresh_pipeline
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
@@ -174,7 +178,7 @@ def trigger_agent_pipeline(
     kmt_tests=False,
     rc_build=False,
     rc_k8s_deployments=False,
-) -> ProjectPipeline:
+) -> int:
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
     - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
@@ -223,8 +227,18 @@ def trigger_agent_pipeline(
     )
     try:
         variables = [{'key': key, 'value': value} for (key, value) in args.items()]
+        token = datadog_infra_token(Context(), audience="sdm")
+        url = "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/pipeline/DataDog/datadog-agent"
 
-        return repo.pipelines.create({'ref': ref, 'variables': variables})
+        session = requests.Session()
+        session.mount('https://', HTTPAdapter(max_retries=2))
+        res = session.get(
+            url, params={'variables': variables, 'ref': ref}, headers={'Authorization': token}, timeout=30
+        )
+        if not res.ok:
+            raise RuntimeError(f"Failed to create pipeline, request failed with code {res.status_code}:\n{res.text}")
+        pipeline_id = res.json()['id']
+        return pipeline_id
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
             raise FilteredOutException from e
@@ -232,13 +246,12 @@ def trigger_agent_pipeline(
         raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
-def wait_for_pipeline(
-    repo: Project, pipeline: ProjectPipeline, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC
-):
+def wait_for_pipeline(repo: Project, pipeline_id: int, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
     """
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
+    pipeline = repo.pipelines.get(pipeline_id)
     commit = repo.commits.get(pipeline.sha)
 
     print(
