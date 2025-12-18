@@ -945,7 +945,7 @@ func TestActionKillWithSignature(t *testing.T) {
 
 	// Cleanup second tail
 	tailCmd2.Process.Kill()
-	tailCmd2.Wait()
+	<-done2 // Wait for the goroutine to finish instead of calling Wait() again
 }
 
 func TestActionKillContainerWithSignature(t *testing.T) {
