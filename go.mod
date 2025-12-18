@@ -175,7 +175,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.9
-	github.com/DataDog/datadog-go/v5 v5.8.1
+	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v0.1.33
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
@@ -200,11 +200,11 @@ require (
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aquasecurity/trivy-db v0.0.0-20250227071930-8bd8a9b89e2d
 	github.com/avast/retry-go/v4 v4.6.1
-	github.com/aws/aws-sdk-go-v2 v1.40.0
-	github.com/aws/aws-sdk-go-v2/config v1.32.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.274.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.107.0
+	github.com/aws/aws-sdk-go-v2 v1.41.0
+	github.com/aws/aws-sdk-go-v2/config v1.32.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.6
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.277.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.113.1
 	github.com/aws/karpenter-provider-aws v1.8.2
 	github.com/beevik/ntp v1.4.3
 	github.com/benbjohnson/clock v1.3.5
@@ -251,7 +251,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.0
-	github.com/godror/godror v0.37.0
+	github.com/godror/godror v0.49.6
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
@@ -527,20 +527,20 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.14 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.14 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.14 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.69.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.14 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.49.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.1 // indirect
-	github.com/aws/smithy-go v1.23.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5 // indirect
+	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20250909182303-e8e550b6f339 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
@@ -589,7 +589,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/expr-lang/expr v1.17.6 // indirect
+	github.com/expr-lang/expr v1.17.7 // indirect
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d // indirect
@@ -616,7 +616,7 @@ require (
 	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0
-	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -978,10 +978,19 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/modelcontextprotocol/go-sdk v1.1.0
 	gitlab.com/gitlab-org/api/client-go v1.8.0
 )
 
-require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
+require (
+	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+)
+
+require (
+	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
+)
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
