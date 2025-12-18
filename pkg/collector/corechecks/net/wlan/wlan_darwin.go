@@ -107,8 +107,18 @@ func createIPCResponseSchema() (*gojsonschema.Schema, error) {
 	return compiledSchema, nil
 }
 
+// getWiFiInfo is a package-level function variable for testability
+// Tests can reassign this to mock WiFi data retrieval
+var getWiFiInfo func() (wifiInfo, error)
+
 // GetWiFiInfo retrieves WiFi information via IPC from the GUI/user app
 func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
+	// If tests have overridden getWiFiInfo, use that instead
+	if getWiFiInfo != nil {
+		return getWiFiInfo()
+	}
+
+	// Production implementation
 	// Get console user UID
 	uid, err := getConsoleUserUID()
 	if err != nil {

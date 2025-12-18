@@ -34,7 +34,7 @@ func TestWLANOK(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -63,7 +63,7 @@ func TestWLANGetInfoError(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	wlanCheck := new(WLANCheck)
@@ -89,7 +89,7 @@ func TestWLANErrorStoppedSender(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	wlanCheck := new(WLANCheck)
@@ -123,7 +123,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -160,7 +160,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:unknown", "mac_address:hardware-address", "status:ok"}
@@ -197,7 +197,7 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:unknown", "status:ok"}
@@ -234,7 +234,7 @@ func TestWLANChannelSwapEventsBasic(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -310,7 +310,7 @@ func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -381,7 +381,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -452,7 +452,7 @@ func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid-1", "mac_address:hardware-address", "status:ok"}
@@ -525,7 +525,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:ssid", "bssid:test-bssid-1", "mac_address:hardware-address", "status:ok"}
@@ -609,7 +609,7 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -778,7 +778,7 @@ func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	wlanCheck := new(WLANCheck)
@@ -813,7 +813,7 @@ func TestWLANNoiseValidDisabled(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	wlanCheck := new(WLANCheck)
@@ -846,7 +846,7 @@ func TestWLANNoiseValidEnabled(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
@@ -881,7 +881,7 @@ func TestWLANReceiveRateValidDisabled(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	wlanCheck := new(WLANCheck)
@@ -914,7 +914,7 @@ func TestWLANReceiveRateValid(t *testing.T) {
 	}
 
 	defer func() {
-		getWiFiInfo = GetWiFiInfo
+		getWiFiInfo = nil
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
