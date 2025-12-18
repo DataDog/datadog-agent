@@ -951,13 +951,13 @@ class TestShouldBypassFailure(unittest.TestCase):
         self.assertTrue(should_bypass_failure("test_gate", handler))
 
     def test_bypass_when_disk_delta_within_threshold(self):
-        """Should bypass when on-disk size delta is positive but within threshold (~1KB)."""
+        """Should bypass when on-disk size delta is positive but within threshold (~10KB)."""
         from tasks.quality_gates import should_bypass_failure
 
         handler = GateMetricHandler("main", "dev")
-        # Small positive delta (500 bytes) should be treated as 0
+        # Small positive delta (5KB) should be treated as 0
         handler.metrics["test_gate"] = {
-            "relative_on_disk_size": 500,  # 500 bytes - within threshold
+            "relative_on_disk_size": 5000,  # 5KB - within threshold
         }
         self.assertTrue(should_bypass_failure("test_gate", handler))
 
@@ -978,9 +978,9 @@ class TestShouldBypassFailure(unittest.TestCase):
         from tasks.quality_gates import should_bypass_failure
 
         handler = GateMetricHandler("main", "dev")
-        # Delta of 5KB exceeds threshold of ~1KB
+        # Delta of 50KB exceeds threshold of ~10KB
         handler.metrics["test_gate"] = {
-            "relative_on_disk_size": 5000,  # 5KB - exceeds threshold
+            "relative_on_disk_size": 50000,  # 50KB - exceeds threshold
         }
         self.assertFalse(should_bypass_failure("test_gate", handler))
 
