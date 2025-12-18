@@ -74,10 +74,9 @@ def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> 
     if disk_delta is None:
         return False
 
-    # Threshold: values smaller than 0.01 MiB (~10KB) are treated as 0
-    # This matches the display rounding (byte_to_string rounds to 2 decimal places in MiB)
+    # Threshold: values smaller than 2 KiB are treated as 0
     # Small variations due to build non-determinism should not block PRs
-    delta_threshold_bytes = int(0.01 * 1024 * 1024)  # ~10KB
+    delta_threshold_bytes = 2 * 1024  # 2 KiB
 
     # Bypass if on-disk size hasn't meaningfully increased from ancestor
     return disk_delta <= delta_threshold_bytes
