@@ -9,6 +9,7 @@ package run
 import (
 	"fmt"
 
+	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -47,7 +48,7 @@ func isPAREnabled(confFilePath string) bool {
 		return false
 	}
 
-	return cfg.GetBool("privateactionrunner.enabled")
+	return privateactionrunnerimpl.IsEnabled(cfg)
 }
 
 // Commands returns a slice of subcommands for the 'private-action-runner' command.
