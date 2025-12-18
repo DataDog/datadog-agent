@@ -9,13 +9,38 @@ import (
 	"encoding/json"
 	"time"
 
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// Issue represents an individual issue in the health report.
+// Only includes fields needed for fakeintake testing.
+type Issue struct {
+	ID       string         `json:"ID"`
+	Category string         `json:"Category"`
+	Title    string         `json:"Title"`
+	Tags     []string       `json:"Tags"`
+	Extra    map[string]any `json:"Extra,omitempty"`
+}
+
+// HealthReport represents the formatted health report structure.
+// Only includes fields needed for fakeintake testing.
+type HealthReport struct {
+	SchemaVersion string            `json:"schema_version"`
+	EventType     string            `json:"event_type"`
+	Host          HostInfo          `json:"host"`
+	Issues        map[string]*Issue `json:"issues"`
+}
+
+// HostInfo represents the host information in the health report.
+// Only includes fields needed for fakeintake testing.
+type HostInfo struct {
+	Hostname     string `json:"hostname"`
+	AgentVersion string `json:"agent_version"`
+}
+
 // AgentHealthPayload wraps the HealthReport from the component with fakeintake metadata
 type AgentHealthPayload struct {
-	healthplatform.HealthReport
+	HealthReport
 	collectedTime time.Time
 }
 
@@ -40,7 +65,7 @@ func ParseAgentHealthPayload(payload api.Payload) (payloads []*AgentHealthPayloa
 		return nil, err
 	}
 
-	var healthReport healthplatform.HealthReport
+	var healthReport HealthReport
 	err = json.Unmarshal(inflated, &healthReport)
 	if err != nil {
 		return nil, err

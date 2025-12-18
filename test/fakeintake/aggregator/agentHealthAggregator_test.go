@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -98,8 +97,8 @@ func TestAgentHealthAggregator(t *testing.T) {
 func TestAgentHealthAggregatorMethods(t *testing.T) {
 	t.Run("name() returns hostname", func(t *testing.T) {
 		payload := &AgentHealthPayload{
-			HealthReport: healthplatform.HealthReport{
-				Host: healthplatform.HostInfo{
+			HealthReport: HealthReport{
+				Host: HostInfo{
 					Hostname: "test-hostname",
 				},
 			},
@@ -161,21 +160,19 @@ func TestAgentHealthAggregatorIntegration(t *testing.T) {
 func TestAgentHealthJSONSerialization(t *testing.T) {
 	t.Run("JSON round-trip", func(t *testing.T) {
 		original := &AgentHealthPayload{
-			HealthReport: healthplatform.HealthReport{
+			HealthReport: HealthReport{
 				SchemaVersion: "1.0",
 				EventType:     "agent-health-issues",
-				EmittedAt:     "2025-12-17T10:00:00Z",
-				Host: healthplatform.HostInfo{
+				Host: HostInfo{
 					Hostname:     "test-host",
 					AgentVersion: "7.50.0",
 				},
-				Issues: map[string]*healthplatform.Issue{
+				Issues: map[string]*Issue{
 					"test-check": {
-						ID:          "test-issue",
-						Category:    "test",
-						Title:       "Test Issue",
-						Description: "Test Description",
-						Tags:        []string{"tag1", "tag2"},
+						ID:       "test-issue",
+						Category: "test",
+						Title:    "Test Issue",
+						Tags:     []string{"tag1", "tag2"},
 						Extra: map[string]any{
 							"key": "value",
 						},
