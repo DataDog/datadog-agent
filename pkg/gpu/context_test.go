@@ -287,3 +287,119 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
+	pidNoContainer := 1234
+	pidNoContainerButEnv := 2235
+	pidContainer := 3238
+	pidContainerAndEnv := 3239
+
+	migParentIndex := 5
+	migChildIndex1 := 0
+	migChildIndex2 := 1
+	migUUID1 := testutil.MIGChildrenUUIDs[migParentIndex][migChildIndex1]
+	migUUID2 := testutil.MIGChildrenUUIDs[migParentIndex][migChildIndex2]
+
+	envVisibleDevicesValue := migUUID1
+
+	procFs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pidNoContainer)},
+		{Pid: uint32(pidContainer)},
+		{Pid: uint32(pidContainerAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
+		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
+	})
+
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions())
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
+
+	// Create a container with a single GPU and add it to the store
+	containerID := "abcdef"
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerID,
+		},
+	}
+
+	for _, migUUID := range []string{migUUID1, migUUID2} {
+		resource := workloadmeta.ContainerAllocatedResource{
+			Name: string(gpuutil.GpuNvidiaMigPrefix) + "-3g.20gb",
+			ID:   migUUID,
+		}
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
+	}
+
+	wmetaMock.Set(container)
+	storeContainer, err := wmetaMock.GetContainer(containerID)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	// Test some different cases, although due to the visibility rules for MIG (see pkg/gpu/cuda/env.go),
+	// we only see the first MIG device if it's present. 
+	cases := []struct {
+		name                string
+		pid                 int
+		containerID         string
+		configuredDeviceIdx []int32
+		expectedDeviceUUIDs []string
+		updatedEnvVar       string
+	}{
+		{
+			name:                "NoContainer",
+			containerID:         "",
+			pid:                 pidNoContainer,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceUUIDs: []string{migUUID1},
+		},
+		{
+			name:                "NoContainerButEnv",
+			containerID:         "",
+			pid:                 pidNoContainerButEnv,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceUUIDs: []string{migUUID1},
+		},
+		{
+			name:                "WithContainer",
+			containerID:         containerID,
+			pid:                 pidContainer,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceUUIDs: []string{migUUID1},
+		},
+		{
+			name:                "WithContainerAndEnv",
+			pid:                 pidContainerAndEnv,
+			containerID:         containerID,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceUUIDs: []string{migUUID1},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.updatedEnvVar != "" {
+				sysCtx.setUpdatedVisibleDevicesEnvVar(c.pid, c.updatedEnvVar)
+				require.NotContains(t, sysCtx.visibleDevicesCache, c.pid, "cache not invalidated for process %d", c.pid)
+			}
+
+			for i, idx := range c.configuredDeviceIdx {
+				sysCtx.setDeviceSelection(c.pid, c.pid+i, idx)
+			}
+
+			for i, uuid := range c.expectedDeviceUUIDs {
+				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
+				require.NoError(t, err)
+				expectedDevice, err := sysCtx.deviceCache.GetByUUID(uuid)
+				require.NoError(t, err)
+				nvmltestutil.RequireDevicesEqual(t, expectedDevice, activeDevice, "invalid device at index %d (selected UUID is %s)", i, uuid)
+			}
+
+			// Note: we're explicitly not resetting the caches, as we want to test
+			// whether the functions correctly invalidate the caches when the
+			// environment variable is updated.
+		})
+	}
+}
