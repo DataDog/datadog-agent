@@ -57,6 +57,7 @@ cc_library(
         'PACKAGE=\\"popt\\"',
         'POPT_SYSCONFDIR=\\"/etc/\\"',
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(

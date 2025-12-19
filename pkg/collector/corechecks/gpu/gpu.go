@@ -89,6 +89,17 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 	}
 }
 
+// NewCheck creates a new GPU check instance. This is exported for integration testing.
+func NewCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
+	return newCheck(tagger, telemetry, wmeta)
+}
+
+// SetContainerProvider sets the container provider on the Check.
+// This is exported for integration testing.
+func (c *Check) SetContainerProvider(provider proccontainers.ContainerProvider) {
+	c.containerProvider = provider
+}
+
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
 		metrics:            newCheckTelemetryMetrics(tm),

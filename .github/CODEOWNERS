@@ -488,6 +488,7 @@
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/collector/corechecks/system/battery/     @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-products
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-products
