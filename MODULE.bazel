@@ -58,12 +58,13 @@ http_archive(
     ],
 )
 
-bazel_dep(name = "rules_multitool", version = "1.9.0")
-
-multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
+# Set up prebuilt binaries
+multitool = use_extension("//bazel/multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
+
+register_toolchains("@multitool//toolchains:all")
 
 ## Use local object file tools
 find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
