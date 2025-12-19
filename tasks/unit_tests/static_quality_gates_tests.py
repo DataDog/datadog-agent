@@ -23,7 +23,12 @@ from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
-from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
+from tasks.quality_gates import (
+    display_pr_comment,
+    generate_new_quality_gate_config,
+    get_budget_impact_metrics,
+    parse_and_trigger_gates,
+)
 from tasks.static_quality_gates.gates import (
     # Data classes
     ArtifactMeasurement,
@@ -797,8 +802,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_error(self, pr_commenter_mock):
-        from unittest.mock import ANY
-
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
         display_pr_comment(
@@ -812,11 +815,17 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "value",
         )
         pr_commenter_mock.assert_called_once()
-        pr_commenter_mock.assert_called_with(
-            ANY,
-            title='Static quality checks',
-            body='✅ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n\n\n<details open>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
-        )
+        # Check that the new table format is present
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        self.assertIn('Budget Impact', body)
+        self.assertIn('Position (MiB)', body)
+        self.assertIn('On disk (MiB)', body)
+        self.assertIn('Successful checks', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        # Check that wire details are in a collapsible section
+        self.assertIn('On wire (compressed) size details', body)
 
     @patch.dict(
         'os.environ',
@@ -831,8 +840,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
-        from unittest.mock import ANY
-
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
         display_pr_comment(
@@ -846,8 +853,18 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "value",
         )
         pr_commenter_mock.assert_called_once()
-        expected_body = '❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|❌|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n|gateB|AssertionError|some_msg_B|\n\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n'
-        pr_commenter_mock.assert_called_with(ANY, title='Static quality checks', body=expected_body)
+        # Check that the new table format is present in error section
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        self.assertIn('### Error', body)
+        self.assertIn('Budget Impact', body)
+        self.assertIn('Position (MiB)', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        self.assertIn('Gate failure full details', body)
+        self.assertIn('Static quality gates prevent the PR to merge!', body)
+        # Check that wire details are in a collapsible section
+        self.assertIn('On wire (compressed) size details', body)
 
     @patch.dict(
         'os.environ',
@@ -882,6 +899,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('Successful checks', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
+        # Check new columns are present
+        self.assertIn('Budget Impact', body)
+        self.assertIn('Position (MiB)', body)
 
     @patch.dict(
         'os.environ',
@@ -1211,6 +1231,122 @@ class TestBlockingFailureDetection(unittest.TestCase):
         ]
         has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
         self.assertFalse(has_blocking)
+
+
+class TestGetBudgetImpactMetrics(unittest.TestCase):
+    """Test the get_budget_impact_metrics function for budget impact calculations."""
+
+    def test_normal_positive_delta(self):
+        """Should calculate budget impact for a positive delta (size increased)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 165 * 1024 * 1024,  # 165 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 15 * 1024 * 1024,  # +15 MiB delta
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        # Baseline = 165 - 15 = 150 MiB
+        # Total budget = 200 - 150 = 50 MiB
+        # Budget consumed = 15 / 50 = 30%
+        self.assertIn("+30%", budget_impact)
+        self.assertIn("of remaining", budget_impact)
+        self.assertIn("150.0", position)
+        self.assertIn("165.0", position)
+        self.assertIn("200.0", position)
+
+    def test_negative_delta_savings(self):
+        """Should show savings when size decreased (negative delta)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 145 * 1024 * 1024,  # 145 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": -5 * 1024 * 1024,  # -5 MiB delta (savings)
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        self.assertIn("savings", budget_impact)
+        # Baseline = 145 - (-5) = 150 MiB
+        self.assertIn("150.0", position)
+        self.assertIn("145.0", position)
+
+    def test_zero_delta_no_change(self):
+        """Should show no change when delta is zero."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 150 * 1024 * 1024,  # 150 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 0,  # No change
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        self.assertEqual("No change", budget_impact)
+
+    def test_no_budget_remaining(self):
+        """Should handle when baseline is at or above the limit."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 205 * 1024 * 1024,  # 205 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB limit
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB delta
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        # Baseline = 205 - 5 = 200 MiB (at limit, no budget)
+        self.assertIn("No budget", budget_impact)
+
+    def test_exceeds_budget(self):
+        """Should show warning when delta exceeds remaining budget."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 210 * 1024 * 1024,  # 210 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB limit
+            "relative_on_disk_size": 20 * 1024 * 1024,  # +20 MiB delta
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        # Baseline = 210 - 20 = 190 MiB
+        # Total budget = 200 - 190 = 10 MiB
+        # Budget consumed = 20 / 10 = 200%
+        self.assertIn("200%", budget_impact)
+        self.assertIn("⚠️", budget_impact)
+
+    def test_missing_current_size(self):
+        """Should return N/A when current size is missing."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "max_on_disk_size": 200 * 1024 * 1024,
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        self.assertEqual("N/A", budget_impact)
+        self.assertEqual("N/A", position)
+
+    def test_missing_relative_size(self):
+        """Should handle missing relative size (no ancestor data)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 165 * 1024 * 1024,
+            "max_on_disk_size": 200 * 1024 * 1024,
+            # No relative_on_disk_size
+        }
+        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+
+        self.assertEqual("N/A", budget_impact)
+        # Position should show N/A for baseline but current and limit should be present
+        self.assertIn("N/A", position)
+        self.assertIn("165.0", position)
+        self.assertIn("200.0", position)
+
+    def test_missing_gate(self):
+        """Should return N/A when gate is not found."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+
+        budget_impact, position = get_budget_impact_metrics("nonexistent_gate", handler)
+
+        self.assertEqual("N/A", budget_impact)
+        self.assertEqual("N/A", position)
 
 
 if __name__ == '__main__':

@@ -37,10 +37,19 @@ SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
+# Main table pattern for on-disk metrics (primary view)
 body_pattern = """### {}
 
-||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|
+||Quality gate|Delta|On disk (MiB)|Budget Impact|Position (MiB)|
 |--|--|--|--|--|--|
+"""
+
+# Collapsible section for on-wire metrics
+wire_details_pattern = """<details>
+<summary>📦 On wire (compressed) size details</summary>
+
+|Quality gate|Delta|On wire (MiB)|
+|--|--|--|
 """
 
 body_error_footer_pattern = """<details>
@@ -49,6 +58,74 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+
+def get_budget_impact_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str]:
+    """
+    Calculate budget impact metrics for a gate.
+
+    Returns:
+        Tuple of (budget_impact_str, position_str) for display in PR comment.
+        - budget_impact_str: e.g., "+15% of remaining", "-5% (savings)", "N/A"
+        - position_str: e.g., "150 → 165 → 200", "N/A → 165 → 200"
+    """
+    gate_metrics = metric_handler.metrics.get(gate_name, {})
+
+    current_disk = gate_metrics.get("current_on_disk_size")
+    max_disk = gate_metrics.get("max_on_disk_size")
+    relative_disk = gate_metrics.get("relative_on_disk_size")
+
+    # If we don't have the required metrics, return N/A
+    if current_disk is None or max_disk is None:
+        return "N/A", "N/A"
+
+    # Calculate baseline (ancestor size) from current - relative
+    if relative_disk is not None:
+        baseline_disk = current_disk - relative_disk
+    else:
+        baseline_disk = None
+
+    # Convert to MiB for display
+    current_mib = current_disk / (1024 * 1024)
+    max_mib = max_disk / (1024 * 1024)
+    baseline_mib = baseline_disk / (1024 * 1024) if baseline_disk is not None else None
+
+    # Build position string: baseline → current → limit
+    if baseline_mib is not None:
+        position_str = f"{baseline_mib:.1f} → {current_mib:.1f} → {max_mib:.1f}"
+    else:
+        position_str = f"N/A → {current_mib:.1f} → {max_mib:.1f}"
+
+    # Calculate budget impact percentage
+    if baseline_mib is None or relative_disk is None:
+        budget_impact_str = "N/A"
+    else:
+        # Total budget is the space between baseline and limit
+        total_budget = max_disk - baseline_disk
+
+        if total_budget <= 0:
+            # Baseline already at or exceeds limit
+            if relative_disk > 0:
+                budget_impact_str = "⚠️ No budget"
+            elif relative_disk < 0:
+                budget_impact_str = "Savings"
+            else:
+                budget_impact_str = "No change"
+        else:
+            # Calculate percentage of remaining budget consumed by this PR
+            budget_pct = (relative_disk / total_budget) * 100
+
+            if relative_disk > 0:
+                if budget_pct > 100:
+                    budget_impact_str = f"+{budget_pct:.0f}% ⚠️"
+                else:
+                    budget_impact_str = f"+{budget_pct:.0f}% of remaining"
+            elif relative_disk < 0:
+                budget_impact_str = f"{budget_pct:.0f}% (savings)"
+            else:
+                budget_impact_str = "No change"
+
+    return budget_impact_str, position_str
 
 
 def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
@@ -98,59 +175,93 @@ def display_pr_comment(
     ancestor_info = (
         f"Comparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
     )
+
+    # Main tables for on-disk metrics
     body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
+    # Collapsible wire details tables
+    wire_info = wire_details_pattern
+    wire_error = wire_details_pattern
+
     with_blocking_error = False
     with_non_blocking_error = False
     with_info = False
+
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
 
-        def getMetric(*metric_names, gate_name=gate['name']):
+        def getMetric(metric_name, gate_name=gate['name']):
             try:
-                metric_number = len(metric_names)
-                if metric_number == 1:
-                    return metric_handler.get_formatted_metric(gate_name, metric_names[0], with_unit=False)
-                elif metric_number == 2:
-                    return metric_handler.get_formatted_metric_comparison(gate_name, *metric_names)
-                else:
-                    return "InvalidMetricParam"
+                return metric_handler.get_formatted_metric(gate_name, metric_name, with_unit=False)
+            except KeyError:
+                return "DataNotFound"
+
+        def getMetricComparison(first_metric, limit_metric, gate_name=gate['name']):
+            try:
+                return metric_handler.get_formatted_metric_comparison(gate_name, first_metric, limit_metric)
             except KeyError:
                 return "DataNotFound"
 
         gate_name = gate['name'].replace("static_quality_gate_", "")
-        relative_disk_size, relative_wire_size = (
-            getMetric("relative_on_disk_size"),
-            getMetric("relative_on_wire_size"),
-        )
+
+        # Get delta values
+        relative_disk_size = getMetric("relative_on_disk_size")
+        relative_wire_size = getMetric("relative_on_wire_size")
+
+        # Get budget impact metrics
+        budget_impact, position = get_budget_impact_metrics(gate['name'], metric_handler)
+
+        # Get size comparisons
+        disk_comparison = getMetricComparison('current_on_disk_size', 'max_on_disk_size')
+        wire_comparison = getMetricComparison('current_on_wire_size', 'max_on_wire_size')
 
         if gate["error_type"] is None:
-            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
+            # Main table row (on-disk metrics with budget impact)
+            body_info += (
+                f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{disk_comparison}|{budget_impact}|{position}|\n"
+            )
+            # Wire details row
+            wire_info += f"|{gate_name}|{relative_wire_size}|{wire_comparison}|\n"
             with_info = True
         else:
             # Check if this is a blocking or non-blocking failure
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
-            body_error += f"|{status_char}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
+
+            # Main table row (on-disk metrics with budget impact)
+            body_error += (
+                f"|{status_char}|{gate_name}|{relative_disk_size}|{disk_comparison}|{budget_impact}|{position}|\n"
+            )
+            # Wire details row
+            wire_error += f"|{gate_name}|{relative_wire_size}|{wire_comparison}|\n"
+
             error_message = gate['message'].replace('\n', '<br>')
             blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
             body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
+
             if is_blocking:
                 with_blocking_error = True
             else:
                 with_non_blocking_error = True
 
+    # Close wire details sections
+    wire_info += "\n</details>\n"
+    wire_error += "\n</details>\n"
+
     if with_blocking_error:
         body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
-        final_error_body = body_error + body_error_footer
+        final_error_body = body_error + wire_error + body_error_footer
     elif with_non_blocking_error:
         body_error_footer += "\n</details>\n\nNote: Some gates exceeded limits but are non-blocking because the size hasn't increased from the ancestor commit.\n"
-        final_error_body = body_error + body_error_footer
+        final_error_body = body_error + wire_error + body_error_footer
     else:
         final_error_body = ""
-    body_info += "\n</details>\n"
+
+    # Close successful checks section and add wire details
+    body_info += wire_info + "\n</details>\n"
+
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{final_error_body}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
