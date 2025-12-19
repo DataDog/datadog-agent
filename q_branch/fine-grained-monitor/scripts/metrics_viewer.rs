@@ -140,9 +140,10 @@ fn extract_labels_from_column(col: &dyn Array, row: usize) -> Result<Vec<(String
 
 fn load_data(path: &PathBuf) -> Result<AppState> {
     let total_start = Instant::now();
-    eprintln!("Loading {:?}...", path);
+    eprintln!("Loading {:?}", path);
 
-    let read_start = Instant::now();
+    // Open file and read parquet footer (schema, row groups, column metadata)
+    let meta_start = Instant::now();
     let file = File::open(path).context("Failed to open file")?;
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
 
@@ -160,6 +161,12 @@ fn load_data(path: &PathBuf) -> Result<AppState> {
         .with_projection(projection_mask)
         .with_batch_size(65536)
         .build()?;
+    eprintln!(
+        "  Open file + read parquet metadata [{:.2}s]",
+        meta_start.elapsed().as_secs_f64()
+    );
+
+    let read_start = Instant::now();
 
     // Collect raw data: container_id -> (timestamps, values, qos_class, last_value, last_time)
     let mut raw_data: HashMap<String, (Vec<i64>, Vec<f64>, Option<String>, f64, i64)> =
@@ -267,14 +274,14 @@ fn load_data(path: &PathBuf) -> Result<AppState> {
 
     let read_elapsed = read_start.elapsed();
     eprintln!(
-        "  Read {} rows, found {} containers [{:.2}s]",
+        "  ZSTD decompress + Arrow decode + CPU deltas: {} rows, {} containers [{:.2}s]",
         total_rows,
         raw_data.len(),
         read_elapsed.as_secs_f64()
     );
 
     let process_start = Instant::now();
-    // Build container data
+    // Build final data structures for serving
     let mut containers: HashMap<String, ContainerData> = HashMap::new();
 
     for (id, (timestamps, cpu_values, qos_class, _, _)) in raw_data {
@@ -319,12 +326,12 @@ fn load_data(path: &PathBuf) -> Result<AppState> {
     let process_elapsed = process_start.elapsed();
     let total_samples: usize = containers.values().map(|c| c.timeseries.len()).sum();
     eprintln!(
-        "  Processed {} containers, {} samples [{:.2}s]",
+        "  Build serving structs + sort by avg CPU: {} containers, {} samples [{:.2}s]",
         containers.len(),
         total_samples,
         process_elapsed.as_secs_f64()
     );
-    eprintln!("  Total load time: {:.2}s", total_start.elapsed().as_secs_f64());
+    eprintln!("Ready in {:.2}s", total_start.elapsed().as_secs_f64());
 
     Ok(AppState {
         containers,
