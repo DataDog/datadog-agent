@@ -95,12 +95,19 @@ func (a *Analyzer) processEmbeddings(result common.EmbeddingResult) *common.DMDR
 	defer a.mu.Unlock()
 
 	// Average embeddings to get a single representative vector
+	// If no embeddings (empty window), create a zero vector as placeholder
 	avgVector := averageVectors(result.Embeddings)
 	if avgVector == nil {
-		return nil
+		// Get embedding dimension from first non-empty window, or use default
+		dim := 768 // Default dimension for embeddinggemma model
+		if len(a.queue) > 0 && len(a.queue[0].embeddings) > 0 {
+			dim = len(a.queue[0].embeddings[0])
+		}
+		avgVector = make(common.Vector, dim)
+		// Leave as zeros - represents no activity in this window
 	}
 
-	// Add to queue
+	// Add to queue (always add, even for empty windows)
 	a.queue = append(a.queue, queueItem{
 		windowID:   result.WindowID,
 		embeddings: []common.Vector{avgVector},
