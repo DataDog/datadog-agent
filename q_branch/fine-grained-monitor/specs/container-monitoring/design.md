@@ -441,8 +441,7 @@ fine-grained-monitor/
 │       └── executive.md
 ├── scripts/                      # Analysis and visualization tools
 │   ├── metrics_viewer.rs         # REQ-FM-005: Interactive visualization (Rust/axum)
-│   ├── oscillation_detector.rs   # Pattern detection for CPU oscillations
-│   └── oscillation_detector.py   # Python version of oscillation detector
+│   └── oscillation_detector.rs   # Pattern detection for CPU oscillations
 └── src/
     ├── main.rs              # CLI, lifecycle orchestration
     ├── lib.rs
