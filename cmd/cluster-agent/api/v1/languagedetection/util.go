@@ -203,7 +203,7 @@ func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.C
 // syncFromInjectableLanguages updates DetectedLanguages to match InjectableLanguages for followers
 // This ensures consistency when a follower becomes leader
 // This method is thread-safe.
-func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workloadmeta.Component, owner langUtil.NamespacedOwnerReference, injectableLanguages languagemodels.ContainersLanguages, ttl time.Duration) {
+func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(owner langUtil.NamespacedOwnerReference, injectableLanguages languagemodels.ContainersLanguages, ttl time.Duration) {
 	ownersLanguages.mutex.Lock()
 	// Update the in-memory state to match injectable languages
 	langsWithDirtyFlag := ownersLanguages.getOrInitialize(owner)
@@ -225,8 +225,6 @@ func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workload
 	langsWithDirtyFlag.languages = timedLangs
 	langsWithDirtyFlag.dirty = true
 	ownersLanguages.mutex.Unlock()
-
-	_ = ownersLanguages.flush(wlm)
 }
 
 // handleKubeAPIServerUnsetEvents handles unset events emitted by the kubeapiserver

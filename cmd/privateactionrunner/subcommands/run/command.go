@@ -7,6 +7,9 @@
 package run
 
 import (
+	"fmt"
+
+	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -17,18 +20,35 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type cliParams struct {
 	*command.GlobalParams
+}
+
+func isPAREnabled(confFilePath string) bool {
+	// Create a minimal config instance to check PAR enablement
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+	cfg.SetConfigFile(confFilePath)
+
+	// Load config with minimal dependencies (no secrets, no custom loading)
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsnoopimpl.NewComponent().Comp, nil)
+	if err != nil {
+		// If config loading fails, default to disabled
+		return false
+	}
+
+	return privateactionrunnerimpl.IsEnabled(cfg)
 }
 
 // Commands returns a slice of subcommands for the 'private-action-runner' command.
@@ -42,6 +62,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			if !isPAREnabled(globalParams.ConfFilePath) {
+				fmt.Println("private-action-runner not enabled.")
+				fmt.Println("Set privateactionrunner.enabled: true in your datadog.yaml file.")
+				return nil
+			}
+
 			return fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
