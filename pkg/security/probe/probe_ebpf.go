@@ -3428,7 +3428,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
-			var reportStatus string
+			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
@@ -3443,9 +3443,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
-					reportStatus = "error"
+					reportStatus = RawPacketActionStatusError
 				} else {
-					reportStatus = "applied"
+					reportStatus = RawPacketActionStatusApplied
 				}
 			}
 
@@ -3453,13 +3453,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Filter: action.Def.NetworkFilter.BPFFilter,
 				Policy: policy.String(),
 				rule:   rule,
+				Status: reportStatus,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.handleNetworkRemediaitonAction(rule, ev, policy, reportStatus)
+			p.handleNetworkRemediaitonAction(rule, ev, policy, string(reportStatus))
 		}
 	}
 }

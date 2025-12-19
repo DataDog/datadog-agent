@@ -265,6 +265,10 @@ func TestRawPacketAction(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.filter == 'port 53')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'applied')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+
 			})
 
 			return nil
