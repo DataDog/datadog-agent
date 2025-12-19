@@ -114,7 +114,9 @@ func loadConfigFromAgent(cfg config.Component) common.Config {
 
 	config.DMD.TimeDelay = cfg.GetInt("logs_config.drift_detection.dmd_time_delay")
 
-	config.DMD.Rank = cfg.GetInt("logs_config.drift_detection.dmd_rank")
+	config.DMD.RLSLambda = cfg.GetFloat64("logs_config.drift_detection.rls_lambda")
+
+	config.DMD.ErrorHistory = cfg.GetInt("logs_config.drift_detection.error_history_size")
 
 	config.Manager.CleanupInterval = cfg.GetDuration("logs_config.drift_detection.cleanup_interval")
 

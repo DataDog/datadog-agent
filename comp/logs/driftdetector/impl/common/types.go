@@ -118,12 +118,11 @@ type ManagerConfig struct {
 	MaxIdleTime     time.Duration // Max idle time before removing detector (default: 30m)
 }
 
-// DMDConfig configures the DMD analysis
+// DMDConfig configures the Online DMD analysis
 type DMDConfig struct {
-	TimeDelay       int           // Hankel time delay depth (default: 5)
-	WindowRetention time.Duration // How long to retain windows (default: 2h)
-	RecomputeEvery  int           // Recompute DMD every N windows (default: 10)
-	Rank            int           // SVD rank for dimensionality reduction (default: 50)
+	TimeDelay    int     // Hankel buffer depth - number of consecutive windows for temporal modeling (default: 20 = 20 minutes with 60s steps)
+	RLSLambda    float64 // RLS forgetting factor for covariance updates (default: 0.99)
+	ErrorHistory int     // Number of recent errors to track for statistics (default: 30)
 }
 
 // AlertConfig configures anomaly detection thresholds
@@ -156,10 +155,9 @@ func NewDefaultConfig() Config {
 			Enabled:        false,
 		},
 		DMD: DMDConfig{
-			TimeDelay:       5,
-			WindowRetention: 2 * time.Hour,
-			RecomputeEvery:  10,
-			Rank:            50,
+			TimeDelay:    20, // 20 windows × 60s step = 20 minutes of temporal history
+			RLSLambda:    0.99,
+			ErrorHistory: 30,
 		},
 		Alert: AlertConfig{
 			WarningThreshold:  2.0,

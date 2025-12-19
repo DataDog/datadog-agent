@@ -1985,8 +1985,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.drift_detection.entropy_threshold", 2.5)
 	config.BindEnvAndSetDefault("logs_config.drift_detection.warning_threshold", 2.0)
 	config.BindEnvAndSetDefault("logs_config.drift_detection.critical_threshold", 3.0)
-	config.BindEnvAndSetDefault("logs_config.drift_detection.dmd_time_delay", 5)
-	config.BindEnvAndSetDefault("logs_config.drift_detection.dmd_rank", 50)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.dmd_time_delay", 20) // 20 windows × 60s step = 20 minutes history
+	config.BindEnvAndSetDefault("logs_config.drift_detection.rls_lambda", 0.99)
+	config.BindEnvAndSetDefault("logs_config.drift_detection.error_history_size", 30)
 	config.BindEnvAndSetDefault("logs_config.drift_detection.cleanup_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("logs_config.drift_detection.max_idle_time", 30*time.Minute)
 }
