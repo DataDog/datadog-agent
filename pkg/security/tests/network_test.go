@@ -303,23 +303,19 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
-	// Skip on kernels that don't have bpf_get_current_cgroup_id in sched_cls
-	// On these kernels, the cgroup scope with signature doesn't work reliably
-	// because the PID resolution fallback may not work in the TC classifier context
-	// TODO: remove this once we have a proper solution for this
-	kv, err := kernel.NewKernelVersion()
-	if err != nil {
-		t.Skipf("failed to get kernel version: %v", err)
-	}
-	if !kv.HasBpfGetCurrentCgroupIDForSchedCLS() {
-		t.Skip("skipping test on kernel without bpf_get_current_cgroup_id support in sched_cls - cgroup scope with signature requires this feature")
-	}
-
 	// Initial rule to capture the signature - no action yet
+	// Include a DNS rule to ensure network probes (including cgroup socket hooks) are attached from the start.
+	// This is necessary because without a network event type in the initial ruleset, the cgroup socket
+	// hooks (hook_sock_create, hook_sock_release) are not attached. These hooks populate the sock_cookie_pid
+	// map which is needed for PID resolution in the TC classifier on kernels < 6.1.
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_capture_signature",
 			Expression: `exec.file.name == "free"`,
+		},
+		{
+			ID:         "test_dns_to_activate_network_probes",
+			Expression: `dns.question.name == "never.match.example.com"`,
 		},
 	}
 

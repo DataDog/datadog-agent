@@ -643,11 +643,11 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	collection := *collectionPtr
 
-	// unload the previews one
+	// unload the previous one
 	if collection != nil {
 		collection.Close()
 		ddebpf.RemoveNameMappingsCollection(collection)
-		collection = nil
+		*collectionPtr = nil
 	}
 
 	if len(progSpecs) > 0 {
@@ -655,6 +655,15 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 			return err
 		}
 	} else {
+		// No programs to load - remove tail call entries from the router map
+		_, routerMap, err := p.getRawPacketMaps()
+		if err == nil && routerMap != nil {
+			// Remove all potential tail call entries for this program key range
+			for i := 0; i < maxProgs; i++ {
+				key := progKey + uint32(i)
+				_ = routerMap.Delete(key)
+			}
+		}
 		return nil
 	}
 
