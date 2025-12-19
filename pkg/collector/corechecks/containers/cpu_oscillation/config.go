@@ -71,7 +71,7 @@ var (
 	minPeriodicityScoreRange = &configFloatValueRange{
 		min:          0.1,  // Very sensitive (catches weak patterns)
 		max:          0.95, // Very strict (only strong patterns)
-		defaultValue: 0.5,  // Default: moderate periodicity required
+		defaultValue: 0.6,  // Default: moderate periodicity required (must exceed monotonic trend baseline ~0.51)
 	}
 
 	// REQ-COD-001: Minimum period in seconds (Nyquist-constrained)

@@ -19,7 +19,7 @@ import (
 // REQ-COD-005: Configurable Detection with Default Disabled
 type OscillationConfig struct {
 	WindowSize          int           // Number of samples in ring buffer (default: 60)
-	MinPeriodicityScore float64       // Minimum autocorrelation peak to detect (default: 0.5)
+	MinPeriodicityScore float64       // Minimum autocorrelation peak to detect (default: 0.6)
 	MinAmplitude        float64       // Absolute minimum amplitude to trigger (default: 10.0)
 	MinPeriod           int           // Minimum period in samples/seconds (default: 2, Nyquist limit)
 	MaxPeriod           int           // Maximum period in samples/seconds (default: 30)

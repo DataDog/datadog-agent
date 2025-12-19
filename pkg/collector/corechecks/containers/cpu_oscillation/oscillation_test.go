@@ -30,8 +30,8 @@ func TestConfigDefaults(t *testing.T) {
 	assert.False(t, config.Enabled)
 	// REQ-COD-002: 1 minute warmup
 	assert.Equal(t, 60, config.WarmupSeconds)
-	// REQ-COD-001: 0.5 periodicity score threshold
-	assert.Equal(t, 0.5, config.MinPeriodicityScore)
+	// REQ-COD-001: 0.6 periodicity score threshold (above monotonic trend baseline ~0.51)
+	assert.Equal(t, 0.6, config.MinPeriodicityScore)
 	// REQ-COD-001: Period range (Nyquist-constrained)
 	assert.Equal(t, 2, config.MinPeriod)
 	assert.Equal(t, 30, config.MaxPeriod)
