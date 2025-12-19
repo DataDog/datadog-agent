@@ -123,23 +123,3 @@ The 1 GiB total size limit prevents runaway disk usage.
 
 ---
 
-### REQ-FM-005: Capture Delayed Metrics
-
-WHEN a metric is recorded with a timestamp in the past (up to 60 seconds)
-THE SYSTEM SHALL associate the metric with the correct time interval
-
-WHEN the accumulator window advances
-THE SYSTEM SHALL retain the previous 60 seconds of data to accommodate late
-arrivals
-
-**Rationale:** Some metrics are only available after-the-fact. A planned future
-capability will intercept Agent outbound data and feed it to this monitor for
-correlation. These intercepted metrics will have timestamps 15-45 seconds in the
-past. The 60-second accumulator window ensures late metrics are correctly
-associated with their original time interval rather than being dropped or
-misattributed.
-
-**Dependencies:** None currently. This requirement enables future integration
-with Agent output interception.
-
----
