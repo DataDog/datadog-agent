@@ -14,4 +14,5 @@ sh_binary(
         "@platforms//os:linux": ["@patchelf"],
         "//conditions:default": [],
     }),
+    tags = ["manual"],
 )
