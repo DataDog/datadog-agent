@@ -413,11 +413,11 @@ func TestMergeGPU(t *testing.T) {
 
 func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 	tests := []struct {
-		name                          string
-		destinationProcess            *Process
-		sourceProcess                 *Process
-		expectedAPMInstrumentation    bool
-		description                   string
+		name                       string
+		destinationProcess         *Process
+		sourceProcess              *Process
+		expectedAPMInstrumentation bool
+		description                string
 	}{
 		{
 			name: "preserve APMInstrumentation when source has false and destination has true",
@@ -445,7 +445,7 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 				},
 			},
 			expectedAPMInstrumentation: true,
-			description:               "APM state should be preserved when non-APM collector updates service",
+			description:                "APM state should be preserved when non-APM collector updates service",
 		},
 		{
 			name: "overwrite APMInstrumentation when source explicitly sets it to true",
@@ -472,7 +472,7 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 				},
 			},
 			expectedAPMInstrumentation: true,
-			description:               "APM collector should be able to set instrumentation to true",
+			description:                "APM collector should be able to set instrumentation to true",
 		},
 		{
 			name: "both false stays false",
@@ -499,7 +499,7 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 				},
 			},
 			expectedAPMInstrumentation: false,
-			description:               "Should stay false if both collectors report false",
+			description:                "Should stay false if both collectors report false",
 		},
 		{
 			name: "source has no service - destination service preserved",
@@ -523,7 +523,7 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 				Service: nil,
 			},
 			expectedAPMInstrumentation: true,
-			description:               "Destination service should be preserved if source has no service",
+			description:                "Destination service should be preserved if source has no service",
 		},
 		{
 			name: "destination has no service - source service used",
@@ -547,7 +547,7 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 				},
 			},
 			expectedAPMInstrumentation: true,
-			description:               "Source service should be used if destination has no service",
+			description:                "Source service should be used if destination has no service",
 		},
 	}
 
@@ -562,4 +562,3 @@ func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
 		})
 	}
 }
-

@@ -1767,7 +1767,7 @@ func (p *Process) Merge(e Entity) error {
 	if otherProcess.Service != nil && p.Service != nil {
 		otherProcess.Service.APMInstrumentation =
 			otherProcess.Service.APMInstrumentation ||
-			p.Service.APMInstrumentation
+				p.Service.APMInstrumentation
 	}
 
 	// If the source has service data, remove the one from destination so merge() takes service data from the source
