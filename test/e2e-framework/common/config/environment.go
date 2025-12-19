@@ -235,7 +235,7 @@ func (e *CommonEnvironment) KubernetesVersion() string {
 }
 
 func (e *CommonEnvironment) KindVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.30.0")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "latest")
 }
 
 func (e *CommonEnvironment) KubeNodeURL() string {
