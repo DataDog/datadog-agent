@@ -52,14 +52,18 @@ type DetectionConfig struct {
 
 	// Minimum samples before detection starts
 	MinSamples uint64
+
+	// Cooldown duration - minimum time between alerts for the same metric
+	CooldownDuration time.Duration
 }
 
 // DefaultConfig returns sensible default detection settings
 func DefaultConfig() DetectionConfig {
 	return DetectionConfig{
-		WindowSize:     100,
-		SpikeThreshold: 2.0, // 200% of baseline
-		MinSamples:     20,  // 5 minutes at 15s collection interval
+		WindowSize:       100,
+		SpikeThreshold:   3.0,             // 300% of baseline
+		MinSamples:       20,              // 5 minutes at 15s collection interval
+		CooldownDuration: 5 * time.Minute, // 5 minute cooldown between alerts
 	}
 }
 
@@ -84,9 +88,10 @@ type Detector interface {
 
 // HeuristicDetector implements Detector using heuristic-based detection
 type HeuristicDetector struct {
-	config  DetectionConfig
-	metrics map[string]*ringbuffer.RingBuffer[MetricSample]
-	mu      sync.RWMutex
+	config    DetectionConfig
+	metrics   map[string]*ringbuffer.RingBuffer[MetricSample]
+	lastAlert map[string]time.Time // Track last alert time per metric
+	mu        sync.RWMutex
 
 	// Callback for anomaly notifications
 	onAnomaly func(Anomaly)
@@ -100,6 +105,7 @@ func NewHeuristicDetector(
 	return &HeuristicDetector{
 		config:    config,
 		metrics:   make(map[string]*ringbuffer.RingBuffer[MetricSample]),
+		lastAlert: make(map[string]time.Time),
 		onAnomaly: onAnomaly,
 	}
 }
@@ -112,12 +118,6 @@ func (d *HeuristicDetector) RecordMetric(
 ) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	log.Infof(
-		"RecordMetric(%s, %f, %f)",
-		metricName,
-		value,
-		timestamp,
-	)
 
 	// Get or create ring buffer for this metric
 	rb, exists := d.metrics[metricName]
@@ -172,7 +172,13 @@ func (d *HeuristicDetector) detectAnomalies(
 		mean,
 		stddev,
 	); anomaly != nil {
-		d.notifyAnomaly(*anomaly)
+		// Check cooldown period to prevent duplicate alerts
+		if d.shouldNotify(metricName) {
+			d.notifyAnomaly(
+				metricName,
+				*anomaly,
+			)
+		}
 	}
 }
 
@@ -242,8 +248,22 @@ func (d *HeuristicDetector) checkSpike(
 	return nil
 }
 
-// notifyAnomaly sends anomaly notification
-func (d *HeuristicDetector) notifyAnomaly(anomaly Anomaly) {
+// shouldNotify checks if enough time has passed since the last alert for this metric
+func (d *HeuristicDetector) shouldNotify(metricName string) bool {
+	lastTime, exists := d.lastAlert[metricName]
+	if !exists {
+		return true // Never alerted before
+	}
+
+	// Check if cooldown period has elapsed
+	return time.Since(lastTime) >= d.config.CooldownDuration
+}
+
+// notifyAnomaly sends anomaly notification and updates last alert time
+func (d *HeuristicDetector) notifyAnomaly(
+	metricName string,
+	anomaly Anomaly,
+) {
 	log.Infof(
 		"ANOMALY DETECTED: %s - %s (value: %.2f, baseline: %.2f, severity: %.2f)",
 		anomaly.MetricName,
@@ -253,12 +273,15 @@ func (d *HeuristicDetector) notifyAnomaly(anomaly Anomaly) {
 		anomaly.Severity,
 	)
 
+	// Update last alert time
+	d.lastAlert[metricName] = time.Now()
+
 	if d.onAnomaly != nil {
 		d.onAnomaly(anomaly)
 	}
 }
 
-// Clear clears all stored metric history
+// Clear clears all stored metric history and alert tracking
 func (d *HeuristicDetector) Clear() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -266,6 +289,9 @@ func (d *HeuristicDetector) Clear() {
 	for _, rb := range d.metrics {
 		rb.Clear()
 	}
+
+	// Clear alert tracking
+	d.lastAlert = make(map[string]time.Time)
 }
 
 // GetMetricHistory returns the history for a specific metric
