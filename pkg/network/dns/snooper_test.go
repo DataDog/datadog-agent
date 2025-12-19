@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -110,6 +111,9 @@ func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
 	cfg.CollectDNSDomains = collectDomain
 
 	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err)
+
+	err = rdns.Start()
 	require.NoError(t, err)
 
 	return rdns.(*dnsMonitor)
@@ -304,6 +308,8 @@ func TestDNSOverCustomPort(t *testing.T) {
 
 	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
+	err = rdns.Start()
+	require.NoError(t, err)
 	reverseDNS := rdns.(*dnsMonitor)
 	defer reverseDNS.Close()
 
@@ -320,8 +326,11 @@ func TestDNSOverCustomPort(t *testing.T) {
 	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
+		if len(allStats) > 0 {
+			fmt.Printf("allStats: %+v\n", allStats)
+		}
 		return allStats[key] != nil
-	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %+v", key)
 }
 
 func newTestServer(t *testing.T, ip string, protocol string) (func(), uint16) {
@@ -419,6 +428,8 @@ func TestParsingError(t *testing.T) {
 	cfg.CollectDNSDomains = false
 	cfg.DNSTimeout = 15 * time.Second
 	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err)
+	err = rdns.Start()
 	require.NoError(t, err)
 	defer rdns.Close()
 
