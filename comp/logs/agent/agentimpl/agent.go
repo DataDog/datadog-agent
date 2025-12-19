@@ -276,6 +276,13 @@ func (a *logAgent) startPipeline() {
 	// setup the status
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
 
+	// Start drift detector if enabled
+	if a.driftDetector != nil && a.driftDetector.IsEnabled() {
+		if err := a.driftDetector.Start(); err != nil {
+			a.log.Errorf("Failed to start drift detector: %v", err)
+		}
+	}
+
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
@@ -307,6 +314,11 @@ func (a *logAgent) stop(context.Context) error {
 	a.log.Info("Stopping logs-agent")
 
 	status.Clear()
+
+	// Stop drift detector if enabled
+	if a.driftDetector != nil && a.driftDetector.IsEnabled() {
+		a.driftDetector.Stop()
+	}
 
 	toStop := []startstop.Stoppable{
 		a.schedulers,
