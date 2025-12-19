@@ -826,6 +826,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('gateB', body)
         # Check that wire details are in a collapsible section
         self.assertIn('On wire (compressed) size details', body)
+        # Check dashboard link is present
+        self.assertIn('Static Quality Gates Dashboard', body)
 
     @patch.dict(
         'os.environ',
@@ -865,6 +867,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('Static quality gates prevent the PR to merge!', body)
         # Check that wire details are in a collapsible section
         self.assertIn('On wire (compressed) size details', body)
+        # Check dashboard link is present
+        self.assertIn('Static Quality Gates Dashboard', body)
 
     @patch.dict(
         'os.environ',

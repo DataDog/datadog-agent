@@ -175,6 +175,9 @@ def display_pr_comment(
     ancestor_info = (
         f"Comparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
     )
+    dashboard_link = (
+        "[📊 Static Quality Gates Dashboard](https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates)\n"
+    )
 
     # Main tables for on-disk metrics
     body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
@@ -262,7 +265,7 @@ def display_pr_comment(
     # Close successful checks section and add wire details
     body_info += wire_info + "\n</details>\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{final_error_body}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
