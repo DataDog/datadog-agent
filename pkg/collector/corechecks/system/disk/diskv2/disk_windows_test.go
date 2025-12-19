@@ -694,9 +694,10 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	// D:\ becomes d: after normalization (backslash stripped, lowercased)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
