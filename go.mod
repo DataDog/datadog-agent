@@ -982,6 +982,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v4 v4.1.3
 	gitlab.com/gitlab-org/api/client-go v1.8.0
 )

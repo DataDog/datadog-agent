@@ -330,13 +330,17 @@ new-e2e-agent-runtimes:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-health:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template
   rules:
     - !reference [.on_agth_or_e2e_changes]
     - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_rpm-x64-a7
+    - agent_rpm-x64-a7-fips
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-runtimes
+    TEAM: agent-health
     ON_NIGHTLY_FIPS: "false"
 
 new-e2e-agent-subcommands:
