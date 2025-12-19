@@ -58,13 +58,17 @@ http_archive(
     ],
 )
 
-# Set up prebuilt binaries
+#######################
+## Prebuilt binaries ##
+#######################
 multitool = use_extension("//bazel/multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
 register_toolchains("@multitool//toolchains:all")
+
+bazel_dep(name = "buildifier_prebuilt", version = "8.2.0.2", dev_dependency = True)
 
 ## Use local object file tools
 find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
