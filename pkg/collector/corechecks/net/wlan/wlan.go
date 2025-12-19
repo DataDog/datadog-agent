@@ -7,6 +7,7 @@
 package wlan
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 	"time"
@@ -114,6 +115,17 @@ const (
 
 // Run runs the check
 func (c *WLANCheck) Run() error {
+	// Lazy initialize JSON schema on first run (macOS only)
+	// This defers memory allocation until the check is actually enabled and running
+	if c.ipcSchema == nil && runtime.GOOS == "darwin" {
+		schema, err := createIPCResponseSchema()
+		if err != nil {
+			return fmt.Errorf("failed to create IPC validation schema: %w", err)
+		}
+		c.ipcSchema = schema
+		log.Debug("IPC response JSON schema validation enabled")
+	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -217,21 +229,8 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	wlanCheck := &WLANCheck{
+	return &WLANCheck{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
+		// ipcSchema initialized lazily in Run() to avoid memory overhead for disabled checks
 	}
-
-	// Pre-compile JSON schema for IPC response validation (macOS only)
-	if runtime.GOOS == "darwin" {
-		schema, err := createIPCResponseSchema()
-		if err != nil {
-			// Schema compilation failure is a developer bug - fail hard
-			log.Criticalf("Failed to create IPC validation schema (developer bug): %v", err)
-			panic("WLAN check initialization failed: IPC schema compilation error")
-		}
-		wlanCheck.ipcSchema = schema
-		log.Debug("IPC response JSON schema validation enabled")
-	}
-
-	return wlanCheck
 }
