@@ -129,12 +129,13 @@ func (m *Manager) flushExpiredWindows() {
 	now := time.Now()
 
 	for sourceKey, state := range m.sourceWindows {
-		if state.currentWindow != nil && len(state.currentWindow.Logs) > 0 {
+		if state.currentWindow != nil {
 			// Check if window duration has been reached
 			if now.Sub(state.currentWindow.StartTime) >= m.config.Size {
 				state.currentWindow.EndTime = now
 
-				// Send window to shared template extractor
+				// Send window to shared template extractor (even if empty)
+				// Empty windows are important for time-series continuity in DMD analysis
 				select {
 				case m.outputChan <- *state.currentWindow:
 				default:
@@ -159,8 +160,9 @@ func (m *Manager) flushAllWindows() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Flush all windows on shutdown, including empty ones for time-series continuity
 	for _, state := range m.sourceWindows {
-		if state.currentWindow != nil && len(state.currentWindow.Logs) > 0 {
+		if state.currentWindow != nil {
 			m.outputChan <- *state.currentWindow
 		}
 	}

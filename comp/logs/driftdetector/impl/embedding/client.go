@@ -151,9 +151,11 @@ func (c *Client) flushBatch() {
 	allTemplates := make([]string, 0)
 	templateToWindow := make(map[int]int)  // template index -> window ID
 	windowTemplates := make(map[int][]int) // window ID -> template indices
+	allWindows := make(map[int]bool)       // track all windows in batch
 
 	idx := 0
 	for _, item := range c.batch {
+		allWindows[item.windowID] = true // Track this window
 		for _, template := range item.templates {
 			allTemplates = append(allTemplates, template)
 			templateToWindow[idx] = item.windowID
@@ -162,16 +164,22 @@ func (c *Client) flushBatch() {
 		}
 	}
 
-	// Get embeddings with retry
-	embeddings, err := c.getEmbeddingsWithRetry(allTemplates)
-	if err != nil {
-		log.Errorf("Failed to get embeddings after retries: %v", err)
-		c.batch = c.batch[:0] // Clear batch
-		return
+	// Get embeddings with retry (skip if no templates at all)
+	var embeddings []common.Vector
+	var err error
+	if len(allTemplates) > 0 {
+		embeddings, err = c.getEmbeddingsWithRetry(allTemplates)
+		if err != nil {
+			log.Errorf("Failed to get embeddings after retries: %v", err)
+			c.batch = c.batch[:0] // Clear batch
+			return
+		}
 	}
 
-	// Group embeddings by window
-	for windowID, indices := range windowTemplates {
+	// Send results for ALL windows (including those with no templates)
+	// This ensures time-series continuity for DMD analysis
+	for windowID := range allWindows {
+		indices := windowTemplates[windowID]
 		windowEmbeddings := make([]common.Vector, 0, len(indices))
 		windowTemplateList := make([]string, 0, len(indices))
 
@@ -182,6 +190,7 @@ func (c *Client) flushBatch() {
 			}
 		}
 
+		// Send result even if empty (important for time-series continuity)
 		c.outputChan <- common.EmbeddingResult{
 			WindowID:   windowID,
 			Templates:  windowTemplateList,
