@@ -1,5 +1,11 @@
 # q_branch Development Rules
 
+## Architecture: aarch64 (ARM64)
+
+All local development and testing runs on Apple Silicon (aarch64/ARM64).
+
+**Do NOT specify `--platform linux/amd64`** in docker build commands during local testing loops. The Lima VM, Kind cluster, and all containers run natively on ARM64.
+
 ## Gadget-Dev Kubernetes Cluster
 
 A Kind cluster runs inside a Lima VM (`gadget-k8s-host`) with the API port-forwarded to the host.
