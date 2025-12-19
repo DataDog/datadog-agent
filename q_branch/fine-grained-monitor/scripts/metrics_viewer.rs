@@ -402,71 +402,99 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 12px 16px;
             background: #f5f5f5;
         }
-        h1 { text-align: center; color: #333; margin-bottom: 20px; }
-        .controls {
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             background: white;
-            padding: 15px;
+            padding: 10px 16px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
+            margin-bottom: 12px;
+            gap: 16px;
             flex-wrap: wrap;
         }
-        .control-group { flex: 1; min-width: 300px; }
-        label { font-weight: 600; display: block; margin-bottom: 5px; color: #555; }
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .container-select-wrapper {
+            flex: 1;
+            min-width: 280px;
+            max-width: 500px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .container-select-wrapper label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+            white-space: nowrap;
+        }
         select {
-            width: 100%;
-            padding: 8px;
+            flex: 1;
+            padding: 4px 6px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
-            min-height: 150px;
+            font-size: 12px;
+            height: 60px;
+            min-width: 200px;
         }
-        .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
         button {
-            padding: 8px 16px;
+            padding: 6px 12px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            white-space: nowrap;
         }
+        button:hover { opacity: 0.9; }
         .btn-primary { background: #007bff; color: white; }
         .btn-success { background: #28a745; color: white; }
         .btn-secondary { background: #6c757d; color: white; }
         .btn-warning { background: #ffc107; color: #333; }
+        .status {
+            color: #666;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
         #chart {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            height: 70vh;
-            min-height: 500px;
+            height: calc(100vh - 90px);
+            min-height: 400px;
         }
-        .status { color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
-    <h1>Container CPU Metrics Viewer</h1>
-
-    <div class="controls">
-        <div class="control-group">
-            <label>Select Containers (Ctrl/Cmd+click for multiple):</label>
-            <select id="containerSelect" multiple></select>
+    <div class="header">
+        <h1>CPU Metrics</h1>
+        <div class="container-select-wrapper">
+            <label>Containers:</label>
+            <select id="containerSelect" multiple title="Ctrl/Cmd+click for multiple"></select>
         </div>
-        <div class="control-group">
-            <label>Quick Actions:</label>
-            <div class="buttons">
-                <button class="btn-primary" onclick="selectTop(5)">Top 5</button>
-                <button class="btn-primary" onclick="selectTop(10)">Top 10</button>
-                <button class="btn-secondary" onclick="clearSelection()">Clear</button>
-                <button class="btn-success" onclick="rescaleY()">Rescale Y-Axis</button>
-                <button class="btn-warning" onclick="resetZoom()">Reset Zoom</button>
-            </div>
-            <div class="status" id="status">Loading containers...</div>
+        <div class="actions">
+            <button class="btn-primary" onclick="selectTop(5)">Top 5</button>
+            <button class="btn-primary" onclick="selectTop(10)">Top 10</button>
+            <button class="btn-secondary" onclick="clearSelection()">Clear</button>
+            <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
+            <button class="btn-warning" onclick="resetZoom()">Reset</button>
+            <span class="status" id="status">Loading...</span>
         </div>
     </div>
 
@@ -565,20 +593,26 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             }
 
             const layout = {
-                title: 'CPU Usage Over Time',
                 xaxis: {
                     title: 'Time',
                     type: 'date',
-                    rangeslider: { visible: true, thickness: 0.05 }
+                    rangeslider: { visible: true, thickness: 0.08 }
                 },
                 yaxis: {
-                    title: 'CPU Usage (%)',
+                    title: 'CPU %',
                     rangemode: 'tozero'
                 },
-                hovermode: 'closest',
+                hovermode: 'x unified',
                 showlegend: true,
-                legend: { orientation: 'h', y: -0.15 },
-                margin: { b: 80 }
+                legend: {
+                    orientation: 'h',
+                    yanchor: 'bottom',
+                    y: 1.02,
+                    xanchor: 'right',
+                    x: 1,
+                    bgcolor: 'rgba(255,255,255,0.8)'
+                },
+                margin: { t: 40, b: 40, l: 50, r: 20 }
             };
 
             if (yRange) {
