@@ -35,7 +35,7 @@ from threading import Timer
 import pandas as pd
 import plotly.graph_objects as go
 import pyarrow.parquet as pq
-from dash import Dash, Input, Output, callback, dcc, html
+from dash import Dash, Input, Output, State, callback, dcc, html
 
 
 def extract_label(labels: list[tuple], key: str) -> str | None:
@@ -146,7 +146,18 @@ def create_app(df: pd.DataFrame) -> Dash:
                             html.Label("Quick Select:", style={"fontWeight": "bold"}),
                             html.Button("Top 5", id="btn-top5", n_clicks=0, style={"marginRight": "10px"}),
                             html.Button("Top 10", id="btn-top10", n_clicks=0, style={"marginRight": "10px"}),
-                            html.Button("Clear", id="btn-clear", n_clicks=0),
+                            html.Button("Clear", id="btn-clear", n_clicks=0, style={"marginRight": "20px"}),
+                            html.Button(
+                                "Rescale Y-Axis",
+                                id="btn-rescale-y",
+                                n_clicks=0,
+                                style={
+                                    "backgroundColor": "#4CAF50",
+                                    "color": "white",
+                                    "border": "none",
+                                    "padding": "5px 10px",
+                                },
+                            ),
                         ],
                         style={"width": "35%", "display": "inline-block", "verticalAlign": "top"},
                     ),
@@ -196,9 +207,21 @@ def create_app(df: pd.DataFrame) -> Dash:
             return []
         return data["top5"]
 
-    @callback(Output("cpu-graph", "figure"), Input("container-dropdown", "value"))
-    def update_graph(selected_containers: list[str]) -> go.Figure:
+    @callback(
+        Output("cpu-graph", "figure"),
+        Input("container-dropdown", "value"),
+        Input("btn-rescale-y", "n_clicks"),
+        State("cpu-graph", "relayoutData"),
+        prevent_initial_call=False,
+    )
+    def update_graph(
+        selected_containers: list[str],
+        rescale_clicks: int,
+        relayout_data: dict | None,
+    ) -> go.Figure:
         """Update the graph based on selected containers."""
+        from dash import ctx
+
         fig = go.Figure()
 
         if not selected_containers:
@@ -222,6 +245,30 @@ def create_app(df: pd.DataFrame) -> Dash:
         mask = df["container_short"].isin(selected_containers)
         plot_df = df[mask]
 
+        # Check if we need to rescale Y based on visible X range
+        y_range = None
+        if ctx.triggered_id == "btn-rescale-y" and relayout_data:
+            # Extract current x-axis range from relayout data
+            x_min = relayout_data.get("xaxis.range[0]") or relayout_data.get("xaxis.range", [None])[0]
+            x_max = relayout_data.get("xaxis.range[1]") or relayout_data.get("xaxis.range", [None, None])[1]
+
+            if x_min is not None and x_max is not None:
+                # Convert to datetime if string
+                if isinstance(x_min, str):
+                    x_min = pd.to_datetime(x_min)
+                    x_max = pd.to_datetime(x_max)
+
+                # Filter to visible range and compute y bounds
+                visible_mask = (plot_df["time"] >= x_min) & (plot_df["time"] <= x_max)
+                visible_data = plot_df[visible_mask]
+
+                if not visible_data.empty:
+                    y_min = visible_data["cpu_percent"].min()
+                    y_max = visible_data["cpu_percent"].max()
+                    # Add 5% padding
+                    padding = (y_max - y_min) * 0.05 if y_max > y_min else 1
+                    y_range = [max(0, y_min - padding), y_max + padding]
+
         # Add a trace for each container using scattergl for performance
         for container in selected_containers:
             container_data = plot_df[plot_df["container_short"] == container]
@@ -241,14 +288,25 @@ def create_app(df: pd.DataFrame) -> Dash:
                 )
             )
 
-        fig.update_layout(
-            title="CPU Usage Over Time (Pan/Zoom to explore, Double-click to reset)",
-            xaxis_title="Time",
-            yaxis_title="CPU Usage (%)",
-            hovermode="x unified",
-            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-            margin={"l": 60, "r": 20, "t": 80, "b": 60},
-        )
+        layout_kwargs = {
+            "title": "CPU Usage Over Time (Pan/Zoom to explore, Double-click to reset)",
+            "xaxis_title": "Time",
+            "yaxis_title": "CPU Usage (%)",
+            "hovermode": "x unified",
+            "legend": {"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+            "margin": {"l": 60, "r": 20, "t": 80, "b": 60},
+        }
+
+        if y_range:
+            layout_kwargs["yaxis_range"] = y_range
+            # Preserve the current x range when rescaling y
+            if relayout_data:
+                x_min = relayout_data.get("xaxis.range[0]")
+                x_max = relayout_data.get("xaxis.range[1]")
+                if x_min and x_max:
+                    layout_kwargs["xaxis_range"] = [x_min, x_max]
+
+        fig.update_layout(**layout_kwargs)
 
         # Enable range slider for easy navigation
         fig.update_xaxes(rangeslider_visible=True, rangeslider_thickness=0.05)
