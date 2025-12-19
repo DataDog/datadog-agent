@@ -24,8 +24,8 @@ type Manager struct {
 
 	// Telemetry metrics
 	anomaliesDetected   telemetry.Counter
-	reconstructionError telemetry.SimpleGauge
-	normalizedError     telemetry.SimpleGauge
+	reconstructionError telemetry.Gauge
+	normalizedError     telemetry.Gauge
 }
 
 // NewManager creates a new alert manager
@@ -42,18 +42,20 @@ func NewManager(config common.AlertConfig, inputChan chan common.DMDResult, tel 
 		anomaliesDetected: tel.NewCounter(
 			"logdrift",
 			"anomalies_detected_total",
-			[]string{"severity"},
-			"Total number of anomalies detected by severity",
+			[]string{"severity", "source"},
+			"Total number of anomalies detected by severity and source",
 		),
-		reconstructionError: tel.NewSimpleGauge(
+		reconstructionError: tel.NewGauge(
 			"logdrift",
 			"dmd_reconstruction_error",
-			"Current DMD reconstruction error",
+			[]string{"source"},
+			"Current DMD reconstruction error by source",
 		),
-		normalizedError: tel.NewSimpleGauge(
+		normalizedError: tel.NewGauge(
 			"logdrift",
 			"dmd_normalized_error",
-			"Current DMD normalized error (in standard deviations)",
+			[]string{"source"},
+			"Current DMD normalized error (in standard deviations) by source",
 		),
 	}
 }
@@ -85,9 +87,9 @@ func (m *Manager) run() {
 }
 
 func (m *Manager) processDMDResult(result common.DMDResult) {
-	// Update metrics
-	m.reconstructionError.Set(result.ReconstructionError)
-	m.normalizedError.Set(result.NormalizedError)
+	// Update metrics with source tag
+	m.reconstructionError.Set(result.ReconstructionError, result.SourceKey)
+	m.normalizedError.Set(result.NormalizedError, result.SourceKey)
 
 	// Check thresholds
 	var severity common.Severity
@@ -112,8 +114,8 @@ func (m *Manager) processDMDResult(result common.DMDResult) {
 			Templates:           result.Templates,
 		}
 
-		// Update counter
-		m.anomaliesDetected.Inc(string(severity))
+		// Update counter with severity and source tags
+		m.anomaliesDetected.Inc(string(severity), result.SourceKey)
 
 		// Log the alert
 		m.logAlert(alert)
