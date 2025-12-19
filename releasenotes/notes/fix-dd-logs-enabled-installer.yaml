@@ -1,5 +1,5 @@
 fixes:
   - |
     Fleet installer: ensure the `DD_LOGS_ENABLED` environment variable is honored again
-    when running setup scripts, so Windows installs using the new installer flow properly
+    when running setup scripts, so Windows installs using the new installer flow properly.
     set `logs_enabled` in `datadog.yaml`.
