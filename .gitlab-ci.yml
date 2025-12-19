@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v84348379-5989c48d
+  CI_IMAGE_BTF_GEN: v86420401-7cc6ce1f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v84348379-5989c48d
+  CI_IMAGE_DOCKER_X64: v86420401-7cc6ce1f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v84348379-5989c48d
+  CI_IMAGE_DOCKER_ARM64: v86420401-7cc6ce1f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v84348379-5989c48d
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v86420401-7cc6ce1f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v84348379-5989c48d
+  CI_IMAGE_LINUX: v86420401-7cc6ce1f
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v84348379-5989c48d
+  CI_IMAGE_RPM_X64: v86420401-7cc6ce1f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v84348379-5989c48d
+  CI_IMAGE_RPM_ARM64: v86420401-7cc6ce1f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v84348379-5989c48d
+  CI_IMAGE_RPM_ARMHF: v86420401-7cc6ce1f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v84348379-5989c48d
+  CI_IMAGE_WIN_LTSC2022_X64: v86420401-7cc6ce1f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v84348379-5989c48d
+  CI_IMAGE_WIN_LTSC2025_X64: v86420401-7cc6ce1f
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -250,7 +250,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
   DD_PKG_VERSION: "0.6.0-beta.4"
-  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.staging.dog/internal/artifact-gateway/api/v4"
+  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
@@ -609,6 +609,7 @@ workflow:
   - pkg/ebpf/**/*
   - pkg/network/**/*
   - pkg/process/monitor/*
+  - pkg/security/**/*
   - pkg/util/kernel/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
@@ -678,6 +679,17 @@ workflow:
         - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: never
+
+
+.dynamic_tests:
+  - changes:
+      paths:
+        - pkg/**/*
+        - cmd/**/*
+        - comp/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1142,6 +1154,19 @@ workflow:
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
+
+.on_gpu_integration_tests:
+  - !reference [.on_scheduled_main]
+  - !reference [.manual]
+  # Run on GPU-related changes
+  - changes:
+      paths:
+        - pkg/gpu/**/*
+        - pkg/collector/corechecks/gpu/**/*
+        - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - .gitlab/source_test/linux.yml
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch

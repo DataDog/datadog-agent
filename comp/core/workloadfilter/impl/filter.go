@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	implbase "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
@@ -36,15 +37,17 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp workloadfilter.Component
+	Comp          workloadfilter.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent returns a new local workloadfilter client
 func NewComponent(req Requires) (Provides, error) {
-	filterInstance := newFilter(req.Config, req.Log, req.Telemetry)
+	localFilter := newFilter(req.Config, req.Log, req.Telemetry)
 
 	return Provides{
-		Comp: filterInstance,
+		Comp:          localFilter,
+		FlareProvider: flaretypes.NewProvider(localFilter.FlareCallback),
 	}, nil
 }
 
@@ -66,12 +69,12 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	localFilter.RegisterFactory(workloadfilter.ContainerCELGlobal, catalog.ContainerCELGlobalProgram)
 
 	// Service Filters
-	localFilter.RegisterFactory(workloadfilter.ServiceCELMetrics, catalog.ServiceCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.ServiceCELGlobal, catalog.ServiceCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELMetrics, catalog.ServiceCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELGlobal, catalog.ServiceCELGlobalProgram)
 
 	// Endpoints Filters
-	localFilter.RegisterFactory(workloadfilter.EndpointCELMetrics, catalog.EndpointCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.EndpointCELGlobal, catalog.EndpointCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELMetrics, catalog.EndpointCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELGlobal, catalog.EndpointCELGlobalProgram)
 
 	// Pod Filters
 	localFilter.RegisterFactory(workloadfilter.PodCELMetrics, catalog.PodCELMetricsProgram)

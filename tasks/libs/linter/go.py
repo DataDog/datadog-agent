@@ -22,7 +22,6 @@ def run_lint_go(
     timeout=None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     verbose=False,
     recursive=True,
 ):
@@ -31,7 +30,6 @@ def run_lint_go(
         build=build,
         build_include=build_include,
         build_exclude=build_exclude,
-        include_sds=include_sds,
     )
 
     lint_result, execution_times = lint_flavor(

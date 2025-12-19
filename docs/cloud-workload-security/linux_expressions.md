@@ -186,6 +186,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.signature`](#event-signature-doc) | Signature of the process pid and its cgroup with agent secret key |
 | [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -4024,6 +4025,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.signature` {#event-signature-doc}
+Type: string
+
+Definition: Signature of the process pid and its cgroup with agent secret key
 
 
 

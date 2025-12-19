@@ -27,7 +27,8 @@ type killContext struct {
 type ProcessKillerWindows struct{}
 
 // NewProcessKillerOS returns a ProcessKillerOS
-func NewProcessKillerOS(_ func(pid, sig uint32) error) ProcessKillerOS {
+// The second parameter (cgroupResolver) is ignored on Windows as container scope is not supported
+func NewProcessKillerOS(_ func(pid, sig uint32) error, _ any) ProcessKillerOS {
 	return &ProcessKillerWindows{}
 }
 

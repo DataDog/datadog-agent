@@ -33,6 +33,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 		return !kv.HasBPFForEachMapElemHelper()
 	})
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkKernelCompatibility(t, "no override_creds/restore_creds", func(kv *kernel.Version) bool {
 		return kv.Code >= kernel.Kernel6_14
 	})
