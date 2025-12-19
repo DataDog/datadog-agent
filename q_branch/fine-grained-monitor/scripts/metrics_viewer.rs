@@ -443,6 +443,7 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: 70vh;
             min-height: 500px;
         }
         .status { color: #666; font-size: 14px; }
@@ -567,7 +568,8 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                 title: 'CPU Usage Over Time',
                 xaxis: {
                     title: 'Time',
-                    type: 'linear'
+                    type: 'date',
+                    rangeslider: { visible: true, thickness: 0.05 }
                 },
                 yaxis: {
                     title: 'CPU Usage (%)',
@@ -575,7 +577,8 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                 },
                 hovermode: 'closest',
                 showlegend: true,
-                legend: { orientation: 'h', y: -0.15 }
+                legend: { orientation: 'h', y: -0.15 },
+                margin: { b: 80 }
             };
 
             if (yRange) {
@@ -615,7 +618,9 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             const selected = Array.from(select.selectedOptions).map(o => o.value);
 
             let yMin = Infinity, yMax = -Infinity;
-            const xMin = xRange[0], xMax = xRange[1];
+            // Convert date strings back to milliseconds for comparison
+            const xMin = new Date(xRange[0]).getTime();
+            const xMax = new Date(xRange[1]).getTime();
 
             selected.forEach(id => {
                 const data = currentData[id] || [];
