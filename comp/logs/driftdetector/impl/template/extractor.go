@@ -76,6 +76,7 @@ func (e *Extractor) worker() {
 func (e *Extractor) extractTemplates(window common.Window) common.TemplateResult {
 	if len(window.Logs) == 0 {
 		return common.TemplateResult{
+			SourceKey:        window.SourceKey,
 			WindowID:         window.ID,
 			Templates:        []string{},
 			CompressionRatio: 1.0,
@@ -118,6 +119,7 @@ func (e *Extractor) extractTemplates(window common.Window) common.TemplateResult
 	compressionRatio := float64(len(window.Logs)) / math.Max(float64(len(templateSlice)), 1.0)
 
 	return common.TemplateResult{
+		SourceKey:        window.SourceKey,
 		WindowID:         window.ID,
 		Templates:        templateSlice,
 		CompressionRatio: compressionRatio,

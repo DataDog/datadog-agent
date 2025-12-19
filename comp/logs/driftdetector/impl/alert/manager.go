@@ -103,6 +103,7 @@ func (m *Manager) processDMDResult(result common.DMDResult) {
 
 	if alertTriggered {
 		alert := common.Alert{
+			SourceKey:           result.SourceKey,
 			Timestamp:           time.Now(),
 			WindowID:            result.WindowID,
 			ReconstructionError: result.ReconstructionError,
@@ -123,6 +124,7 @@ func (m *Manager) logAlert(alert common.Alert) {
 	// Create structured log entry
 	logEntry := map[string]interface{}{
 		"timestamp":            alert.Timestamp.Format(time.RFC3339),
+		"source_key":           alert.SourceKey,
 		"level":                m.severityToLogLevel(alert.Severity),
 		"message":              "Anomaly detected in log stream",
 		"window_id":            alert.WindowID,
@@ -140,12 +142,12 @@ func (m *Manager) logAlert(alert common.Alert) {
 		return
 	}
 
-	// Log based on severity
+	// Log based on severity (include source key in message for easy filtering)
 	switch alert.Severity {
 	case common.SeverityCritical:
-		log.Errorf("DRIFT DETECTION CRITICAL: %s", string(jsonBytes))
+		log.Errorf("DRIFT DETECTION CRITICAL [%s]: %s", alert.SourceKey, string(jsonBytes))
 	case common.SeverityWarning:
-		log.Warnf("DRIFT DETECTION WARNING: %s", string(jsonBytes))
+		log.Warnf("DRIFT DETECTION WARNING [%s]: %s", alert.SourceKey, string(jsonBytes))
 	}
 }
 

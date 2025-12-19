@@ -7,12 +7,20 @@ package window
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/driftdetector/impl/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Manager handles sliding window aggregation of log entries
+// sourceWindowState tracks window state for a single source
+type sourceWindowState struct {
+	currentWindow *common.Window
+	lastLogTime   time.Time
+}
+
+// Manager handles sliding window aggregation of log entries from multiple sources
 type Manager struct {
 	config     common.WindowConfig
 	inputChan  chan common.LogEntry
@@ -20,20 +28,21 @@ type Manager struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 
-	currentWindow *common.Window
-	windowID      int
+	mu              sync.RWMutex
+	sourceWindows   map[string]*sourceWindowState // Per-source window tracking
+	windowIDCounter int
 }
 
-// NewManager creates a new window manager
+// NewManager creates a new window manager that handles multiple sources
 func NewManager(config common.WindowConfig, inputChan chan common.LogEntry, outputChan chan common.Window) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		config:     config,
-		inputChan:  inputChan,
-		outputChan: outputChan,
-		ctx:        ctx,
-		cancel:     cancel,
-		windowID:   0,
+		config:        config,
+		inputChan:     inputChan,
+		outputChan:    outputChan,
+		ctx:           ctx,
+		cancel:        cancel,
+		sourceWindows: make(map[string]*sourceWindowState),
 	}
 }
 
@@ -47,6 +56,19 @@ func (m *Manager) Stop() {
 	m.cancel()
 }
 
+// ProcessLog sends a log to the shared window manager with source identification
+func (m *Manager) ProcessLog(sourceKey string, timestamp time.Time, content string) {
+	select {
+	case m.inputChan <- common.LogEntry{
+		SourceKey: sourceKey,
+		Timestamp: timestamp,
+		Content:   content,
+	}:
+	default:
+		// Drop if channel full (back-pressure)
+	}
+}
+
 func (m *Manager) run() {
 	ticker := time.NewTicker(m.config.Step)
 	defer ticker.Stop()
@@ -54,50 +76,92 @@ func (m *Manager) run() {
 	for {
 		select {
 		case <-m.ctx.Done():
-			// Flush any remaining window
-			if m.currentWindow != nil && len(m.currentWindow.Logs) > 0 {
-				m.outputChan <- *m.currentWindow
-			}
+			// Flush any remaining windows
+			m.flushAllWindows()
 			close(m.outputChan)
 			return
 
-		case entry := <-m.inputChan:
-			m.addToWindow(entry)
+		case entry, ok := <-m.inputChan:
+			if !ok {
+				return
+			}
+			m.addLogToWindow(entry)
 
 		case <-ticker.C:
-			// Time to slide the window
-			if m.currentWindow != nil && len(m.currentWindow.Logs) > 0 {
-				// Send the completed window
-				windowCopy := *m.currentWindow
-				m.outputChan <- windowCopy
-			}
+			// Time to slide windows for all sources
+			m.flushExpiredWindows()
+		}
+	}
+}
 
-			// Create a new window
-			now := time.Now()
-			m.windowID++
-			m.currentWindow = &common.Window{
-				ID:        m.windowID,
-				StartTime: now,
-				EndTime:   now.Add(m.config.Size),
+func (m *Manager) addLogToWindow(entry common.LogEntry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sourceKey := entry.SourceKey
+	state, exists := m.sourceWindows[sourceKey]
+
+	if !exists || state.currentWindow == nil {
+		// Create new window for this source
+		m.windowIDCounter++
+		state = &sourceWindowState{
+			currentWindow: &common.Window{
+				SourceKey: sourceKey,
+				ID:        m.windowIDCounter,
+				StartTime: entry.Timestamp,
+				EndTime:   entry.Timestamp.Add(m.config.Size),
 				Logs:      make([]common.LogEntry, 0, 1000),
+			},
+			lastLogTime: entry.Timestamp,
+		}
+		m.sourceWindows[sourceKey] = state
+	}
+
+	// Add log to current window for this source
+	state.currentWindow.Logs = append(state.currentWindow.Logs, entry)
+	state.lastLogTime = entry.Timestamp
+}
+
+func (m *Manager) flushExpiredWindows() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+
+	for sourceKey, state := range m.sourceWindows {
+		if state.currentWindow != nil && len(state.currentWindow.Logs) > 0 {
+			// Check if window duration has been reached
+			if now.Sub(state.currentWindow.StartTime) >= m.config.Size {
+				state.currentWindow.EndTime = now
+
+				// Send window to shared template extractor
+				select {
+				case m.outputChan <- *state.currentWindow:
+				default:
+					log.Warnf("Dropping window for source %s (output channel full)", sourceKey)
+				}
+
+				// Create new window for this source
+				m.windowIDCounter++
+				state.currentWindow = &common.Window{
+					SourceKey: sourceKey,
+					ID:        m.windowIDCounter,
+					StartTime: now,
+					EndTime:   now.Add(m.config.Size),
+					Logs:      make([]common.LogEntry, 0, 1000),
+				}
 			}
 		}
 	}
 }
 
-func (m *Manager) addToWindow(entry common.LogEntry) {
-	// Initialize window if needed
-	if m.currentWindow == nil {
-		m.windowID++
-		now := time.Now()
-		m.currentWindow = &common.Window{
-			ID:        m.windowID,
-			StartTime: now,
-			EndTime:   now.Add(m.config.Size),
-			Logs:      make([]common.LogEntry, 0, 1000),
+func (m *Manager) flushAllWindows() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, state := range m.sourceWindows {
+		if state.currentWindow != nil && len(state.currentWindow.Logs) > 0 {
+			m.outputChan <- *state.currentWindow
 		}
 	}
-
-	// Add log to current window
-	m.currentWindow.Logs = append(m.currentWindow.Logs, entry)
 }

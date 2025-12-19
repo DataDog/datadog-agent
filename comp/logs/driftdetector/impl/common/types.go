@@ -13,12 +13,14 @@ import (
 
 // LogEntry represents a single log line with timestamp and content
 type LogEntry struct {
+	SourceKey string // Source identifier for routing
 	Timestamp time.Time
 	Content   string
 }
 
 // Window represents a collection of logs within a time window
 type Window struct {
+	SourceKey string // Source identifier for routing
 	ID        int
 	StartTime time.Time
 	EndTime   time.Time
@@ -27,6 +29,7 @@ type Window struct {
 
 // TemplateResult represents extracted templates from a window
 type TemplateResult struct {
+	SourceKey        string // Source identifier for routing
 	WindowID         int
 	Templates        []string
 	CompressionRatio float64
@@ -44,6 +47,7 @@ type EmbeddingResult struct {
 
 // DMDResult represents the DMD analysis result
 type DMDResult struct {
+	SourceKey           string // Source identifier for logging
 	WindowID            int
 	ReconstructionError float64
 	NormalizedError     float64
@@ -52,6 +56,7 @@ type DMDResult struct {
 
 // Alert represents an anomaly detection alert
 type Alert struct {
+	SourceKey           string // Source identifier for logging
 	Timestamp           time.Time
 	WindowID            int
 	ReconstructionError float64

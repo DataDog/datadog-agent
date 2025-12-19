@@ -19,6 +19,7 @@ import (
 
 // Analyzer performs Hankel DMD analysis on embedding time series
 type Analyzer struct {
+	sourceKey  string // Source identifier for this analyzer
 	config     common.DMDConfig
 	inputChan  chan common.EmbeddingResult
 	outputChan chan common.DMDResult
@@ -43,10 +44,11 @@ type queueItem struct {
 	templates  []string
 }
 
-// NewAnalyzer creates a new DMD analyzer
-func NewAnalyzer(config common.DMDConfig, inputChan chan common.EmbeddingResult, outputChan chan common.DMDResult) *Analyzer {
+// NewAnalyzer creates a new DMD analyzer for a specific source
+func NewAnalyzer(sourceKey string, config common.DMDConfig, inputChan chan common.EmbeddingResult, outputChan chan common.DMDResult) *Analyzer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Analyzer{
+		sourceKey:  sourceKey,
 		config:     config,
 		inputChan:  inputChan,
 		outputChan: outputChan,
@@ -141,6 +143,7 @@ func (a *Analyzer) processEmbeddings(result common.EmbeddingResult) *common.DMDR
 	}
 
 	return &common.DMDResult{
+		SourceKey:           a.sourceKey,
 		WindowID:            result.WindowID,
 		ReconstructionError: reconstructionError,
 		NormalizedError:     normalizedError,

@@ -51,18 +51,26 @@ type batchItem struct {
 	templates []string
 }
 
-// NewClient creates a new embedding client
+// NewClient creates a new embedding client with its own HTTP transport
 func NewClient(config common.EmbeddingConfig, inputChan chan common.TemplateResult, outputChan chan common.EmbeddingResult) *Client {
+	// Create own HTTP transport
+	transport := &http.Transport{
+		MaxIdleConns:        config.MaxConnections,
+		MaxIdleConnsPerHost: config.MaxConnections,
+		IdleConnTimeout:     90 * time.Second,
+	}
+	return NewClientWithTransport(config, inputChan, outputChan, transport)
+}
+
+// NewClientWithTransport creates a new embedding client using a shared HTTP transport
+// This allows multiple clients to share a single connection pool
+func NewClientWithTransport(config common.EmbeddingConfig, inputChan chan common.TemplateResult, outputChan chan common.EmbeddingResult, transport *http.Transport) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
 		config: config,
 		httpClient: &http.Client{
-			Timeout: config.Timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        config.MaxConnections,
-				MaxIdleConnsPerHost: config.MaxConnections,
-				IdleConnTimeout:     90 * time.Second,
-			},
+			Timeout:   config.Timeout,
+			Transport: transport,
 		},
 		inputChan:      inputChan,
 		outputChan:     outputChan,
