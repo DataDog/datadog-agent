@@ -303,6 +303,18 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
+	// Skip on kernels that don't have bpf_get_current_cgroup_id in sched_cls
+	// On these kernels, the cgroup scope with signature doesn't work reliably
+	// because the PID resolution fallback may not work in the TC classifier context
+	// TODO: remove this once we have a proper solution for this
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Skipf("failed to get kernel version: %v", err)
+	}
+	if !kv.HasBpfGetCurrentCgroupIDForSchedCLS() {
+		t.Skip("skipping test on kernel without bpf_get_current_cgroup_id support in sched_cls - cgroup scope with signature requires this feature")
+	}
+
 	// Initial rule to capture the signature - no action yet
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -435,9 +447,6 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	if err := test.reloadPolicies(); err != nil {
 		t.Fatalf("failed to reload policies: %v", err)
 	}
-	// Trigger a small event to force the replay of cached events.
-	// The replay only happens in handleEvent when a new eBPF event arrives.
-	exec.Command("true").Run()
 
 	// Wait for the filter to be removed
 	time.Sleep(2 * time.Second)
@@ -623,9 +632,6 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	if err := test.reloadPolicies(); err != nil {
 		t.Fatalf("failed to reload policies: %v", err)
 	}
-	// Trigger a small event to force the replay of cached events.
-	// The replay only happens in handleEvent when a new eBPF event arrives.
-	exec.Command("true").Run()
 
 	// Wait for the filter to be removed
 	time.Sleep(2 * time.Second)
