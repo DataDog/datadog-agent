@@ -50,7 +50,8 @@
       "Bash(timeout 30 ./scripts/metrics_viewer.py:*)",
       "Bash(python3 -m py_compile:*)",
       "Bash(timeout 60 ./scripts/metrics_viewer.rs:*)",
-      "Bash(cargo +nightly -Zscript check:*)"
+      "Bash(cargo +nightly -Zscript check:*)",
+      "Bash(timeout 20 cargo:*)"
     ]
   }
 }

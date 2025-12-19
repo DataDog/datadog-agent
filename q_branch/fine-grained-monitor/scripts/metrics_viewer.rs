@@ -1,6 +1,9 @@
 #!/usr/bin/env -S cargo +nightly -Zscript
 
 ---
+[package]
+edition = "2024"
+
 [dependencies]
 parquet = { version = "54", features = ["arrow"] }
 arrow = "54"
@@ -41,6 +44,7 @@ use std::fs::File;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tower_http::cors::CorsLayer;
 
 #[derive(Parser, Debug)]
@@ -135,8 +139,10 @@ fn extract_labels_from_column(col: &dyn Array, row: usize) -> Result<Vec<(String
 }
 
 fn load_data(path: &PathBuf) -> Result<AppState> {
+    let total_start = Instant::now();
     eprintln!("Loading {:?}...", path);
 
+    let read_start = Instant::now();
     let file = File::open(path).context("Failed to open file")?;
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
 
@@ -259,8 +265,15 @@ fn load_data(path: &PathBuf) -> Result<AppState> {
         }
     }
 
-    eprintln!("Loaded {} rows, found {} containers", total_rows, raw_data.len());
+    let read_elapsed = read_start.elapsed();
+    eprintln!(
+        "  Read {} rows, found {} containers [{:.2}s]",
+        total_rows,
+        raw_data.len(),
+        read_elapsed.as_secs_f64()
+    );
 
+    let process_start = Instant::now();
     // Build container data
     let mut containers: HashMap<String, ContainerData> = HashMap::new();
 
@@ -303,7 +316,15 @@ fn load_data(path: &PathBuf) -> Result<AppState> {
     let mut container_list: Vec<ContainerInfo> = containers.values().map(|c| c.info.clone()).collect();
     container_list.sort_by(|a, b| b.avg_cpu.partial_cmp(&a.avg_cpu).unwrap_or(std::cmp::Ordering::Equal));
 
-    eprintln!("Processed {} containers with data", containers.len());
+    let process_elapsed = process_start.elapsed();
+    let total_samples: usize = containers.values().map(|c| c.timeseries.len()).sum();
+    eprintln!(
+        "  Processed {} containers, {} samples [{:.2}s]",
+        containers.len(),
+        total_samples,
+        process_elapsed.as_secs_f64()
+    );
+    eprintln!("  Total load time: {:.2}s", total_start.elapsed().as_secs_f64());
 
     Ok(AppState {
         containers,
