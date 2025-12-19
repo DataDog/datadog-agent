@@ -139,22 +139,26 @@ func newTestCCCache(ctx context.Context, config CCCacheConfig) *CCCache {
 	return cache
 }
 
-func TestCCCachePolling(t *testing.T) {
+// setupCCCache is a test helper that creates a CCCache with automatic cleanup
+func setupCCCache(t *testing.T, refreshOnMiss bool) *CCCache {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	config.RefreshCacheOnMiss = refreshOnMiss
 
+	return newTestCCCache(ctx, config)
+}
+
+func TestCCCachePolling(t *testing.T) {
+	cc := setupCCCache(t, false)
 	assert.NotZero(t, cc.LastUpdated())
 }
 
 func TestCCCache_GetApp(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	app1, err := cc.GetApp("random_app_guid")
 	assert.Nil(t, err)
@@ -167,11 +171,7 @@ func TestCCCache_GetApp(t *testing.T) {
 }
 
 func TestCCCache_GetSpace(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	space1, _ := cc.GetSpace("space_guid_1")
 	assert.EqualValues(t, v3Space1, *space1)
@@ -182,11 +182,7 @@ func TestCCCache_GetSpace(t *testing.T) {
 }
 
 func TestCCCache_GetOrg(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	org1, _ := cc.GetOrg("org_guid_1")
 	assert.EqualValues(t, v3Org1, *org1)
@@ -197,11 +193,7 @@ func TestCCCache_GetOrg(t *testing.T) {
 }
 
 func TestCCCache_GetCFApplication(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	cfapp1, _ := cc.GetCFApplication("random_app_guid")
 	assert.EqualValues(t, &cfApp1, cfapp1)
@@ -212,11 +204,7 @@ func TestCCCache_GetCFApplication(t *testing.T) {
 }
 
 func TestCCCache_GetCFApplications(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	cfapps, _ := cc.GetCFApplications()
 	sort.Slice(cfapps, func(i, j int) bool {
@@ -228,11 +216,7 @@ func TestCCCache_GetCFApplications(t *testing.T) {
 }
 
 func TestCCCache_GetSidecars(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	sidecar1, _ := cc.GetSidecars("random_app_guid")
 	assert.EqualValues(t, 1, len(sidecar1))
@@ -245,11 +229,7 @@ func TestCCCache_GetSidecars(t *testing.T) {
 }
 
 func TestCCCache_GetIsolationSegmentForSpace(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	segment1, _ := cc.GetIsolationSegmentForSpace("space_guid_1")
 	assert.EqualValues(t, &cfIsolationSegment1, segment1)
@@ -260,11 +240,7 @@ func TestCCCache_GetIsolationSegmentForSpace(t *testing.T) {
 }
 
 func TestCCCache_GetIsolationSegmentForOrg(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	segment1, _ := cc.GetIsolationSegmentForOrg("org_guid_1")
 	assert.EqualValues(t, &cfIsolationSegment1, segment1)
@@ -275,11 +251,7 @@ func TestCCCache_GetIsolationSegmentForOrg(t *testing.T) {
 }
 
 func TestCCCache_GetProcesses(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	processes, err := cc.GetProcesses("random_app_guid")
 	assert.Nil(t, err)
@@ -298,12 +270,7 @@ func TestCCCache_GetProcesses(t *testing.T) {
 }
 
 func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	config.RefreshCacheOnMiss = true
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, true)
 
 	// clear the processes cache to trigger cache misses
 	cc.Lock()
@@ -325,12 +292,7 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 }
 
 func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	config.RefreshCacheOnMiss = true
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, true)
 
 	// clear the apps cache to trigger cache misses
 	cc.Lock()
@@ -352,12 +314,7 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 }
 
 func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	config.RefreshCacheOnMiss = true
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, true)
 
 	// clear the spaces cache to trigger cache misses
 	cc.Lock()
@@ -379,12 +336,7 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 }
 
 func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	config.RefreshCacheOnMiss = true
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, true)
 
 	// clear the orgs cache to trigger cache misses
 	cc.Lock()
@@ -406,12 +358,7 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 }
 
 func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	config.RefreshCacheOnMiss = true
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, true)
 
 	// clear multiple caches to trigger cache misses
 	cc.Lock()

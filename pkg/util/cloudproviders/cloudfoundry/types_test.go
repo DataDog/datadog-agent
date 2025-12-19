@@ -8,7 +8,6 @@
 package cloudfoundry
 
 import (
-	"context"
 	"regexp"
 	"testing"
 
@@ -399,11 +398,7 @@ func TestActualLRPFromBBSModel(t *testing.T) {
 }
 
 func TestDesiredLRPFromBBSModel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	config := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, config)
+	cc := setupCCCache(t, false)
 
 	includeList := []*regexp.Regexp{regexp.MustCompile("CUSTOM_*")}
 	excludeList := []*regexp.Regexp{regexp.MustCompile("NOT_CUSTOM_*")}

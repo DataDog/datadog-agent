@@ -8,7 +8,6 @@
 package cloudfoundry
 
 import (
-	"context"
 	"regexp"
 	"testing"
 	"time"
@@ -33,11 +32,9 @@ func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*mo
 // setupTestBBSCache creates a BBSCache with its CCCache dependency for testing
 func setupTestBBSCache(t *testing.T) *BBSCache {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
-	ccConfig := newTestCCCacheConfig()
-	cc := newTestCCCache(ctx, ccConfig)
+	// Setup CCCache using the existing helper
+	cc := setupCCCache(t, false)
 
 	bbsConfig := BBSCacheConfig{
 		BBSClient:    testBBSClient{},
@@ -48,7 +45,7 @@ func setupTestBBSCache(t *testing.T) *BBSCache {
 	}
 
 	cache := &BBSCache{
-		cancelContext:      ctx,
+		cancelContext:      cc.cancelContext,
 		configured:         true,
 		config:             bbsConfig,
 		bbsAPIClientLogger: lager.NewLogger("bbs-test"),
