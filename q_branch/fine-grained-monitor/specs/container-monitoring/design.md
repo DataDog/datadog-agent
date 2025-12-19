@@ -25,7 +25,7 @@ and writes them to a Parquet file for post-hoc analysis.
 │                                               ▼                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                    lading_capture (dependency)               │   │
-│  │                    (REQ-FM-004, REQ-FM-005)                   │   │
+│  │                    (REQ-FM-004)                               │   │
 │  │                                                              │   │
 │  │  CaptureRecorder ──▶ Accumulator ──▶ Parquet Writer          │   │
 │  │  (metrics::Recorder)  (60-tick window)  (Arrow + ZSTD)       │   │
@@ -42,7 +42,7 @@ and writes them to a Parquet file for post-hoc analysis.
 
 | Crate | Purpose | REQ |
 |-------|---------|-----|
-| `lading_capture` | Metrics capture, accumulation, Parquet output | REQ-FM-004, REQ-FM-005 |
+| `lading_capture` | Metrics capture, accumulation, Parquet output | REQ-FM-004 |
 | `lading_signal` | Shutdown/lifecycle signaling for CaptureManager | REQ-FM-004 |
 | `metrics` | Standard metrics facade (gauge!, counter!) | All |
 | `tokio` | Async runtime | All |
@@ -336,22 +336,6 @@ The rotation flow inside `CaptureManager`:
 - Track cumulative size of all rotated files
 - When total exceeds 1 GiB, log warning and stop rotation loop
 - Individual files are typically small (90 seconds of data each)
-
-### REQ-FM-005: Late Metric Ingestion
-
-**Accumulator Design** (from lading_capture):
-- 60-tick rolling window (60 seconds at 1 Hz)
-- Metrics can be written to past ticks within the window
-- Each tick advances, oldest tick is flushed to Parquet
-
-**Future Integration Point**:
-When Agent output interception is implemented, intercepted metrics will:
-1. Parse timestamp from the metric payload
-2. Calculate tick offset: `(metric_timestamp - start_time) / tick_duration`
-3. Write to accumulator at the calculated tick (if within 60-tick window)
-
-This requirement is implemented by using `lading_capture` as-is. The
-`HISTORICAL_SENDER` channel and accumulator handle late metrics automatically.
 
 ## Error Handling Strategy
 
