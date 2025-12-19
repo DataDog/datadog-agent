@@ -526,7 +526,6 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         'workers': "Number of parallel workers for compression and builds (default: 8)",
         'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
         'tag': "Tag for the built Docker image (default: localhost/datadog-agent:local)",
-        'with-system-probe': "Build system-probe with eBPF support (downloads tools from public S3, adds ~5-10min)",
     }
 )
 def docker_build(
@@ -536,7 +535,6 @@ def docker_build(
     workers=8,
     build_image=None,
     tag="localhost/datadog-agent:local",
-    with_system_probe=False,
 ):
     """
     Build the Agent inside a Docker container and create a runnable Docker image.
@@ -552,21 +550,16 @@ def docker_build(
 
     This task:
     1. Runs the omnibus build inside a Docker container (with caching)
-    2. Creates a Docker image from the build output
-    3. Loads the image into your local Docker daemon
+    2. Builds system-probe with eBPF support (downloads clang-bpf/llc-bpf from public S3)
+    3. Creates a Docker image from the build output
+    4. Loads the image into your local Docker daemon
 
-    Note: By default, system-probe is NOT included. Use --with-system-probe to build
-    a complete image with eBPF support. This adds ~5-10 min to build time as it:
-    - Builds eBPF object files
-    - Downloads clang-bpf/llc-bpf from public S3 (no auth required)
-    - Creates minimal BTF files (CO-RE on old kernels won't work, but modern kernels are fine)
+    Note: Modern kernels (5.2+) have built-in BTF and work fully. The minimal BTF tarball
+    created means CO-RE on old kernels (<5.2) won't work, but those are increasingly rare.
 
     Examples:
-        # Build and create Docker image (default, no system-probe)
+        # Build and create Docker image
         dda inv omnibus.docker-build
-
-        # Build with system-probe and eBPF support
-        dda inv omnibus.docker-build --with-system-probe
 
         # Build with custom image tag
         dda inv omnibus.docker-build --tag=my-agent:dev
@@ -708,46 +701,45 @@ def docker_build(
         "ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent",
     ]
 
-    if with_system_probe:
-        # Get clang/llc version info from .gitlab-ci.yml
-        gitlab_ci_file = os.path.join(repo_root, ".gitlab-ci.yml")
-        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-        with open(gitlab_ci_file) as f:
-            ci_config = yaml.safe_load(f)
-        ci_vars = ci_config['variables']
-        clang_version = ci_vars['CLANG_LLVM_VER']
-        clang_build_version = ci_vars['CLANG_BUILD_VERSION']
+    # Get clang/llc version info from .gitlab-ci.yml
+    gitlab_ci_file = os.path.join(repo_root, ".gitlab-ci.yml")
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    with open(gitlab_ci_file) as f:
+        ci_config = yaml.safe_load(f)
+    ci_vars = ci_config['variables']
+    clang_version = ci_vars['CLANG_LLVM_VER']
+    clang_build_version = ci_vars['CLANG_BUILD_VERSION']
 
-        # Public S3 URL for clang/llc (no auth required)
-        s3_base = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"
+    # Public S3 URL for clang/llc (no auth required)
+    s3_base = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"
 
-        # Build the S3 URLs for clang and llc
-        clang_url = f"{s3_base}/clang-{clang_version}.{arch}.{clang_build_version}"
-        llc_url = f"{s3_base}/llc-{clang_version}.{arch}.{clang_build_version}"
+    # Build the S3 URLs for clang and llc
+    clang_url = f"{s3_base}/clang-{clang_version}.{arch}.{clang_build_version}"
+    llc_url = f"{s3_base}/llc-{clang_version}.{arch}.{clang_build_version}"
 
-        # System-probe build steps
-        sysprobe_steps = [
-            # Build eBPF object files
-            f"echo '=== Building eBPF object files for {arch} ==='",
-            f"dda inv -- -e system-probe.object-files --arch={arch}",
-            # Create system-probe bin directory
-            "mkdir -p /tmp/system-probe",
-            # Download clang-bpf from public S3
-            "echo '=== Downloading clang-bpf from public S3 ==='",
-            f"wget -nv {clang_url} -O /tmp/system-probe/clang-bpf || {{ echo 'ERROR: Failed to download clang-bpf from {clang_url}'; exit 1; }}",
-            "chmod 0755 /tmp/system-probe/clang-bpf",
-            # Download llc-bpf from public S3
-            "echo '=== Downloading llc-bpf from public S3 ==='",
-            f"wget -nv {llc_url} -O /tmp/system-probe/llc-bpf || {{ echo 'ERROR: Failed to download llc-bpf from {llc_url}'; exit 1; }}",
-            "chmod 0755 /tmp/system-probe/llc-bpf",
-            # Create minimal BTF tarball - CO-RE requires 64GB+ processing that's impractical locally.
-            # Modern kernels (5.2+) have built-in BTF and don't need this file.
-            # Only old kernels (<5.2) are affected, and those are increasingly rare.
-            "echo '=== Creating minimal BTF tarball (CO-RE on old kernels disabled) ==='",
-            "mkdir -p /tmp/btf-empty && tar -cJf /tmp/system-probe/minimized-btfs.tar.xz -C /tmp/btf-empty .",
-        ]
-        build_steps.extend(sysprobe_steps)
-        omnibus_cmd += " --system-probe-bin=/tmp/system-probe"
+    # System-probe build steps
+    sysprobe_steps = [
+        # Build eBPF object files
+        f"echo '=== Building eBPF object files for {arch} ==='",
+        f"dda inv -- -e system-probe.object-files --arch={arch}",
+        # Create system-probe bin directory
+        "mkdir -p /tmp/system-probe",
+        # Download clang-bpf from public S3
+        "echo '=== Downloading clang-bpf from public S3 ==='",
+        f"wget -nv {clang_url} -O /tmp/system-probe/clang-bpf || {{ echo 'ERROR: Failed to download clang-bpf from {clang_url}'; exit 1; }}",
+        "chmod 0755 /tmp/system-probe/clang-bpf",
+        # Download llc-bpf from public S3
+        "echo '=== Downloading llc-bpf from public S3 ==='",
+        f"wget -nv {llc_url} -O /tmp/system-probe/llc-bpf || {{ echo 'ERROR: Failed to download llc-bpf from {llc_url}'; exit 1; }}",
+        "chmod 0755 /tmp/system-probe/llc-bpf",
+        # Create minimal BTF tarball - CO-RE requires 64GB+ processing that's impractical locally.
+        # Modern kernels (5.2+) have built-in BTF and don't need this file.
+        # Only old kernels (<5.2) are affected, and those are increasingly rare.
+        "echo '=== Creating minimal BTF tarball (CO-RE on old kernels disabled) ==='",
+        "mkdir -p /tmp/btf-empty && tar -cJf /tmp/system-probe/minimized-btfs.tar.xz -C /tmp/btf-empty .",
+    ]
+    build_steps.extend(sysprobe_steps)
+    omnibus_cmd += " --system-probe-bin=/tmp/system-probe"
 
     build_steps.append(omnibus_cmd)
 
@@ -763,7 +755,6 @@ def docker_build(
     print(f"Build image: {build_image}")
     print(f"Cache directory: {cache_dir}")
     print(f"Workers: {workers}")
-    print(f"System-probe: {'enabled' if with_system_probe else 'disabled'}")
     print()
 
     # Run the omnibus build
