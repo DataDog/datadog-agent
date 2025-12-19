@@ -51,6 +51,12 @@ func TestGetRegionAndAWSAccountID(t *testing.T) {
 			expectedRegion:  "",
 			expectedAccount: "",
 		},
+		{
+			name:            "invalid account id length returns empty account",
+			arn:             "arn:aws:ecs:us-east-1:123:task/12345678-1234-1234-1234-123456789012",
+			expectedRegion:  "us-east-1",
+			expectedAccount: "",
+		},
 	}
 
 	for _, tt := range tests {
