@@ -746,11 +746,12 @@ class GateMetricHandler:
             self.metrics = json.load(f)
 
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
-        if self.metrics[gate].get(metric_key):
+        metric_value = self.metrics[gate].get(metric_key)
+        if metric_value is not None:
             return create_gauge(
                 metric_name,
                 timestamp,
-                self.metrics[gate][metric_key],
+                metric_value,
                 tags=common_tags,
                 metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
                 unit="byte",
@@ -776,8 +777,10 @@ class GateMetricHandler:
                         continue
                     # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                        if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
-                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
+                        current_value = self.metrics[gate].get(metric_key)
+                        ancestor_value = ancestor_gate.get(metric_key)
+                        if current_value is not None and ancestor_value is not None:
+                            relative_metric_size = current_value - ancestor_value
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
             else:
                 print(
@@ -817,6 +820,14 @@ class GateMetricHandler:
                 gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
                 if gauge:
                     series.append(gauge)
+                elif "relative" in metric_key:
+                    # Relative metrics may be missing if ancestor predates delta tracking - this is expected
+                    print(
+                        color_message(
+                            f"[INFO] gate {gate} doesn't have the {metric_name} metric registered (ancestor may predate delta tracking)",
+                            "blue",
+                        )
+                    )
                 else:
                     print(
                         color_message(
