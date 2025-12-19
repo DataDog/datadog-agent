@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.61.0
@@ -81,7 +81,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
