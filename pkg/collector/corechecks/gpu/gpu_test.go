@@ -29,6 +29,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -581,10 +582,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			check, ok := checkGeneric.(*Check)
 			require.True(t, ok)
 
-			pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+			WithGPUConfigEnabled(t)
 			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
-				pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
 				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
 			})
 
