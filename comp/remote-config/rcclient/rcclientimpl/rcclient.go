@@ -10,6 +10,7 @@ package rcclientimpl
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -22,12 +23,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/remote-config/functiontools"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,7 +90,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
-		return nil, fmt.Errorf("Remote config client is missing agent name or version parameter")
+		return nil, errors.New("Remote config client is missing agent name or version parameter")
 	}
 
 	// Append client options
@@ -122,7 +125,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		}
 	}
 
-	rc := rcClient{
+	rc := &rcClient{
 		listeners:         fxutil.GetAndFilterGroup(deps.Listeners),
 		taskListeners:     fxutil.GetAndFilterGroup(deps.TaskListeners),
 		m:                 &sync.Mutex{},
@@ -134,7 +137,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				rc.start()
@@ -154,7 +157,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) start() {
+func (rc *rcClient) start() {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -178,7 +181,7 @@ func (rc rcClient) start() {
 // the setting is already set to true.
 //
 // If a setting is not set via any config, it will fallback if the source was RC.
-func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
 	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
 	for cfgPath, update := range updates {
@@ -289,7 +292,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 	}
 }
 
-func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
+func (rc *rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
 	pkglog.Debugf("Setting `%s: %t` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
 	if err != nil {
@@ -302,7 +305,7 @@ func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath st
 	return err
 }
 
-func (rc rcClient) SubscribeAgentTask() {
+func (rc *rcClient) SubscribeAgentTask() {
 	rc.taskProcessed = map[string]bool{}
 	if rc.client == nil {
 		pkglog.Errorf("No remote-config client")
@@ -311,11 +314,11 @@ func (rc rcClient) SubscribeAgentTask() {
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
-func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	rc.client.Subscribe(string(product), fn)
 }
 
-func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
@@ -388,16 +391,16 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
 
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
 		go func(configPath string, c state.RawConfig) {
-			pkglog.Debugf("Agent task %s started", configPath)
+			pkglog.Errorf("[FA] Agent task %s started", configPath)
 			defer wg.Done()
-			defer pkglog.Debugf("Agent task %s completed", configPath)
+			defer pkglog.Errorf("[FA] Agent task %s completed", configPath)
 			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
 			if err != nil {
 				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
@@ -426,7 +429,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 					// Check if the task was processed at least once
 					processed = oneProcessed || processed
 					if oneErr != nil {
-						pkglog.Errorf("Error while processing agent task %s: %s", configPath, oneErr)
+						pkglog.Errorf("[FA] Error while processing agent task %s: %s", configPath, oneErr)
 						if err == nil {
 							err = oneErr
 						} else {
@@ -434,6 +437,38 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 						}
 					}
 				}
+
+				switch task.Config.TaskType {
+				case string(types.TaskRestart):
+					processed = true
+					pkglog.Errorf("[FA] Restarting agent task %s", configPath)
+					switch task.Config.TaskArgs["manager"] {
+					case "docker":
+						pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
+					case "launchctl":
+						pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
+					case "systemctl":
+						pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
+					}
+					if err != nil {
+						pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
+					}
+				case string(types.TaskExecuteFunctionTool):
+					processed = true
+					pkglog.Errorf("[FA] Executing function tool for agent task %s", configPath)
+					pkglog.Errorf("[FA] Task: %s", task)
+					pkglog.Errorf("[FA] Call ID: %s", task.Config.TaskArgs["call_id"])
+					pkglog.Errorf("[FA] Function tool name: %s", task.Config.TaskArgs["function_tool_name"])
+					pkglog.Errorf("[FA] Parameters: %s", task.Config.TaskArgs["parameters"])
+					err = functiontools.NewCall(task).Execute().Send()
+					if err != nil {
+						pkglog.Errorf("[FA] Error while executing function tool for agent task: %s", err.Error())
+					}
+				}
+
 				if processed && err != nil {
 					// One failure
 					applyStateCallback(configPath, state.ApplyStatus{
@@ -465,10 +500,10 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 	select {
 	case <-c:
 		// completed normally
-		pkglog.Debugf("All %d agent tasks were applied successfully", len(updates))
+		pkglog.Errorf("[FA] All %d agent tasks were applied successfully", len(updates))
 		return
 	case <-time.After(agentTaskTimeout):
 		// timed out
-		pkglog.Warnf("Timeout of at least one agent task configuration")
+		pkglog.Errorf("[FA] Timeout of at least one agent task configuration")
 	}
 }
