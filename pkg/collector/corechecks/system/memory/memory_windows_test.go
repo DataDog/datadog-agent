@@ -10,6 +10,7 @@ package memory
 import (
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -64,7 +65,7 @@ func addDefaultQueryReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Pool Nonpaged Bytes", 168900000.0)
 }
 
-func TestMemoryCheckWindows(t *testing.T) {
+func TestMemoryCheckWindowsMocked(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	pageMemory = PagefileMemory
@@ -109,4 +110,53 @@ func TestMemoryCheckWindows(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 21)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestMemoryCheckWindows(t *testing.T) {
+
+	instanceConfig := []byte(``)
+
+	memCheck := new(Check)
+	m := mocksender.NewMockSender(memCheck.ID())
+	memCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+
+	// PDH counters may not be available in all environments (e.g., Windows containers)
+	// Use Maybe() to allow these to be optional
+	m.On("Gauge", "system.mem.cached", mock.AnythingOfType("float64"), "", []string(nil)).Return().Maybe()
+	m.On("Gauge", "system.mem.committed", mock.AnythingOfType("float64"), "", []string(nil)).Return().Maybe()
+	m.On("Gauge", "system.mem.paged", mock.AnythingOfType("float64"), "", []string(nil)).Return().Maybe()
+	m.On("Gauge", "system.mem.nonpaged", mock.AnythingOfType("float64"), "", []string(nil)).Return().Maybe()
+
+	// Core memory metrics should always be available
+	m.On("Gauge", "system.mem.free", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.usable", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.used", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.total", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.pct_usable", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.swap.total", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.swap.free", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.swap.used", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.swap.pct_free", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.pagefile.pct_free", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.pagefile.total", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.pagefile.used", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	m.On("Gauge", "system.mem.pagefile.free", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+
+	m.On("Gauge", "system.paging.total", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return().Times(1)
+	m.On("Gauge", "system.paging.free", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return().Times(1)
+	m.On("Gauge", "system.paging.used", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return().Times(1)
+	m.On("Gauge", "system.paging.pct_free", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return().Times(1)
+
+	m.On("Commit").Return().Times(1)
+
+	err := memCheck.Run()
+	require.Nil(t, err)
+
+	m.AssertExpectations(t)
+	// Core metrics (17 minimum): 5 mem + 4 swap + 4 pagefile + 4 paging
+	// Plus optional PDH counters (up to 4 more): cached, committed, paged, nonpaged
+	// Total can be between 17-21 depending on environment
+	require.GreaterOrEqual(t, len(m.Calls), 18, "Expected at least 18 calls (17 Gauge + 1 Commit)")
+	require.LessOrEqual(t, len(m.Calls), 22, "Expected at most 22 calls (21 Gauge + 1 Commit)")
+	m.AssertNumberOfCalls(t, "Commit", 1)
 }
