@@ -173,41 +173,147 @@ impl CpuSampler {
 }
 ```
 
-### REQ-FM-004: Parquet Output
+### REQ-FM-004: Parquet Output with File Rotation
 
-**Integration with lading_capture**:
+**Rotation Strategy**:
+
+`lading_capture`'s `CaptureManager` writes to a single Parquet file and only
+writes the footer on `close()`. Once closed, the writer cannot be reopened.
+To enable users to copy and analyze files without waiting for shutdown, we
+implement time-based file rotation:
+
+1. Each rotation interval (default 90 seconds), close the current file and open
+   a new one
+2. Closing writes the Parquet footer, making the file immediately readable
+3. Track total bytes written across all files; shutdown when exceeding 1 GiB
+
+The 90-second rotation interval exceeds the 60-second accumulator window,
+ensuring each file contains complete time slices without data spanning files.
+
+**Directory Structure and File Naming**:
+
+```text
+/data/
+├── session.json                                         # Run manifest
+├── dt=2025-12-19/
+│   ├── identifier=fine-grained-monitor-abc123/
+│   │   ├── metrics-20251219T173000Z.parquet
+│   │   ├── metrics-20251219T173130Z.parquet
+│   │   └── metrics-20251219T173300Z.parquet
+│   └── identifier=fine-grained-monitor-xyz789/
+│       └── metrics-20251219T173015Z.parquet
+└── dt=2025-12-20/
+    └── ...
+```
+
+The partitioning scheme uses Hive-style naming (`key=value/`) for compatibility
+with Iceberg, Delta, Hudi, and query engines like DuckDB and Spark.
+
+**Identifier** is derived from (in order of preference):
+1. `POD_NAME` environment variable (set via Kubernetes downward API)
+2. `NODE_NAME` environment variable
+3. System hostname
+
+**Session Manifest**:
+
+On startup, write `session.json` to the output directory root:
+
+```json
+{
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "identifier": "fine-grained-monitor-abc123",
+  "start_time": "2025-12-19T17:30:00Z",
+  "config": {
+    "sampling_interval_ms": 1000,
+    "rotation_seconds": 90,
+    "compression_level": 3,
+    "verbose_perf_risk": false
+  },
+  "node_name": "gadget-dev-worker",
+  "cluster_name": "gadget-dev",
+  "git_rev": "abc1234"
+}
+```
+
+This preserves run context for debugging sessions weeks later.
+
+**Standardized Labels**:
+
+Every metric includes these labels when available:
+
+| Label | Source | Purpose |
+|-------|--------|---------|
+| `node_name` | NODE_NAME env / hostname | Node identification |
+| `namespace` | cgroup path parsing | Kubernetes namespace |
+| `pod_name` | cgroup path parsing | Pod identification |
+| `pod_uid` | cgroup path parsing | Immutable pod reference |
+| `container_id` | cgroup path parsing | Container identification |
+| `container_name` | future: CRI query | Human-readable name |
+| `qos_class` | cgroup path parsing | guaranteed/burstable/besteffort |
+
+These labels serve as join keys for cross-container analysis and enable
+efficient filtering in queries.
+
+**Rotation Implementation**:
+
+Since `CaptureManager::start()` runs until shutdown and owns the writer, we
+cannot directly rotate from outside. Instead, we implement rotation by:
+
+1. Running `CaptureManager` with a short-lived scope
+2. Using `shutdown_broadcaster.signal()` to trigger graceful close
+3. Creating a new `CaptureManager` for the next file
+4. Repeating until total size limit or external shutdown
 
 ```rust
-// Lifecycle setup
-let (shutdown_watcher, shutdown_broadcaster) = lading_signal::signal();
-let (experiment_watcher, _) = lading_signal::signal();
-let (target_watcher, target_broadcaster) = lading_signal::signal();
+async fn run_with_rotation(args: Args) -> anyhow::Result<()> {
+    let rotation_interval = Duration::from_secs(args.rotation_seconds);
+    let mut total_bytes: u64 = 0;
+    let identifier = get_unique_identifier();
 
-let mut capture_manager = CaptureManager::new_parquet(
-    PathBuf::from("/data/metrics.parquet"),
-    flush_seconds,      // How often to flush to disk
-    compression_level,  // ZSTD compression (1-22)
-    shutdown_watcher,
-    experiment_watcher,
-    target_watcher,
-    Duration::from_secs(60),  // Accumulator expiration
-).await?;
+    // Write session manifest on startup
+    write_session_manifest(&args, &identifier).await?;
 
-// Add global labels
-capture_manager.add_global_label("node", node_name);
-capture_manager.add_global_label("cluster", cluster_name);
+    loop {
+        let date = chrono::Utc::now().format("%Y-%m-%d");
+        let timestamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
 
-// Start capture (installs global metrics recorder)
-target_broadcaster.signal();  // Marks time-zero
+        // Create partitioned directory structure
+        let partition_dir = args.output_dir
+            .join(format!("dt={}", date))
+            .join(format!("identifier={}", identifier));
+        tokio::fs::create_dir_all(&partition_dir).await?;
 
-// Run observer loop in parallel with capture manager
-tokio::select! {
-    _ = observer_loop() => {},
-    _ = capture_manager.start() => {},
+        let filename = format!("metrics-{}.parquet", timestamp);
+        let output_path = partition_dir.join(&filename);
+
+        // Create new CaptureManager for this rotation period
+        let (shutdown_watcher, shutdown_broadcaster) = lading_signal::signal();
+        // ... create capture_manager ...
+
+        // Run until rotation interval or external signal
+        tokio::select! {
+            _ = capture_manager.start() => { /* shutdown received */ }
+            _ = tokio::time::sleep(rotation_interval) => {
+                shutdown_broadcaster.signal();  // Trigger graceful close
+            }
+            _ = external_shutdown.recv() => {
+                shutdown_broadcaster.signal();
+                break;  // Exit rotation loop
+            }
+        }
+
+        // Check file size and accumulate
+        if let Ok(metadata) = tokio::fs::metadata(&output_path).await {
+            total_bytes += metadata.len();
+        }
+
+        if total_bytes >= MAX_TOTAL_BYTES {
+            tracing::warn!(total_bytes, "Total size limit reached");
+            break;
+        }
+    }
+    Ok(())
 }
-
-// Graceful shutdown
-shutdown_broadcaster.signal();
 ```
 
 **Parquet Schema** (from lading_capture):
@@ -221,12 +327,12 @@ shutdown_broadcaster.signal();
 | `metric_kind` | String | `counter`, `gauge`, or `histogram` |
 | `value_int` | UInt64 | Integer value (nullable) |
 | `value_float` | Float64 | Float value (nullable) |
-| `labels` | Map<String,String> | Container ID, pod name, etc. |
+| `labels` | Map<String,String> | Standardized labels (see table above) |
 
 **Size Limit**:
-- Monitor file size after each flush
-- When file exceeds 1 GiB, log warning and initiate graceful shutdown
-- Prevents runaway disk usage during long collection sessions
+- Track cumulative size of all rotated files
+- When total exceeds 1 GiB, log warning and stop rotation loop
+- Individual files are typically small (90 seconds of data each)
 
 ### REQ-FM-005: Late Metric Ingestion
 
@@ -262,22 +368,20 @@ This requirement is implemented by using `lading_capture` as-is. The
 
 ## Configuration
 
-```yaml
-# config.yaml (future)
-sampling_interval_ms: 1000    # REQ-FM-003
-output_path: /data/metrics.parquet
-compression_level: 3          # ZSTD level
-smaps_sample_divisor: 10      # Sample smaps every N ticks
-```
-
-Initial implementation will use command-line arguments:
+Command-line arguments:
 ```bash
 fine-grained-monitor \
-  --output /data/metrics.parquet \
+  --output-dir /data \
   --interval-ms 1000 \
+  --rotation-seconds 90 \
   --compression-level 3 \
   --verbose-perf-risk    # Optional: enable smaps collection (takes mm lock)
 ```
+
+Environment variables (typically set via Kubernetes downward API):
+- `POD_NAME` - Pod name for identifier and labels
+- `NODE_NAME` - Node name for labels
+- `CLUSTER_NAME` - Cluster name for labels
 
 ## File Structure
 
