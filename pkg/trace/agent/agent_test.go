@@ -4215,115 +4215,119 @@ func (c *mockConcentratorWithDelay) AddV1(t stats.InputV1) {
 // - The trace writer calls RemoveUnusedStrings() which deletes from the StringTable
 // - Race: Concentrator reading vs trace writer deleting from the same map
 func TestWorkV1_NoInternalSpanConcurrentModification(t *testing.T) {
-	cfg := config.New()
-	cfg.Endpoints[0].APIKey = "test"
-	cfg.ReceiverPort = 0
-	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+	for i := 0; i < 50; i++ {
+		t.Run("split-point-"+strconv.Itoa(i), func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.ReceiverPort = 0
+			cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 
-	// Replace the mock writer and concentrator with versions that simulate the race condition
-	agnt.TraceWriterV1 = &mockTraceWriterWithFlush{}
-	agnt.Concentrator = &mockConcentratorWithDelay{}
+			// Replace the mock writer and concentrator with versions that simulate the race condition
+			agnt.TraceWriterV1 = &mockTraceWriterWithFlush{}
+			agnt.Concentrator = &mockConcentratorWithDelay{}
 
-	// Force payload splitting by setting a very small MaxPayloadSize
-	// This triggers Cut() which clones the StringTable
-	defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
-	writer.MaxPayloadSize = 1
+			// Force payload splitting by setting a very small MaxPayloadSize
+			// This triggers Cut() which clones the StringTable
+			defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+			writer.MaxPayloadSize = 1_000 * i
 
-	// Start the agent workers in the background
-	var agentWg sync.WaitGroup
-	agentWg.Add(1)
-	go func() {
-		defer agentWg.Done()
-		agnt.Run()
-	}()
+			// Start the agent workers in the background
+			var agentWg sync.WaitGroup
+			agentWg.Add(1)
+			go func() {
+				defer agentWg.Done()
+				agnt.Run()
+			}()
 
-	// Give the agent time to start its workers
-	time.Sleep(50 * time.Millisecond)
+			// Give the agent time to start its workers
+			time.Sleep(10 * time.Millisecond)
 
-	// Process multiple payloads concurrently to trigger the race condition
-	numPayloads := 100
-	var payloadWg sync.WaitGroup
+			// Process multiple payloads concurrently to trigger the race condition
+			numPayloads := 100
+			var payloadWg sync.WaitGroup
 
-	for p := 0; p < numPayloads; p++ {
-		payloadWg.Add(1)
-		go func(payloadIdx int) {
-			defer payloadWg.Done()
+			for p := 0; p < numPayloads; p++ {
+				payloadWg.Add(1)
+				go func(payloadIdx int) {
+					defer payloadWg.Done()
 
-			// Each payload has its own StringTable with many strings
-			strings := idx.NewStringTable()
+					// Each payload has its own StringTable with many strings
+					strings := idx.NewStringTable()
 
-			// Add many strings to increase the chance of map operations racing
-			for i := 0; i < 100; i++ {
-				strings.Add("key" + strconv.Itoa(payloadIdx) + "_" + strconv.Itoa(i))
+					// Add many strings to increase the chance of map operations racing
+					for i := 0; i < 100; i++ {
+						strings.Add("key" + strconv.Itoa(payloadIdx) + "_" + strconv.Itoa(i))
+					}
+
+					// Create multiple chunks per payload - these will be split due to small MaxPayloadSize
+					chunks := make([]*idx.InternalTraceChunk, 10)
+					for i := 0; i < 10; i++ {
+						span := idx.NewInternalSpan(strings, &idx.Span{
+							ServiceRef:  strings.Add("test-service-" + strconv.Itoa(payloadIdx)),
+							NameRef:     strings.Add("test-operation-" + strconv.Itoa(i)),
+							ResourceRef: strings.Add("test-resource-" + strconv.Itoa(i)),
+							TypeRef:     strings.Add("web"),
+							SpanID:      uint64(payloadIdx*1000 + i + 1),
+							Start:       uint64(time.Now().UnixNano()),
+							Duration:    uint64(time.Millisecond),
+							Attributes:  make(map[uint32]*idx.AnyValue),
+						})
+						// Add _sample_rate attribute which is accessed by weightV1 via GetAttributeAsFloat64
+						// This triggers StringTable.Lookup() during stats processing
+						span.SetFloat64Attribute("_sample_rate", 0.5)
+						span.SetStringAttribute("custom_tag", "value"+strconv.Itoa(i))
+						// Add more attributes to increase StringTable activity
+						for j := 0; j < 10; j++ {
+							span.SetStringAttribute("attr"+strconv.Itoa(j), "val"+strconv.Itoa(j))
+						}
+
+						chunks[i] = &idx.InternalTraceChunk{
+							Strings:    strings,
+							TraceID:    make([]byte, 16),
+							Priority:   2, // Keep priority to ensure stats processing happens
+							Spans:      []*idx.InternalSpan{span},
+							Attributes: make(map[uint32]*idx.AnyValue),
+						}
+					}
+
+					payload := &idx.InternalTracerPayload{
+						Strings:    strings,
+						Chunks:     chunks,
+						Attributes: make(map[uint32]*idx.AnyValue),
+					}
+					payload.SetEnv("test")
+					payload.SetHostname("test-host")
+					payload.SetContainerID("container-" + strconv.Itoa(payloadIdx))
+
+					// Send payload to the agent's InV1 channel for processing by workV1 goroutines
+					select {
+					case agnt.InV1 <- &api.PayloadV1{
+						TracerPayload: payload,
+						Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+					}:
+					case <-ctx.Done():
+						return
+					}
+				}(p)
 			}
 
-			// Create multiple chunks per payload - these will be split due to small MaxPayloadSize
-			chunks := make([]*idx.InternalTraceChunk, 10)
-			for i := 0; i < 10; i++ {
-				span := idx.NewInternalSpan(strings, &idx.Span{
-					ServiceRef:  strings.Add("test-service-" + strconv.Itoa(payloadIdx)),
-					NameRef:     strings.Add("test-operation-" + strconv.Itoa(i)),
-					ResourceRef: strings.Add("test-resource-" + strconv.Itoa(i)),
-					TypeRef:     strings.Add("web"),
-					SpanID:      uint64(payloadIdx*1000 + i + 1),
-					Start:       uint64(time.Now().UnixNano()),
-					Duration:    uint64(time.Millisecond),
-					Attributes:  make(map[uint32]*idx.AnyValue),
-				})
-				// Add _sample_rate attribute which is accessed by weightV1 via GetAttributeAsFloat64
-				// This triggers StringTable.Lookup() during stats processing
-				span.SetFloat64Attribute("_sample_rate", 0.5)
-				span.SetStringAttribute("custom_tag", "value"+strconv.Itoa(i))
-				// Add more attributes to increase StringTable activity
-				for j := 0; j < 10; j++ {
-					span.SetStringAttribute("attr"+strconv.Itoa(j), "val"+strconv.Itoa(j))
-				}
+			// Wait for all payloads to be sent
+			payloadWg.Wait()
 
-				chunks[i] = &idx.InternalTraceChunk{
-					Strings:    strings,
-					TraceID:    make([]byte, 16),
-					Priority:   2, // Keep priority to ensure stats processing happens
-					Spans:      []*idx.InternalSpan{span},
-					Attributes: make(map[uint32]*idx.AnyValue),
-				}
-			}
+			// Give the agent time to process all payloads and trigger the race
+			time.Sleep(100 * time.Millisecond)
 
-			payload := &idx.InternalTracerPayload{
-				Strings:    strings,
-				Chunks:     chunks,
-				Attributes: make(map[uint32]*idx.AnyValue),
-			}
-			payload.SetEnv("test")
-			payload.SetHostname("test-host")
-			payload.SetContainerID("container-" + strconv.Itoa(payloadIdx))
+			// Stop the agent
+			cancel()
+			agentWg.Wait()
 
-			// Send payload to the agent's InV1 channel for processing by workV1 goroutines
-			select {
-			case agnt.InV1 <- &api.PayloadV1{
-				TracerPayload: payload,
-				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			}:
-			case <-ctx.Done():
-				return
-			}
-		}(p)
+			// If we got here without a race condition panic, the test passes
+			// When run with -race, this test will fail if there's concurrent map access
+		})
 	}
-
-	// Wait for all payloads to be sent
-	payloadWg.Wait()
-
-	// Give the agent time to process all payloads and trigger the race
-	time.Sleep(500 * time.Millisecond)
-
-	// Stop the agent
-	cancel()
-	agentWg.Wait()
-
-	// If we got here without a race condition panic, the test passes
-	// When run with -race, this test will fail if there's concurrent map access
 }

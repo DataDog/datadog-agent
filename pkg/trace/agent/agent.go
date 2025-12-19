@@ -549,11 +549,13 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
+	if len(statsInput.Traces) > 0 {
+		// It's important we send to the concentrator first as the trace writer can async modify the payload,
+		// but the concentrator will sync copy all strings it needs.
+		a.Concentrator.AddV1(statsInput)
+	}
 	if sampledChunks.Size > 0 {
 		a.writeChunksV1(sampledChunks)
-	}
-	if len(statsInput.Traces) > 0 {
-		a.Concentrator.AddV1(statsInput)
 	}
 }
 
