@@ -98,7 +98,7 @@ def display_pr_comment(
     ancestor_info = (
         f"Comparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
     )
-    body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
+    body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
