@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -21,8 +20,6 @@ import (
 )
 
 const (
-	featureGatesCacheKey = "featureGates"
-
 	// API Server metrics path
 	apiServerMetricsPath = "/metrics"
 )
@@ -72,10 +69,6 @@ func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, e
 // It retries using exponential backoff until timeout is reached.
 // Results are cached for 1 hour.
 func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, timeout time.Duration) (map[string]FeatureGate, error) {
-	if featureGates, found := cache.Cache.Get(featureGatesCacheKey); found {
-		return featureGates.(map[string]FeatureGate), nil
-	}
-
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -107,7 +100,6 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 		err = retrier.TriggerRetry()
 		switch retrier.RetryStatus() {
 		case retry.OK:
-			cache.Cache.Set(featureGatesCacheKey, featureGates, time.Hour)
 			return featureGates, nil
 		case retry.PermaFail:
 			return nil, err
