@@ -8,17 +8,22 @@ package privateactionrunnerimpl
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // IsEnabled checks if the private action runner is enabled in the configuration
@@ -55,6 +60,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+
+	canSelfEnroll := reqs.Config.GetBool("privateactionrunner.self_enroll")
+	if cfg.IdentityIsIncomplete() && canSelfEnroll {
+		reqs.Log.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
+		updatedCfg, err := performSelfEnrollment(reqs.Log, reqs.Config, cfg)
+		if err != nil {
+			return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
+		}
+		cfg = updatedCfg
+	}
+
 	keysManager := remoteconfig.New(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
@@ -83,4 +99,35 @@ func (p *privateactionrunnerImpl) Start(ctx context.Context) error {
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
 	p.WorkflowRunner.Close(ctx)
 	return nil
+}
+
+// performSelfEnrollment handles the self-registration of a private action runner
+func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
+	ddSite := ddConfig.GetString("site")
+	apiKey := ddConfig.GetString("api_key")
+	appKey := ddConfig.GetString("app_key")
+
+	env.DetectFeatures(ddConfig)
+	runnerName, err := hostname.Get(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	enrollmentResult, err := enrollment.SelfEnroll(ddSite, runnerName, apiKey, appKey)
+	if err != nil {
+		return nil, fmt.Errorf("enrollment API call failed: %w", err)
+	}
+	log.Info("Self-enrollment successful")
+
+	cfg.Urn = enrollmentResult.URN
+	cfg.PrivateKey = enrollmentResult.PrivateKey
+
+	_, orgID, runnerID, err := util.ParseRunnerURN(enrollmentResult.URN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse enrollment URN: %w", err)
+	}
+	cfg.OrgId = orgID
+	cfg.RunnerId = runnerID
+
+	return cfg, nil
 }
