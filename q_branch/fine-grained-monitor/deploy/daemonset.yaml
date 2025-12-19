@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+spec:
+  selector:
+    matchLabels:
+      app: fine-grained-monitor
+  template:
+    metadata:
+      labels:
+        app: fine-grained-monitor
+    spec:
+      hostPID: true  # Needed to read /proc for all processes
+      containers:
+      - name: monitor
+        image: fine-grained-monitor:local
+        imagePullPolicy: Never  # Use locally loaded image
+        args:
+          - "--output=/data/metrics.parquet"
+          - "--interval-ms=1000"
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: CLUSTER_NAME
+            value: "gadget-dev"
+          - name: RUST_LOG
+            value: "debug"
+        securityContext:
+          privileged: true  # Needed for full cgroup/procfs access
+        volumeMounts:
+          - name: cgroup
+            mountPath: /sys/fs/cgroup
+            readOnly: true
+          - name: proc
+            mountPath: /proc
+            readOnly: true
+          - name: data
+            mountPath: /data
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      terminationGracePeriodSeconds: 60  # Allow time for parquet footer to be written
+      volumes:
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: data
+          hostPath:
+            path: /var/lib/fine-grained-monitor
+            type: DirectoryOrCreate  # Create dir if it doesn't exist
+      tolerations:
+        - operator: Exists  # Run on all nodes including control-plane

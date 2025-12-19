@@ -6,9 +6,10 @@ description = "Fine-grained container resource monitoring for datadog-agent deve
 license = "Apache-2.0"
 
 [dependencies]
-# Metrics capture and output (REQ-FM-004, REQ-FM-005)
-lading-capture = { git = "https://github.com/DataDog/lading.git" }
-lading-signal = { git = "https://github.com/DataDog/lading.git" }
+# Lading ecosystem - using branch with exposed observer API
+lading = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
+lading-capture = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
+lading-signal = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
 
 # Metrics facade - observer emits via gauge!(), counter!()
 metrics = "0.24"
@@ -36,6 +37,7 @@ hostname = "0.4"
 [dev-dependencies]
 proptest = "1.5"
 proptest-derive = "0.5"
+tempfile = "3"
 
 [[bin]]
 name = "fine-grained-monitor"

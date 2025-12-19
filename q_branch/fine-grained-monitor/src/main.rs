@@ -60,11 +60,11 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+    // Initialize tracing - RUST_LOG takes precedence, fallback to info
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into()),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
 
@@ -118,6 +118,9 @@ async fn run(args: Args) -> anyhow::Result<()> {
 
     capture_manager.add_global_label("node", &node_name);
     capture_manager.add_global_label("cluster", &cluster_name);
+
+    // Note: CaptureManager::start() calls install() internally to set up
+    // the global metrics recorder. Don't call install() explicitly here.
 
     tracing::info!(
         node = %node_name,
@@ -196,6 +199,7 @@ async fn run(args: Args) -> anyhow::Result<()> {
 /// Main observer loop: discovers containers and samples metrics at the configured interval
 async fn observer_loop(interval_ms: u64, verbose_perf_risk: bool) {
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
+    let mut observer = observer::Observer::new();
 
     loop {
         interval.tick().await;
@@ -210,10 +214,8 @@ async fn observer_loop(interval_ms: u64, verbose_perf_risk: bool) {
 
         tracing::debug!(count = containers.len(), "Discovered containers");
 
-        // Sample metrics for each container
-        for container in &containers {
-            observer::sample(container, verbose_perf_risk);
-        }
+        // Sample metrics for all containers
+        observer.sample(&containers, verbose_perf_risk).await;
     }
 }
 

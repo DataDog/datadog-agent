@@ -69,18 +69,27 @@ Vendored modules:
 
 Container discovery scans the cgroup filesystem without external dependencies.
 
-**Cgroup Path Patterns (containerd/KIND)**:
+**Cgroup Path Patterns (containerd/KIND on cgroup v2)**:
 ```text
-/sys/fs/cgroup/kubepods.slice/
-├── kubepods-burstable.slice/
-│   └── kubepods-burstable-pod<UID>.slice/
+/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/
+├── kubelet-kubepods-besteffort.slice/
+│   └── kubelet-kubepods-besteffort-pod<UID>.slice/
 │       └── cri-containerd-<CONTAINER_ID>.scope/
 │           ├── cgroup.procs          # PIDs in this container
 │           ├── memory.current
+│           ├── memory.stat
 │           └── cpu.stat
-└── kubepods-besteffort.slice/
-    └── ...
+├── kubelet-kubepods-burstable.slice/
+│   └── kubelet-kubepods-burstable-pod<UID>.slice/
+│       └── cri-containerd-<CONTAINER_ID>.scope/
+│           └── ...
+└── kubelet-kubepods-pod<UID>.slice/       # Guaranteed QoS (no qos subdirectory)
+    └── cri-containerd-<CONTAINER_ID>.scope/
+        └── ...
 ```
+
+**Note**: Pod UIDs in cgroup paths use underscores instead of dashes
+(e.g., `pod29b83755_78d3_4345_9a8f_d3017edb5da3` from `29b83755-78d3-4345-9a8f-d3017edb5da3`).
 
 **Discovery Algorithm**:
 1. Walk `/sys/fs/cgroup/` recursively
