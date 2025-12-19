@@ -8,27 +8,11 @@ package automultilinedetection
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
-
-type bucket interface {
-	add(msg *message.Message)
-	isEmpty() bool
-	reset()
-	flush() []*message.Message
-
-	// Methods for truncation control
-	setShouldTruncate(bool)
-	setNeedsTruncation(bool)
-
-	// Methods for size tracking
-	getBufferLen() int
-	incrementLineCount()
-}
 
 type combiningBucket struct {
 	tagTruncatedLogs bool
@@ -67,7 +51,7 @@ func (b *combiningBucket) reset() {
 	b.needsTruncation = false
 }
 
-func (b *combiningBucket) flush() []*message.Message {
+func (b *combiningBucket) flush() *message.Message {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -116,7 +100,7 @@ func (b *combiningBucket) flush() []*message.Message {
 	}
 
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	return []*message.Message{msg}
+	return msg
 }
 
 func (b *combiningBucket) setShouldTruncate(val bool) {
@@ -135,83 +119,25 @@ func (b *combiningBucket) incrementLineCount() {
 	b.lineCount++
 }
 
-// tagOnlyBucket does not aggregate multiline logs into a single log, it
-// only adds a tag indicating they were capable of being tagged
-type tagOnlyBucket struct {
-	messages  []*message.Message
-	lineCount int
-}
-
-// add adds the message to the ongoing bucket
-func (b *tagOnlyBucket) add(msg *message.Message) {
-	b.messages = append(b.messages, msg)
-	b.lineCount++
-}
-
-func (b *tagOnlyBucket) isEmpty() bool {
-	return len(b.messages) == 0
-}
-
-func (b *tagOnlyBucket) reset() {
-	b.messages = nil
-	b.lineCount = 0
-}
-
-func (b *tagOnlyBucket) flush() []*message.Message {
-	defer b.reset()
-
-	if b.lineCount <= 1 {
-		return b.messages // No tags for single-line
-	}
-
-	// Tag all messages with group size
-	tag := fmt.Sprintf("auto_multiline_group_size:%d", b.lineCount)
-	for _, msg := range b.messages {
-		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, tag)
-	}
-
-	return b.messages
-}
-
-func (b *tagOnlyBucket) setShouldTruncate(_ bool) {
-	// No-op: tagOnlyBucket doesn't track truncation
-}
-
-func (b *tagOnlyBucket) setNeedsTruncation(_ bool) {
-	// No-op
-}
-
-func (b *tagOnlyBucket) getBufferLen() int {
-	return 0 // No buffer in tagOnlyBucket
-}
-
-func (b *tagOnlyBucket) incrementLineCount() {
-	b.lineCount++
-}
-
 // Aggregator aggregates multiline logs with a given label.
 type Aggregator struct {
 	outputFn           func(m *message.Message)
-	bucket             bucket
+	bucket             *combiningBucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
 }
 
 // NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry, isDetectionOnly bool) *Aggregator {
+func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) *Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
 	tailerInfo.Register(linesCombinedInfo)
 
-	var bkt bucket
-	if isDetectionOnly {
-		bkt = &tagOnlyBucket{
-			messages: make([]*message.Message, 0),
-		}
-	} else {
-		bkt = &combiningBucket{
+	return &Aggregator{
+		outputFn: outputFn,
+		bucket: &combiningBucket{
 			buffer:           bytes.NewBuffer(nil),
 			tagTruncatedLogs: tagTruncatedLogs,
 			tagMultiLineLogs: tagMultiLineLogs,
@@ -219,12 +145,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 			lineCount:        0,
 			shouldTruncate:   false,
 			needsTruncation:  false,
-		}
-	}
-
-	return &Aggregator{
-		outputFn:           outputFn,
-		bucket:             bkt,
+		},
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
@@ -233,7 +154,6 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 
 // Aggregate aggregates a multiline log using a label.
 func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
-
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
@@ -289,10 +209,7 @@ func (a *Aggregator) Flush() {
 		a.bucket.reset()
 		return
 	}
-	messages := a.bucket.flush()
-	for _, msg := range messages {
-		a.outputFn(msg)
-	}
+	a.outputFn(a.bucket.flush())
 }
 
 // IsEmpty returns true if the bucket is empty.
