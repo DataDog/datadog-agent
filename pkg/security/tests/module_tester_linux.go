@@ -35,7 +35,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -804,8 +803,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	ipcComp := ipcmock.New(t)
 
-	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
-
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
 	if err != nil {
 		return nil, err
@@ -817,7 +814,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, mockFilterStore, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -2013,7 +2010,12 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				if ppid == myPid {
 					// Found a zombie process with our PID as its parent
-					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+					if err != nil {
+						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+					}
+					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
 				}
 			}
 		}

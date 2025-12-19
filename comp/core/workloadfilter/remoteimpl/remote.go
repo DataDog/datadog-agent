@@ -221,19 +221,19 @@ var remoteProgramConfig = []struct {
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELMetrics,
+		filterID:    workloadfilter.KubeServiceCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELGlobal,
+		filterID:    workloadfilter.KubeServiceCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELMetrics,
+		filterID:    workloadfilter.KubeEndpointCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELGlobal,
+		filterID:    workloadfilter.KubeEndpointCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
