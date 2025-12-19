@@ -488,6 +488,7 @@
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/collector/corechecks/system/battery/     @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-products
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-products
@@ -595,7 +596,6 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
@@ -705,7 +705,6 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-products
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products
@@ -777,6 +776,7 @@
 /test/new-e2e/tests/windows                   @DataDog/windows-products @DataDog/windows-products
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
+/test/new-e2e/tests/ssi                       @DataDog/injection-platform
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring

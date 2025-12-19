@@ -99,7 +99,7 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema, c.allowDynamicSchema.Load())...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, c.unknownKeys)...)
 	return nil
 }
 
@@ -118,34 +118,45 @@ func buildNestedMap(keyParts []string, bottomValue interface{}) map[string]inter
 	return res
 }
 
+var valuelessLeaf = &nodeImpl{}
+
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, allowDynamicSchema bool) []error {
+func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
 	warnings := []error{}
 	for key, value := range inData {
+		key = strings.ToLower(key)
+
 		// If the key contains a dot, it represents a nested key
 		if strings.Contains(key, ".") {
 			parts := strings.Split(key, ".")
 			key = parts[0]
 			value = buildNestedMap(parts[1:], value)
 		}
-
-		key = strings.ToLower(key)
 		currPath := joinKey(atPath, key)
 
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
-			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
+			isLeaf, isKnown := knownKeys[currPath]
+			if isLeaf {
+				// Not found but known, the leaf setting must be valueless (defined by BindEnv or SetKnown)
+				schemaChild = valuelessLeaf
+			} else {
+				if !isKnown {
+					warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
+				}
 
-			// if the key is not defined in the schema, we can still add it to the destination
-			if value == nil || isScalar(value) || isSlice(value) {
-				dest.InsertChildNode(key, newLeafNode(value, source))
-				continue
+				// if the key is not defined in the schema, we can still add it to the destination
+				if value == nil || isScalar(value) || isSlice(value) {
+					dest.InsertChildNode(key, newLeafNode(value, source))
+					unknownKeys[currPath] = struct{}{}
+					continue
+				}
+
+				// fallback to inner node if it's not a scalar or nil
+				schemaChild = newInnerNode(nil)
 			}
-
-			// fallback to inner node if it's not a scalar or nil
-			schemaChild = newInnerNode(nil)
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest
@@ -172,7 +183,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 
 		if !dest.HasChild(key) {
 			destChild := newInnerNode(nil)
-			warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, allowDynamicSchema)...)
+			warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
 			dest.InsertChildNode(key, destChild)
 			continue
 		}
@@ -183,7 +194,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 			warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			continue
 		}
-		warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, allowDynamicSchema)...)
+		warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
 	}
 	return warnings
 }
