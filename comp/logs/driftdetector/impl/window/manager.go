@@ -130,8 +130,9 @@ func (m *Manager) flushExpiredWindows() {
 
 	for sourceKey, state := range m.sourceWindows {
 		if state.currentWindow != nil {
-			// Check if window duration has been reached
-			if now.Sub(state.currentWindow.StartTime) >= m.config.Size {
+			// Check if it's time to slide the window (based on Step, not Size)
+			// For sliding windows: Step = how often we create new windows
+			if now.Sub(state.currentWindow.StartTime) >= m.config.Step {
 				state.currentWindow.EndTime = now
 
 				// Send window to shared template extractor (even if empty)
@@ -143,6 +144,7 @@ func (m *Manager) flushExpiredWindows() {
 				}
 
 				// Create new window for this source
+				// New window starts now but covers Size duration of history
 				m.windowIDCounter++
 				state.currentWindow = &common.Window{
 					SourceKey: sourceKey,
