@@ -17,8 +17,8 @@ import (
 
 func defaultTestConfig() OscillationConfig {
 	return OscillationConfig{
-		WindowSize:          10, // Small window for tests
-		MinPeriodicityScore: 0.5,
+		WindowSize:          10,  // Small window for tests
+		MinPeriodicityScore: 0.6, // Must exceed monotonic trend baseline (~0.51)
 		MinAmplitude:        10.0,
 		MinPeriod:           2,
 		MaxPeriod:           5,
