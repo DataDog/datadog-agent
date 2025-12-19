@@ -356,7 +356,7 @@ func TestNewSecretsBackendConfigOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend, err := NewSecretsBackend(tt.config)
+			backend, err := NewK8sSecretsBackend(tt.config)
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, backend)

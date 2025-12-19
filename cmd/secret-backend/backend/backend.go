@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
 	"github.com/DataDog/datadog-secret-backend/backend/aws"
 	"github.com/DataDog/datadog-secret-backend/backend/azure"
+	"github.com/DataDog/datadog-secret-backend/backend/docker"
 	"github.com/DataDog/datadog-secret-backend/backend/file"
 	"github.com/DataDog/datadog-secret-backend/backend/gcp"
 	"github.com/DataDog/datadog-secret-backend/backend/hashicorp"
@@ -46,10 +47,16 @@ func Get(backendType string, backendConfig map[string]interface{}) Backend {
 		backend, err = file.NewYAMLBackend(backendConfig)
 	case "file.json":
 		backend, err = file.NewJSONBackend(backendConfig)
+	case "file.text":
+		backend, err = file.NewTextFileBackend(backendConfig)
+	case "k8s.file":
+		backend, err = kubernetes.NewK8sFileBackend(backendConfig)
 	case "k8s.secrets":
-		backend, err = kubernetes.NewSecretsBackend(backendConfig)
+		backend, err = kubernetes.NewK8sSecretsBackend(backendConfig)
 	case "akeyless":
 		backend, err = akeyless.NewAkeylessBackend(backendConfig)
+	case "docker.secrets":
+		backend, err = docker.NewDockerSecretsBackend(backendConfig)
 	default:
 		err = fmt.Errorf("unsupported backend type: %s", backendType)
 	}

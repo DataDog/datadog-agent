@@ -78,10 +78,10 @@ type SecretsBackend struct {
 	K8sConfig  k8sConfig
 }
 
-// NewSecretsBackend returns a new Kubernetes Secrets backend
+// NewK8sSecretsBackend returns a new Kubernetes Secrets backend
 // https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api
 // https://github.com/kubernetes/client-go/blob/master/rest/config.go#L543
-func NewSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
+func NewK8sSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
 	backendConfig := SecretsBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
