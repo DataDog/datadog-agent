@@ -64,8 +64,10 @@ nightly_test:
   tags: ["arch:amd64", "specific:true"]
   variables:
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    AGENT_NIGHTLY: "true"
   script:
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref kacper.murzyn/test-nightlies
       --variable DDR
       --variable DDR_WORKFLOW_ID
-      --variable BUNDLE_VERSION_OVERRIDE"
+      --variable BUNDLE_VERSION_OVERRIDE
+      --variable AGENT_NIGHTLY"
