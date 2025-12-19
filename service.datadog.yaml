@@ -1,7 +1,7 @@
 ---
 schema-version: v2.1
 dd-service: datadog-agent-nightly
-team: "agent-delivery"
+team: agent-delivery
 contacts:
   - type: slack
     # #agent-delivery-help
@@ -49,7 +49,7 @@ extensions:
   datadoghq.com/sdp:
     workday_team: "Agent Delivery"
     conductor:
-      slack: "datadog-agent-pipelines"
+      slack: "trello-test-channel"
       targets:
         - name: "beta-build-full"
           # For now, this config is mandatory, even if the target is not a ci_pipeline CNAB object.
@@ -96,6 +96,11 @@ extensions:
           build_only: true
           options:
             disable_bia: true
+        - name: "nightly-build"
+          branch: "kacper.murzyn/test-nighlies"
+          build_only: true
+          options:
+            concurrency_limit: 1
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml
