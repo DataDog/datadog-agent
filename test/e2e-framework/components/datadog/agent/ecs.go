@@ -120,7 +120,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				Value: pulumi.StringPtr("true"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
-				Name:  pulumi.StringPtr("CONTAINER_PROC_ROOT"),
+				Name:  pulumi.StringPtr("DD_CONTAINER_PROC_ROOT"),
 				Value: pulumi.StringPtr("/host/proc"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
