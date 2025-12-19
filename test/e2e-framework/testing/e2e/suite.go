@@ -156,9 +156,10 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -599,7 +600,9 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
-	if err != nil {
+	if _, isNonFatalError := err.(runner.NonFatalError); err != nil && isNonFatalError {
+		bs.T().Logf("Non-fatal error encountered creating the session output directory: %v", err)
+	} else if err != nil {
 		bs.T().Errorf("unable to create session output directory: %v", err)
 	}
 	bs.outputDir = sessionDirectory
