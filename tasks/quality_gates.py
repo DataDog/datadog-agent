@@ -101,7 +101,7 @@ def display_pr_comment(
     dashboard_link = (
         "[📊 Static Quality Gates Dashboard](https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates)\n"
     )
-    body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
+    body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
