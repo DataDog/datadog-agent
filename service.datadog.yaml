@@ -91,11 +91,10 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.73.x"
-          schedule: "30 2 * * *"
+          branch: "kacper.murzyn/test-nighlies"
           build_only: true
           options:
-            disable_bia: true
+            concurrency_limit: 1
         - name: "nightly-build"
           branch: "kacper.murzyn/test-nighlies"
           build_only: true
