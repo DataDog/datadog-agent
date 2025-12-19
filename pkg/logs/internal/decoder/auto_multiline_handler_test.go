@@ -251,18 +251,18 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MultilineTagged(t *testing.T) {
 	handler.process(newTestMessage(`2025-12-15 10:00:01 [INFO] Next log`)) // Triggers flush of multiline group
 	handler.flush()                                                        // Flush the last single-line message
 
-	// Verify all 3 lines of the multiline group are output separately with tags
+	// Verify all 3 lines of the multiline group are output separately - only first line tagged
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [ERROR] Exception occurred`), msg1.GetContent())
-	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:3", "First line should be tagged with group size")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_detected:true", "First line should be tagged")
 
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`  at com.example.MyClass.method1(MyClass.java:123)`), msg2.GetContent())
-	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:3", "Second line should be tagged with group size")
+	assert.Empty(t, msg2.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	msg3 := <-outputChan
 	assert.Equal(t, []byte(`  at com.example.MyClass.method2(MyClass.java:456)`), msg3.GetContent())
-	assert.Contains(t, msg3.ParsingExtra.Tags, "auto_multiline_group_size:3", "Third line should be tagged with group size")
+	assert.Empty(t, msg3.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Next single-line log should not be tagged
 	msg4 := <-outputChan
@@ -284,14 +284,14 @@ func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
 	handler.process(newTestMessage(`  continuation line`))
 	handler.flush()
 
-	// Verify both lines are tagged with group size 2
+	// Verify only first line is tagged
 	msg1 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [ERROR] Error message`), msg1.GetContent())
-	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`  continuation line`), msg2.GetContent())
-	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:2")
+	assert.Empty(t, msg2.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Verify no more messages
 	select {
@@ -322,14 +322,14 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MixedLogs(t *testing.T) {
 	assert.Equal(t, []byte(`2025-12-15 10:00:00 [INFO] Single line`), msg1.GetContent())
 	assert.Empty(t, msg1.ParsingExtra.Tags)
 
-	// Multiline group - both lines tagged
+	// Multiline group - only first line tagged
 	msg2 := <-outputChan
 	assert.Equal(t, []byte(`2025-12-15 10:00:01 [ERROR] Start of multiline`), msg2.GetContent())
-	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_group_size:2")
+	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	msg3 := <-outputChan
 	assert.Equal(t, []byte(`  continuation`), msg3.GetContent())
-	assert.Contains(t, msg3.ParsingExtra.Tags, "auto_multiline_group_size:2")
+	assert.Empty(t, msg3.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Second single line - not tagged
 	msg4 := <-outputChan
