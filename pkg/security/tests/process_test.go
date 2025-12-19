@@ -784,9 +784,38 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
+		var cmd *exec.Cmd
+		var cmdDone chan error
+		defer func() {
+			if cmd != nil && cmd.Process != nil {
+				// Try to kill the process
+				_ = cmd.Process.Kill()
+
+				// Wait for the process with a timeout to avoid hanging
+				select {
+				case <-cmdDone:
+					// Process finished
+				case <-time.After(4 * time.Second):
+					// Timeout: force kill and wait
+					_ = cmd.Process.Signal(syscall.SIGKILL)
+					_ = cmd.Wait()
+				}
+			}
+		}()
+
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
-			return cmd.Run()
+			cmd = exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+
+			// Wait for the command to finish in a goroutine
+			cmdDone = make(chan error, 1)
+			go func() {
+				cmdDone <- cmd.Wait()
+			}()
+
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_tty")
 			assertFieldEqual(t, event, "process.file.path", syscallTester)
