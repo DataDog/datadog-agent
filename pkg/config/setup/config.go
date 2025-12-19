@@ -1686,9 +1686,22 @@ func forwarder(config pkgconfigmodel.Setup) {
 func dogstatsd(config pkgconfigmodel.Setup) {
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
-	// Experimental and not officially supported for now.
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+	//
+	// D:dacl_flags(ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute))
+	// 	dacl_flags:
+	//		"AI": SDDL_AUTO_INHERITED
+	//	ace_type:
+	//		"A": SDDL_ACCESS_ALLOWED
+	// rights:
+	//		"GA": SDDL_GENERIC_ALL
+	// account_sid:
+	//		"WD": Everyone
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)")
 	// Options are: udp, uds, named_pipe
 	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
 
