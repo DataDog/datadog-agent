@@ -108,7 +108,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.73.0-rc.11 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.73.0-rc.11 // indirect
