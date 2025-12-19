@@ -47,6 +47,8 @@ java -version
 	`
 	output, err := host.Execute(script)
 	h.suite.Require().NoErrorf(err, "failed to install Java: %s", output)
+	// force host to reconnect to update the PATH
+	host.Reconnect()
 }
 
 // StartJavaApp deploys, compiles, and runs a simple Java application.
