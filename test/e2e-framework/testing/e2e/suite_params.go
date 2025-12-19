@@ -25,6 +25,11 @@ type suiteParams struct {
 	disableCoverage bool
 
 	provisioners provisioners.ProvisionerMap
+
+	// allowMissingResources controls how buildEnvFromResources behaves when a resource key is missing.
+	// In static environment mode (file-backed), it's common to only provide a subset of components
+	// (e.g. RemoteHost only). When enabled, missing pointer resources are treated as nil instead of errors.
+	allowMissingResources bool
 }
 
 // SuiteOption is an optional function parameter type for e2e options

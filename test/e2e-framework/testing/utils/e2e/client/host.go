@@ -20,12 +20,13 @@ import (
 	"strings"
 	"time"
 
-	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
