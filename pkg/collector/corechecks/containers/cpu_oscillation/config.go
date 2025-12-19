@@ -134,12 +134,8 @@ func (c *Config) Parse(data []byte) error {
 		}
 	}
 
-	// MinAmplitude: 0 means disabled, so we only clamp to max if > 100
-	if c.MinAmplitude < minAmplitudeRange.min {
-		c.MinAmplitude = minAmplitudeRange.min
-	} else if c.MinAmplitude > minAmplitudeRange.max {
-		c.MinAmplitude = minAmplitudeRange.max
-	}
+	// MinAmplitude validation (0 in config means "use default 10%")
+	validateFloatValue(&c.MinAmplitude, minAmplitudeRange)
 
 	return nil
 }
