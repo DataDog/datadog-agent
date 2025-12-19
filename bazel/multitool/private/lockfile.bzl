@@ -1,7 +1,7 @@
 "Utilities for interacting with the multitool lockfile."
 
 def _check(condition, message):
-    "fails iff condition is False and emits message"
+    "fails if condition is False and emits message"
     if not condition:
         fail(message)
 
