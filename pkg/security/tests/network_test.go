@@ -9,9 +9,11 @@
 package tests
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -294,6 +296,351 @@ func TestRawPacketAction(t *testing.T) {
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+}
+
+func TestRawPacketActionWithSignature(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	// Initial rule to capture the signature - no action yet
+	// Include a DNS rule to ensure network probes (including cgroup socket hooks) are attached from the start.
+	// This is necessary because without a network event type in the initial ruleset, the cgroup socket
+	// hooks (hook_sock_create, hook_sock_release) are not attached. These hooks populate the sock_cookie_pid
+	// map which is needed for PID resolution in the TC classifier on kernels < 6.1.
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "free"`,
+		},
+		{
+			ID:         "test_dns_to_activate_network_probes",
+			Expression: `dns.question.name == "never.match.example.com"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	var capturedSignature string
+
+	// First, run "free" to capture the signature
+	test.WaitSignal(t, func() error {
+		cmd := cmdWrapper.Command("free", []string{}, []string{})
+		return cmd.Run()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_rule_capture_signature")
+		capturedSignature = event.FieldHandlers.ResolveSignature(event)
+	})
+
+	if capturedSignature == "" {
+		t.Fatal("captured signature is empty")
+	}
+
+	// Verify DNS works before applying the filter
+	cmd := cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Errorf("nslookup should work before filter: %v", err)
+	}
+
+	// Now create a new rule with the network filter action using the captured signature
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "free" && event.signature != "` + capturedSignature + `"`,
+		},
+		{
+			ID:         "test_rule_raw_packet_drop_with_signature",
+			Expression: `exec.file.name == "free" && event.signature == "` + capturedSignature + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					NetworkFilter: &rules.NetworkFilterDefinition{
+						BPFFilter: "port 53",
+						Scope:     "cgroup",
+						Policy:    "drop",
+					},
+				},
+			},
+		},
+	}
+
+	// Set the new policy and reload
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set new policy: %v", err)
+	}
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("failed to reload policies: %v", err)
+	}
+	// Trigger a small event to force the replay of cached events.
+	// The replay only happens in handleEvent when a new eBPF event arrives.
+	exec.Command("true").Run()
+
+	// Run free again to trigger the rule with signature (free is not long-running, so we need to run it again)
+	err = test.GetEventSent(t, func() error {
+		cmd := cmdWrapper.Command("free", []string{}, []string{})
+		return cmd.Run()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_rule_raw_packet_drop_with_signature")
+
+		// Verify the network filter action was performed using the event's action reports
+		assert.Equal(t, 1, len(event.ActionReports), "expected one action report")
+		if len(event.ActionReports) == 1 {
+			report := event.ActionReports[0]
+			if rawPacketReport, ok := report.(*probe.RawPacketActionReport); ok {
+				assert.Equal(t, "port 53", rawPacketReport.Filter, "unexpected filter")
+				assert.Equal(t, "drop", rawPacketReport.Policy, "unexpected policy")
+			}
+		}
+		return true
+	}, 10*time.Second, "test_rule_raw_packet_drop_with_signature")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for the action to be performed
+	time.Sleep(5 * time.Second)
+
+	// DNS should now be blocked for this container
+	cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
+	_, nslookupErr := cmd.CombinedOutput()
+	if nslookupErr == nil {
+		t.Error("nslookup should return an error after filter is applied")
+	}
+
+	// Verify the raw packet action event was sent
+	err = retry.Do(func() error {
+		msg := test.msgSender.getMsg("rawpacket_action")
+		if msg == nil {
+			return errors.New("not found")
+		}
+		validateRawPacketActionSchema(t, string(msg.Data))
+		return nil
+	}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+
+	// Now remove the network isolation rule and verify DNS works again
+	// Create a new policy without the network filter action
+	ruleDefsWithoutFilter := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "free"`,
+		},
+	}
+
+	// Set the new policy without network filter and reload
+	if err := setTestPolicy(commonCfgDir, nil, ruleDefsWithoutFilter); err != nil {
+		t.Fatalf("failed to set policy without filter: %v", err)
+	}
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("failed to reload policies: %v", err)
+	}
+
+	// Wait for the filter to be removed
+	time.Sleep(2 * time.Second)
+
+	// DNS should now work again in the container
+	cmd = cmdWrapper.Command("nslookup", []string{"example.com"}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Errorf("nslookup should work after removing network filter: %v", err)
+	}
+}
+
+func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	// Initial rule to capture signature when syscall_tester starts
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Channel for reading lines from stdout - single goroutine reads, avoids race
+	linesCh := make(chan string, 100)
+	linesErrCh := make(chan error, 1)
+
+	// Start a single reader goroutine (will be started after we have the stdout pipe)
+	startLineReader := func(reader *bufio.Reader) {
+		go func() {
+			for {
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					linesErrCh <- err
+					return
+				}
+				linesCh <- line
+			}
+		}()
+	}
+
+	// Helper function to drain all buffered lines and return the last DNS status
+	drainAndReadDNSStatus := func(timeout time.Duration) (dnsOK bool, err error) {
+		deadline := time.Now().Add(timeout)
+		foundAny := false
+
+		for time.Now().Before(deadline) {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				break
+			}
+			select {
+			case line := <-linesCh:
+				if strings.Contains(line, "DNS_OK") {
+					dnsOK = true
+					foundAny = true
+				} else if strings.Contains(line, "DNS_FAIL") {
+					dnsOK = false
+					foundAny = true
+				}
+			case <-linesErrCh:
+				if foundAny {
+					return dnsOK, nil
+				}
+				return false, errors.New("reader error")
+			case <-time.After(remaining):
+				if foundAny {
+					return dnsOK, nil
+				}
+				return false, errors.New("timeout reading DNS status")
+			}
+		}
+		if foundAny {
+			return dnsOK, nil
+		}
+		return false, errors.New("timeout reading DNS status")
+	}
+
+	// Start dnsloop in background and capture the signature
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var dnsloopCmd *exec.Cmd
+	var stdout io.ReadCloser
+	var capturedSignature string
+
+	test.WaitSignal(t, func() error {
+		dnsloopCmd = exec.CommandContext(ctx, syscallTester, "dnsloop", "google.com")
+		var err error
+		stdout, err = dnsloopCmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		return dnsloopCmd.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_rule_capture_signature")
+		capturedSignature = event.FieldHandlers.ResolveSignature(event)
+	})
+
+	defer func() {
+		cancel()
+		if dnsloopCmd != nil {
+			dnsloopCmd.Wait()
+		}
+	}()
+
+	if capturedSignature == "" {
+		t.Fatal("captured signature is empty")
+	}
+
+	reader := bufio.NewReader(stdout)
+	startLineReader(reader)
+
+	// Step 1: Verify DNS works before isolation
+	dnsOK, err := drainAndReadDNSStatus(10 * time.Second)
+	if err != nil || !dnsOK {
+		t.Fatalf("DNS should work before isolation: dnsOK=%v, err=%v", dnsOK, err)
+	}
+
+	// Step 2: Apply network isolation rule with signature matching
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "syscall_tester" && event.signature != "` + capturedSignature + `"`,
+		},
+		{
+			ID:         "test_rule_syscall_tester_isolate",
+			Expression: `exec.file.name == "syscall_tester" && event.signature == "` + capturedSignature + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					NetworkFilter: &rules.NetworkFilterDefinition{
+						BPFFilter: "port 53",
+						Scope:     "process",
+						Policy:    "drop",
+					},
+				},
+			},
+		},
+	}
+
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set policy with network filter: %v", err)
+	}
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("failed to reload policies: %v", err)
+	}
+	// Trigger a small event to force the replay of cached events.
+	// The replay only happens in handleEvent when a new eBPF event arrives.
+	exec.Command("true").Run()
+
+	// Wait for the filter to be applied
+	time.Sleep(3 * time.Second)
+
+	// Step 3: Verify DNS fails for the now-isolated process
+	dnsOK, err = drainAndReadDNSStatus(10 * time.Second)
+	if err == nil && dnsOK {
+		t.Error("Step 3: DNS should fail for isolated process")
+	}
+
+	// Step 4: Remove the network isolation rule
+	ruleDefsWithoutFilter := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_capture_signature",
+			Expression: `exec.file.name == "syscall_tester"`,
+		},
+	}
+
+	if err := setTestPolicy(commonCfgDir, nil, ruleDefsWithoutFilter); err != nil {
+		t.Fatalf("failed to set policy without filter: %v", err)
+	}
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("failed to reload policies: %v", err)
+	}
+
+	// Wait for the filter to be removed
+	time.Sleep(2 * time.Second)
+
+	// Step 5: Verify DNS works again on the same process
+	dnsOK, err = drainAndReadDNSStatus(10 * time.Second)
+	if err != nil || !dnsOK {
+		t.Errorf("Step 5: DNS should work after removing network filter: dnsOK=%v, err=%v", dnsOK, err)
+	}
 }
 
 func TestRawPacketFilter(t *testing.T) {
