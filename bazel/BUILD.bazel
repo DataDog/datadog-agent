@@ -1,1 +1,15 @@
-# Package delimiter
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//bazel/tools:generate_release_bzl.bzl", "generate_release_bzl")
+
+generate_release_bzl(
+    name = "generate_releaaze_bzl",
+    out = "release.bzl.new",
+    release_json = "//:release_json",
+)
+
+diff_test(
+    name = "release_info_test",
+    failure_message = "To update: cp bazel-bin/bazel/release.bzl.new bazel/release.bzl",
+    file1 = ":release.bzl.new",
+    file2 = "release.bzl",
+)
