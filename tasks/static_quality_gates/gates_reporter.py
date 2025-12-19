@@ -181,4 +181,7 @@ class QualityGateOutputFormatter:
         else:
             print(color_message("✅ All gates passed successfully!", "green"))
 
+        print(
+            color_message("📊 Dashboard: https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates", "cyan")
+        )
         print(color_message("=" * 132, "magenta"))

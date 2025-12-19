@@ -183,6 +183,36 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsPartialResultsWithError_ThenMetricsAreReportedForReturnedPartitions(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	// Simulate partial success: return some partitions along with an error
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, errors.New("error reading some partitions")
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	// No error returned, and metrics are reported for the partitions that were returned
+	assert.Nil(t, err)
+	// usageData["/"] has Total=100GB, Used=70GB, Free=30GB - metrics are in kB (divided by 1024)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
