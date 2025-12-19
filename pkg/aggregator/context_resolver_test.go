@@ -16,11 +16,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	taggertypespkg "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -301,15 +301,15 @@ func setupTagger(t *testing.T) tagger.Component {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Set up tags for container1 (will be stripped)
-	container1EntityID := taggerTypes.NewEntityID(taggerTypes.ContainerID, "container1")
+	container1EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container1")
 	fakeTagger.SetTags(container1EntityID, "source1", []string{"env:prod", "image_name:image", "pod_name:thing1"}, nil, nil, nil)
 
 	// Set up tags for container2 (will be stripped)
-	container2EntityID := taggerTypes.NewEntityID(taggerTypes.ContainerID, "container2")
+	container2EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container2")
 	fakeTagger.SetTags(container2EntityID, "source1", []string{"env:staging", "image_name:image", "pod_name:thing2"}, nil, nil, nil)
 
 	// Set up tags for container3 (different region, will NOT be stripped)
-	container3EntityID := taggerTypes.NewEntityID(taggerTypes.ContainerID, "container3")
+	container3EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container3")
 	fakeTagger.SetTags(container3EntityID, "source1", []string{"env:dev", "image_name:image", "pod_name:thing3"}, nil, nil, nil)
 
 	return fakeTagger
@@ -333,7 +333,7 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
 		},
@@ -342,7 +342,7 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
 		},
@@ -381,7 +381,7 @@ func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store)
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
 		},
@@ -390,7 +390,7 @@ func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store)
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
 		},
@@ -423,7 +423,7 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
 		},
@@ -432,7 +432,7 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
 		},
@@ -470,7 +470,7 @@ func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store)
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
 		},
@@ -479,7 +479,7 @@ func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store)
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
 		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
 		},
@@ -513,7 +513,7 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.GaugeType,
 		Tags:  []string{"version:1.0"},
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
 		},
@@ -522,7 +522,7 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 		Name:  "distribution.metric",
 		Mtype: metrics.GaugeType,
 		Tags:  []string{"version:1.0"},
-		OriginInfo: taggertypes.OriginInfo{
+		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
 		},

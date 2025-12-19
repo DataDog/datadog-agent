@@ -368,29 +368,20 @@ func loadTagFilterList() *TagMatcher {
 
 	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
 	for metricName, tags := range tagFilterListInterface {
-		// Tags can be configured as a simple array of tags - default to exclude.
-		arr, ok := tags.([]string)
-		if ok {
-			tagFilterList[metricName] = MetricTagList{
-				Tags:   arr,
-				Action: "exclude",
-			}
+		// Tags can be configured as an object with fields:
+		// tags - array of tags
+		// action - either `include` or `exclude`.
+		// Roundtrip the struct through yaml to load it.
+		tagBytes, err := yaml.Marshal(tags)
+		if err != nil {
+			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
 		} else {
-			// Or tags can be configured as an object with fields:
-			// tags - array of tags
-			// action - either `include` or `exclude`.
-			// Roundtrip the struct through yaml to load it.
-			tagBytes, err := yaml.Marshal(tags)
+			var tags MetricTagList
+			err = yaml.Unmarshal(tagBytes, &tags)
 			if err != nil {
-				log.Errorf("invalid configuration for `metric_tag_filterlist` %s", metricName)
+				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
 			} else {
-				var tags MetricTagList
-				err = yaml.Unmarshal(tagBytes, &tags)
-				if err != nil {
-					log.Errorf("error loading configuration for `metric_tag_filterlist` %s", err)
-				} else {
-					tagFilterList[metricName] = tags
-				}
+				tagFilterList[metricName] = tags
 			}
 		}
 	}

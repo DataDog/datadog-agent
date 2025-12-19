@@ -152,7 +152,7 @@ func TestFilterTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			acc := NewHashingTagsAccumulatorWithTags(tt.inputTags)
-			acc.FilterTags(tt.keepFunc)
+			acc.RetainFunc(tt.keepFunc)
 
 			assert.Equal(t, tt.expectedTags, acc.Get())
 			testTagsMatchHash(t, acc)

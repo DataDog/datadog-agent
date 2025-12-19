@@ -19,8 +19,9 @@ type HashingTagsAccumulator struct {
 	hashedTags
 }
 
-// FilterTags removes configured tags and their hashes from the accumulated tags.
-func (h *HashingTagsAccumulator) FilterTags(keep func(tag string) bool) {
+// RetainFunc keeps tags if `keep` returns true, otherwise the tag and associated
+// hash removed.
+func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) {
 	idx := 0
 	for arridx, tag := range h.data {
 		if keep(tag) {
