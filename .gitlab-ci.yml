@@ -88,7 +88,7 @@ stages:
   - trigger_distribution
   - dynamic_test
   - junit_upload
-  - internal_kubernetes_deploy
+  - k8s_staging_deployment_pr
   - post_rc_build
   - check_merge
   - notify

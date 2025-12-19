@@ -1,14 +1,12 @@
 ---
-# internal_kubernetes_deploy stage
-# Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo to deploy release candidate build
+# k8s_staging_deployment_pr stage
+# Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo to create staging deployment PR
 
-rc_kubernetes_deploy:
-  stage: internal_kubernetes_deploy
+k8s_staging_deployment_pr:
+  stage: k8s_staging_deployment_pr
   rules:
-    - if: $RC_K8S_DEPLOYMENTS == "true"
-      when: on_success
     - if: $RC_BUILD == "true"
-      when: manual
+      when: on_success
   needs:
     - job: publish_internal_container_image-jmx
       artifacts: false
@@ -25,17 +23,9 @@ rc_kubernetes_deploy:
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  # TODO: @agent-delivery to update this job when concuctor changes are properly verified
   allow_failure: true
   variables:
-    OPTION_AUTOMATIC_ROLLOUT: "true"
-    SKIP_PLAN_CHECK: "true"
-    EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
     AGENT_IMAGE_TAG: $CI_COMMIT_REF_NAME
   script:
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
-      --variable OPTION_AUTOMATIC_ROLLOUT
-      --variable EXPLICIT_WORKFLOWS
-      --variable OPTION_PRE_SCRIPT
-      --variable SKIP_PLAN_CHECK
       --variable AGENT_IMAGE_TAG"
