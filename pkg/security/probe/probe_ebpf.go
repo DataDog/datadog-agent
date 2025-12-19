@@ -188,6 +188,10 @@ type EBPFProbe struct {
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
 
+	// remediation tracking
+	activeRemediations     map[string]*remediationAction
+	activeRemediationsLock sync.RWMutex
+
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 }
@@ -843,6 +847,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		}
 		p.putBackPoolEvent(event)
 	}
+	// send not triggered remediations
+	p.handleRemediationNotTriggered()
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1046,6 +1052,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 
 func (p *EBPFProbe) getPoolEvent() *model.Event {
 	event := p.eventPool.Get()
+	relatedEventZeroer(event)
 	event.FieldHandlers = p.fieldHandlers
 	return event
 }
@@ -1053,7 +1060,6 @@ func (p *EBPFProbe) getPoolEvent() *model.Event {
 var relatedEventZeroer = model.NewEventZeroer()
 
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	relatedEventZeroer(event)
 	p.eventPool.Put(event)
 }
 
@@ -2521,6 +2527,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+
+	p.handleRemediationStatus(rs)
 }
 
 // NewEvent returns a new event
@@ -2908,6 +2916,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		activeRemediations:   make(map[string]*remediationAction),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3397,6 +3406,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+			p.handleKillRemediaitonAction(rule, ev)
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
@@ -3418,7 +3428,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
-
+			var reportStatus string
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
@@ -3431,21 +3441,25 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
-
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
+					reportStatus = "error"
+				} else {
+					reportStatus = "applied"
 				}
-
-				report := &RawPacketActionReport{
-					Filter: action.Def.NetworkFilter.BPFFilter,
-					Policy: policy.String(),
-					rule:   rule,
-				}
-
-				ev.ActionReports = append(ev.ActionReports, report)
-
-				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+
+			report := &RawPacketActionReport{
+				Filter: action.Def.NetworkFilter.BPFFilter,
+				Policy: policy.String(),
+				rule:   rule,
+			}
+
+			ev.ActionReports = append(ev.ActionReports, report)
+
+			p.probe.onRuleActionPerformed(rule, action.Def)
+
+			p.handleNetworkRemediaitonAction(rule, ev, policy, reportStatus)
 		}
 	}
 }

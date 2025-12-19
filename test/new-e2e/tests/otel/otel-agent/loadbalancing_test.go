@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -27,8 +26,6 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
-	// TODD(OTAGENT-665): re-enable this test
-	t.Skip("failed in CIs since k8s 0.34.1")
 	values := `
 datadog:
   otelCollector:
