@@ -35,24 +35,16 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, uint64(100), config.WindowSize)
 	assert.Equal(t, 2.0, config.SpikeThreshold)
-	assert.Equal(t, 0.5, config.DropThreshold)
-	assert.Equal(t, 90.0, config.HighValueThreshold)
-	assert.Equal(t, 5.0, config.LowValueThreshold)
-	assert.Equal(t, 10.0, config.RapidRiseRate)
-	assert.Equal(t, -10.0, config.RapidFallRate)
-	assert.Equal(t, uint64(10), config.MinSamples)
+	assert.Equal(t, uint64(20), config.MinSamples)
 }
 
 func TestRecordMetric_NoAnomalyBeforeMinSamples(t *testing.T) {
 	var callbackCalled bool
 	detector := NewHeuristicDetector(
 		DetectionConfig{
-			WindowSize:         10,
-			MinSamples:         5,
-			SpikeThreshold:     2.0,
-			DropThreshold:      0.5,
-			HighValueThreshold: 100.0,
-			LowValueThreshold:  1.0,
+			WindowSize:     10,
+			MinSamples:     5,
+			SpikeThreshold: 2.0,
 		},
 		func(a Anomaly) {
 			callbackCalled = true
@@ -71,11 +63,9 @@ func TestSpikeDetection(t *testing.T) {
 	var detectedAnomalies []Anomaly
 	detector := NewHeuristicDetector(
 		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			SpikeThreshold:     2.0, // 200% of baseline
-			HighValueThreshold: 200.0, // Set high to avoid triggering
-			RapidRiseRate:      1000.0, // Set high to avoid triggering
+			WindowSize:     20,
+			MinSamples:     10,
+			SpikeThreshold: 2.0, // 200% of baseline
 		},
 		func(a Anomaly) {
 			detectedAnomalies = append(detectedAnomalies, a)
@@ -109,16 +99,13 @@ func TestSpikeDetection(t *testing.T) {
 	assert.LessOrEqual(t, spikeAnomaly.Severity, 1.0)
 }
 
-func TestDropDetection(t *testing.T) {
+func TestNoFalsePositiveSpike(t *testing.T) {
 	var detectedAnomalies []Anomaly
 	detector := NewHeuristicDetector(
 		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			DropThreshold:      0.5, // 50% of baseline
-			SpikeThreshold:     10.0, // Set high to avoid triggering
-			HighValueThreshold: 200.0, // Set high to avoid triggering
-			RapidFallRate:      -1000.0, // Set low to avoid triggering
+			WindowSize:     20,
+			MinSamples:     10,
+			SpikeThreshold: 2.0,
 		},
 		func(a Anomaly) {
 			detectedAnomalies = append(detectedAnomalies, a)
@@ -127,222 +114,14 @@ func TestDropDetection(t *testing.T) {
 
 	timestamp := float64(time.Now().Unix())
 
-	// Establish baseline around 100
-	for i := 0; i < 10; i++ {
-		detector.RecordMetric("requests.count", 100.0, timestamp+float64(i))
+	// Send values that vary but don't spike
+	for i := 0; i < 20; i++ {
+		value := 50.0 + float64(i%5) // 50, 51, 52, 53, 54, 50, ...
+		detector.RecordMetric("cpu.usage", value, timestamp+float64(i))
 	}
 
-	// Send a drop (30 is 0.3x the baseline, below 0.5x threshold)
-	detector.RecordMetric("requests.count", 30.0, timestamp+10.0)
-
-	// Find drop anomaly
-	var dropAnomaly *Anomaly
-	for i := range detectedAnomalies {
-		if detectedAnomalies[i].Type == AnomalyTypeDrop {
-			dropAnomaly = &detectedAnomalies[i]
-			break
-		}
-	}
-
-	require.NotNil(t, dropAnomaly, "Should detect drop anomaly")
-	assert.Equal(t, "requests.count", dropAnomaly.MetricName)
-	assert.Equal(t, 30.0, dropAnomaly.Value)
-	assert.InDelta(t, 100.0, dropAnomaly.Baseline, 15.0)
-}
-
-func TestHighValueDetection(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	detector := NewHeuristicDetector(
-		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			HighValueThreshold: 90.0,
-			SpikeThreshold:     10.0, // Set high to avoid triggering
-			RapidRiseRate:      1000.0, // Set high to avoid triggering
-		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
-	)
-
-	timestamp := float64(time.Now().Unix())
-
-	// Establish baseline around 50
-	for i := 0; i < 10; i++ {
-		detector.RecordMetric("memory.usage", 50.0, timestamp+float64(i))
-	}
-
-	// Send high value (95 > 90 threshold)
-	detector.RecordMetric("memory.usage", 95.0, timestamp+10.0)
-
-	// Find high value anomaly
-	var highAnomaly *Anomaly
-	for i := range detectedAnomalies {
-		if detectedAnomalies[i].Type == AnomalyTypeHigh {
-			highAnomaly = &detectedAnomalies[i]
-			break
-		}
-	}
-
-	require.NotNil(t, highAnomaly, "Should detect high value anomaly")
-	assert.Equal(t, "memory.usage", highAnomaly.MetricName)
-	assert.Equal(t, 95.0, highAnomaly.Value)
-	assert.Equal(t, 90.0, highAnomaly.Baseline)
-}
-
-func TestLowValueDetection(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	detector := NewHeuristicDetector(
-		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			LowValueThreshold:  5.0,
-			SpikeThreshold:     10.0, // Set high to avoid triggering
-			HighValueThreshold: 200.0, // Set high to avoid triggering
-			RapidFallRate:      -1000.0, // Set low to avoid triggering
-		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
-	)
-
-	timestamp := float64(time.Now().Unix())
-
-	// Establish baseline around 50
-	for i := 0; i < 10; i++ {
-		detector.RecordMetric("connections.active", 50.0, timestamp+float64(i))
-	}
-
-	// Send low value (2 < 5 threshold)
-	detector.RecordMetric("connections.active", 2.0, timestamp+10.0)
-
-	// Find low value anomaly
-	var lowAnomaly *Anomaly
-	for i := range detectedAnomalies {
-		if detectedAnomalies[i].Type == AnomalyTypeLow {
-			lowAnomaly = &detectedAnomalies[i]
-			break
-		}
-	}
-
-	require.NotNil(t, lowAnomaly, "Should detect low value anomaly")
-	assert.Equal(t, "connections.active", lowAnomaly.MetricName)
-	assert.Equal(t, 2.0, lowAnomaly.Value)
-	assert.Equal(t, 5.0, lowAnomaly.Baseline)
-}
-
-func TestRapidRiseDetection(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	detector := NewHeuristicDetector(
-		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			RapidRiseRate:      10.0, // 10 units per second
-			SpikeThreshold:     10.0, // Set high to avoid triggering
-			HighValueThreshold: 200.0, // Set high to avoid triggering
-		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
-	)
-
-	timestamp := float64(time.Now().Unix())
-
-	// Establish baseline with slow growth
-	for i := 0; i < 10; i++ {
-		detector.RecordMetric("disk.usage", float64(10+i), timestamp+float64(i))
-	}
-
-	// Send rapid rise (50 units in 1 second = 50 units/sec, exceeds 10 units/sec)
-	detector.RecordMetric("disk.usage", 70.0, timestamp+11.0)
-
-	// Find rapid rise anomaly
-	var rapidRiseAnomaly *Anomaly
-	for i := range detectedAnomalies {
-		if detectedAnomalies[i].Type == AnomalyTypeRapidRise {
-			rapidRiseAnomaly = &detectedAnomalies[i]
-			break
-		}
-	}
-
-	require.NotNil(t, rapidRiseAnomaly, "Should detect rapid rise anomaly")
-	assert.Equal(t, "disk.usage", rapidRiseAnomaly.MetricName)
-	assert.Greater(t, rapidRiseAnomaly.Value, 10.0) // Rate should be > 10
-}
-
-func TestRapidFallDetection(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	detector := NewHeuristicDetector(
-		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         10,
-			RapidFallRate:      -10.0, // -10 units per second
-			SpikeThreshold:     10.0, // Set high to avoid triggering
-			HighValueThreshold: 200.0, // Set high to avoid triggering
-		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
-	)
-
-	timestamp := float64(time.Now().Unix())
-
-	// Establish baseline with slow decline
-	for i := 0; i < 10; i++ {
-		detector.RecordMetric("queue.size", float64(100-i), timestamp+float64(i))
-	}
-
-	// Send rapid fall (50 units drop in 1 second = -50 units/sec, exceeds -10 threshold)
-	detector.RecordMetric("queue.size", 40.0, timestamp+11.0)
-
-	// Find rapid fall anomaly
-	var rapidFallAnomaly *Anomaly
-	for i := range detectedAnomalies {
-		if detectedAnomalies[i].Type == AnomalyTypeRapidFall {
-			rapidFallAnomaly = &detectedAnomalies[i]
-			break
-		}
-	}
-
-	require.NotNil(t, rapidFallAnomaly, "Should detect rapid fall anomaly")
-	assert.Equal(t, "queue.size", rapidFallAnomaly.MetricName)
-	assert.Less(t, rapidFallAnomaly.Value, -10.0) // Rate should be < -10
-}
-
-func TestMultipleAnomalyTypes(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	detector := NewHeuristicDetector(
-		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         5,
-			SpikeThreshold:     2.0,
-			HighValueThreshold: 90.0,
-		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
-	)
-
-	timestamp := float64(time.Now().Unix())
-
-	// Establish baseline around 50
-	for i := 0; i < 5; i++ {
-		detector.RecordMetric("test.metric", 50.0, timestamp+float64(i))
-	}
-
-	// Send value that triggers both spike (150 > 50*2) and high (150 > 90)
-	detector.RecordMetric("test.metric", 150.0, timestamp+5.0)
-
-	// Should detect both spike and high anomalies
-	assert.GreaterOrEqual(t, len(detectedAnomalies), 1)
-
-	types := make(map[AnomalyType]bool)
-	for _, a := range detectedAnomalies {
-		types[a.Type] = true
-	}
-
-	// At least one of these should be detected
-	assert.True(t, types[AnomalyTypeSpike] || types[AnomalyTypeHigh])
+	// Should not detect any spikes
+	assert.Empty(t, detectedAnomalies, "Should not detect false positive spikes")
 }
 
 func TestMultipleMetrics(t *testing.T) {
@@ -351,11 +130,9 @@ func TestMultipleMetrics(t *testing.T) {
 
 	detector := NewHeuristicDetector(
 		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         5,
-			HighValueThreshold: 90.0,
-			SpikeThreshold:     10.0, // Set high to avoid triggering on normal values
-			RapidRiseRate:      1000.0, // Set high to avoid triggering
+			WindowSize:     20,
+			MinSamples:     10,
+			SpikeThreshold: 2.0,
 		},
 		func(a Anomaly) {
 			mu.Lock()
@@ -367,21 +144,21 @@ func TestMultipleMetrics(t *testing.T) {
 	timestamp := float64(time.Now().Unix())
 
 	// Send normal values for multiple metrics
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 15; i++ {
 		detector.RecordMetric("cpu.usage", 50.0, timestamp+float64(i))
 		detector.RecordMetric("memory.usage", 60.0, timestamp+float64(i))
 		detector.RecordMetric("disk.usage", 70.0, timestamp+float64(i))
 	}
 
-	// Trigger anomaly only on cpu.usage
-	detector.RecordMetric("cpu.usage", 95.0, timestamp+10.0)
+	// Trigger spike only on cpu.usage
+	detector.RecordMetric("cpu.usage", 150.0, timestamp+15.0)
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.Greater(t, detectedMetrics["cpu.usage"], 0, "Should detect anomaly on cpu.usage")
-	assert.Equal(t, 0, detectedMetrics["memory.usage"], "Should not detect anomaly on memory.usage")
-	assert.Equal(t, 0, detectedMetrics["disk.usage"], "Should not detect anomaly on disk.usage")
+	assert.Greater(t, detectedMetrics["cpu.usage"], 0, "Should detect spike on cpu.usage")
+	assert.Equal(t, 0, detectedMetrics["memory.usage"], "Should not detect spike on memory.usage")
+	assert.Equal(t, 0, detectedMetrics["disk.usage"], "Should not detect spike on disk.usage")
 }
 
 func TestGetMetricHistory(t *testing.T) {
@@ -447,9 +224,9 @@ func TestZeroTimestamp_UsesCurrentTime(t *testing.T) {
 	var detectedAnomalies []Anomaly
 	detector := NewHeuristicDetector(
 		DetectionConfig{
-			WindowSize:         20,
-			MinSamples:         5,
-			HighValueThreshold: 90.0,
+			WindowSize:     20,
+			MinSamples:     10,
+			SpikeThreshold: 2.0,
 		},
 		func(a Anomaly) {
 			detectedAnomalies = append(detectedAnomalies, a)
@@ -460,13 +237,14 @@ func TestZeroTimestamp_UsesCurrentTime(t *testing.T) {
 
 	// Record with zero timestamp (should use current time)
 	for i := 0; i < 10; i++ {
-		detector.RecordMetric("test.metric", 95.0, 0)
+		detector.RecordMetric("test.metric", 50.0, 0)
 		time.Sleep(1 * time.Millisecond)
 	}
+	detector.RecordMetric("test.metric", 150.0, 0)
 
 	afterTime := float64(time.Now().Unix())
 
-	// Should have detected anomalies
+	// Should have detected anomaly
 	assert.NotEmpty(t, detectedAnomalies)
 
 	// Timestamp should be between before and after
@@ -483,7 +261,7 @@ func TestConcurrentRecordMetric(t *testing.T) {
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     100,
-			MinSamples:     10,
+			MinSamples:     20,
 			SpikeThreshold: 2.0,
 		},
 		func(a Anomaly) {
@@ -501,7 +279,7 @@ func TestConcurrentRecordMetric(t *testing.T) {
 		wg.Add(1)
 		go func(val float64) {
 			defer wg.Done()
-			for j := 0; j < 20; j++ {
+			for j := 0; j < 30; j++ {
 				detector.RecordMetric("concurrent.metric", val, timestamp+float64(j))
 			}
 		}(float64(50 + i))
@@ -516,25 +294,21 @@ func TestConcurrentRecordMetric(t *testing.T) {
 
 func TestSeverityCalculation(t *testing.T) {
 	tests := []struct {
-		name              string
-		baseline          float64
-		value             float64
-		anomalyType       AnomalyType
-		expectedSeverity  float64 // approximate
-		severityInRange   bool
+		name            string
+		baseline        float64
+		value           float64
+		severityInRange bool
 	}{
 		{
 			name:            "Spike - 2x baseline",
 			baseline:        50.0,
 			value:           100.0,
-			anomalyType:     AnomalyTypeSpike,
 			severityInRange: true, // Should be 0.0-1.0
 		},
 		{
-			name:            "Drop - 50% of baseline",
-			baseline:        100.0,
-			value:           50.0,
-			anomalyType:     AnomalyTypeDrop,
+			name:            "Spike - 5x baseline",
+			baseline:        50.0,
+			value:           250.0,
 			severityInRange: true,
 		},
 	}
@@ -545,9 +319,8 @@ func TestSeverityCalculation(t *testing.T) {
 			detector := NewHeuristicDetector(
 				DetectionConfig{
 					WindowSize:     20,
-					MinSamples:     5,
+					MinSamples:     10,
 					SpikeThreshold: 1.5,
-					DropThreshold:  0.6,
 				},
 				func(a Anomaly) {
 					detectedAnomaly = &a
@@ -557,12 +330,12 @@ func TestSeverityCalculation(t *testing.T) {
 			timestamp := float64(time.Now().Unix())
 
 			// Establish baseline
-			for i := 0; i < 10; i++ {
+			for i := 0; i < 15; i++ {
 				detector.RecordMetric("test.metric", tt.baseline, timestamp+float64(i))
 			}
 
 			// Send anomalous value
-			detector.RecordMetric("test.metric", tt.value, timestamp+10.0)
+			detector.RecordMetric("test.metric", tt.value, timestamp+15.0)
 
 			if tt.severityInRange {
 				require.NotNil(t, detectedAnomaly)

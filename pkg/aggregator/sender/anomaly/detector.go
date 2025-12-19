@@ -47,15 +47,8 @@ type DetectionConfig struct {
 	// Window size for storing recent samples
 	WindowSize uint64
 
-	// Thresholds
-	SpikeThreshold     float64 // Multiplier for spike detection (e.g., 2.0 = 200% of baseline)
-	DropThreshold      float64 // Multiplier for drop detection
-	HighValueThreshold float64 // Absolute threshold for "high" values
-	LowValueThreshold  float64 // Absolute threshold for "low" values
-
-	// Rate of change thresholds (per second)
-	RapidRiseRate float64
-	RapidFallRate float64
+	// Spike threshold - multiplier for spike detection (e.g., 2.0 = 200% of baseline)
+	SpikeThreshold float64
 
 	// Minimum samples before detection starts
 	MinSamples uint64
@@ -64,21 +57,20 @@ type DetectionConfig struct {
 // DefaultConfig returns sensible default detection settings
 func DefaultConfig() DetectionConfig {
 	return DetectionConfig{
-		WindowSize:         100,
-		SpikeThreshold:     2.0,
-		DropThreshold:      0.5,
-		HighValueThreshold: 90.0, // e.g., 90% CPU
-		LowValueThreshold:  5.0,
-		RapidRiseRate:      10.0, // 10 units per second
-		RapidFallRate:      -10.0,
-		MinSamples:         10,
+		WindowSize:     100,
+		SpikeThreshold: 2.0, // 200% of baseline
+		MinSamples:     20,  // 5 minutes at 15s collection interval
 	}
 }
 
 // Detector is the interface for anomaly detection
 type Detector interface {
 	// RecordMetric records a new metric value and checks for anomalies
-	RecordMetric(metricName string, value float64, timestamp float64)
+	RecordMetric(
+		metricName string,
+		value float64,
+		timestamp float64,
+	)
 
 	// Clear clears all stored metric history
 	Clear()
@@ -101,7 +93,10 @@ type HeuristicDetector struct {
 }
 
 // NewHeuristicDetector creates a new heuristic-based anomaly detector
-func NewHeuristicDetector(config DetectionConfig, onAnomaly func(Anomaly)) Detector {
+func NewHeuristicDetector(
+	config DetectionConfig,
+	onAnomaly func(Anomaly),
+) Detector {
 	return &HeuristicDetector{
 		config:    config,
 		metrics:   make(map[string]*ringbuffer.RingBuffer[MetricSample]),
@@ -110,9 +105,19 @@ func NewHeuristicDetector(config DetectionConfig, onAnomaly func(Anomaly)) Detec
 }
 
 // RecordMetric records a new metric value and checks for anomalies
-func (d *HeuristicDetector) RecordMetric(metricName string, value float64, timestamp float64) {
+func (d *HeuristicDetector) RecordMetric(
+	metricName string,
+	value float64,
+	timestamp float64,
+) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	log.Infof(
+		"RecordMetric(%s, %f, %f)",
+		metricName,
+		value,
+		timestamp,
+	)
 
 	// Get or create ring buffer for this metric
 	rb, exists := d.metrics[metricName]
@@ -135,44 +140,50 @@ func (d *HeuristicDetector) RecordMetric(metricName string, value float64, times
 
 	// Check for anomalies if we have enough samples
 	if rb.Size() >= d.config.MinSamples {
-		d.detectAnomalies(metricName, rb, sample)
+		d.detectAnomalies(
+			metricName,
+			rb,
+			sample,
+		)
 	}
 }
 
 // detectAnomalies analyzes the metric history and detects anomalies
-func (d *HeuristicDetector) detectAnomalies(metricName string, rb *ringbuffer.RingBuffer[MetricSample], latest MetricSample) {
+func (d *HeuristicDetector) detectAnomalies(
+	metricName string,
+	rb *ringbuffer.RingBuffer[MetricSample],
+	latest MetricSample,
+) {
 	samples := rb.ReadAll()
 	if len(samples) == 0 {
 		return
 	}
 
 	// Calculate baseline statistics
-	mean, stddev := d.calculateBaseline(samples, int(rb.Size()))
+	mean, stddev := d.calculateBaseline(
+		samples,
+		int(rb.Size()),
+	)
 
-	// Check for different anomaly types
-	if anomaly := d.checkSpike(metricName, latest, mean, stddev); anomaly != nil {
-		d.notifyAnomaly(*anomaly)
-	}
-
-	if anomaly := d.checkDrop(metricName, latest, mean, stddev); anomaly != nil {
-		d.notifyAnomaly(*anomaly)
-	}
-
-	if anomaly := d.checkHighValue(metricName, latest); anomaly != nil {
-		d.notifyAnomaly(*anomaly)
-	}
-
-	if anomaly := d.checkLowValue(metricName, latest); anomaly != nil {
-		d.notifyAnomaly(*anomaly)
-	}
-
-	if anomaly := d.checkRateOfChange(metricName, samples, int(rb.Size())); anomaly != nil {
+	// Check for spike anomalies only (relative to baseline)
+	if anomaly := d.checkSpike(
+		metricName,
+		latest,
+		mean,
+		stddev,
+	); anomaly != nil {
 		d.notifyAnomaly(*anomaly)
 	}
 }
 
 // calculateBaseline computes mean and stddev from recent samples
-func (d *HeuristicDetector) calculateBaseline(samples []MetricSample, size int) (mean float64, stddev float64) {
+func (d *HeuristicDetector) calculateBaseline(
+	samples []MetricSample,
+	size int,
+) (
+	mean float64,
+	stddev float64,
+) {
 	if size == 0 {
 		return 0, 0
 	}
@@ -205,9 +216,20 @@ func (d *HeuristicDetector) calculateBaseline(samples []MetricSample, size int) 
 }
 
 // checkSpike detects sudden spikes in value
-func (d *HeuristicDetector) checkSpike(metricName string, sample MetricSample, baseline float64, stddev float64) *Anomaly {
+func (d *HeuristicDetector) checkSpike(
+	metricName string,
+	sample MetricSample,
+	baseline float64,
+	stddev float64,
+) *Anomaly {
 	if sample.Value > baseline*d.config.SpikeThreshold {
-		severity := math.Min(1.0, (sample.Value-baseline)/math.Max(1.0, baseline))
+		severity := math.Min(
+			1.0,
+			(sample.Value-baseline)/math.Max(
+				1.0,
+				baseline,
+			),
+		)
 		return &Anomaly{
 			MetricName: metricName,
 			Type:       AnomalyTypeSpike,
@@ -217,110 +239,6 @@ func (d *HeuristicDetector) checkSpike(metricName string, sample MetricSample, b
 			Timestamp:  sample.Timestamp,
 		}
 	}
-	return nil
-}
-
-// checkDrop detects sudden drops in value
-func (d *HeuristicDetector) checkDrop(metricName string, sample MetricSample, baseline float64, stddev float64) *Anomaly {
-	if sample.Value < baseline*d.config.DropThreshold && baseline > 0 {
-		severity := math.Min(1.0, (baseline-sample.Value)/baseline)
-		return &Anomaly{
-			MetricName: metricName,
-			Type:       AnomalyTypeDrop,
-			Value:      sample.Value,
-			Baseline:   baseline,
-			Severity:   severity,
-			Timestamp:  sample.Timestamp,
-		}
-	}
-	return nil
-}
-
-// checkHighValue detects sustained high values
-func (d *HeuristicDetector) checkHighValue(metricName string, sample MetricSample) *Anomaly {
-	if sample.Value > d.config.HighValueThreshold {
-		severity := math.Min(1.0, sample.Value/100.0)
-		return &Anomaly{
-			MetricName: metricName,
-			Type:       AnomalyTypeHigh,
-			Value:      sample.Value,
-			Baseline:   d.config.HighValueThreshold,
-			Severity:   severity,
-			Timestamp:  sample.Timestamp,
-		}
-	}
-	return nil
-}
-
-// checkLowValue detects sustained low values
-func (d *HeuristicDetector) checkLowValue(metricName string, sample MetricSample) *Anomaly {
-	if sample.Value < d.config.LowValueThreshold {
-		severity := math.Min(1.0, d.config.LowValueThreshold/math.Max(1.0, sample.Value))
-		return &Anomaly{
-			MetricName: metricName,
-			Type:       AnomalyTypeLow,
-			Value:      sample.Value,
-			Baseline:   d.config.LowValueThreshold,
-			Severity:   severity,
-			Timestamp:  sample.Timestamp,
-		}
-	}
-	return nil
-}
-
-// checkRateOfChange detects rapid increases or decreases
-func (d *HeuristicDetector) checkRateOfChange(metricName string, samples []MetricSample, size int) *Anomaly {
-	if size < 2 {
-		return nil
-	}
-
-	// Get last two valid samples
-	var prev, curr MetricSample
-	found := 0
-	for i := size - 1; i >= 0 && found < 2; i-- {
-		if samples[i].Timestamp > 0 {
-			if found == 0 {
-				curr = samples[i]
-			} else {
-				prev = samples[i]
-			}
-			found++
-		}
-	}
-
-	if found < 2 || curr.Timestamp == prev.Timestamp {
-		return nil
-	}
-
-	// Calculate rate of change per second
-	timeDelta := curr.Timestamp - prev.Timestamp
-	valueDelta := curr.Value - prev.Value
-	rate := valueDelta / timeDelta
-
-	if rate > d.config.RapidRiseRate {
-		severity := math.Min(1.0, rate/d.config.RapidRiseRate)
-		return &Anomaly{
-			MetricName: metricName,
-			Type:       AnomalyTypeRapidRise,
-			Value:      rate,
-			Baseline:   d.config.RapidRiseRate,
-			Severity:   severity,
-			Timestamp:  curr.Timestamp,
-		}
-	}
-
-	if rate < d.config.RapidFallRate {
-		severity := math.Min(1.0, math.Abs(rate/d.config.RapidFallRate))
-		return &Anomaly{
-			MetricName: metricName,
-			Type:       AnomalyTypeRapidFall,
-			Value:      rate,
-			Baseline:   d.config.RapidFallRate,
-			Severity:   severity,
-			Timestamp:  curr.Timestamp,
-		}
-	}
-
 	return nil
 }
 
