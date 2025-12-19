@@ -19,7 +19,6 @@ import (
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -82,7 +81,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
 
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 0, matcher)
@@ -125,7 +124,7 @@ func TestTrackContext(t *testing.T) {
 }
 
 func testExpireContexts(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -196,7 +195,7 @@ func TestExpireContexts(t *testing.T) {
 }
 
 func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
@@ -226,7 +225,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 	resolver := newContextResolver(nooptagger.NewComponent(), store, "test")
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
@@ -265,7 +264,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ tagger.Component) 
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 	r := newContextResolver(nooptagger.NewComponent(), tags.NewStore(true, "test"), "test")
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0, matcher)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0, matcher)
@@ -318,7 +317,7 @@ func setupTagger(t *testing.T) tagger.Component {
 
 func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",
@@ -366,7 +365,7 @@ func TestTrackContextStrippingOriginTags(t *testing.T) {
 }
 
 func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env"},
 			Action: "exclude",
@@ -409,7 +408,7 @@ func TestTrackContextStrippingOriginTagsDiffers(t *testing.T) {
 }
 
 func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name", "thing"},
 			Action: "exclude",
@@ -456,7 +455,7 @@ func TestTrackContextStrippingMetricTags(t *testing.T) {
 }
 
 func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store) {
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",
@@ -499,7 +498,7 @@ func TestTrackContextStrippingMetricTagsDiffers(t *testing.T) {
 
 func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 	// Tag aggregation on Gauges is currently not supported
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",

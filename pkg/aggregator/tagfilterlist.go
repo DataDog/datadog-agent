@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package filterlist provides utilities for matching and filtering tags.
-package filterlist
+package aggregator
 
 import (
 	"slices"
@@ -85,13 +84,10 @@ func tagName(tag string) string {
 	return tag[:tagNamePos]
 }
 
-// KeepTagFunc is called to see if we should keep the given tag.
-type KeepTagFunc = func(tag string) bool
-
 // ShouldStripTags returns true if it has been configured to strip tags
 // from the given metric name. The returned tag list will be used to query
 // the tag.
-func (m *TagMatcher) ShouldStripTags(metricName string) (KeepTagFunc, bool) {
+func (m *TagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
 	tm, ok := m.Metrics[metricName]
 	if !ok {
 		return nil, false

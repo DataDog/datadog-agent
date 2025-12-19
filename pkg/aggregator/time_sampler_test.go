@@ -18,7 +18,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -49,7 +48,7 @@ func TestCalculateBucketStart(t *testing.T) {
 
 func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -84,7 +83,7 @@ func TestBucketSampling(t *testing.T) {
 
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -152,7 +151,7 @@ func TestContextSampling(t *testing.T) {
 
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -285,7 +284,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 	var (
 		sampler = testTimeSampler(store)
-		matcher = filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+		matcher = NewTagMatcher(map[string]MetricTagList{})
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -354,7 +353,7 @@ func TestSketch(t *testing.T) {
 
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -401,7 +400,7 @@ func TestSketchBucketSampling(t *testing.T) {
 
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -455,7 +454,7 @@ func TestSketchContextSampling(t *testing.T) {
 
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -515,7 +514,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 
 func testFlushMissingContext(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
@@ -550,7 +549,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		"test.histogram.count",
 	}, false)
 
-	tagmatcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	tagmatcher := NewTagMatcher(map[string]MetricTagList{})
 
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
@@ -598,7 +597,7 @@ func TestFlushFilterList(t *testing.T) {
 
 func TestForcedFlush(t *testing.T) {
 	sampler := testTimeSampler(tags.NewStore(false, "test"))
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 	testMetric1 := &metrics.MetricSample{
 		Name:       "test.count1",
 		Value:      1,
@@ -675,7 +674,7 @@ func TestForcedFlush(t *testing.T) {
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",

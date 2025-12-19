@@ -31,7 +31,6 @@ import (
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -66,7 +65,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -87,7 +86,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
-	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{})
+	matcher := NewTagMatcher(map[string]MetricTagList{})
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{

@@ -8,7 +8,6 @@ package tagset
 import (
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/twmb/murmur3"
 )
 
@@ -21,7 +20,7 @@ type HashingTagsAccumulator struct {
 }
 
 // FilterTags removes configured tags and their hashes from the accumulated tags.
-func (h *HashingTagsAccumulator) FilterTags(keep filterlist.KeepTagFunc) {
+func (h *HashingTagsAccumulator) FilterTags(keep func(tag string) bool) {
 	idx := 0
 	for arridx, tag := range h.data {
 		if keep(tag) {

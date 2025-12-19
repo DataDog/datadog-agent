@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -31,7 +30,7 @@ type timeSamplerWorker struct {
 
 	// tagFilterList is used to filter tags for specific metrics during context tracking.
 	// It determines which tags should be kept or stripped for distribution metrics.
-	tagFilterList *filterlist.TagMatcher
+	tagFilterList *TagMatcher
 
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
@@ -65,7 +64,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	tagFilterList *filterlist.TagMatcher) *timeSamplerWorker {
+	tagFilterList *TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 

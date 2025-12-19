@@ -22,7 +22,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/filterlist"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -278,7 +277,7 @@ type BufferedAggregator struct {
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
 
-	tagFilterList *filterlist.TagMatcher
+	tagFilterList *TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -364,15 +363,15 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	return aggregator
 }
 
-func loadTagFilterList() *filterlist.TagMatcher {
+func loadTagFilterList() *TagMatcher {
 	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("metric_tag_filterlist")
 
-	tagFilterList := make(map[string]filterlist.MetricTagList, len(tagFilterListInterface))
+	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
 	for metricName, tags := range tagFilterListInterface {
 		// Tags can be configured as a simple array of tags - default to exclude.
 		arr, ok := tags.([]string)
 		if ok {
-			tagFilterList[metricName] = filterlist.MetricTagList{
+			tagFilterList[metricName] = MetricTagList{
 				Tags:   arr,
 				Action: "exclude",
 			}
@@ -385,7 +384,7 @@ func loadTagFilterList() *filterlist.TagMatcher {
 			if err != nil {
 				log.Errorf("invalid configuration for `metric_tag_filterlist` %s", metricName)
 			} else {
-				var tags filterlist.MetricTagList
+				var tags MetricTagList
 				err = yaml.Unmarshal(tagBytes, &tags)
 				if err != nil {
 					log.Errorf("error loading configuration for `metric_tag_filterlist` %s", err)
@@ -395,7 +394,7 @@ func loadTagFilterList() *filterlist.TagMatcher {
 			}
 		}
 	}
-	return filterlist.NewTagMatcher(tagFilterList)
+	return NewTagMatcher(tagFilterList)
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
