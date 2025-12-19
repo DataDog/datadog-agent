@@ -44,9 +44,11 @@ type NamedPipeListener struct {
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetrycomp telemetry.Component) (*NamedPipeListener, error) {
 
+	secdec := cfg.GetString("dogstatsd_windows_pipe_security_descriptor")
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
+		secdec,
 		bufferSize,
 		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager, cfg, packetsTelemetryStore),
 		capture,
@@ -57,6 +59,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
 
 func newNamedPipeListener(
 	pipeName string,
+	secdec string,
 	bufferSize int,
 	packetManager *packets.PacketManager,
 	capture replay.Component,
@@ -67,8 +70,9 @@ func newNamedPipeListener(
 	namedPipeTelemetry := newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
 
 	config := winio.PipeConfig{
-		InputBufferSize:  int32(bufferSize),
-		OutputBufferSize: 0,
+		SecurityDescriptor: secdec,
+		InputBufferSize:    int32(bufferSize),
+		OutputBufferSize:   0,
 	}
 	pipePath := pipeNamePrefix + pipeName
 	pipe, err := winio.ListenPipe(pipePath, &config)

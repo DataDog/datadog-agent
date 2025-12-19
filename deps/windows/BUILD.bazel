@@ -1,0 +1,22 @@
+# Windows drivers.
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_files(
+    name = "all_files",
+    srcs = [
+        "@windows_npm_driver//:DDNPM.msm",
+        "@windows_procmon_driver//:DDPROCMON.msm",
+    ],
+    prefix = "bin/agent",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

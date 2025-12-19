@@ -78,13 +78,8 @@ type remoteagentImpl struct {
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
-	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
-	// Add here the metric names that should be included in the telemetry response.
-	// This is useful to avoid sending too many metrics to the Core Agent.
-	))
-	if err != nil {
-		return nil, err
-	}
+	// Disable telemetry collection temporarily, as it triggers a memory usage quality gate.
+	prometheusText := ""
 
 	return &pbcore.GetTelemetryResponse{
 		Payload: &pbcore.GetTelemetryResponse_PromText{

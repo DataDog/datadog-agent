@@ -161,10 +161,6 @@ var (
 	// process cache
 	// Tags: -
 	MetricProcessResolverCacheSize = newRuntimeMetric(".process_resolver.cache_size")
-	// MetricProcessResolverReferenceCount is the name of the metric used to report the number of entry cache still
-	// referenced in the process tree
-	// Tags: -
-	MetricProcessResolverReferenceCount = newRuntimeMetric(".process_resolver.reference_count")
 	// MetricProcessResolverMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
 	MetricProcessResolverMiss = newRuntimeMetric(".process_resolver.miss")

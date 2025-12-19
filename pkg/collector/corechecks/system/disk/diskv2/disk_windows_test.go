@@ -88,9 +88,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLowercaseDevicesAreReported(t *testing.T) {
@@ -104,13 +104,13 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{`device:\\?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
@@ -124,9 +124,9 @@ func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAl
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenOnlyPhysicalDevicesUsageMetricsAreReported(t *testing.T) {
@@ -140,9 +140,9 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
@@ -173,9 +173,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{"device:", "device_name:."})
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{"device:", "device_name:."})
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{"device:", "device_name:."})
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsPartialResultsWithError_ThenMetricsAreReportedForReturnedPartitions(t *testing.T) {
@@ -214,9 +214,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallRe
 
 	// No error returned, and metrics are reported for the partitions that were returned
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
@@ -233,9 +233,9 @@ device_include:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
@@ -252,9 +252,9 @@ device_whitelist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithIso9660FileSystems(t *testing.T) {
@@ -285,9 +285,9 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{"device:cdrom", "device_name:cdrom"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{"device:cdrom", "device_name:cdrom"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{"device:cdrom", "device_name:cdrom"})
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
@@ -318,9 +318,9 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{"device:trace", "device_name:trace"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{"device:trace", "device_name:trace"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{"device:trace", "device_name:trace"})
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
@@ -333,10 +333,10 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
@@ -453,9 +453,9 @@ device_tag_re:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, "role:primary"})
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
@@ -472,9 +472,9 @@ file_system_global_exclude:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
@@ -491,9 +491,9 @@ file_system_global_blacklist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
@@ -510,9 +510,9 @@ excluded_filesystems:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
@@ -529,9 +529,9 @@ file_system_exclude:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
@@ -548,9 +548,9 @@ file_system_blacklist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
@@ -567,9 +567,9 @@ file_system_include:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
@@ -586,9 +586,9 @@ file_system_whitelist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithMountPointGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
@@ -605,9 +605,9 @@ mount_point_global_exclude:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithMountPointGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
@@ -624,9 +624,9 @@ mount_point_global_blacklist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
@@ -643,9 +643,9 @@ mount_point_exclude:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
@@ -662,9 +662,9 @@ mount_point_blacklist:
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
@@ -678,9 +678,9 @@ func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsa
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithMountPointTags(t *testing.T) {
@@ -694,9 +694,10 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:D:\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	// D:\ becomes d: after normalization (backslash stripped, lowercased)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{`device:d:`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
@@ -712,5 +713,5 @@ service_check_rw: true
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`}, "")
+	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`}, "")
 }

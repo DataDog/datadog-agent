@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The new version of the disk check on Windows now normalizes the ``device:`` tag by stripping
+    backslashes and lowercasing, matching the Python disk check behavior.
+    This ensures customers that migrated from Python to Go disk check see
+    consistent ``device:`` tag values (e.g., ``C:\`` becomes ``c:``).

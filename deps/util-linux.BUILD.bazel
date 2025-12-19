@@ -89,11 +89,13 @@ cc_library(
     local_defines = [
         "_GNU_SOURCE",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "blkid",
     deps = [":libblkid"],
+    visibility = ["//visibility:public"],
 )
 
 expand_template(

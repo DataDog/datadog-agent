@@ -432,9 +432,6 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 			}
 
 			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
 				ctx := preparator.get(func(event *model.Event) {
 					event.ProcessCacheEntry = entry
 				})

@@ -13,6 +13,7 @@ const (
 	kubeEndpointsListenerName   = "kube_endpoints"
 	kubeServicesListenerName    = "kube_services"
 	kubeletListenerName         = "kubelet"
+	processListenerName         = "process"
 	snmpListenerName            = "snmp"
 	staticConfigListenerName    = "static config"
 	dbmAuroraListenerName       = "database-monitoring-aurora"
@@ -28,6 +29,7 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
 	Register(kubeServicesListenerName, NewKubeServiceListener, serviceListenerFactories)
 	Register(kubeletListenerName, NewKubeletListener, serviceListenerFactories)
+	Register(processListenerName, NewProcessListener, serviceListenerFactories)
 	Register(snmpListenerName, NewSNMPListener, serviceListenerFactories)
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
 	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)

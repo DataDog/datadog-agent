@@ -775,6 +775,7 @@ func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attac
 // easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
+	Signature string `json:"signature,omitempty"`
 
 	*NetworkContextSerializer         `json:"network,omitempty"`
 	*DDContextSerializer              `json:"dd,omitempty"`
@@ -1567,6 +1568,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
+	s.Signature = event.FieldHandlers.ResolveSignature(event)
 
 	if !event.NetworkContext.IsZero() {
 		s.NetworkContextSerializer = newNetworkContextSerializer(event, &event.NetworkContext)

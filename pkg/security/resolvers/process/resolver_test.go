@@ -161,7 +161,6 @@ func TestFork1st(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -170,7 +169,6 @@ func TestFork1st(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	exit(child)
@@ -179,7 +177,6 @@ func TestFork1st(t *testing.T) {
 
 	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(parent)
@@ -187,7 +184,6 @@ func TestFork1st(t *testing.T) {
 	resolver.DeleteEntry(parent.ProcessCacheEntry.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 0, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestFork2nd(t *testing.T) {
@@ -204,7 +200,6 @@ func TestFork2nd(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -213,7 +208,6 @@ func TestFork2nd(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -224,7 +218,6 @@ func TestFork2nd(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(child)
@@ -232,7 +225,6 @@ func TestFork2nd(t *testing.T) {
 	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 0, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestForkExec(t *testing.T) {
@@ -249,7 +241,6 @@ func TestForkExec(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -258,7 +249,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -268,7 +258,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -280,14 +269,12 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(child)
 	resolver.ApplyExitEntry(child, nil)
 	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestResolveFromProcfs(t *testing.T) {
@@ -325,7 +312,6 @@ func TestOrphanExec(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -334,7 +320,6 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -345,7 +330,6 @@ func TestOrphanExec(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -355,14 +339,12 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(exec)
 	resolver.ApplyExitEntry(exec, nil)
 	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestForkExecExec(t *testing.T) {
@@ -380,7 +362,6 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -389,7 +370,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -400,7 +380,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -410,7 +389,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -421,14 +399,12 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, exec1.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, child.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor.Ancestor.Ancestor)
-	assert.EqualValues(t, 4, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache in the entryCache
 	exit(exec2)
 	resolver.ApplyExitEntry(exec2, nil)
 	resolver.DeleteEntry(exec1.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestForkReuse(t *testing.T) {
@@ -447,7 +423,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent1, nil)
 	assert.Equal(t, parent1.ProcessCacheEntry, resolver.entryCache[parent1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -456,7 +431,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child1.ProcessCacheEntry, resolver.entryCache[child1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent1.ProcessCacheEntry, child1.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -467,7 +441,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent1.ProcessCacheEntry, child1.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -477,7 +450,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child1.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent1.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -487,7 +459,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent2, nil)
 	assert.Equal(t, parent2.ProcessCacheEntry, resolver.entryCache[parent2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 4, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -500,7 +471,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child2.ProcessCacheEntry, resolver.entryCache[child2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, parent2.ProcessCacheEntry, child2.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 5, resolver.processCacheEntryCount.Load())
 
 	// Z(pid:3)
 	//    |
@@ -510,7 +480,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [Z(pid:3)]
 	//    |
@@ -521,14 +490,12 @@ func TestForkReuse(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent2.ProcessCacheEntry, child2.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(child2)
 	resolver.ApplyExitEntry(child2, nil)
 	resolver.DeleteEntry(child2.ProcessCacheEntry.Pid, child2.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestForkForkExec(t *testing.T) {
@@ -546,7 +513,6 @@ func TestForkForkExec(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -555,7 +521,6 @@ func TestForkForkExec(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -567,7 +532,6 @@ func TestForkForkExec(t *testing.T) {
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -581,7 +545,6 @@ func TestForkForkExec(t *testing.T) {
 	assert.Equal(t, parent.ProcessCacheEntry, childExec.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.Equal(t, child.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 4, resolver.processCacheEntryCount.Load())
 
 	// [parent]
 	//     \ [child] -> childExec
@@ -598,7 +561,6 @@ func TestForkForkExec(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 4, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -610,14 +572,12 @@ func TestForkForkExec(t *testing.T) {
 	resolver.DeleteEntry(childExec.ProcessContext.Pid, childExec.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[childExec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(grandChild)
 	resolver.ApplyExitEntry(grandChild, nil)
 	resolver.DeleteEntry(grandChild.ProcessContext.Pid, grandChild.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestExecBomb(t *testing.T) {
@@ -636,7 +596,6 @@ func TestExecBomb(t *testing.T) {
 	resolver.AddForkEntry(parent, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.processCacheEntryCount.Load())
 
 	// X(pid:3)
 	//    |
@@ -645,7 +604,6 @@ func TestExecBomb(t *testing.T) {
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -656,7 +614,6 @@ func TestExecBomb(t *testing.T) {
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-	assert.EqualValues(t, 2, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -666,7 +623,6 @@ func TestExecBomb(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// [X(pid:3)]
 	//    |
@@ -676,14 +632,12 @@ func TestExecBomb(t *testing.T) {
 	resolver.AddExecEntry(exec2)
 	assert.Equal(t, exec1.ProcessCacheEntry, resolver.entryCache[exec2Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 3, resolver.processCacheEntryCount.Load())
 
 	// nothing in the entryCache
 	exit(exec1)
 	resolver.ApplyExitEntry(exec1, nil)
 	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
-	assert.Zero(t, resolver.processCacheEntryCount.Load())
 }
 
 func TestExecLostFork(t *testing.T) {

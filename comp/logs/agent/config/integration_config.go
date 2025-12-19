@@ -271,6 +271,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
 		Service           string                   `json:"service,omitempty"`
 		Source            string                   `json:"source,omitempty"`
+		SourceCategory    string                   `json:"source_category,omitempty"`
 		Tags              []string                 `json:"tags,omitempty"`
 		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
 		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
@@ -285,6 +286,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath:       c.ChannelPath,
 		Service:           c.Service,
 		Source:            c.Source,
+		SourceCategory:    c.SourceCategory,
 		Tags:              c.Tags,
 		ProcessingRules:   c.ProcessingRules,
 		AutoMultiLine:     c.AutoMultiLine,

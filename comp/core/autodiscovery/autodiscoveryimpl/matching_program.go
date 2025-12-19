@@ -21,6 +21,7 @@ import (
 
 const (
 	containerImageField    = string(workloadfilter.ContainerType) + ".image"
+	processCmdlineField    = string(workloadfilter.ProcessType) + ".cmdline"
 	serviceNameField       = string(workloadfilter.KubeServiceType) + ".name"
 	serviceNamespaceField  = string(workloadfilter.KubeServiceType) + ".namespace"
 	endpointNameField      = string(workloadfilter.KubeEndpointType) + ".name"
@@ -55,11 +56,13 @@ func (m *matchingProgram) GetTargetType() workloadfilter.ResourceType {
 
 // extractRuleMetadata extracts the rule list, resource type and CEL identifier from the given workloadfilter.Rules.
 // This method is responsible for the priority order of the rules:
-// Containers > Services > Endpoints.
+// Containers > Processes > Services > Endpoints.
 func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectType workloadfilter.ResourceType, celADID adtypes.CelIdentifier) {
 	switch {
 	case len(rules.Containers) > 0:
 		return rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier
+	case len(rules.Processes) > 0:
+		return rules.Processes, workloadfilter.ProcessType, adtypes.CelProcessIdentifier
 	case len(rules.KubeServices) > 0:
 		return rules.KubeServices, workloadfilter.KubeServiceType, adtypes.CelServiceIdentifier
 	case len(rules.KubeEndpoints) > 0:
@@ -75,6 +78,10 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 	case adtypes.CelContainerIdentifier:
 		if !strings.Contains(rules, containerImageField) {
 			return errors.New("missing recommended field: " + containerImageField)
+		}
+	case adtypes.CelProcessIdentifier:
+		if !strings.Contains(rules, processCmdlineField) {
+			return errors.New("missing recommended field: " + processCmdlineField)
 		}
 	case adtypes.CelServiceIdentifier:
 		if !strings.Contains(rules, serviceNamespaceField) {

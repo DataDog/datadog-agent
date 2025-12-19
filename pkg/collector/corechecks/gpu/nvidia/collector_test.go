@@ -42,7 +42,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{}
-	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -152,7 +152,7 @@ func TestAllCollectorsWork(t *testing.T) {
 		DeviceEventsGatherer: eventsGatherer,
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 	}
-	collectors, err := BuildCollectors(devices, deps)
+	collectors, err := BuildCollectors(devices, deps, nil)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -172,6 +172,144 @@ func TestAllCollectorsWork(t *testing.T) {
 		_, ok := seenCollectors[name]
 		require.True(t, ok, "collector %s not seen", name)
 	}
+}
+
+func TestDisabledCollectors(t *testing.T) {
+	tests := []struct {
+		name                   string
+		disabledCollectors     []string
+		expectedCollectorCount int
+		expectedCollectorNames []CollectorName
+		unexpectedNames        []CollectorName
+	}{
+		{
+			name:                   "no collectors disabled",
+			disabledCollectors:     []string{},
+			expectedCollectorCount: 5, // stateless, sampling, fields, gpm, device_events
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+		},
+		{
+			name:                   "disable gpm collector",
+			disabledCollectors:     []string{"gpm"},
+			expectedCollectorCount: 4,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents},
+			unexpectedNames:        []CollectorName{gpm},
+		},
+		{
+			name:                   "disable multiple collectors",
+			disabledCollectors:     []string{"gpm", "fields"},
+			expectedCollectorCount: 3,
+			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents},
+			unexpectedNames:        []CollectorName{gpm, field},
+		},
+		{
+			name:                   "disable all collectors",
+			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			expectedCollectorCount: 0,
+			expectedCollectorNames: []CollectorName{},
+		},
+		{
+			name:                   "disable non-existent collector",
+			disabledCollectors:     []string{"non_existent"},
+			expectedCollectorCount: 5,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup NVML mock
+			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithDeviceCount(1), testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+			ddnvml.WithMockNVML(t, nvmlMock)
+			deviceCache := ddnvml.NewDeviceCache()
+			devices, err := deviceCache.AllPhysicalDevices()
+			require.NoError(t, err)
+
+			// Setup dependencies
+			eventsGatherer := NewDeviceEventsGatherer()
+			require.NoError(t, eventsGatherer.Start())
+			t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+
+			deps := &CollectorDependencies{
+				DeviceEventsGatherer: eventsGatherer,
+				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+			}
+
+			// Build collectors with disabled list
+			collectors, err := BuildCollectors(devices, deps, tt.disabledCollectors)
+			require.NoError(t, err)
+
+			// Verify the correct number of collectors were created
+			require.Equal(t, tt.expectedCollectorCount, len(collectors),
+				"expected %d collectors, got %d", tt.expectedCollectorCount, len(collectors))
+
+			// Verify the correct collectors were created
+			collectorNames := make(map[CollectorName]bool)
+			for _, collector := range collectors {
+				collectorNames[collector.Name()] = true
+			}
+
+			for _, expectedName := range tt.expectedCollectorNames {
+				require.True(t, collectorNames[expectedName],
+					"expected collector %s to be created", expectedName)
+			}
+
+			// Verify disabled collectors were not created
+			for _, unexpectedName := range tt.unexpectedNames {
+				require.False(t, collectorNames[unexpectedName],
+					"collector %s should not be created", unexpectedName)
+			}
+		})
+	}
+}
+
+func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
+	// Setup NVML mock
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+
+	// Setup dependencies with system-probe cache
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+
+	spCache := &SystemProbeCache{}
+
+	deps := &CollectorDependencies{
+		DeviceEventsGatherer: eventsGatherer,
+		SystemProbeCache:     spCache,
+		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
+
+	// Build collectors with ebpf disabled
+	collectors, err := BuildCollectors(devices, deps, []string{"ebpf"})
+	require.NoError(t, err)
+
+	// Verify no ebpf collectors were created
+	for _, collector := range collectors {
+		require.NotEqual(t, ebpf, collector.Name(),
+			"ebpf collector should not be created when disabled")
+	}
+
+	// Verify other collectors were created
+	require.Greater(t, len(collectors), 0, "should have created some collectors")
+
+	// Now test without disabling ebpf - should create ebpf collectors
+	collectors, err = BuildCollectors(devices, deps, []string{})
+	require.NoError(t, err)
+
+	// Verify ebpf collectors were created
+	foundEbpf := false
+	for _, collector := range collectors {
+		if collector.Name() == ebpf {
+			foundEbpf = true
+			break
+		}
+	}
+	require.True(t, foundEbpf, "ebpf collector should be created when not disabled")
 }
 
 func TestRemoveDuplicateMetrics(t *testing.T) {

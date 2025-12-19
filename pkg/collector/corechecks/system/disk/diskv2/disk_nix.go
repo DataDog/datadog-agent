@@ -43,6 +43,12 @@ func baseDeviceName(device string) string {
 	return filepath.Base(device)
 }
 
+// normalizeDeviceTag returns the device name for use in the device: tag.
+// On Linux, returns unchanged. On Windows, strips backslashes and lowercases.
+func normalizeDeviceTag(deviceName string) string {
+	return deviceName
+}
+
 func (c *Check) configureCreateMounts() {
 }
 

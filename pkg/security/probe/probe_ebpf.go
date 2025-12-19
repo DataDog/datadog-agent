@@ -643,11 +643,11 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	collection := *collectionPtr
 
-	// unload the previews one
+	// unload the previous one
 	if collection != nil {
 		collection.Close()
 		ddebpf.RemoveNameMappingsCollection(collection)
-		collection = nil
+		*collectionPtr = nil
 	}
 
 	if len(progSpecs) > 0 {
@@ -655,6 +655,15 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 			return err
 		}
 	} else {
+		// No programs to load - remove tail call entries from the router map
+		_, routerMap, err := p.getRawPacketMaps()
+		if err == nil && routerMap != nil {
+			// Remove all potential tail call entries for this program key range
+			for i := 0; i < maxProgs; i++ {
+				key := progKey + uint32(i)
+				_ = routerMap.Delete(key)
+			}
+		}
 		return nil
 	}
 
@@ -799,8 +808,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		entry.Retain()
-
 		event := p.newEBPFPooledEventFromPCE(entry)
 		event.Source = model.EventSourceReplay
 
@@ -815,7 +822,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
 		if ok {
 			for _, s := range snapshotBoundSockets {
-				entry.Retain()
 				bindEvent := p.newBindEventFromReplay(entry, s)
 				bindEvent.Source = model.EventSourceReplay
 
@@ -842,9 +848,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		if event.ProcessCacheEntry != nil {
-			event.ProcessCacheEntry.Release()
-		}
 		p.putBackPoolEvent(event)
 	}
 	// send not triggered remediations
@@ -2945,21 +2948,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
-	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
-		if p.supportsBPFSendSignal {
-			err := p.killListMap.Put(uint32(pid), uint32(sig))
-			if err != nil {
-				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
-				return err
-			}
-		}
-		return nil
-	})
-	processKiller, err := NewProcessKiller(config, pkos)
-	if err != nil {
-		return nil, err
-	}
-	p.processKiller = processKiller
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2986,6 +2974,23 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	if err != nil {
 		return nil, err
 	}
+
+	// Create the process killer with the CGroupResolver for container scope support
+	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
+		if p.supportsBPFSendSignal {
+			err := p.killListMap.Put(uint32(pid), uint32(sig))
+			if err != nil {
+				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+				return err
+			}
+		}
+		return nil
+	}, p.Resolvers.CGroupResolver)
+	processKiller, err := NewProcessKiller(config, pkos)
+	if err != nil {
+		return nil, err
+	}
+	p.processKiller = processKiller
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
@@ -3428,7 +3433,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
-			var reportStatus string
+			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
@@ -3443,9 +3448,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
-					reportStatus = "error"
+					reportStatus = RawPacketActionStatusError
 				} else {
-					reportStatus = "applied"
+					reportStatus = RawPacketActionStatusApplied
 				}
 			}
 
@@ -3453,13 +3458,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Filter: action.Def.NetworkFilter.BPFFilter,
 				Policy: policy.String(),
 				rule:   rule,
+				Status: reportStatus,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.handleNetworkRemediaitonAction(rule, ev, policy, reportStatus)
+			p.handleNetworkRemediaitonAction(rule, ev, policy, string(reportStatus))
 		}
 	}
 }

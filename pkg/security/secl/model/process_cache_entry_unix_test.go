@@ -100,9 +100,9 @@ func TestHasValidLineage(t *testing.T) {
 }
 
 func TestEntryEquals(t *testing.T) {
-	e1 := NewProcessCacheEntry(nil)
+	e1 := NewProcessCacheEntry()
 	e1.Pid = 2
-	e2 := NewProcessCacheEntry(nil)
+	e2 := NewProcessCacheEntry()
 	e2.Pid = 3
 	assert.True(t, e1.Equals(e2))
 

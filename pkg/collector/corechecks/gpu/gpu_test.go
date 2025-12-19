@@ -29,6 +29,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -533,4 +534,75 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	require.NoError(t, check.Run())
 
 	mockSender.AssertExpectations(t)
+}
+
+func TestDisabledCollectorsConfiguration(t *testing.T) {
+	tests := []struct {
+		name               string
+		disabledCollectors []string
+		expected           []string
+	}{
+		{
+			name:               "disable gpm collector",
+			disabledCollectors: []string{"gpm"},
+			expected:           []string{"gpm"},
+		},
+		{
+			name:               "disable multiple collectors",
+			disabledCollectors: []string{"gpm", "fields", "sampling"},
+			expected:           []string{"gpm", "fields", "sampling"},
+		},
+		{
+			name:               "disable all collectors",
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+		},
+		{
+			name:               "no collectors disabled",
+			disabledCollectors: []string{},
+			expected:           []string{},
+		},
+		{
+			name:               "nil disabled_collectors list",
+			disabledCollectors: nil,
+			expected:           []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+
+			checkGeneric := newCheck(
+				fakeTagger,
+				testutil.GetTelemetryMock(t),
+				wmetaMock,
+			)
+			check, ok := checkGeneric.(*Check)
+			require.True(t, ok)
+
+			WithGPUConfigEnabled(t)
+			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			t.Cleanup(func() {
+				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+			})
+
+			check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
+			err := check.Configure(
+				mocksender.CreateDefaultDemultiplexer(),
+				integration.FakeConfigHash,
+				[]byte{},
+				[]byte{},
+				"test",
+			)
+			require.NoError(t, err)
+
+			// Verify the disabled collectors are correctly identified in the check struct
+			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
+				"expected %d disabled collectors, got %d", len(tt.expected), len(check.disabledCollectors))
+			assert.ElementsMatch(t, tt.expected, check.disabledCollectors,
+				"disabled collectors mismatch")
+		})
+	}
 }
