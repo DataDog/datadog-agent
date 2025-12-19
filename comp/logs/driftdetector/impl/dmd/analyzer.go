@@ -128,7 +128,7 @@ func (a *Analyzer) processEmbeddings(result common.EmbeddingResult) *common.DMDR
 	if a.windowsSinceRecompute >= a.config.RecomputeEvery || !a.dmdComputed {
 		err := a.recomputeDMD()
 		if err != nil {
-			log.Warnf("Failed to recompute DMD: %v", err)
+			log.Warnf("Failed to recompute DMD for source %s: %v", a.sourceKey, err)
 			return nil
 		}
 		a.windowsSinceRecompute = 0
