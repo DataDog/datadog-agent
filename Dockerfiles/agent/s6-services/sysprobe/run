@@ -1,11 +1,17 @@
 #!/usr/bin/execlineb -P
 
-# Check if the system-probe exists before running it
+# Check if the system-probe and sd-agent exist before running
 ifelse -n
     { s6-test -x "/opt/datadog-agent/embedded/bin/system-probe" }
     {
         foreground { /initlog.sh "system-probe not bundled, disabling" }
         foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
     }
-    foreground { /initlog.sh "starting system-probe" }
-    system-probe run --config=/etc/datadog-agent/system-probe.yaml
+    ifelse -n
+        { s6-test -x "/opt/datadog-agent/embedded/bin/sd-agent" }
+        {
+            foreground { /initlog.sh "sd-agent not bundled, disabling" }
+            foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
+        }
+        foreground { /initlog.sh "starting system-probe with sd-agent" }
+        /opt/datadog-agent/embedded/bin/sd-agent -- /opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent/system-probe.yaml
