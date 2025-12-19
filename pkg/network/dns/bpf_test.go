@@ -93,6 +93,10 @@ func TestBPFFilterMatchesPackets(t *testing.T) {
 				{desc: "IPv6 UDP src port 53", ipv6: true, proto: 0x11, srcPort: 53, dstPort: 12345, shouldMatch: true},
 				{desc: "IPv6 UDP dst port 53", ipv6: true, proto: 0x11, srcPort: 12345, dstPort: 53, shouldMatch: true},
 				{desc: "IPv6 UDP port 80", ipv6: true, proto: 0x11, srcPort: 80, dstPort: 8080, shouldMatch: false},
+				{desc: "IPv4 TCP src port 80", ipv6: false, proto: 0x6, srcPort: 80, dstPort: 12345, shouldMatch: false},
+				{desc: "IPv4 TCP dst port 80", ipv6: false, proto: 0x6, srcPort: 12345, dstPort: 80, shouldMatch: false},
+				{desc: "IPv4 TCP src port 443", ipv6: false, proto: 0x6, srcPort: 80, dstPort: 12345, shouldMatch: false},
+				{desc: "IPv4 TCP dst port 443", ipv6: false, proto: 0x6, srcPort: 12345, dstPort: 80, shouldMatch: false},
 			},
 		},
 		{
@@ -115,6 +119,10 @@ func TestBPFFilterMatchesPackets(t *testing.T) {
 				{desc: "IPv4 UDP dst port 5353", ipv6: false, proto: 0x11, srcPort: 12345, dstPort: 5353, shouldMatch: true},
 				{desc: "IPv4 UDP no match", ipv6: false, proto: 0x11, srcPort: 80, dstPort: 8080, shouldMatch: false},
 				{desc: "IPv6 UDP src port 5353", ipv6: true, proto: 0x11, srcPort: 5353, dstPort: 12345, shouldMatch: true},
+				{desc: "IPv4 TCP src port 80", ipv6: false, proto: 0x6, srcPort: 80, dstPort: 12345, shouldMatch: false},
+				{desc: "IPv4 TCP dst port 80", ipv6: false, proto: 0x6, srcPort: 12345, dstPort: 80, shouldMatch: false},
+				{desc: "IPv4 TCP src port 443", ipv6: false, proto: 0x6, srcPort: 80, dstPort: 12345, shouldMatch: false},
+				{desc: "IPv4 TCP dst port 443", ipv6: false, proto: 0x6, srcPort: 12345, dstPort: 80, shouldMatch: false},
 			},
 		},
 		{

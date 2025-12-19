@@ -590,4 +590,13 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		cfg := New()
 		assert.Equal(t, []int{8053, 5353}, cfg.DNSMonitoringPortList)
 	})
+
+	t.Run("via YAML - http ports should be removed", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		// HTTP ports would capture an enormous amount of traffic and cause issues.
+		// network config prevents the user from accidentally enabling these ports
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 443, 5353, 80})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
 }

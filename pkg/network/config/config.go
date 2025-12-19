@@ -7,6 +7,7 @@
 package config
 
 import (
+	"slices"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -328,12 +329,20 @@ func New() *Config {
 		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
 	}
 
-	if !c.EnableProcessEventMonitoring {
-		log.Info("network process event monitoring disabled")
-	}
-
 	if len(c.DNSMonitoringPortList) == 0 {
 		c.DNSMonitoringPortList = []int{53}
+	}
+
+	c.DNSMonitoringPortList = slices.DeleteFunc(c.DNSMonitoringPortList, func(port int) bool {
+		isHTTP := port == 80 || port == 443
+		if isHTTP {
+			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"))
+		}
+		return isHTTP
+	})
+
+	if !c.EnableProcessEventMonitoring {
+		log.Info("network process event monitoring disabled")
 	}
 
 	return c
