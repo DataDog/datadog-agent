@@ -164,3 +164,8 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 	}
 	return
 }
+
+// BuildAppServiceOriginTagForProfiles builds the serverless-identifying tag string for use in profiles.
+func BuildAppServiceOriginTagForProfiles() string {
+	return ",_dd.origin:appservice"
+}
