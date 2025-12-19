@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
+	cpuoscillation "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cpu_oscillation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -54,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/oscillation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
@@ -76,7 +76,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
-	corecheckLoader.RegisterCheck(oscillation.CheckName, oscillation.Factory())
+	// Per-container CPU oscillation check (REQ-COD-001 through REQ-COD-007)
+	corecheckLoader.RegisterCheck(cpuoscillation.CheckName, cpuoscillation.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))

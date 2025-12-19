@@ -1,0 +1,75 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `conf.yaml` and make your changes on that file.
+
+## Per-Container CPU Oscillation Detector
+##
+## Detects rapid CPU oscillation patterns on a per-container basis that may indicate:
+## - Restart loops
+## - Container thrashing
+## - Retry storms
+## - Misconfigured autoscaling
+##
+## This check samples CPU for each running container at 1Hz and analyzes patterns for oscillations.
+## Metrics are emitted every 15 seconds for ALL containers with appropriate K8s/ECS tags.
+## Detection is only possible after the warmup period (default 5 minutes) per container.
+##
+## Requirements:
+## - Linux only (uses cgroups for container CPU metrics)
+## - WorkloadMeta for container discovery
+## - Container metrics provider (docker, containerd, cri-o)
+##
+## NOTE: This check is DISABLED by default. To enable it, set enabled: true below.
+##
+## Metrics emitted:
+##   container.cpu.oscillation.detected - Binary signal (0/1) indicating oscillation
+##   container.cpu.oscillation.amplitude - Peak-to-trough CPU% swing in current window
+##   container.cpu.oscillation.frequency - Estimated oscillation frequency in Hz
+##   container.cpu.oscillation.zero_crossings - Direction changes in current 60s window
+##   container.cpu.oscillation.baseline_stddev - Current baseline standard deviation
+
+init_config:
+
+## Per-Container CPU Oscillation Detection
+## REQ-COD-001: Detect Rapid CPU Cycling Per Container
+## REQ-COD-002: Establish Container-Specific Baseline
+## REQ-COD-003: Report Oscillation Characteristics with Container Tags
+## REQ-COD-004: Minimal Performance Impact at Scale
+## REQ-COD-005: Configurable Detection with Default Disabled
+## REQ-COD-006: Metric Emission for All Tracked Containers
+## REQ-COD-007: Graceful Error Handling
+
+instances:
+  -
+    ## @param enabled - boolean - required - default: false
+    ## Enable or disable the per-container CPU oscillation detection check.
+    ## Must be explicitly set to true to enable the check.
+    #
+    enabled: false
+
+    ## @param amplitude_multiplier - float - optional - default: 4.0
+    ## The multiplier applied to the baseline standard deviation to determine
+    ## the amplitude threshold. Swings must exceed this threshold to be flagged.
+    ## Lower values = more sensitive (more detections, potentially more false positives)
+    ## Higher values = less sensitive (fewer detections, may miss real issues)
+    ## Valid range: 0.5 to 10.0
+    #
+    # amplitude_multiplier: 4.0
+
+    ## @param min_amplitude - float - optional - default: 0
+    ## Absolute minimum amplitude (in CPU percentage points) required to trigger
+    ## oscillation detection. This provides a floor independent of the baseline.
+    ## Set to 0 to disable (rely only on amplitude_multiplier).
+    ## Useful for filtering out containers where small absolute swings aren't actionable.
+    ## Valid range: 0 to 100
+    #
+    # min_amplitude: 0
+
+    ## @param warmup_seconds - integer - optional - default: 300
+    ## Initial learning period in seconds during which the check learns each
+    ## container's normal CPU variance without flagging oscillations.
+    ## Detection is disabled during this period for each container.
+    ## New containers get a fresh warmup period.
+    ## Valid range: 60 to 1800 seconds (1 to 30 minutes)
+    #
+    # warmup_seconds: 300
