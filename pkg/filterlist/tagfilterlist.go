@@ -8,6 +8,7 @@ package filterlist
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/twmb/murmur3"
@@ -74,15 +75,32 @@ func NewTagMatcher(metrics map[string]MetricTagList) *TagMatcher {
 	}
 }
 
+// tagName extracts the tag name portion from the tag.
+func tagName(tag string) string {
+	tagNamePos := strings.Index(tag, ":")
+	if tagNamePos < 0 {
+		tagNamePos = len(tag)
+	}
+
+	return tag[:tagNamePos]
+}
+
+// KeepTagFunc is called to see if we should keep the given tag.
+type KeepTagFunc = func(tag string) bool
+
 // ShouldStripTags returns true if it has been configured to strip tags
 // from the given metric name. The returned tag list will be used to query
 // the tag.
-func (m *TagMatcher) ShouldStripTags(metricName string) (HashedMetricTagList, bool) {
-	tags, ok := m.Metrics[metricName]
-	return tags, ok
-}
+func (m *TagMatcher) ShouldStripTags(metricName string) (KeepTagFunc, bool) {
+	tm, ok := m.Metrics[metricName]
+	if !ok {
+		return nil, false
+	}
 
-// KeepTag will return true if the given hashed tag name should be kept.
-func (tm HashedMetricTagList) KeepTag(hashedtag uint64) bool {
-	return slices.Contains(tm.tags, hashedtag) != bool(tm.action)
+	keepTag := func(tag string) bool {
+		hashedTag := murmur3.StringSum64(tagName(tag))
+		return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
+	}
+
+	return keepTag, ok
 }
