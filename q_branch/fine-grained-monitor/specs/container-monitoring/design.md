@@ -374,49 +374,60 @@ Environment variables (typically set via Kubernetes downward API):
 
 ### Technology Choice
 
-The visualization tool uses Plotly Dash, a Python framework that:
-- Runs a local web server and opens the browser automatically
-- Provides built-in interactive charts with pan/zoom/hover
-- Supports efficient rendering of large timeseries via WebGL
-- Enables dropdown-based filtering without custom JavaScript
+The visualization tool uses a Rust backend with embedded Plotly.js frontend:
+- **axum** HTTP server for fast startup and low memory overhead
+- **arrow-rs/parquet** for native Parquet reading (~10s for 35M rows)
+- **Plotly.js** embedded as static HTML, served from the binary
+- **cargo-script** for single-file deployment with inline dependencies
+
+This approach was chosen over Python/Dash for faster data loading. The Rust
+backend handles Parquet parsing and CPU delta computation, while the browser
+handles all visualization via Plotly.js.
 
 ### Data Pipeline
 
-1. **Load Phase**: Read Parquet file with PyArrow, filter to CPU metrics only
-2. **Transform Phase**: Compute CPU percentage deltas per container
-3. **Serve Phase**: Dash app with callbacks for container selection
+1. **Metadata Phase**: Open file, read Parquet footer (schema, row groups)
+2. **Decode Phase**: ZSTD decompress, Arrow decode, filter to CPU metric, compute deltas
+3. **Serve Phase**: axum REST API serves container list and timeseries data as JSON
 
-### Performance Considerations
+### REST API
+
+| Endpoint | Response | Purpose |
+|----------|----------|---------|
+| `GET /` | HTML | Embedded Plotly.js frontend |
+| `GET /api/containers` | JSON array | List of containers sorted by avg CPU |
+| `GET /api/timeseries?containers=a,b,c` | JSON array | Timeseries data for selected containers |
+
+### Performance Characteristics
 
 For 35M row datasets:
-- Pre-filter to `cgroup.v2.cpu.stat.usage_usec` during load (reduces to ~1M rows)
-- Compute deltas once at startup, cache in memory
-- Use Plotly's `scattergl` (WebGL) trace type for smooth rendering of 5K+ points
-- Limit to top N containers by default, with option to select any container
+- Parquet metadata read: ~0.02s
+- ZSTD decompress + Arrow decode + delta computation: ~10s
+- Struct building + sorting: ~0.01s
+- Frontend renders 170K+ points smoothly via WebGL `scattergl`
 
 ### UI Components
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Container Filter: [dropdown multi-select]  [Top 10 ▾]         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  CPU Usage (%) over Time                                        │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                                                         │   │
-│  │     ∿∿∿∿∿∿∿∿∿∿∿   container A                         │   │
-│  │   ───────────────  container B                         │   │
-│  │                                                         │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  [Pan/Zoom controls built into Plotly]                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ CPU Metrics │ Containers: [multi-select ▾] │ Top5 Top10 Clear │ ... │
+├──────────────────────────────────────────────────────────────────────┤
+│  Legend: container-a (Burstable)  container-b (Guaranteed)  ...      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                                                                │  │
+│  │     ∿∿∿∿∿∿∿∿∿∿∿   container A                                │  │
+│  │   ───────────────  container B                                │  │
+│  │                                                                │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ [═══════════════════════▓▓▓══════════════] Range Slider       │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Script Location
 
-`scripts/metrics_viewer.py` - standalone uv-runnable script with inline
-dependencies (Dash, Plotly, PyArrow, Pandas).
+`scripts/metrics_viewer.rs` - cargo-script with inline dependencies (axum,
+arrow, parquet, tokio, serde). Run directly: `./scripts/metrics_viewer.rs <file>`
 
 ## File Structure
 
@@ -428,11 +439,10 @@ fine-grained-monitor/
 │       ├── requirements.md
 │       ├── design.md
 │       └── executive.md
-├── scripts/                   # Analysis and visualization tools
-│   ├── oscillation_detector.rs   # REQ-FM-005 support: pattern detection
-│   ├── oscillation_detector.py   # Python version of oscillation detector
-│   ├── metrics_viewer.py         # REQ-FM-005: Interactive visualization
-│   └── ...                       # Other analysis scripts
+├── scripts/                      # Analysis and visualization tools
+│   ├── metrics_viewer.rs         # REQ-FM-005: Interactive visualization (Rust/axum)
+│   ├── oscillation_detector.rs   # Pattern detection for CPU oscillations
+│   └── oscillation_detector.py   # Python version of oscillation detector
 └── src/
     ├── main.rs              # CLI, lifecycle orchestration
     ├── lib.rs
