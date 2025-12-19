@@ -18,7 +18,7 @@ func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}, &workloadfilter.Process{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
