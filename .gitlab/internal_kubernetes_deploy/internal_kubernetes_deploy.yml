@@ -63,7 +63,7 @@ nightly_test:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   rules:
-    - if: $$CONDUCTOR_TARGET == "stable-nightly-build"
+    - if: $CONDUCTOR_TARGET == "stable-nightly-build"
       when: on_success
   variables:
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
