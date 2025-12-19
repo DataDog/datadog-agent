@@ -955,6 +955,20 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
+new-e2e-ssi:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_full
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
+
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
