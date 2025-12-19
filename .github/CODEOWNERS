@@ -515,6 +515,7 @@
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-products
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dyninst/                           @DataDog/debugger-go
+/pkg/filterlist/                        @DataDog/agent-metric-pipelines
 /pkg/flare/                             @DataDog/agent-configuration
 /pkg/flare/clusteragent/manifests.go    @DataDog/agent-onboarding @DataDog/agent-configuration
 /pkg/flare/*_win.go                     @DataDog/windows-products @DataDog/agent-configuration
