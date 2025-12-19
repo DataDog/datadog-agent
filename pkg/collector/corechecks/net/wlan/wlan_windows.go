@@ -508,7 +508,7 @@ func getFirstConnectedWlanInfo() (*wifiInfo, error) {
 		return wi, nil
 	}
 
-	log.Tracef("No conected WLAN interfaces are found")
+	log.Tracef("No connected WLAN interfaces are found")
 	return nil, nil
 }
 

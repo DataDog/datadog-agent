@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    This is a bug fix for the rare issue where the Wi-Fi check would
+    crash the Agent when Wi-Fi interface is connected but on some
+    computers, no correlated Wi-Fi adapter is found.
