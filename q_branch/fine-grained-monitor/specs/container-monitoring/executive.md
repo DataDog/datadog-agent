@@ -51,9 +51,8 @@ via the standard `metrics` crate facade.
 | **REQ-FM-002:** View Detailed Memory Usage | ✅ Complete | Uses lading's `smaps_rollup` for PSS metrics per-PID, `cgroup_v2::poll()` for memory.stat/memory.current |
 | **REQ-FM-003:** View Detailed CPU Usage | ✅ Complete | Uses lading's `cgroup_v2::cpu::Sampler` for CPU delta calculations with percentage and millicores |
 | **REQ-FM-004:** Analyze Data Post-Hoc | ✅ Complete | 90s rotation, dt/identifier partitioning, standardized labels, session manifest all implemented and verified |
-| **REQ-FM-005:** Capture Delayed Metrics | ⏭️ Planned | Accumulator support via `lading_capture`; active use scheduled for later phase when Agent output interception is implemented |
 
-**Progress:** 4 of 5 complete
+**Progress:** 4 of 4 complete
 
 ## Implementation Notes
 
