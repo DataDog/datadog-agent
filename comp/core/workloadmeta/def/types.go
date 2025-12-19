@@ -52,6 +52,7 @@ const (
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
+	KindCRD                    Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -452,10 +453,13 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 	return sb.String()
 }
 
+// RequestAllGPUs is a constant for requesting all GPUs in a host, used in Docker runtimes
+const RequestAllGPUs = -1
+
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *uint64 // Number of GPUs
-	GPULimit      *uint64
+	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
@@ -2095,3 +2099,53 @@ const (
 	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
 	CollectorsInitialized
 )
+
+// CRD struct exposes known CRD group/kind/versions
+type CRD struct {
+	EntityID
+	EntityMeta
+	Group   string
+	Kind    string
+	Version string
+}
+
+var _ Entity = &CRD{}
+
+// GetID returns the CRD entity ID
+func (crd CRD) GetID() EntityID {
+	return crd.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (crd *CRD) Merge(e Entity) error {
+	otherCrd, ok := e.(*CRD)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(crd, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (crd CRD) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(crd).(*CRD)
+	return copyCrd
+}
+
+// String return the string representation of the given CRD entity.
+// set verbose to true to increase verbosity.
+func (crd CRD) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Group:", crd.Group)
+	_, _ = fmt.Fprintln(&sb, "Kind:", crd.Kind)
+	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
+
+	return sb.String()
+}
