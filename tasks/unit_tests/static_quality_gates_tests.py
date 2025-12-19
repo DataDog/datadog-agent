@@ -51,7 +51,6 @@ from tasks.static_quality_gates.gates import (
     create_quality_gate_config,
     read_byte_input,
     string_to_byte,
-    string_to_latex_color,
 )
 
 
@@ -186,12 +185,6 @@ class TestUtilityFunctions(unittest.TestCase):
         """Test read_byte_input with numeric input"""
         self.assertEqual(read_byte_input(1024), 1024)
         self.assertEqual(read_byte_input(500), 500)
-
-    def test_string_to_latex_color(self):
-        """Test string_to_latex_color function"""
-        # Should wrap text in $${} format
-        self.assertEqual(string_to_latex_color("test"), "$${test}$$")
-        self.assertEqual(string_to_latex_color("10MiB"), "$${10MiB}$$")
 
 
 class TestArchitectureAndOSExtraction(unittest.TestCase):
