@@ -229,7 +229,7 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed there
+  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
   delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
