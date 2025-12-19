@@ -104,7 +104,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 		case retry.PermaFail:
 			return nil, err
 		default:
-			sleepFor := retrier.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
+			sleepFor := time.Until(retrier.NextRetry()) + time.Second
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
 			case <-timeoutCtx.Done():
