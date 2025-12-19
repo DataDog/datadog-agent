@@ -183,9 +183,13 @@ int ptrace_traceme() {
     if (child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         raise(SIGSTOP);
+        // Child process exits after being continued
+        _exit(0);
     } else {
         wait(NULL);
         ptrace(PTRACE_CONT, child, 42, NULL);
+        // Wait for child to exit
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -194,10 +198,15 @@ int ptrace_attach() {
     int child = fork();
     if (child == 0) {
         sleep(3);
+        _exit(0);
     } else {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+        // Detach and terminate child process
+        ptrace(PTRACE_DETACH, child, 0, NULL);
+        kill(child, SIGTERM);
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
