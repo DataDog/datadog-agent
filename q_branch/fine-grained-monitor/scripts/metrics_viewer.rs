@@ -405,11 +405,7 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             padding: 20px;
             background: #f5f5f5;
         }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 20px;
-        }
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
         .controls {
             background: white;
             padding: 15px;
@@ -421,16 +417,8 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             align-items: flex-start;
             flex-wrap: wrap;
         }
-        .control-group {
-            flex: 1;
-            min-width: 300px;
-        }
-        label {
-            font-weight: 600;
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-        }
+        .control-group { flex: 1; min-width: 300px; }
+        label { font-weight: 600; display: block; margin-bottom: 5px; color: #555; }
         select {
             width: 100%;
             padding: 8px;
@@ -439,43 +427,25 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             font-size: 14px;
             min-height: 150px;
         }
-        .buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+        .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
         button {
             padding: 8px 16px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
-            transition: background 0.2s;
         }
         .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
         .btn-success { background: #28a745; color: white; }
-        .btn-success:hover { background: #1e7e34; }
         .btn-secondary { background: #6c757d; color: white; }
-        .btn-secondary:hover { background: #545b62; }
         .btn-warning { background: #ffc107; color: #333; }
-        .btn-warning:hover { background: #d39e00; }
         #chart {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 10px;
+            min-height: 500px;
         }
-        .status {
-            color: #666;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
+        .status { color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -499,34 +469,30 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
         </div>
     </div>
 
-    <div id="chart">
-        <div class="loading">Loading data...</div>
-    </div>
+    <div id="chart"></div>
 
     <script>
         let containers = [];
         let currentData = {};
-        let currentXRange = null;
+        let chartDiv = document.getElementById('chart');
 
-        // Fetch container list on load
         async function loadContainers() {
             try {
                 const response = await fetch('/api/containers');
                 containers = await response.json();
+                console.log('Loaded containers:', containers.length);
 
                 const select = document.getElementById('containerSelect');
                 select.innerHTML = containers.map((c, i) =>
                     `<option value="${c.short_id}" ${i < 5 ? 'selected' : ''}>` +
-                    `${c.short_id} (${c.qos_class || 'unknown'}) - avg: ${c.avg_cpu.toFixed(1)}%</option>`
+                    `${c.short_id} (${c.qos_class || '?'}) avg:${c.avg_cpu.toFixed(1)}%</option>`
                 ).join('');
 
-                document.getElementById('status').textContent =
-                    `${containers.length} containers loaded`;
-
-                // Load initial data
+                document.getElementById('status').textContent = `${containers.length} containers`;
                 await loadTimeseries();
             } catch (err) {
-                document.getElementById('status').textContent = 'Error loading containers: ' + err;
+                console.error('Error:', err);
+                document.getElementById('status').textContent = 'Error: ' + err;
             }
         }
 
@@ -535,7 +501,7 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             const selected = Array.from(select.selectedOptions).map(o => o.value);
 
             if (selected.length === 0) {
-                Plotly.newPlot('chart', [], {
+                Plotly.newPlot(chartDiv, [], {
                     title: 'Select containers to display',
                     xaxis: { title: 'Time' },
                     yaxis: { title: 'CPU Usage (%)' }
@@ -543,86 +509,92 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                 return;
             }
 
-            document.getElementById('status').textContent = 'Loading timeseries...';
+            document.getElementById('status').textContent = 'Loading...';
 
             try {
                 const response = await fetch(`/api/timeseries?containers=${selected.join(',')}`);
                 const data = await response.json();
+                console.log('Loaded timeseries:', data.length, 'containers');
 
                 currentData = {};
-                data.forEach(d => { currentData[d.container] = d.data; });
+                data.forEach(d => {
+                    currentData[d.container] = d.data;
+                    console.log(`  ${d.container}: ${d.data.length} points`);
+                });
 
                 plotData(selected);
 
                 const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
                 document.getElementById('status').textContent =
-                    `Showing ${selected.length} containers, ${totalPoints.toLocaleString()} points`;
+                    `${selected.length} containers, ${totalPoints.toLocaleString()} points`;
             } catch (err) {
-                document.getElementById('status').textContent = 'Error loading data: ' + err;
+                console.error('Error:', err);
+                document.getElementById('status').textContent = 'Error: ' + err;
             }
         }
 
         function plotData(containerIds, yRange = null) {
-            const traces = containerIds.map((id, i) => {
-                const data = currentData[id] || [];
-                const container = containers.find(c => c.short_id === id);
-                const qos = container?.qos_class || 'unknown';
+            console.log('Plotting:', containerIds);
 
-                return {
-                    x: data.map(p => new Date(p.time_ms)),
+            const traces = [];
+            for (const id of containerIds) {
+                const data = currentData[id];
+                if (!data || data.length === 0) {
+                    console.log(`  ${id}: no data`);
+                    continue;
+                }
+                console.log(`  ${id}: ${data.length} points`);
+
+                const container = containers.find(c => c.short_id === id);
+                const qos = container?.qos_class || '?';
+
+                traces.push({
+                    x: data.map(p => p.time_ms),
                     y: data.map(p => p.cpu_percent),
                     type: 'scattergl',
                     mode: 'lines',
                     name: `${id} (${qos})`,
                     line: { width: 1 }
-                };
-            });
+                });
+            }
+
+            if (traces.length === 0) {
+                console.log('No traces to plot');
+                return;
+            }
 
             const layout = {
-                title: 'CPU Usage Over Time (Pan/Zoom to explore, Double-click to reset)',
+                title: 'CPU Usage Over Time',
                 xaxis: {
                     title: 'Time',
-                    rangeslider: { visible: true, thickness: 0.05 }
+                    type: 'linear'
                 },
                 yaxis: {
                     title: 'CPU Usage (%)',
-                    range: yRange
+                    rangemode: 'tozero'
                 },
-                hovermode: 'x unified',
-                legend: {
-                    orientation: 'h',
-                    yanchor: 'bottom',
-                    y: 1.02,
-                    xanchor: 'right',
-                    x: 1
-                },
-                margin: { l: 60, r: 20, t: 80, b: 60 }
+                hovermode: 'closest',
+                showlegend: true,
+                legend: { orientation: 'h', y: -0.15 }
             };
 
-            // Preserve x range if set
-            if (currentXRange) {
-                layout.xaxis.range = currentXRange;
+            if (yRange) {
+                layout.yaxis.range = yRange;
+                layout.yaxis.autorange = false;
             }
 
-            Plotly.newPlot('chart', traces, layout, { scrollZoom: true });
+            const config = {
+                scrollZoom: true,
+                displayModeBar: true,
+                responsive: true
+            };
 
-            // Track x range changes
-            document.getElementById('chart').on('plotly_relayout', function(eventData) {
-                if (eventData['xaxis.range[0]'] !== undefined) {
-                    currentXRange = [eventData['xaxis.range[0]'], eventData['xaxis.range[1]']];
-                } else if (eventData['xaxis.range']) {
-                    currentXRange = eventData['xaxis.range'];
-                } else if (eventData['xaxis.autorange']) {
-                    currentXRange = null;
-                }
-            });
+            Plotly.react(chartDiv, traces, layout, config);
         }
 
         function selectTop(n) {
             const select = document.getElementById('containerSelect');
-            Array.from(select.options).forEach((opt, i) => {
-                opt.selected = i < n;
-            });
+            Array.from(select.options).forEach((opt, i) => { opt.selected = i < n; });
             loadTimeseries();
         }
 
@@ -633,18 +605,17 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
         }
 
         function rescaleY() {
-            if (!currentXRange) {
-                document.getElementById('status').textContent = 'Zoom in first, then click Rescale Y-Axis';
+            const xRange = chartDiv._fullLayout?.xaxis?.range;
+            if (!xRange) {
+                document.getElementById('status').textContent = 'Zoom in first';
                 return;
             }
 
             const select = document.getElementById('containerSelect');
             const selected = Array.from(select.selectedOptions).map(o => o.value);
 
-            // Find y range for visible x range
             let yMin = Infinity, yMax = -Infinity;
-            const xMin = new Date(currentXRange[0]).getTime();
-            const xMax = new Date(currentXRange[1]).getTime();
+            const xMin = xRange[0], xMax = xRange[1];
 
             selected.forEach(id => {
                 const data = currentData[id] || [];
@@ -658,23 +629,23 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
 
             if (yMin !== Infinity) {
                 const padding = (yMax - yMin) * 0.05 || 1;
-                plotData(selected, [Math.max(0, yMin - padding), yMax + padding]);
+                Plotly.relayout(chartDiv, {
+                    'yaxis.range': [Math.max(0, yMin - padding), yMax + padding],
+                    'yaxis.autorange': false
+                });
                 document.getElementById('status').textContent =
-                    `Y-axis rescaled to ${yMin.toFixed(1)}% - ${yMax.toFixed(1)}%`;
+                    `Y: ${yMin.toFixed(1)}% - ${yMax.toFixed(1)}%`;
             }
         }
 
         function resetZoom() {
-            currentXRange = null;
-            const select = document.getElementById('containerSelect');
-            const selected = Array.from(select.selectedOptions).map(o => o.value);
-            plotData(selected);
+            Plotly.relayout(chartDiv, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
         }
 
-        // Event listeners
         document.getElementById('containerSelect').addEventListener('change', loadTimeseries);
-
-        // Initial load
         loadContainers();
     </script>
 </body>
