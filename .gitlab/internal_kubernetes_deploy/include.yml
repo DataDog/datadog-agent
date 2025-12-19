@@ -4,3 +4,4 @@
 
 include:
   - .gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml

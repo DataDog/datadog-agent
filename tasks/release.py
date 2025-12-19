@@ -594,7 +594,7 @@ def get_qualification_tags(ctx, release_branch, latest_tag=False):
 
 
 @task
-def build_rc(ctx, release_branch, patch_version=False, start_qual=False):
+def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, start_qual=False):
     """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
@@ -602,6 +602,7 @@ def build_rc(ctx, release_branch, patch_version=False, start_qual=False):
     new tags.
 
     Args:
+        k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
         start_qual: Start the qualification phase for agent 6 release candidates.
     """
 
@@ -661,7 +662,7 @@ def build_rc(ctx, release_branch, patch_version=False, start_qual=False):
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, gitlab_tag.name)
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -683,13 +684,14 @@ def get_qualification_rc_tag(ctx, release_branch):
 
 
 @task
-def run_rc_pipeline(ctx, gitlab_tag):
+def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
+        rc_k8s_deployments=k8s_deployments,
     )
 
 

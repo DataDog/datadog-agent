@@ -155,6 +155,7 @@ def run(
     e2e_tests=True,
     kmt_tests=True,
     rc_build=False,
+    rc_k8s_deployments=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -167,6 +168,7 @@ def run(
 
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -246,6 +248,7 @@ def run(
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
             rc_build=rc_build,
+            rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
