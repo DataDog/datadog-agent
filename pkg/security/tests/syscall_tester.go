@@ -49,11 +49,20 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 
 func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
+
+	logFile := "/tmp/syscall_tester.log"
+
 	sideTester := exec.Command(path, "check")
 	output, err := sideTester.CombinedOutput()
 	if len(output) > 0 {
 		t.Logf("syscall tester check output: %s", string(output))
 	}
+
+	// Read and display PID mapping log
+	if logContent, readErr := os.ReadFile(logFile); readErr == nil && len(logContent) > 0 {
+		t.Logf("syscall tester PID mapping:\n%s", string(logContent))
+	}
+
 	if err != nil {
 		return fmt.Errorf("cannot run syscall tester check: %w", err)
 	}
@@ -62,6 +71,9 @@ func checkSyscallTester(t *testing.T, path string) error {
 
 func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args ...string) error {
 	t.Helper()
+
+	logFile := "/tmp/syscall_tester.log"
+
 	sideTester := exec.CommandContext(ctx, path, args...)
 	output, err := sideTester.CombinedOutput()
 
@@ -69,5 +81,11 @@ func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args .
 	if len(output) > 0 {
 		t.Logf("syscall tester output: %s", string(output))
 	}
+
+	// Read and display PID mapping log
+	if logContent, readErr := os.ReadFile(logFile); readErr == nil && len(logContent) > 0 {
+		t.Logf("syscall tester PID mapping:\n%s", string(logContent))
+	}
+
 	return err
 }

@@ -1748,6 +1748,42 @@ int main(int argc, char **argv) {
                 break;
             }
         }
+        // Write in log file the command and the PID (container + host if in namespace)
+        FILE *log_file = fopen("/tmp/syscall_tester.log", "a");
+        if (log_file != NULL) {
+            pid_t container_pid = getpid();
+            pid_t host_pid = 0;
+            
+            // Read /proc/self/status to get host PID if in a namespace
+            FILE *status = fopen("/proc/self/status", "r");
+            if (status) {
+                char line[256];
+                while (fgets(line, sizeof(line), status)) {
+                    if (strncmp(line, "NSpid:", 6) == 0) {
+                        // NSpid format: "NSpid:\t<host_pid>\t<container_pid>"
+                        char *token = strtok(line + 6, "\t ");
+                        if (token) {
+                            pid_t first_pid = atoi(token);
+                            token = strtok(NULL, "\t\n ");
+                            if (token) {
+                                // Multiple PIDs means we're in a namespace
+                                host_pid = first_pid;
+                                container_pid = atoi(token);
+                            }
+                        }
+                        break;
+                    }
+                }
+                fclose(status);
+            }
+            
+            if (host_pid > 0) {
+                fprintf(log_file, "Cmd: %s | Container PID: %d | Host PID: %d\n", cmd, container_pid, host_pid);
+            } else {
+                fprintf(log_file, "Cmd: %s | PID: %d (no namespace)\n", cmd, container_pid);
+            }
+            fclose(log_file);
+        }
 
         int sub_argc = last_arg - i;
         char **sub_argv = argv + i;
