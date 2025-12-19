@@ -602,3 +602,60 @@ infrastructure_mode: "full"
 		"infrastructure_mode": "end_user_device",
 	}, datadog)
 }
+
+func TestKeepsExistingConfigByDefault(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "old_key"
+hostname: "old_hostname"
+env: "prod"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	os.Unsetenv("DD_UPGRADE")
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "new_key"
+	cfg.DatadogYAML.Hostname = "new_hostname"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	// Config should remain unchanged
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":  "old_key",
+		"hostname": "old_hostname",
+		"env":      "prod",
+	}, datadog)
+}
+
+func TestForcesConfigUpdateWithDDUpgrade(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "old_key"
+hostname: "old_hostname"
+env: "prod"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	// DD_UPGRADE=true forces config update
+	t.Setenv("DD_UPGRADE", "true")
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "new_key"
+	cfg.DatadogYAML.Hostname = "new_hostname"
+	cfg.DatadogYAML.LogsEnabled = BoolToPtr(true)
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	// Config should be updated/merged
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":      "new_key",
+		"hostname":     "new_hostname",
+		"env":          "prod",
+		"logs_enabled": true,
+	}, datadog)
+}
