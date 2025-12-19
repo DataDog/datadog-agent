@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -24,9 +25,14 @@ func TestLoginUID(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{
 		{

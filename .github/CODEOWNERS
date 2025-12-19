@@ -35,6 +35,7 @@
 # For now, agent-build are the experts in that.
 /compliance/                            @DataDog/agent-build
 /third_party/                           @DataDog/agent-build
+/.copyright-overrides.yml               @DataDog/agent-build @DataDog/agent-devx
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -105,7 +106,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx
-/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build @cmourot @dd-ddamien
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-build @DataDog/agent-onboarding
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx
@@ -242,6 +243,7 @@
 /cmd/dogstatsd/                         @DataDog/agent-metric-pipelines
 /cmd/loader/                            @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
+/cmd/privateactionrunner                @DataDog/action-platform
 /cmd/process-agent/                     @DataDog/container-experiences
 /cmd/serverless-init/                   @DataDog/serverless-azure-gcp
 /cmd/sbomgen/                           @DataDog/agent-security
@@ -486,6 +488,7 @@
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/collector/corechecks/system/battery/     @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-products
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-products
@@ -593,7 +596,6 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
@@ -703,7 +705,6 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-products
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products
@@ -783,6 +784,7 @@
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
+/test/static/static_quality_gates.yml        @DataDog/agent-build @cmourot @dd-ddamien
 /test/system/                                 @DataDog/agent-runtimes
 /test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
@@ -822,3 +824,5 @@
 
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
+
+/q_branch/                               @scottopell @val06

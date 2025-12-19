@@ -39,10 +39,6 @@ import (
 )
 
 const (
-	// gcInterval is the interval at which the GC will run
-	gcInterval = 1 * time.Hour
-	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 30 * time.Second
 	// disableClientIDCheck is the magic string to disable the client ID check.
 	disableClientIDCheck = "disable-client-id-check"
 )
@@ -98,6 +94,8 @@ type daemonImpl struct {
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
 	clientID        string
+	refreshInterval time.Duration
+	gcInterval      time.Duration
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -151,10 +149,12 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env, taskDB), nil
+	refreshInterval := config.GetDuration("installer.refresh_interval")
+	gcInterval := config.GetDuration("installer.gc_interval")
+	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -167,6 +167,8 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		configsOverride: make(map[string]installerConfig),
 		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
+		refreshInterval: refreshInterval,
+		gcInterval:      gcInterval,
 	}
 	i.refreshState(context.Background())
 	return i
@@ -177,22 +179,16 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	states, err := d.installer(d.env).States(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var configStates map[string]repository.State
-	configStates, err = d.installer(d.env).ConfigStates(ctx)
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make(map[string]PackageState)
-	for pkg := range states {
+	for pkg := range configAndPackageStates.States {
 		res[pkg] = PackageState{
-			Version: states[pkg],
-			Config:  configStates[pkg],
+			Version: configAndPackageStates.States[pkg],
+			Config:  configAndPackageStates.ConfigStates[pkg],
 		}
 	}
 	return res, nil
@@ -315,9 +311,9 @@ func (d *daemonImpl) Start(_ context.Context) error {
 	}
 
 	go func() {
-		gcTicker := time.NewTicker(gcInterval)
+		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
-		refreshStateTicker := time.NewTicker(refreshStateInterval)
+		refreshStateTicker := time.NewTicker(d.refreshInterval)
 		defer refreshStateTicker.Stop()
 		for {
 			select {
@@ -763,15 +759,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			log.Errorf("could not set task state: %v", err)
 		}
 	}
-	state, err := d.installer(d.env).States(ctx)
+
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
-		log.Errorf("could not get installer state: %v", err)
-		return
-	}
-	configState, err := d.installer(d.env).ConfigStates(ctx)
-	if err != nil {
-		log.Errorf("could not get installer config state: %v", err)
+		log.Errorf("could not get installer config and package states: %v", err)
 		return
 	}
 	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
@@ -789,13 +781,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		"datadog-agent": d.env.ConfigID,
 	}
 	var packages []*pbgo.PackageState
-	for pkg, s := range state {
+	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configState[pkg].Stable,
-			ExperimentConfigVersion: configState[pkg].Experiment,
+			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
+			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
 		}

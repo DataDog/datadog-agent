@@ -205,5 +205,5 @@ func (s *windowsVMSuite) execAgentCommandWithFIPS(executable, command string) (s
 }
 
 func assertErrorContainsFIPSPanic(t *testing.T, err error, args ...interface{}) bool {
-	return assert.ErrorContains(t, err, "panic: cngcrypto: not in FIPS mode", args...)
+	return assert.ErrorContains(t, err, "panic: cngcrypto: FIPS mode requested (environment variable GOFIPS) but not available", args...)
 }
