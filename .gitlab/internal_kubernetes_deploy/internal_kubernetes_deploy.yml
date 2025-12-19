@@ -57,3 +57,15 @@ notify-slack:
     - dda self dep sync -f legacy-tasks -f legacy-notifications
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?
+
+nightly_test:
+  stage: setup
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+  script:
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref kacper.murzyn/test-nightlies
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable BUNDLE_VERSION_OVERRIDE"
