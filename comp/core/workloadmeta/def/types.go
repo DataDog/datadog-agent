@@ -1761,6 +1761,15 @@ func (p *Process) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
+	// Preserve APMInstrumentation from destination if source has it as false
+	// This prevents losing instrumentation state when a collector that doesn't detect APM
+	// (e.g., service discovery) updates the service data in a later heartbeat
+	if otherProcess.Service != nil && p.Service != nil {
+		otherProcess.Service.APMInstrumentation =
+			otherProcess.Service.APMInstrumentation ||
+			p.Service.APMInstrumentation
+	}
+
 	// If the source has service data, remove the one from destination so merge() takes service data from the source
 	if otherProcess.Service != nil {
 		p.Service = nil

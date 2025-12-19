@@ -410,3 +410,156 @@ func TestMergeGPU(t *testing.T) {
 	assert.Equal(t, gpu1.Vendor, "nvidia")
 	assert.ElementsMatch(t, gpu1.ChildrenGPUUUIDs, []string{"gpu-4-id", "gpu-5-id"})
 }
+
+func TestProcessMergePreservesAPMInstrumentation(t *testing.T) {
+	tests := []struct {
+		name                          string
+		destinationProcess            *Process
+		sourceProcess                 *Process
+		expectedAPMInstrumentation    bool
+		description                   string
+	}{
+		{
+			name: "preserve APMInstrumentation when source has false and destination has true",
+			destinationProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: true, // APM collector detected instrumentation
+				},
+			},
+			sourceProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					LogFiles:           []string{"/var/log/app.log"},
+					APMInstrumentation: false, // Service discovery doesn't detect APM
+				},
+			},
+			expectedAPMInstrumentation: true,
+			description:               "APM state should be preserved when non-APM collector updates service",
+		},
+		{
+			name: "overwrite APMInstrumentation when source explicitly sets it to true",
+			destinationProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: false,
+				},
+			},
+			sourceProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: true, // APM collector detects instrumentation
+				},
+			},
+			expectedAPMInstrumentation: true,
+			description:               "APM collector should be able to set instrumentation to true",
+		},
+		{
+			name: "both false stays false",
+			destinationProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: false,
+				},
+			},
+			sourceProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: false,
+				},
+			},
+			expectedAPMInstrumentation: false,
+			description:               "Should stay false if both collectors report false",
+		},
+		{
+			name: "source has no service - destination service preserved",
+			destinationProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: true,
+				},
+			},
+			sourceProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid:     1234,
+				Service: nil,
+			},
+			expectedAPMInstrumentation: true,
+			description:               "Destination service should be preserved if source has no service",
+		},
+		{
+			name: "destination has no service - source service used",
+			destinationProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid:     1234,
+				Service: nil,
+			},
+			sourceProcess: &Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "1234",
+				},
+				Pid: 1234,
+				Service: &Service{
+					GeneratedName:      "my-service",
+					APMInstrumentation: true,
+				},
+			},
+			expectedAPMInstrumentation: true,
+			description:               "Source service should be used if destination has no service",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.destinationProcess.Merge(tt.sourceProcess)
+			assert.NoError(t, err, tt.description)
+
+			if tt.destinationProcess.Service != nil {
+				assert.Equal(t, tt.expectedAPMInstrumentation, tt.destinationProcess.Service.APMInstrumentation, tt.description)
+			}
+		})
+	}
+}
+
