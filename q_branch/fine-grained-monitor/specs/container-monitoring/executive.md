@@ -51,8 +51,9 @@ via the standard `metrics` crate facade.
 | **REQ-FM-002:** View Detailed Memory Usage | ✅ Complete | Uses lading's `smaps_rollup` for PSS metrics per-PID, `cgroup_v2::poll()` for memory.stat/memory.current |
 | **REQ-FM-003:** View Detailed CPU Usage | ✅ Complete | Uses lading's `cgroup_v2::cpu::Sampler` for CPU delta calculations with percentage and millicores |
 | **REQ-FM-004:** Analyze Data Post-Hoc | ✅ Complete | 90s rotation, dt/identifier partitioning, standardized labels, session manifest all implemented and verified |
+| **REQ-FM-005:** Visualize Metrics Interactively | ✅ Complete | Dash-based interactive viewer with container filtering and pan/zoom |
 
-**Progress:** 4 of 4 complete
+**Progress:** 5 of 5 complete
 
 ## Implementation Notes
 
@@ -116,3 +117,14 @@ CPU metrics collection uses lading's observer APIs:
 - **Cgroup v2 CPU stats** from `cpu.stat` file
 - **Per-container state** stored in `Observer.container_states` HashMap for delta calculations
 - **State cleanup** removes entries for containers that no longer exist
+
+### REQ-FM-005 Implementation (Completed)
+
+Interactive metrics visualization via `scripts/metrics_viewer.py`:
+
+- **Dash web framework** provides browser-based UI with automatic server startup
+- **WebGL rendering** via Plotly's `scattergl` for smooth performance with 5K+ points per container
+- **Multi-select dropdown** for container filtering with quick-select buttons (Top 5/10/Clear)
+- **Pan/zoom** via mouse drag and scroll, range slider for time navigation
+- **Pre-computed deltas** at startup for responsive filtering (no recomputation on selection change)
+- **Automatic browser launch** opens viewer in default browser after server starts

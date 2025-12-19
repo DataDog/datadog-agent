@@ -370,6 +370,54 @@ Environment variables (typically set via Kubernetes downward API):
 - `NODE_NAME` - Node name for labels
 - `CLUSTER_NAME` - Cluster name for labels
 
+## REQ-FM-005: Interactive Visualization
+
+### Technology Choice
+
+The visualization tool uses Plotly Dash, a Python framework that:
+- Runs a local web server and opens the browser automatically
+- Provides built-in interactive charts with pan/zoom/hover
+- Supports efficient rendering of large timeseries via WebGL
+- Enables dropdown-based filtering without custom JavaScript
+
+### Data Pipeline
+
+1. **Load Phase**: Read Parquet file with PyArrow, filter to CPU metrics only
+2. **Transform Phase**: Compute CPU percentage deltas per container
+3. **Serve Phase**: Dash app with callbacks for container selection
+
+### Performance Considerations
+
+For 35M row datasets:
+- Pre-filter to `cgroup.v2.cpu.stat.usage_usec` during load (reduces to ~1M rows)
+- Compute deltas once at startup, cache in memory
+- Use Plotly's `scattergl` (WebGL) trace type for smooth rendering of 5K+ points
+- Limit to top N containers by default, with option to select any container
+
+### UI Components
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Container Filter: [dropdown multi-select]  [Top 10 ▾]         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  CPU Usage (%) over Time                                        │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                                                         │   │
+│  │     ∿∿∿∿∿∿∿∿∿∿∿   container A                         │   │
+│  │   ───────────────  container B                         │   │
+│  │                                                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│  [Pan/Zoom controls built into Plotly]                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Script Location
+
+`scripts/metrics_viewer.py` - standalone uv-runnable script with inline
+dependencies (Dash, Plotly, PyArrow, Pandas).
+
 ## File Structure
 
 ```text
@@ -380,6 +428,11 @@ fine-grained-monitor/
 │       ├── requirements.md
 │       ├── design.md
 │       └── executive.md
+├── scripts/                   # Analysis and visualization tools
+│   ├── oscillation_detector.rs   # REQ-FM-005 support: pattern detection
+│   ├── oscillation_detector.py   # Python version of oscillation detector
+│   ├── metrics_viewer.py         # REQ-FM-005: Interactive visualization
+│   └── ...                       # Other analysis scripts
 └── src/
     ├── main.rs              # CLI, lifecycle orchestration
     ├── lib.rs

@@ -123,3 +123,35 @@ The 1 GiB total size limit prevents runaway disk usage.
 
 ---
 
+### REQ-FM-005: Visualize Metrics Interactively
+
+WHEN the user runs the visualization tool with a Parquet file
+THE SYSTEM SHALL display a web-based interactive timeseries viewer in the
+browser
+
+WHEN viewing the timeseries
+THE SYSTEM SHALL allow the user to filter by container using a dropdown or
+selection control
+
+WHEN the user selects a container
+THE SYSTEM SHALL display high-resolution CPU usage over time at the full
+sampling rate (1 Hz)
+
+WHEN viewing the timeseries
+THE SYSTEM SHALL enable pan/zoom interactions to explore specific time ranges
+at full resolution
+
+WHEN multiple containers are selected
+THE SYSTEM SHALL overlay their timeseries on the same chart for visual
+comparison of patterns
+
+**Rationale:** Users investigating performance issues need to visually inspect
+CPU usage patterns to identify oscillations, spikes, or anomalies. The automated
+oscillation detector identifies candidates, but human judgment is needed to
+confirm patterns and understand their characteristics. Interactive visualization
+lets users quickly compare container behavior and zoom into specific time
+windows. Browser-based viewing enables sharing and collaboration without
+additional tooling.
+
+---
+
