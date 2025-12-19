@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(cargo build:*)",
+      "Bash(limactl list:*)",
+      "Bash(limactl shell:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/scott.opell/dev/lading/"
+    ]
+  }
+}
