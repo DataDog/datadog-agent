@@ -13,9 +13,13 @@ configuration. For each container, it captures detailed memory metrics (PSS,
 per-region breakdown via optional smaps) and CPU metrics (per-process and
 cgroup-level) at a configurable cadence (default 1 Hz).
 
-All metrics are written to a single Parquet file for post-hoc analysis using
-standard tools like DuckDB, pandas, or Spark. Labels identify each metric by
-container, pod, and node, enabling filtering and aggregation during analysis.
+Metrics are written to Parquet files in a partitioned directory structure
+(`dt=YYYY-MM-DD/identifier=<pod-name>/`). Files rotate every 90 seconds,
+exceeding the 60-second accumulator window to ensure complete time slices.
+A session manifest (`session.json`) captures run configuration and context.
+Standardized labels (node_name, namespace, pod_name, pod_uid, container_id,
+container_name, qos_class) enable reliable cross-container analysis. Standard
+tools like DuckDB, pandas, or Spark can query the partitioned directory.
 
 ## Technical Summary
 
@@ -25,10 +29,16 @@ The monitor uses `lading_capture` as a dependency for the metrics pipeline.
 accumulator windows metrics before flushing to the Parquet writer, which uses
 Arrow with ZSTD compression.
 
+Time-based file rotation (90 seconds) creates a new `CaptureManager` for each
+interval. The 90-second rotation exceeds the 60-second accumulator window,
+ensuring each file contains complete time slices. Files are written to
+Hive-style partitioned directories for Iceberg/Delta/Hudi compatibility.
+A session manifest preserves run context for debugging sessions weeks later.
+
 Container discovery scans `/sys/fs/cgroup/` for `kubepods` patterns, extracting
 container IDs and PIDs without kubelet or CRI dependencies. Observer code uses
-`lading`'s observer APIs directly (exposed via local path dependency), emitting
-metrics via the standard `metrics` crate facade.
+`lading`'s observer APIs directly (exposed via git dependency), emitting metrics
+via the standard `metrics` crate facade.
 
 ## Status Summary
 
@@ -37,10 +47,10 @@ metrics via the standard `metrics` crate facade.
 | **REQ-FM-001:** Discover Running Containers | ✅ Complete | Cgroup v2 filesystem scan with containerd/CRI-O/Docker pattern matching, pod UID extraction, QoS class detection |
 | **REQ-FM-002:** View Detailed Memory Usage | ✅ Complete | Uses lading's `smaps_rollup` for PSS metrics per-PID, `cgroup_v2::poll()` for memory.stat/memory.current |
 | **REQ-FM-003:** View Detailed CPU Usage | ✅ Complete | Uses lading's `cgroup_v2::cpu::Sampler` for CPU delta calculations with percentage and millicores |
-| **REQ-FM-004:** Analyze Data Post-Hoc | ✅ Complete | `lading_capture` integration with CaptureManager, Parquet output, graceful shutdown, 1 GiB file size limit |
+| **REQ-FM-004:** Analyze Data Post-Hoc | 🔄 In Progress | Adding 90s rotation, dt/identifier partitioning, standardized labels, session manifest |
 | **REQ-FM-005:** Capture Delayed Metrics | ⏭️ Planned | Accumulator support via `lading_capture`; active use scheduled for later phase when Agent output interception is implemented |
 
-**Progress:** 4 of 5 complete
+**Progress:** 3 of 5 complete (1 in progress)
 
 ## Implementation Notes
 
@@ -58,20 +68,24 @@ Container discovery via cgroup filesystem scanning is now functional:
 Verified path patterns on KIND cluster:
 `/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-{qos}.slice/kubelet-kubepods-{qos}-pod{uid}.slice/cri-containerd-{id}.scope`
 
-### REQ-FM-004 Implementation (Completed)
+### REQ-FM-004 Implementation (In Progress)
 
-The Parquet output pipeline is now functional:
+Core Parquet pipeline is functional. Now adding enhanced output features:
 
+**Completed:**
 - **CaptureManager** from `lading_capture` handles the metrics-to-Parquet pipeline
 - **Three signal pairs** coordinate lifecycle: `shutdown`, `experiment_started`, `target_running`
-- **Global labels** (node, cluster) automatically attach to all metrics
-- **File size monitoring** triggers graceful shutdown when file exceeds 1 GiB
 - **Signal handlers** for SIGINT/SIGTERM ensure clean shutdown with proper Parquet finalization
 
-The observer code can now emit metrics via `gauge!()` and `counter!()` macros, which flow through:
-1. `CaptureRecorder` (implements `metrics::Recorder`)
-2. In-memory registry with 60-tick accumulator window
-3. Parquet writer with ZSTD compression
+**In Progress:**
+- **90-second rotation** exceeds 60-second accumulator window for complete time slices
+- **Hive-style partitioning** with `dt=YYYY-MM-DD/identifier=<pod-name>/` structure
+- **Session manifest** (`session.json`) with run_id, config, start_time, git_rev
+- **Standardized labels** for all metrics: node_name, namespace, pod_name, pod_uid,
+  container_id, container_name, qos_class
+- **Total size limit** (1 GiB) across all rotated files triggers shutdown
+
+The rotation pattern: signal shutdown to close current `CaptureManager` (writes footer), then create new manager for next file in the partitioned directory.
 
 ### REQ-FM-002 Implementation (Completed)
 

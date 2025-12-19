@@ -6,7 +6,7 @@ description = "Fine-grained container resource monitoring for datadog-agent deve
 license = "Apache-2.0"
 
 [dependencies]
-# Lading ecosystem - using branch with exposed observer API
+# Lading ecosystem - using branch with rotation API
 lading = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
 lading-capture = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
 lading-signal = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
@@ -33,6 +33,16 @@ rustc-hash = "2"
 
 # Hostname detection
 hostname = "0.4"
+
+# Timestamp formatting for file rotation
+chrono = "0.4"
+
+# Session manifest serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# UUID for run_id
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 proptest = "1.5"
