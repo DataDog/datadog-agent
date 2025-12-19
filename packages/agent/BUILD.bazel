@@ -1,6 +1,5 @@
 # Agent packages
 
-load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 
 package(default_visibility = ["//visibility:public"])
@@ -34,12 +33,4 @@ config_setting(
 config_setting(
     name = "heroku_flavor",
     flag_values = {"@@//packages/agent:flavor": "heroku"},
-)
-
-selects.config_setting_group(
-    name = "linux_heroku",
-    match_all = [
-        ":heroku_flavor",
-        "@platforms//os:linux",
-    ],
 )
