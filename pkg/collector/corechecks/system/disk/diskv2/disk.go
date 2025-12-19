@@ -583,13 +583,14 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 		deviceName = partition.Device
 	}
 	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
-	deviceName = normalizeDeviceTag(deviceName)
+	normalizedDeviceName := normalizeDeviceTag(deviceName)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, "device:"+strings.ToLower(deviceName))
+		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
 	} else {
-		tags = append(tags, "device:"+deviceName)
+		tags = append(tags, "device:"+normalizedDeviceName)
 	}
 	tags = append(tags, "device_name:"+baseDeviceName(partition.Device))
+	// Use original deviceName for regex matching in device_tag_re
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
 	if ok {
