@@ -1255,9 +1255,9 @@ class TestGetBudgetImpactMetrics(unittest.TestCase):
         # Budget consumed = 15 / 50 = 30%
         self.assertIn("+30%", budget_impact)
         self.assertIn("of remaining", budget_impact)
-        self.assertIn("150.0", position)
-        self.assertIn("165.0", position)
-        self.assertIn("200.0", position)
+        self.assertIn("150.000", position)
+        self.assertIn("**165.000**", position)  # Current is bold
+        self.assertIn("200.000", position)
 
     def test_negative_delta_savings(self):
         """Should show savings when size decreased (negative delta)."""
@@ -1271,8 +1271,8 @@ class TestGetBudgetImpactMetrics(unittest.TestCase):
 
         self.assertIn("savings", budget_impact)
         # Baseline = 145 - (-5) = 150 MiB
-        self.assertIn("150.0", position)
-        self.assertIn("145.0", position)
+        self.assertIn("150.000", position)
+        self.assertIn("**145.000**", position)  # Current is bold
 
     def test_zero_delta_no_change(self):
         """Should show no change when delta is zero."""
@@ -1339,8 +1339,8 @@ class TestGetBudgetImpactMetrics(unittest.TestCase):
         self.assertEqual("N/A", budget_impact)
         # Position should show N/A for baseline but current and limit should be present
         self.assertIn("N/A", position)
-        self.assertIn("165.0", position)
-        self.assertIn("200.0", position)
+        self.assertIn("**165.000**", position)  # Current is bold
+        self.assertIn("200.000", position)
 
     def test_missing_gate(self):
         """Should return N/A when gate is not found."""

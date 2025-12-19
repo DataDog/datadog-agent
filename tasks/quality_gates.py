@@ -90,11 +90,11 @@ def get_budget_impact_metrics(gate_name: str, metric_handler: GateMetricHandler)
     max_mib = max_disk / (1024 * 1024)
     baseline_mib = baseline_disk / (1024 * 1024) if baseline_disk is not None else None
 
-    # Build position string: baseline → current → limit
+    # Build position string: baseline → current → limit (current is bold)
     if baseline_mib is not None:
-        position_str = f"{baseline_mib:.1f} → {current_mib:.1f} → {max_mib:.1f}"
+        position_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
     else:
-        position_str = f"N/A → {current_mib:.1f} → {max_mib:.1f}"
+        position_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
 
     # Calculate budget impact percentage
     if baseline_mib is None or relative_disk is None:
