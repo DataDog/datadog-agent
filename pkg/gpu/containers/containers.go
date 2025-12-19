@@ -139,6 +139,7 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 		}
 
 		matchingDevice, err := findDeviceForResourceName(devices, resource.ID)
+		fmt.Println("matchingDevice", matchingDevice.GetDeviceInfo().UUID, "for resource", resource.ID, "error", err)
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue

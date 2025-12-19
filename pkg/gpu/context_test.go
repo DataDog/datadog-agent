@@ -193,6 +193,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerID,
 		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
 	}
 
 	containerDeviceIndexes := []int32{1, 2, 3, 4}
@@ -293,6 +294,8 @@ func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
 	pidNoContainerButEnv := 2235
 	pidContainer := 3238
 	pidContainerAndEnv := 3239
+	pidContainerNoMig := 2236
+	pidContainerNoMigAndEnv := 8671
 
 	migParentIndex := 5
 	migChildIndex1 := 0
@@ -301,12 +304,15 @@ func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
 	migUUID2 := testutil.MIGChildrenUUIDs[migParentIndex][migChildIndex2]
 
 	envVisibleDevicesValue := migUUID1
+	envVisibleDevicesValueNoMig := testutil.GPUUUIDs[0]
 
 	procFs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pidNoContainer)},
 		{Pid: uint32(pidContainer)},
 		{Pid: uint32(pidContainerAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
+		{Pid: uint32(pidContainerNoMigAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValueNoMig}},
+		{Pid: uint32(pidContainerNoMig)},
 	})
 
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions())
@@ -314,15 +320,16 @@ func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
 	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
-	containerID := "abcdef"
-	container := &workloadmeta.Container{
+	containerIDWithMig := "with-mig"
+	containerWithMig := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
+			ID:   containerIDWithMig,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerID,
+			Name: containerIDWithMig,
 		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
 	}
 
 	for _, migUUID := range []string{migUUID1, migUUID2} {
@@ -330,16 +337,38 @@ func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
 			Name: string(gpuutil.GpuNvidiaMigPrefix) + "-3g.20gb",
 			ID:   migUUID,
 		}
-		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
+		containerWithMig.ResolvedAllocatedResources = append(containerWithMig.ResolvedAllocatedResources, resource)
 	}
 
-	wmetaMock.Set(container)
-	storeContainer, err := wmetaMock.GetContainer(containerID)
-	require.NoError(t, err, "container should be found in the store")
-	require.NotNil(t, storeContainer, "container should be found in the store")
+	containerIDNoMig := "without-mig"
+	containerNoMig := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDNoMig,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDNoMig,
+		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
+	}
+
+	resource := workloadmeta.ContainerAllocatedResource{
+		Name: string(gpuutil.GpuNvidiaGeneric),
+		ID:   testutil.GPUUUIDs[0],
+	}
+	containerNoMig.ResolvedAllocatedResources = append(containerNoMig.ResolvedAllocatedResources, resource)
+
+	wmetaMock.Set(containerWithMig)
+	wmetaMock.Set(containerNoMig)
+
+	for _, containerID := range []string{containerIDWithMig, containerIDNoMig} {
+		storeContainer, err := wmetaMock.GetContainer(containerID)
+		require.NoError(t, err, "container should be found in the store")
+		require.NotNil(t, storeContainer, "container should be found in the store")
+	}
 
 	// Test some different cases, although due to the visibility rules for MIG (see pkg/gpu/cuda/env.go),
-	// we only see the first MIG device if it's present. 
+	// we only see the first MIG device if it's present.
 	cases := []struct {
 		name                string
 		pid                 int
@@ -363,18 +392,25 @@ func TestGetCurrentActiveGpuDeviceMIG(t *testing.T) {
 			expectedDeviceUUIDs: []string{migUUID1},
 		},
 		{
-			name:                "WithContainer",
-			containerID:         containerID,
+			name:                "WithContainerWithMig",
+			containerID:         containerIDWithMig,
 			pid:                 pidContainer,
 			configuredDeviceIdx: []int32{0},
 			expectedDeviceUUIDs: []string{migUUID1},
 		},
 		{
-			name:                "WithContainerAndEnv",
+			name:                "WithContainerWithMigAndEnv",
 			pid:                 pidContainerAndEnv,
-			containerID:         containerID,
+			containerID:         containerIDWithMig,
 			configuredDeviceIdx: []int32{0},
 			expectedDeviceUUIDs: []string{migUUID1},
+		},
+		{
+			name:                "WithContainerWithoutMig",
+			containerID:         containerIDNoMig,
+			pid:                 pidContainerNoMig,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceUUIDs: []string{testutil.GPUUUIDs[0]},
 		},
 	}
 
