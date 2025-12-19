@@ -88,8 +88,9 @@ func (m *Manager) run() {
 			m.addLogToWindow(entry)
 
 		case <-ticker.C:
-			// Time to slide windows for all sources
-			m.flushExpiredWindows()
+			// Global clock: flush ALL sources simultaneously every Step interval
+			// This ensures all sources are perfectly synchronized
+			m.flushAllSources()
 		}
 	}
 }
@@ -122,7 +123,9 @@ func (m *Manager) addLogToWindow(entry common.LogEntry) {
 	state.lastLogTime = entry.Timestamp
 }
 
-func (m *Manager) flushExpiredWindows() {
+// flushAllSources flushes windows for ALL sources simultaneously on the global clock tick
+// This ensures perfect synchronization across all sources
+func (m *Manager) flushAllSources() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -130,29 +133,26 @@ func (m *Manager) flushExpiredWindows() {
 
 	for sourceKey, state := range m.sourceWindows {
 		if state.currentWindow != nil {
-			// Check if it's time to slide the window (based on Step, not Size)
-			// For sliding windows: Step = how often we create new windows
-			if now.Sub(state.currentWindow.StartTime) >= m.config.Step {
-				state.currentWindow.EndTime = now
+			// Close current window
+			state.currentWindow.EndTime = now
 
-				// Send window to shared template extractor (even if empty)
-				// Empty windows are important for time-series continuity in DMD analysis
-				select {
-				case m.outputChan <- *state.currentWindow:
-				default:
-					log.Warnf("Dropping window for source %s (output channel full)", sourceKey)
-				}
+			// Send window to shared template extractor (even if empty)
+			// Empty windows are important for time-series continuity in DMD analysis
+			select {
+			case m.outputChan <- *state.currentWindow:
+			default:
+				log.Warnf("Dropping window for source %s (output channel full)", sourceKey)
+			}
 
-				// Create new window for this source
-				// New window starts now but covers Size duration of history
-				m.windowIDCounter++
-				state.currentWindow = &common.Window{
-					SourceKey: sourceKey,
-					ID:        m.windowIDCounter,
-					StartTime: now,
-					EndTime:   now.Add(m.config.Size),
-					Logs:      make([]common.LogEntry, 0, 1000),
-				}
+			// Create new window for this source
+			// All sources create new windows at the same time (synchronized)
+			m.windowIDCounter++
+			state.currentWindow = &common.Window{
+				SourceKey: sourceKey,
+				ID:        m.windowIDCounter,
+				StartTime: now,
+				EndTime:   now.Add(m.config.Size),
+				Logs:      make([]common.LogEntry, 0, 1000),
 			}
 		}
 	}
