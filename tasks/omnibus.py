@@ -10,13 +10,11 @@ from collections.abc import Iterator
 from typing import NamedTuple
 
 import requests
-import yaml
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
@@ -701,14 +699,10 @@ def docker_build(
         "ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent",
     ]
 
-    # Get clang/llc version info from .gitlab-ci.yml
-    gitlab_ci_file = os.path.join(repo_root, ".gitlab-ci.yml")
-    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-    with open(gitlab_ci_file) as f:
-        ci_config = yaml.safe_load(f)
-    ci_vars = ci_config['variables']
-    clang_version = ci_vars['CLANG_LLVM_VER']
-    clang_build_version = ci_vars['CLANG_BUILD_VERSION']
+    # Get clang/llc version info
+    from tasks.system_probe import get_clang_version_and_build_version
+
+    clang_version, clang_build_version = get_clang_version_and_build_version()
 
     # Public S3 URL for clang/llc (no auth required)
     s3_base = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"
@@ -832,10 +826,13 @@ def _cleanup_old_packages(pkg_dir: str, keep: int = 2) -> None:
 
     # Group by (type, arch, ext)
     groups: dict[tuple[str, str, str], list[tuple[str, float]]] = defaultdict(list)
+    unmatched: list[str] = []
     for f in os.listdir(pkg_dir):
         m = pattern.match(f)
         if m:
             groups[(m[1], m[2], m[3])].append((os.path.join(pkg_dir, f), os.path.getmtime(os.path.join(pkg_dir, f))))
+        elif not f.endswith('.metadata.json'):
+            unmatched.append(f)
 
     # Remove old files (keep newest N per group)
     removed = 0
@@ -854,6 +851,11 @@ def _cleanup_old_packages(pkg_dir: str, keep: int = 2) -> None:
 
     if removed:
         print(f"Auto-cleaned {removed} old package files (keeping last {keep} per type)")
+    if unmatched:
+        print(
+            f"Skipped {len(unmatched)} unrecognized files in {pkg_dir}: {', '.join(unmatched[:5])}"
+            + (f" (+{len(unmatched) - 5} more)" if len(unmatched) > 5 else "")
+        )
 
 
 def _pipeline_id_of_package(package: DebPackageInfo) -> int:
