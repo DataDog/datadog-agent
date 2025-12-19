@@ -256,65 +256,68 @@ efficient filtering in queries.
 
 **Rotation Implementation**:
 
-Since `CaptureManager::start()` runs until shutdown and owns the writer, we
-cannot directly rotate from outside. Instead, we implement rotation by:
+The `lading_capture` crate provides a channel-based rotation API via
+`CaptureManager::start_with_rotation()`. This spawns the event loop in a
+background task and immediately returns a `RotationSender` channel for
+requesting file rotations.
 
-1. Running `CaptureManager` with a short-lived scope
-2. Using `shutdown_broadcaster.signal()` to trigger graceful close
-3. Creating a new `CaptureManager` for the next file
-4. Repeating until total size limit or external shutdown
+Key components added to `lading_capture`:
+- `RotationRequest` - Contains new file path and oneshot response channel
+- `RotationSender` - Channel handle for sending rotation requests
+- `StateMachine::replace_format()` - Swaps format without IO knowledge
+- `start_with_rotation()` - Spawns event loop, returns sender immediately
 
 ```rust
-async fn run_with_rotation(args: Args) -> anyhow::Result<()> {
-    let rotation_interval = Duration::from_secs(args.rotation_seconds);
-    let mut total_bytes: u64 = 0;
-    let identifier = get_unique_identifier();
+async fn run_rotation_loop(args: Args, identifier: String, ...) -> anyhow::Result<()> {
+    // Create CaptureManager and start with rotation support
+    let mut capture_manager = CaptureManager::new_parquet(...).await?;
+    capture_manager.add_global_label("node_name", &node_name);
+    capture_manager.add_global_label("cluster_name", &cluster_name);
 
-    // Write session manifest on startup
-    write_session_manifest(&args, &identifier).await?;
+    // Spawns event loop internally, returns sender immediately
+    let rotation_sender = capture_manager.start_with_rotation().await?;
+
+    let mut rotation_timer = tokio::time::interval(Duration::from_secs(90));
+    rotation_timer.tick().await; // Skip immediate first tick
 
     loop {
-        let date = chrono::Utc::now().format("%Y-%m-%d");
-        let timestamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
-
-        // Create partitioned directory structure
-        let partition_dir = args.output_dir
-            .join(format!("dt={}", date))
-            .join(format!("identifier={}", identifier));
-        tokio::fs::create_dir_all(&partition_dir).await?;
-
-        let filename = format!("metrics-{}.parquet", timestamp);
-        let output_path = partition_dir.join(&filename);
-
-        // Create new CaptureManager for this rotation period
-        let (shutdown_watcher, shutdown_broadcaster) = lading_signal::signal();
-        // ... create capture_manager ...
-
-        // Run until rotation interval or external signal
         tokio::select! {
-            _ = capture_manager.start() => { /* shutdown received */ }
-            _ = tokio::time::sleep(rotation_interval) => {
-                shutdown_broadcaster.signal();  // Trigger graceful close
+            _ = rotation_timer.tick() => {
+                // Prepare new file path (may cross date boundary)
+                let partition_dir = get_partition_dir(&args.output_dir, &identifier);
+                let new_output_path = partition_dir.join(generate_filename());
+
+                // Send rotation request and await response
+                let (response_tx, response_rx) = oneshot::channel();
+                let request = RotationRequest {
+                    path: new_output_path.clone(),
+                    response: response_tx,
+                };
+                rotation_sender.send(request).await?;
+
+                // Wait for rotation to complete (footer written)
+                match response_rx.await {
+                    Ok(Ok(())) => { /* rotation succeeded */ }
+                    Ok(Err(e)) => { /* rotation failed, continue with old file */ }
+                    Err(_) => { /* CaptureManager exited */ break; }
+                }
             }
-            _ = external_shutdown.recv() => {
+            _ = external_shutdown_rx.changed() => {
                 shutdown_broadcaster.signal();
-                break;  // Exit rotation loop
+                break;
             }
-        }
-
-        // Check file size and accumulate
-        if let Ok(metadata) = tokio::fs::metadata(&output_path).await {
-            total_bytes += metadata.len();
-        }
-
-        if total_bytes >= MAX_TOTAL_BYTES {
-            tracing::warn!(total_bytes, "Total size limit reached");
-            break;
         }
     }
     Ok(())
 }
 ```
+
+The rotation flow inside `CaptureManager`:
+1. Receive `RotationRequest` from channel
+2. Create new file and Parquet format at specified path
+3. Call `StateMachine::replace_format()` which flushes buffered data
+4. Close old format (writes Parquet footer)
+5. Send success response via oneshot channel
 
 **Parquet Schema** (from lading_capture):
 
