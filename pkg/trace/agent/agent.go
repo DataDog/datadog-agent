@@ -537,6 +537,12 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArrayV1(sampledChunks.TracerPayload.Chunks)
+			// We must also flush the stats input to the concentrator to avoid a race condition
+			// Where if a trace payload is split into multiple chunks, the concentrator races with the trace writer to access the string table.
+			if len(statsInput.Traces) > 0 {
+				a.Concentrator.AddV1(statsInput)
+				statsInput.Traces = make([]traceutil.ProcessedTraceV1, 0, len(p.TracerPayload.Chunks))
+			}
 			a.TraceWriterV1.WriteChunksV1(sampledChunks)
 			sampledChunks = new(writer.SampledChunksV1)
 		}

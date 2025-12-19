@@ -4139,3 +4139,191 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 		})
 	}
 }
+
+// mockTraceWriterWithFlush is a mock trace writer that simulates the real trace writer's
+// behavior of calling RemoveUnusedStrings() during flush, which can cause a race condition
+// when the Concentrator is concurrently reading from the same StringTable.
+type mockTraceWriterWithFlush struct {
+	mu         sync.Mutex
+	payloadsV1 []*writer.SampledChunksV1
+}
+
+func (m *mockTraceWriterWithFlush) Stop() {}
+
+func (m *mockTraceWriterWithFlush) WriteChunksV1(pkg *writer.SampledChunksV1) {
+	m.mu.Lock()
+	m.payloadsV1 = append(m.payloadsV1, pkg)
+	m.mu.Unlock()
+
+	// Simulate the real trace writer's flush behavior which calls RemoveUnusedStrings().
+	// This is what causes the race condition in production - the trace writer modifies
+	// the StringTable (via delete) while the Concentrator is reading from it.
+	go func() {
+		// Small delay to increase chance of race with concurrent Concentrator.AddV1
+		time.Sleep(time.Microsecond)
+		pkg.TracerPayload.RemoveUnusedStrings()
+	}()
+}
+
+func (m *mockTraceWriterWithFlush) FlushSync() error { return nil }
+
+func (m *mockTraceWriterWithFlush) UpdateAPIKey(_, _ string) {}
+
+// mockConcentratorWithDelay is a mock concentrator that adds a small delay during
+// stats processing to increase the chance of hitting the race condition.
+type mockConcentratorWithDelay struct {
+	stats   []stats.Input
+	statsV1 []stats.InputV1
+	mu      sync.Mutex
+}
+
+func (c *mockConcentratorWithDelay) Start() {}
+func (c *mockConcentratorWithDelay) Stop()  {}
+func (c *mockConcentratorWithDelay) Add(t stats.Input) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats = append(c.stats, t)
+}
+func (c *mockConcentratorWithDelay) AddV1(t stats.InputV1) {
+	// Simulate reading from the StringTable during stats processing
+	// This is what weightV1 and NewStatSpanFromV1 do in the real concentrator
+	for _, trace := range t.Traces {
+		if trace.Root != nil {
+			// This calls StringTable.Lookup internally, which can race with
+			// RemoveUnusedStrings() deleting from the same map
+			_, _ = trace.Root.GetAttributeAsFloat64("_sample_rate")
+			for _, span := range trace.TraceChunk.Spans {
+				_, _ = span.GetAttributeAsString("custom_tag")
+				_ = span.Service()
+				_ = span.Name()
+				_ = span.Resource()
+			}
+		}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.statsV1 = append(c.statsV1, t)
+}
+
+// TestWorkV1_NoInternalSpanConcurrentModification tests that concurrent processing of
+// V1 payloads does not cause a race condition on the shared StringTable.
+// This test should be run with -race to detect the concurrent map read/write issue.
+//
+// The race condition occurs when:
+// - ProcessV1 sends a payload to WriteChunksV1 (trace writer)
+// - ProcessV1 then calls Concentrator.AddV1 which reads from the StringTable
+// - The trace writer calls RemoveUnusedStrings() which deletes from the StringTable
+// - Race: Concentrator reading vs trace writer deleting from the same map
+func TestWorkV1_NoInternalSpanConcurrentModification(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	// Replace the mock writer and concentrator with versions that simulate the race condition
+	agnt.TraceWriterV1 = &mockTraceWriterWithFlush{}
+	agnt.Concentrator = &mockConcentratorWithDelay{}
+
+	// Force payload splitting by setting a very small MaxPayloadSize
+	// This triggers Cut() which clones the StringTable
+	defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+	writer.MaxPayloadSize = 1
+
+	// Start the agent workers in the background
+	var agentWg sync.WaitGroup
+	agentWg.Add(1)
+	go func() {
+		defer agentWg.Done()
+		agnt.Run()
+	}()
+
+	// Give the agent time to start its workers
+	time.Sleep(50 * time.Millisecond)
+
+	// Process multiple payloads concurrently to trigger the race condition
+	numPayloads := 100
+	var payloadWg sync.WaitGroup
+
+	for p := 0; p < numPayloads; p++ {
+		payloadWg.Add(1)
+		go func(payloadIdx int) {
+			defer payloadWg.Done()
+
+			// Each payload has its own StringTable with many strings
+			strings := idx.NewStringTable()
+
+			// Add many strings to increase the chance of map operations racing
+			for i := 0; i < 100; i++ {
+				strings.Add("key" + strconv.Itoa(payloadIdx) + "_" + strconv.Itoa(i))
+			}
+
+			// Create multiple chunks per payload - these will be split due to small MaxPayloadSize
+			chunks := make([]*idx.InternalTraceChunk, 10)
+			for i := 0; i < 10; i++ {
+				span := idx.NewInternalSpan(strings, &idx.Span{
+					ServiceRef:  strings.Add("test-service-" + strconv.Itoa(payloadIdx)),
+					NameRef:     strings.Add("test-operation-" + strconv.Itoa(i)),
+					ResourceRef: strings.Add("test-resource-" + strconv.Itoa(i)),
+					TypeRef:     strings.Add("web"),
+					SpanID:      uint64(payloadIdx*1000 + i + 1),
+					Start:       uint64(time.Now().UnixNano()),
+					Duration:    uint64(time.Millisecond),
+					Attributes:  make(map[uint32]*idx.AnyValue),
+				})
+				// Add _sample_rate attribute which is accessed by weightV1 via GetAttributeAsFloat64
+				// This triggers StringTable.Lookup() during stats processing
+				span.SetFloat64Attribute("_sample_rate", 0.5)
+				span.SetStringAttribute("custom_tag", "value"+strconv.Itoa(i))
+				// Add more attributes to increase StringTable activity
+				for j := 0; j < 10; j++ {
+					span.SetStringAttribute("attr"+strconv.Itoa(j), "val"+strconv.Itoa(j))
+				}
+
+				chunks[i] = &idx.InternalTraceChunk{
+					Strings:    strings,
+					TraceID:    make([]byte, 16),
+					Priority:   2, // Keep priority to ensure stats processing happens
+					Spans:      []*idx.InternalSpan{span},
+					Attributes: make(map[uint32]*idx.AnyValue),
+				}
+			}
+
+			payload := &idx.InternalTracerPayload{
+				Strings:    strings,
+				Chunks:     chunks,
+				Attributes: make(map[uint32]*idx.AnyValue),
+			}
+			payload.SetEnv("test")
+			payload.SetHostname("test-host")
+			payload.SetContainerID("container-" + strconv.Itoa(payloadIdx))
+
+			// Send payload to the agent's InV1 channel for processing by workV1 goroutines
+			select {
+			case agnt.InV1 <- &api.PayloadV1{
+				TracerPayload: payload,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			}:
+			case <-ctx.Done():
+				return
+			}
+		}(p)
+	}
+
+	// Wait for all payloads to be sent
+	payloadWg.Wait()
+
+	// Give the agent time to process all payloads and trigger the race
+	time.Sleep(500 * time.Millisecond)
+
+	// Stop the agent
+	cancel()
+	agentWg.Wait()
+
+	// If we got here without a race condition panic, the test passes
+	// When run with -race, this test will fail if there's concurrent map access
+}
