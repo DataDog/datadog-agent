@@ -85,7 +85,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -213,7 +213,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver(), nil)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -318,11 +318,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-<<<<<<< HEAD
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
-=======
-			f, err := NewTargetMutator(config, wmeta, nil)
->>>>>>> f982289f034 (feat: add service monitor crds)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver(), nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -408,11 +404,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-<<<<<<< HEAD
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
-=======
-			f, err := NewTargetMutator(config, wmeta, nil)
->>>>>>> f982289f034 (feat: add service monitor crds)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver(), nil)
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -492,11 +484,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-<<<<<<< HEAD
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
-=======
-			f, err := NewTargetMutator(config, wmeta, nil)
->>>>>>> f982289f034 (feat: add service monitor crds)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver(), nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -755,11 +743,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-<<<<<<< HEAD
-			f, err := NewTargetMutator(config, wmeta, imageResolver)
-=======
-			f, err := NewTargetMutator(config, wmeta, nil)
->>>>>>> f982289f034 (feat: add service monitor crds)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -877,7 +861,7 @@ func TestLanguageDetection(t *testing.T) {
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.
