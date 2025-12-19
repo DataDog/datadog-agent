@@ -102,8 +102,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-
-		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
+		if value.ContainerContext.Releasable != nil {
 			value.ContainerContext.CallReleaseCallback()
 		}
 		if value.CGroupContext.Releasable != nil {

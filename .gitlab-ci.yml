@@ -1163,6 +1163,19 @@ workflow:
         - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
+.on_gpu_integration_tests:
+  - !reference [.on_scheduled_main]
+  - !reference [.manual]
+  # Run on GPU-related changes
+  - changes:
+      paths:
+        - pkg/gpu/**/*
+        - pkg/collector/corechecks/gpu/**/*
+        - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - .gitlab/source_test/linux.yml
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_installer_systemd_changes:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]

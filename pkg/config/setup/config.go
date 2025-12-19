@@ -556,6 +556,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -818,6 +820,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
+	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
