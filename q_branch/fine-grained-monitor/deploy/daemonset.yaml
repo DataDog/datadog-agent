@@ -16,12 +16,17 @@ spec:
       hostPID: true  # Needed to read /proc for all processes
       containers:
       - name: monitor
-        image: fine-grained-monitor:local
+        image: fine-grained-monitor:rotation
         imagePullPolicy: Never  # Use locally loaded image
         args:
-          - "--output=/data/metrics.parquet"
+          - "--output-dir=/data"
           - "--interval-ms=1000"
+          # rotation-seconds defaults to 90 (exceeds 60s accumulator window)
         env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
           - name: NODE_NAME
             valueFrom:
               fieldRef:
@@ -29,7 +34,7 @@ spec:
           - name: CLUSTER_NAME
             value: "gadget-dev"
           - name: RUST_LOG
-            value: "debug"
+            value: "info"
         securityContext:
           privileged: true  # Needed for full cgroup/procfs access
         volumeMounts:

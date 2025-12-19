@@ -607,8 +607,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link 0.2.1",
 ]
 
@@ -921,6 +923,7 @@ name = "fine-grained-monitor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "hostname",
  "lading",
@@ -930,11 +933,14 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -1731,7 +1737,7 @@ dependencies = [
 [[package]]
 name = "lading"
 version = "0.30.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#859db6e10ee14375d70a84d7dcf427ef3125fe2f"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#d0aebbea87412f388c5833bc53073981c6523dc1"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -1795,7 +1801,7 @@ dependencies = [
 [[package]]
 name = "lading-capture"
 version = "0.2.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#859db6e10ee14375d70a84d7dcf427ef3125fe2f"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#d0aebbea87412f388c5833bc53073981c6523dc1"
 dependencies = [
  "arc-swap",
  "arrow",
@@ -1822,7 +1828,7 @@ dependencies = [
 [[package]]
 name = "lading-payload"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#859db6e10ee14375d70a84d7dcf427ef3125fe2f"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#d0aebbea87412f388c5833bc53073981c6523dc1"
 dependencies = [
  "byte-unit",
  "bytes",
@@ -1842,7 +1848,7 @@ dependencies = [
 [[package]]
 name = "lading-signal"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#859db6e10ee14375d70a84d7dcf427ef3125fe2f"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#d0aebbea87412f388c5833bc53073981c6523dc1"
 dependencies = [
  "loom",
  "thiserror 2.0.17",
@@ -1853,7 +1859,7 @@ dependencies = [
 [[package]]
 name = "lading-throttle"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#859db6e10ee14375d70a84d7dcf427ef3125fe2f"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#d0aebbea87412f388c5833bc53073981c6523dc1"
 dependencies = [
  "async-trait",
  "serde",

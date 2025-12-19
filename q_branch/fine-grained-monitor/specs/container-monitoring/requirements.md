@@ -80,23 +80,46 @@ data volume against resolution.
 ### REQ-FM-004: Analyze Data Post-Hoc
 
 WHEN the monitor writes metrics
-THE SYSTEM SHALL output all data to a single Parquet file with columnar storage
+THE SYSTEM SHALL output data to Parquet files with columnar storage in a
+configurable output directory
 
 WHEN the monitor writes a metric
-THE SYSTEM SHALL include labels identifying the container, pod, and node
+THE SYSTEM SHALL include labels for node_name, namespace, pod_name, pod_uid,
+container_id, container_name, and qos_class when available
 
-WHEN the Parquet file exceeds 1 GiB in size
+WHEN a rotation interval elapses (default 90 seconds)
+THE SYSTEM SHALL close the current Parquet file with a valid footer and open a
+new file, ensuring closed files are immediately readable
+
+WHEN organizing output files
+THE SYSTEM SHALL partition files into date and identifier subdirectories
+(dt=YYYY-MM-DD/identifier=<pod-name>/) to support efficient querying and
+future table format integration
+
+WHEN naming output files
+THE SYSTEM SHALL include a unique identifier (pod name or hostname) and
+timestamp in the filename to prevent collisions when multiple monitor instances
+write to the same directory
+
+WHEN the total size of all Parquet files exceeds 1 GiB
 THE SYSTEM SHALL stop collecting new metrics and initiate graceful shutdown
 
+WHEN the monitor starts
+THE SYSTEM SHALL write a session manifest file containing run configuration,
+start time, and git revision for later context
+
 WHEN the monitor shuts down
-THE SYSTEM SHALL flush all buffered data and finalize the Parquet file
+THE SYSTEM SHALL flush all buffered data and finalize the current Parquet file
 
 **Rationale:** Users analyze monitoring data after collection using tools like
-DuckDB, pandas, or Spark. Parquet provides efficient columnar storage with
-compression, enabling fast analytical queries. A single file simplifies data
-management during development iterations. Labels enable filtering and grouping
-by container or pod. The 1 GiB size limit prevents runaway disk usage during
-long collection sessions or unexpectedly high metric cardinality.
+DuckDB, pandas, or Spark, which can query directories of Parquet files as a
+single dataset. Parquet files require a footer to be readable; the 90-second
+rotation interval exceeds the 60-second accumulator window, ensuring each file
+contains complete time slices. Date/identifier partitioning enables efficient
+queries and aligns with Iceberg/Delta/Hudi conventions for future integration.
+Standardized labels provide reliable join keys for cross-container analysis.
+The session manifest preserves run context for debugging sessions weeks later.
+The 1 GiB total size limit prevents runaway disk usage.
 
 ---
 
