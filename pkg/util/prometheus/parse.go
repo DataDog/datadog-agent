@@ -14,6 +14,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 )
@@ -113,7 +114,7 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 			_, ts, value := parser.Series()
 			parser.Labels(&lbls)
 
-			rawName := lbls.Get(labels.MetricName)
+			rawName := lbls.Get(model.MetricNameLabel)
 
 			// Fast path: check if raw name matches current family (common for COUNTER/GAUGE)
 			if len(result) == 0 || result[len(result)-1].Name != rawName {
