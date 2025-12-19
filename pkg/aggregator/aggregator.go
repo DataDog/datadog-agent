@@ -365,7 +365,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 }
 
 func loadTagFilterList() *filterlist.TagMatcher {
-	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("tag_filterlist")
+	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("metric_tag_filterlist")
 
 	tagFilterList := make(map[string]filterlist.MetricTagList, len(tagFilterListInterface))
 	for metricName, tags := range tagFilterListInterface {
@@ -383,12 +383,12 @@ func loadTagFilterList() *filterlist.TagMatcher {
 			// Roundtrip the struct through yaml to load it.
 			tagBytes, err := yaml.Marshal(tags)
 			if err != nil {
-				log.Errorf("invalid configuration for `tag_filterlist` %s", metricName)
+				log.Errorf("invalid configuration for `metric_tag_filterlist` %s", metricName)
 			} else {
 				var tags filterlist.MetricTagList
 				err = yaml.Unmarshal(tagBytes, &tags)
 				if err != nil {
-					log.Errorf("error loading configuration for `tag_filterlist` %s", err)
+					log.Errorf("error loading configuration for `metric_tag_filterlist` %s", err)
 				} else {
 					tagFilterList[metricName] = tags
 				}

@@ -60,7 +60,7 @@ func NewTagMatcher(metrics map[string]MetricTagList) *TagMatcher {
 		case "":
 			action = Exclude
 		default:
-			log.Warnf("`tag_filterlist.%s.action` configuration should be either `include` or `exclude`. Defaulting to `exclude`.", v.Action)
+			log.Warnf("`metric_tag_filterlist.%s.action` configuration should be either `include` or `exclude`. Defaulting to `exclude`.", v.Action)
 			action = Exclude
 		}
 		hashed[k] = HashedMetricTagList{
