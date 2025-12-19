@@ -927,5 +927,291 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
             pass
 
 
+class TestShouldBypassFailure(unittest.TestCase):
+    """Test the should_bypass_failure function for delta-based non-blocking failures."""
+
+    def test_bypass_when_disk_delta_zero(self):
+        """Should bypass when on-disk size delta is exactly 0."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 0,
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_when_disk_delta_negative(self):
+        """Should bypass when on-disk size delta is negative (size decreased)."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": -500000,  # -500KB
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_when_disk_delta_within_threshold(self):
+        """Should bypass when on-disk size delta is positive but within threshold (~2KiB)."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Small positive delta (1KB) should be treated as 0
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 1024,  # 1KB - within 2KiB threshold
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_ignores_wire_delta(self):
+        """Should bypass based only on disk delta, ignoring wire delta."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Even with positive wire delta, should bypass if disk delta is within threshold
+        handler.metrics["test_gate"] = {
+            "relative_on_wire_size": 1000000,  # Positive wire delta (1MB)
+            "relative_on_disk_size": 0,  # Zero disk delta
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_disk_delta_exceeds_threshold(self):
+        """Should NOT bypass when on-disk size delta exceeds threshold."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Delta of 5KB exceeds threshold of 2KiB
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 5000,  # 5KB - exceeds 2KiB threshold
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_disk_delta_significantly_positive(self):
+        """Should NOT bypass when on-disk size delta is significantly positive."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 1000000,  # 1MB - way over threshold
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_missing_disk_delta(self):
+        """Should NOT bypass when disk delta is missing."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_wire_size": 0,
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_gate_not_found(self):
+        """Should NOT bypass when gate doesn't exist in metrics."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+        self.assertFalse(should_bypass_failure("nonexistent_gate", handler))
+
+
+class TestMetricsDictDelta(unittest.TestCase):
+    """Test that METRICS_DICT includes relative (delta) metrics."""
+
+    def test_relative_metrics_in_dict(self):
+        """Verify relative metrics are included in METRICS_DICT values."""
+        self.assertIn("relative_on_wire_size", GateMetricHandler.METRICS_DICT.values())
+        self.assertIn("relative_on_disk_size", GateMetricHandler.METRICS_DICT.values())
+
+    def test_relative_metrics_naming(self):
+        """Verify relative metric names follow naming convention."""
+        self.assertIn(
+            "datadog.agent.static_quality_gate.relative_on_wire_size",
+            GateMetricHandler.METRICS_DICT.keys(),
+        )
+        self.assertIn(
+            "datadog.agent.static_quality_gate.relative_on_disk_size",
+            GateMetricHandler.METRICS_DICT.keys(),
+        )
+
+    def test_metrics_dict_has_six_entries(self):
+        """Verify METRICS_DICT has all 6 expected metrics (4 original + 2 new delta metrics)."""
+        self.assertEqual(len(GateMetricHandler.METRICS_DICT), 6)
+
+
+class TestNonBlockingPrComment(unittest.TestCase):
+    """Test PR comment display for non-blocking failures."""
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch(
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
+        new=MagicMock(return_value="10MiB"),
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
+        """Non-blocking failures should show warning indicator, not error."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        display_pr_comment(
+            c,
+            True,  # final_state is success (no blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': False,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show warning indicator for non-blocking failure
+        self.assertIn('⚠️', body)
+        # Should NOT contain the blocking failure message
+        self.assertNotIn('prevent the PR to merge', body)
+        # Should contain the non-blocking note
+        self.assertIn('non-blocking', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch(
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
+        new=MagicMock(return_value="10MiB"),
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_blocking_failure_shows_error_indicator(self, pr_commenter_mock):
+        """Blocking failures should show error indicator and blocking message."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        display_pr_comment(
+            c,
+            False,  # final_state is failure (has blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': True,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show error indicator for blocking failure
+        self.assertIn('❌', body)
+        # Should contain the blocking failure message
+        self.assertIn('prevent the PR to merge', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch(
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
+        new=MagicMock(return_value="10MiB"),
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_mixed_blocking_and_non_blocking(self, pr_commenter_mock):
+        """Mixed blocking and non-blocking failures should show both indicators."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        display_pr_comment(
+            c,
+            False,  # final_state is failure (has blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': True,
+                },
+                {
+                    'name': 'gateB',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': False,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show both indicators
+        self.assertIn('❌', body)
+        self.assertIn('⚠️', body)
+        # Should contain the blocking failure message (since there's a blocking failure)
+        self.assertIn('prevent the PR to merge', body)
+
+
+class TestBlockingFailureDetection(unittest.TestCase):
+    """Test the blocking failure detection logic."""
+
+    def test_has_blocking_failures_true(self):
+        """Should detect blocking failures."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': True},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertTrue(has_blocking)
+
+    def test_has_blocking_failures_false_all_non_blocking(self):
+        """Should not detect blocking failures when all failures are non-blocking."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': False},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+    def test_has_blocking_failures_default_blocking_true(self):
+        """Should default to blocking=True when field is missing."""
+        gate_states = [
+            {'name': 'gateA', 'state': False},  # No blocking field
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertTrue(has_blocking)
+
+    def test_has_blocking_failures_false_all_success(self):
+        """Should not detect blocking failures when all gates succeeded."""
+        gate_states = [
+            {'name': 'gateA', 'state': True, 'blocking': True},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+    def test_multiple_non_blocking_failures(self):
+        """Should not detect blocking failures when multiple failures are all non-blocking."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': False},
+            {'name': 'gateB', 'state': False, 'blocking': False},
+            {'name': 'gateC', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+
 if __name__ == '__main__':
     unittest.main()
