@@ -633,6 +633,9 @@ func groupSize(total, maxBatchSize int) int32 {
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
 func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
 	tagCount := len(tagOffsets) + len(serviceCtxs)
+	if tagCount == 0 {
+		return nil
+	}
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
