@@ -113,7 +113,6 @@
 /.gitlab/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
 /.gitlab/internal_kubernetes_deploy/include.yml                     @DataDog/agent-devx
 /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
-/.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx
 /.gitlab/source_test/*                               @DataDog/agent-devx
