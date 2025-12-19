@@ -46,21 +46,23 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
 	urn := config.GetString("privateactionrunner.urn")
 
-	if encodedPrivateKey == "" {
-		return nil, errors.New("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
-	}
-	privateKey, err := util.Base64ToJWK(encodedPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
-	}
-
-	if urn == "" {
-		return nil, errors.New("private action runner not configured: URN is required")
+	var privateKey *ecdsa.PrivateKey
+	if encodedPrivateKey != "" {
+		jwk, err := util.Base64ToJWK(encodedPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+		}
+		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
 
-	orgID, runnerID, err := parseURN(urn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URN: %w", err)
+	var orgID int64
+	var runnerID string
+	var err error
+	if urn != "" {
+		orgID, runnerID, err = parseURN(urn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse URN: %w", err)
+		}
 	}
 
 	return &Config{
@@ -88,7 +90,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
-		PrivateKey:                privateKey.Key.(*ecdsa.PrivateKey),
+		PrivateKey:                privateKey,
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
