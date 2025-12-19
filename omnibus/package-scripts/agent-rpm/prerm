@@ -11,7 +11,7 @@ INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
 INSTALLER_OCI=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer
 
 # Remove the agent if it was upgraded using the installer
-if [ -f ${INSTALLER_OCI} ] && [ "$(readlink -f ${INSTALLER_OCI})" != "$(readlink -f ${INSTALLER_DEB})" ] && [ "$1" = "remove" ]; then
+if [ -f ${INSTALLER_OCI} ] && [ "$(readlink -f ${INSTALLER_OCI})" != "$(readlink -f ${INSTALLER_DEB})" ] && [ "$*" = "0" ]; then
     ${INSTALLER_OCI} remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
 fi
 
