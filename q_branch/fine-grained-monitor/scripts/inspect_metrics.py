@@ -72,13 +72,22 @@ def inspect_parquet(filepath: Path) -> None:
         print(f"  Start: {df[time_col].min()}")
         print(f"  End:   {df[time_col].max()}")
 
-    # Check for label columns
+    # Check for label columns (skip unhashable types like lists/dicts)
     label_cols = [c for c in df.columns if c not in [name_col, time_col, "value"]]
     if label_cols:
-        print("\n=== Label columns ===")
+        print("\n=== Other columns ===")
         for col in label_cols[:10]:
-            unique_vals = df[col].nunique()
-            print(f"  - {col}: {unique_vals} unique values")
+            try:
+                # Skip columns with unhashable types
+                if df[col].dtype == "object":
+                    sample = df[col].iloc[0] if len(df) > 0 else None
+                    if isinstance(sample, (list, dict)):
+                        print(f"  - {col}: (complex type, e.g., {type(sample).__name__})")
+                        continue
+                unique_vals = df[col].nunique()
+                print(f"  - {col}: {unique_vals} unique values")
+            except TypeError:
+                print(f"  - {col}: (unhashable type)")
 
     print("\n=== Data types ===")
     print(df.dtypes.to_string())
