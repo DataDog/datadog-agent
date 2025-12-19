@@ -115,7 +115,14 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT"),
 				Value: pulumi.StringPtr("true"),
 			},
-
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_APM_ENABLE_CONTAINER_TAGS_BUFFER"),
+				Value: pulumi.StringPtr("true"),
+			},
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("CONTAINER_PROC_ROOT"),
+				Value: pulumi.StringPtr("/host/proc"),
+			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_SOCKET"),
 				Value: pulumi.StringPtr("/var/run/datadog/dsd.socket"),
