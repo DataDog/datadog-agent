@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fixed SNMP network topology metadata where LLDP remote device IP addresses could be
+    incorrectly mapped when multiple devices shared the same remote index on different ports.

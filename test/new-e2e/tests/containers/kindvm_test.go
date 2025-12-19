@@ -14,7 +14,6 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
@@ -23,26 +22,22 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	newProvisioner := func(helmValues string) provisioners.Provisioner {
-		return provkind.Provisioner(
-			provkind.WithRunOptions(
-				scenkind.WithVMOptions(
-					scenec2.WithInstanceType("t3.xlarge"),
-				),
-				scenkind.WithFakeintakeOptions(
-					fakeintake.WithMemory(2048),
-				),
-				scenkind.WithDeployDogstatsd(),
-				scenkind.WithDeployTestWorkload(),
-				scenkind.WithAgentOptions(
-					kubernetesagentparams.WithDualShipping(),
-					kubernetesagentparams.WithHelmValues(helmValues),
-				),
-				scenkind.WithDeployArgoRollout(),
+	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
+		provkind.WithRunOptions(
+			scenkind.WithVMOptions(
+				scenec2.WithInstanceType("t3.xlarge"),
 			),
-		)
-	}
-	e2e.Run(t, &kindSuite{k8sSuite{newProvisioner: newProvisioner}}, e2e.WithProvisioner(newProvisioner("")))
+			scenkind.WithFakeintakeOptions(
+				fakeintake.WithMemory(2048),
+			),
+			scenkind.WithDeployDogstatsd(),
+			scenkind.WithDeployTestWorkload(),
+			scenkind.WithAgentOptions(
+				kubernetesagentparams.WithDualShipping(),
+			),
+			scenkind.WithDeployArgoRollout(),
+		),
+	)))
 }
 
 func (suite *kindSuite) SetupSuite() {

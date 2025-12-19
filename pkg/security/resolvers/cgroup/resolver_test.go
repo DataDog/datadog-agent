@@ -54,6 +54,7 @@ func createTestProcess(pid, ppid uint32, containerID containerutils.ContainerID)
 				},
 				PPid: ppid,
 				ContainerContext: model.ContainerContext{
+					Releasable:  &model.Releasable{},
 					ContainerID: containerID,
 				},
 				CGroup: model.CGroupContext{

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -107,6 +108,14 @@ const (
 	ddot
 	agentOTLPIngest
 )
+
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.HistogramDataPointSlice) {
+	// TODO noop for now
+}
+
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
+	// TODO noop for now
+}
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))

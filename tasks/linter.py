@@ -70,7 +70,6 @@ def go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -125,7 +124,6 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        include_sds=include_sds,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
     )
@@ -154,7 +152,7 @@ def update_go(_):
 
 
 # === PYTHON === #
-@task
+@task()
 def python(ctx, show_versions=False):
     """Lints Python files.
 
@@ -162,6 +160,7 @@ def python(ctx, show_versions=False):
     running locally, you probably want to use the pre-commit instead.
 
     Args:
+        files: Optional list of files to lint (space-separated). If not provided, lints all files.
         show_versions: Show the versions of the linters that are being used.
     """
 
@@ -176,14 +175,15 @@ def python(ctx, show_versions=False):
         print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
-        # We want to the CI to fail if there are any issues
+        # We want to the CI to fail if there are any issues, lint everything in CI
         ctx.run("ruff format --check --diff .")
         ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
-        ctx.run("ruff format .")
-        ctx.run("ruff check --fix .")
+        ctx.run("ruff format --diff .")
+        ctx.run("ruff check --diff --fix .")
 
+    # vulture and mypy don't work well with individual files, run on full codebase
     ctx.run("vulture")
     ctx.run("mypy --warn-unused-configs")
 

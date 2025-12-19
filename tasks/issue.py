@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import re
@@ -21,7 +22,7 @@ def ask_reviews(_, pr_id):
         return
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
-        reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
         print(f"Reviewers: {reviewers}")
 
         from slack_sdk import WebClient
@@ -62,6 +63,17 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
 
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
+
+    requested_reviewers = []
+    for page in pr.get_review_requests():
+        for rr in page:
+            requested_reviewers.append(rr)
+
+    if len(requested_reviewers) > 0:
+        print(
+            f"This PR already has already requested review to {', '.join([rr.name for rr in requested_reviewers])}, this action should not be run on it."
+        )
+        return
 
     if pr.user.login != "dependabot[bot]":
         print("This is not a (dependabot) bump PR, this action should not be run on it.")

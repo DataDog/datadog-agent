@@ -21,10 +21,10 @@ import (
 
 const (
 	containerImageField    = string(workloadfilter.ContainerType) + ".image"
-	serviceNameField       = string(workloadfilter.ServiceType) + ".name"
-	serviceNamespaceField  = string(workloadfilter.ServiceType) + ".namespace"
-	endpointNameField      = string(workloadfilter.EndpointType) + ".name"
-	endpointNamespaceField = string(workloadfilter.EndpointType) + ".namespace"
+	serviceNameField       = string(workloadfilter.KubeServiceType) + ".name"
+	serviceNamespaceField  = string(workloadfilter.KubeServiceType) + ".namespace"
+	endpointNameField      = string(workloadfilter.KubeEndpointType) + ".name"
+	endpointNamespaceField = string(workloadfilter.KubeEndpointType) + ".namespace"
 )
 
 type matchingProgram struct {
@@ -61,9 +61,9 @@ func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectT
 	case len(rules.Containers) > 0:
 		return rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier
 	case len(rules.KubeServices) > 0:
-		return rules.KubeServices, workloadfilter.ServiceType, adtypes.CelServiceIdentifier
+		return rules.KubeServices, workloadfilter.KubeServiceType, adtypes.CelServiceIdentifier
 	case len(rules.KubeEndpoints) > 0:
-		return rules.KubeEndpoints, workloadfilter.EndpointType, adtypes.CelEndpointIdentifier
+		return rules.KubeEndpoints, workloadfilter.KubeEndpointType, adtypes.CelEndpointIdentifier
 	default:
 		return nil, "", ""
 	}

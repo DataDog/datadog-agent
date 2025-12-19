@@ -1,3 +1,4 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -7,17 +8,16 @@ package(default_package_metadata = [":package_metadata"])
 
 VERSION = "1.10.5"
 
-# This is going to change in the future. Debate the syntax in https://github.com/bazel-contrib/supply-chain/issues/124
-PURL = "pkg:https/www.tcpdump.org/libpcap@{version}?url=https://www.tcpdump.org/release/libpcap-#{version}.tar.xz".format(
-    version = VERSION,
-)
-
 package_metadata(
     name = "package_metadata",
     attributes = [
         ":license",
     ],
-    purl = PURL,
+    purl = purl_for_generic(
+        package = "libpcap",
+        version = VERSION,
+        download_url = "https://www.tcpdump.org/release/libpcap-{version}.tar.xz",
+    ),
 )
 
 license(

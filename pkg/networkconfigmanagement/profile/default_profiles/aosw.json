@@ -1,0 +1,94 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "Building Configuration"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(?m)^(secret) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(enable secret) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(.*PRE-SHARE) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(.*ipsec) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(.*community) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "( sha) (\\S+)",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "( des) (\\S+)",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(mobility-manager \\S+ user \\S+) (\\S+)",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(mgmt-user \\S+ (?:root|guest-provisioning|network-operations|read-only|location-api-mgmt)) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(mgmt-user \\S+) (\\S+)( (?:read-only|guest-mgmt))?\\s?$",
+            "replacement": "$1 <secret removed> $3"
+          },
+          {
+            "regex": "(?m)^(.*key) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(vrrp-passphrase) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(wpa-passphrase) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(bkup-passwords) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(ap-console-password) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "(?m)^(virtual-controller-key) (\\S+)\\s?$",
+            "replacement": "$1 <secret removed>"
+          },
+          {
+            "regex": "community (.*?)\\s*$",
+            "replacement": "community <secret removed>"
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}

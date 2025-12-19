@@ -8,15 +8,16 @@ package connfilter
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"regexp"
+	"strconv"
 )
 
 // Filter represent one filter
 type Filter struct {
 	Type        FilterType
 	matchDomain *regexp.Regexp
-	matchIPCidr *net.IPNet
+	matchIPCidr netip.Prefix
 }
 
 // ConnFilter class
@@ -37,7 +38,7 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			continue
 		}
 		var matchDomainRe *regexp.Regexp
-		var matchIPCidr *net.IPNet
+		var matchIPCidr netip.Prefix
 		if cfg.MatchDomain != "" {
 			matchDomainStrat := cfg.MatchDomainStrategy
 			if matchDomainStrat == "" {
@@ -56,17 +57,13 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 		}
 		if cfg.MatchIP != "" {
 			var cidrStr string
-			ip := net.ParseIP(cfg.MatchIP)
-			if ip != nil { // cfg.MatchIP is a single IP
-				if ip.To4() != nil {
-					cidrStr = cfg.MatchIP + "/32"
-				} else if ip.To16() != nil {
-					cidrStr = cfg.MatchIP + "/128"
-				}
+			ip, err := netip.ParseAddr(cfg.MatchIP)
+			if err == nil { // cfg.MatchIP is a single IP
+				cidrStr = cfg.MatchIP + "/" + strconv.Itoa(ip.BitLen())
 			} else { // assuming cfg.MatchIP is a CIDR
 				cidrStr = cfg.MatchIP
 			}
-			_, cidr, err := net.ParseCIDR(cidrStr)
+			cidr, err := netip.ParsePrefix(cidrStr)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parsing match_ip `%s`: %s", cfg.MatchIP, err))
 				continue
@@ -86,7 +83,7 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 }
 
 // IsIncluded return true if the matching domain and ip of a connection should be included
-func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
+func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 	isIncluded := true
 	if domain == "" {
 		isIncluded = false
@@ -98,8 +95,8 @@ func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 				matched = true
 			}
 		}
-		if filter.matchIPCidr != nil {
-			if filter.matchIPCidr.Contains(net.ParseIP(ip)) {
+		if filter.matchIPCidr.IsValid() && ip.IsValid() {
+			if filter.matchIPCidr.Contains(ip) {
 				matched = true
 			}
 		}

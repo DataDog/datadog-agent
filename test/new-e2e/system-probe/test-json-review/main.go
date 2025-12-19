@@ -61,9 +61,11 @@ func main() {
 	}
 	if out.Failed != "" {
 		fmt.Println(color.RedString(out.Failed))
-		// We want to make sure the exit code is correctly set to
-		// failed here, so that the CI job also fails.
-		os.Exit(1)
+		// We want to make sure the exit code is correctly set to failed here,
+		// so that the CI job also fails. Return 42 specifically so that the
+		// retry tool doesn't retry the command, since it's not an infra failure
+		// but a exit code used to signal that the tests failed.
+		os.Exit(42)
 	}
 }
 

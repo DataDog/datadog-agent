@@ -550,6 +550,7 @@ def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":

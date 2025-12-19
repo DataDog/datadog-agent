@@ -55,19 +55,14 @@ func (m *testPackageManager) State(ctx context.Context, pkg string) (repository.
 	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) States(ctx context.Context) (map[string]repository.State, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(map[string]repository.State), args.Error(1)
-}
-
 func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
 	args := m.Called(ctx, pkg)
 	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+func (m *testPackageManager) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[string]repository.State), args.Error(1)
+	return args.Get(0).(*repository.PackageStates), args.Error(1)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
@@ -242,8 +237,10 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("States", mock.Anything).Return(map[string]repository.State{}, nil)
-	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
@@ -253,6 +250,8 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -478,8 +477,10 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("States", mock.Anything).Return(testPackageStates, nil)
-	pm.On("ConfigStates", mock.Anything).Return(testConfigStates, nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       testPackageStates,
+		ConfigStates: testConfigStates,
+	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
@@ -494,6 +495,8 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		func(_ *env.Env) installer.Installer { return pm },
 		testEnv,
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,

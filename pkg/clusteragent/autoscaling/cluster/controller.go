@@ -107,7 +107,8 @@ func (c *Controller) PreStart(ctx context.Context) {
 // this processes what's in the workqueue, comes from the store or cluster
 func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling.ProcessResult {
 	if !c.IsLeader() || !*c.storeUpdated {
-		return autoscaling.ProcessResult{}
+		// Requeue in case of a delay in leader election or the store being updated
+		return autoscaling.Requeue
 	}
 
 	// Try to get Datadog-managed NodePool from cluster
@@ -133,20 +134,39 @@ func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling
 }
 
 func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *karpenterv1.NodePool) autoscaling.ProcessResult {
-	// TODO create duplicate NodePools with greater weight, rather than updating user NodePools
 	npi, foundInStore := c.store.LockRead(name, true)
 	defer c.store.Unlock(name)
 
+	// Get Target NodePool from Lister if needed
+	targetNp := &karpenterv1.NodePool{}
+	if npi.TargetName() != "" {
+		targetNpUnstr, err := c.Lister.Get(npi.TargetName())
+		if err != nil {
+			log.Errorf("Error retrieving Target NodePool: %v", err)
+			return autoscaling.Requeue
+		}
+		err = autoscaling.FromUnstructured(targetNpUnstr, targetNp)
+		if err != nil {
+			log.Errorf("Error converting Target NodePool: %v", err)
+			return autoscaling.Requeue
+		}
+	}
+
 	if foundInStore {
+		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
+		if !checkTargetHash(npi, targetNp) {
+			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
+			return autoscaling.NoRequeue
+		}
+
 		if nodePool == nil {
 			// Present in store but not found in cluster; create it
-			if err := c.createNodePool(ctx, npi); err != nil {
+			if err := c.createNodePool(ctx, npi, targetNp); err != nil {
 				log.Errorf("Error creating NodePool: %v", err)
 				return autoscaling.Requeue
 			}
 		} else {
 			// Present in store and found in cluster; update it
-			// TODO check if hash of spec from remote config matches current object before updating
 			if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
 				log.Errorf("Error updating NodePool: %v", err)
 				return autoscaling.Requeue
@@ -165,30 +185,39 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 		}
 	}
 
-	return autoscaling.ProcessResult{}
+	return autoscaling.NoRequeue
 }
 
-func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal) error {
+func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
+	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
+}
+
+func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 
-	// Get NodeClass. If there's none or more than one, then we should not create the NodePool
-	ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("unable to list NodeClasses: %w", err)
+	// Create replica of original NodePool if TargetName exists; otherwise use NodePoolInternal to create a NodePool
+	if knp != nil {
+		model.BuildReplicaNodePool(knp, npi)
+	} else {
+		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
+		ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to list NodeClasses: %w", err)
+		}
+
+		if len(ncList.Items) == 0 {
+			return errors.New("no NodeClasses found, NodePool cannot be created")
+		}
+
+		if len(ncList.Items) > 1 {
+			return fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
+		}
+
+		u := ncList.Items[0]
+		knp = model.ConvertToKarpenterNodePool(npi, u.GetName())
 	}
 
-	if len(ncList.Items) == 0 {
-		return errors.New("no NodeClasses found, NodePool cannot be created")
-	}
-
-	if len(ncList.Items) > 1 {
-		return fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
-	}
-
-	u := ncList.Items[0]
-	npObj := model.ConvertToKarpenterNodePool(npi, u.GetName())
-
-	npUnstr, err := autoscaling.ToUnstructured(npObj)
+	npUnstr, err := autoscaling.ToUnstructured(knp)
 	if err != nil {
 		return err
 	}

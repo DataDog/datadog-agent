@@ -635,6 +635,105 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("APMMode-unset", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+	})
+
+	t.Run("APMMode-edge", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "edge"
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		assert.Equal(t, "edge", tp.Tags[tagAPMMode])
+	})
+
+	t.Run("APMMode-empty string", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		var b bytes.Buffer
+		oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+		defer func() { log.SetLogger(oldLogger) }()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = ""
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+		assert.Contains(t, b.String(), "[DEBUG] empty value for '_dd.apm_mode' span tag")
+	})
+
+	t.Run("APMMode-invalid value", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		var b bytes.Buffer
+		oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+		defer func() { log.SetLogger(oldLogger) }()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "invalid"
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+		assert.Contains(t, b.String(), "[DEBUG] invalid value for '_dd.apm_mode' span tag: 'invalid'")
+	})
+
 	t.Run("aas", func(t *testing.T) {
 		t.Setenv("WEBSITE_STACK", "true")
 		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
@@ -2869,12 +2968,12 @@ func BenchmarkThroughput(b *testing.B) {
 	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
-	filepath.Walk(folder, func(path string, info os.FileInfo, _ error) error {
+	filepath.WalkDir(folder, func(path string, d os.DirEntry, _ error) error {
 		ext := filepath.Ext(path)
 		if ext != ".msgp" {
 			return nil
 		}
-		b.Run(info.Name(), benchThroughput(path))
+		b.Run(d.Name(), benchThroughput(path))
 		return nil
 	})
 }
@@ -3400,6 +3499,10 @@ func TestMergeDuplicates(t *testing.T) {
 }
 
 func TestProcessStatsTimeout(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestProcessStatsTimeout is known to fail on the macOS Gitlab runners.")
+	}
+
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())

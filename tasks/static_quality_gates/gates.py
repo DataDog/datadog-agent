@@ -690,6 +690,9 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.on_disk_size": "current_on_disk_size",
         "datadog.agent.static_quality_gate.max_allowed_on_wire_size": "max_on_wire_size",
         "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
+        # Delta metrics (relative to ancestor)
+        "datadog.agent.static_quality_gate.relative_on_wire_size": "relative_on_wire_size",
+        "datadog.agent.static_quality_gate.relative_on_disk_size": "relative_on_disk_size",
     }
     S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 

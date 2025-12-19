@@ -94,6 +94,8 @@ const (
 	EventSourceRuntime EventSource = "runtime"
 	// EventSourceReplay is used to report that the event is generated from a replay
 	EventSourceReplay EventSource = "replay"
+	// EventSourceRelated is used to report that the event is generated from a related event
+	EventSourceRelated EventSource = "related"
 )
 
 var (

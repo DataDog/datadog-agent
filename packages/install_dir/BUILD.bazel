@@ -29,11 +29,27 @@ pkg_filegroup(
     }),
 )
 
+# All the things that belong in /etc
+# This is not strictly in install_dir but it is a cousin.
+# TODO: split this cleanly.  The way the omnibus script works
+# is to install everything into install_dir (/opt/datadog-agent)
+# and then bulk move things to {output_dir}/etc/ in the finalizer.
+# We need to fix that so we just generate to the right place. For
+# now, let's just try to keep etc things separate.
+pkg_filegroup(
+    name = "etc",
+    srcs = [
+        "//deps/snmp_traps:all_files",
+    ],
+)
+
+# Gather everything that goes in /opt/datadog-agent/...
 pkg_install(
     name = "install",
     srcs = [
         ":embedded",
+        ":etc",
         ":licenses",
-        "//deps/snmp_traps:all_files",
     ],
+    destdir_flag = "//:install_dir",
 )

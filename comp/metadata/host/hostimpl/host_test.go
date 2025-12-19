@@ -61,15 +61,15 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 		},
 		{
 			name:                 "both intervals invalid - too low",
-			mainInterval:         100,
-			earlyInterval:        50,
+			mainInterval:         30,
+			earlyInterval:        30,
 			expectedMaxInterval:  defaultCollectInterval,
 			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored
 		},
 		{
 			name:                 "main valid, early invalid - too low",
 			mainInterval:         1800,
-			earlyInterval:        100,
+			earlyInterval:        30,
 			expectedMaxInterval:  1800 * time.Second,
 			expectedInitInterval: defaultEarlyInterval,
 		},
@@ -89,7 +89,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 		},
 		{
 			name:                 "main invalid, early valid",
-			mainInterval:         100,
+			mainInterval:         30,
 			earlyInterval:        600,
 			expectedMaxInterval:  defaultCollectInterval,
 			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored

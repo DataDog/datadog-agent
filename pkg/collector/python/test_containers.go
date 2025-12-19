@@ -14,6 +14,7 @@ import (
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func testIsContainerExcluded(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude", []string{"image:bar", "kube_namespace:black"})
 	mockConfig.SetWithoutSource("container_include", "kube_namespace:white")
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+	collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 
 	assert.Equal(t, C.int(1), IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("ns")))
 	assert.Equal(t, C.int(0), IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("white")))

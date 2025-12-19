@@ -99,9 +99,9 @@ network_devices:
 	assert.Equal(t, model.NewWarnings(nil), warnings)
 	assert.Equal(t, 0, len(warnings.Errors))
 
-	// NOTE: An additional warning is created here because the config has an error
+	// NOTE: Keys are declared using SetKnown, no warnings generated
 	warnings = ntmConf.Warnings()
-	assert.Equal(t, 1, len(warnings.Errors))
+	assert.Equal(t, 0, len(warnings.Errors))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`

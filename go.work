@@ -1,4 +1,4 @@
-go 1.24.10
+go 1.25.5
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -65,7 +65,6 @@ use (
 	comp/otelcol/otlp/components/exporter/serializerexporter
 	comp/otelcol/otlp/components/metricsclient
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
-	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
 	comp/otelcol/status/def
 	comp/otelcol/status/impl
@@ -108,7 +107,6 @@ use (
 	pkg/logs/metrics
 	pkg/logs/pipeline
 	pkg/logs/processor
-	pkg/logs/sds
 	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface

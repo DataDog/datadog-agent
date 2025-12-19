@@ -364,6 +364,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	if span.numKernels == 0 {
+		memPools.kernelSpanPool.Put(span)
 		return nil
 	}
 
@@ -449,6 +450,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
+		if alloc.Header.Ktime_ns >= now {
+			continue
+		}
+
 		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0
@@ -492,4 +497,23 @@ func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool
 	// If the stream has no events, it's considered active, we don't want to
 	// delete a stream that has just been created
 	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > maxInactivity.Nanoseconds()
+}
+
+// String returns a human-readable representation of the StreamHandler. Used for better debugging in tests
+func (sh *StreamHandler) String() string {
+	sh.kernelLaunchesMutex.RLock()
+	kernelLaunchCount := len(sh.kernelLaunches)
+	sh.kernelLaunchesMutex.RUnlock()
+
+	return fmt.Sprintf("StreamHandler{pid=%d, streamID=%d, gpu=%s, container=%s, ended=%t, kernelLaunches=%d, pendingKernelSpans=%d, pendingMemorySpans=%d, memAllocEvents=%d}",
+		sh.metadata.pid,
+		sh.metadata.streamID,
+		sh.metadata.gpuUUID,
+		sh.metadata.containerID,
+		sh.ended,
+		kernelLaunchCount,
+		len(sh.pendingKernelSpans),
+		len(sh.pendingMemorySpans),
+		sh.memAllocEvents.Len(),
+	)
 }

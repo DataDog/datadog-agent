@@ -39,6 +39,8 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.Kubelet:
 			info = e.String(verbose)
+		case *wmdef.CRD:
+			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)
 		}

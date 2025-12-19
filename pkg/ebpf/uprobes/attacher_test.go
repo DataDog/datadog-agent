@@ -910,12 +910,12 @@ func TestMultipleRulesForBinaryOnlyOneMatchesFunctions(t *testing.T) {
 	mockMan.AssertExpectations(t)
 }
 
-func testUprobeAttacherInner(t *testing.T, attacherFunc func() AttacherRunner, targetFunc func() AttacherTargetRunner) {
+func testUprobeAttacherInner(t *testing.T, attacherFunc func(useEventStream bool) AttacherRunner, targetFunc func() AttacherTargetRunner, useEventStream bool) {
 	if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
 		t.Skip("skip as shared libraries are not supported for this platform")
 	}
 
-	attacher := attacherFunc()
+	attacher := attacherFunc(useEventStream)
 	target := targetFunc()
 
 	libPath := getLibSSLPath(t)
@@ -938,25 +938,34 @@ func testUprobeAttacherInner(t *testing.T, attacherFunc func() AttacherRunner, t
 }
 
 func TestUprobeAttacher(t *testing.T) {
-	t.Run("BareAttacher", func(t *testing.T) {
-		t.Run("BareProcess", func(t *testing.T) {
-			testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewFmapperRunner)
-		})
+	for _, useEventStream := range []bool{false, true} {
+		testName := "Netlink"
+		if useEventStream {
+			testName = "EventStream"
+		}
 
-		t.Run("ContainerizedProcess", func(t *testing.T) {
-			testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewContainerizedFmapperRunner)
-		})
-	})
+		t.Run(testName, func(t *testing.T) {
+			t.Run("BareAttacher", func(t *testing.T) {
+				t.Run("BareProcess", func(t *testing.T) {
+					testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewFmapperRunner, useEventStream)
+				})
 
-	t.Run("ContainerizedAttacher", func(t *testing.T) {
-		t.Run("BareProcess", func(t *testing.T) {
-			testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewFmapperRunner)
-		})
+				t.Run("ContainerizedProcess", func(t *testing.T) {
+					testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewContainerizedFmapperRunner, useEventStream)
+				})
+			})
 
-		t.Run("ContainerizedProcess", func(t *testing.T) {
-			testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewContainerizedFmapperRunner)
+			t.Run("ContainerizedAttacher", func(t *testing.T) {
+				t.Run("BareProcess", func(t *testing.T) {
+					testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewFmapperRunner, useEventStream)
+				})
+
+				t.Run("ContainerizedProcess", func(t *testing.T) {
+					testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewContainerizedFmapperRunner, useEventStream)
+				})
+			})
 		})
-	})
+	}
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
