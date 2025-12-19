@@ -6,6 +6,8 @@ The drift detector now operates in **per-source mode**, creating and managing a 
 
 ## Architecture
 
+The drift detector uses a **hybrid architecture** with shared components for efficiency and per-source components for isolation:
+
 ```
 External Apps
     ├─ App A (nginx)
@@ -14,15 +16,37 @@ External Apps
          ↓
     Logs Processor
          ↓
-   [Source Router]
-         ↓
   Drift Detector Manager
-         ├─ Pipeline for "file:nginx"
-         ├─ Pipeline for "file:mysql"
-         └─ Pipeline for "file:custom"
-              ↓
-         Per-Source Alerts
+         ↓
+    ┌──────────────────────────────────────┐
+    │  SHARED COMPONENTS (ONE INSTANCE)    │
+    │  ├─ Window Manager (global clock)    │
+    │  ├─ Template Extractor (4 workers)   │
+    │  ├─ Alert Manager                    │
+    │  └─ HTTP Transport (10 connections)  │
+    └──────────────────────────────────────┘
+         ↓
+    ┌──────────────────────────────────────┐
+    │  PER-SOURCE COMPONENTS               │
+    │  ├─ Pipeline "file:nginx"            │
+    │  │   ├─ Embedding Client             │
+    │  │   └─ DMD Analyzer                 │
+    │  ├─ Pipeline "file:mysql"            │
+    │  │   ├─ Embedding Client             │
+    │  │   └─ DMD Analyzer                 │
+    │  └─ Pipeline "file:custom"           │
+    │      ├─ Embedding Client             │
+    │      └─ DMD Analyzer                 │
+    └──────────────────────────────────────┘
+         ↓
+    Per-Source Alerts (tagged by source)
 ```
+
+**Key Design Principles**:
+- **Shared components**: Window manager, template extractor, alert manager, HTTP transport
+- **Per-source components**: Embedding client, DMD analyzer (for source isolation)
+- **Global clock**: All sources synchronized on 60s ticker
+- **Time-series continuity**: Empty windows flushed periodically for proper DMD analysis
 
 ## Source Key Format
 
@@ -72,18 +96,30 @@ Alerts include source information:
 
 ### Memory Usage
 
-Each drift detector pipeline uses approximately **11 MB**:
+The hybrid architecture **drastically reduces** memory usage through component sharing:
+
+**Shared components** (ONE instance for ALL sources):
 - Window manager: ~1 MB
 - Template extractor: ~2 MB (4 workers)
-- Embedding client: ~5 MB
-- DMD analyzer: ~900 KB (120 windows × 768 dims)
 - Alert manager: ~100 KB
-- Channels: ~2 MB
+- HTTP transport: ~500 KB
+- Shared channels: ~2 MB
+- **Total shared**: ~5.6 MB
+
+**Per-source components** (multiplied by N sources):
+- Embedding client: ~300 KB (shares HTTP transport)
+- DMD analyzer: ~900 KB (120 windows × 768 dims)
+- Per-source channels: ~200 KB
+- Routing goroutines: ~50 KB
+- **Total per-source**: ~1.5 MB
 
 **Example scenarios**:
-- 10 sources = ~110 MB
-- 50 sources = ~550 MB
-- 100 sources = ~1.1 GB
+- 10 sources = 5.6 MB + (10 × 1.5 MB) = **~21 MB** (was ~110 MB)
+- 50 sources = 5.6 MB + (50 × 1.5 MB) = **~81 MB** (was ~550 MB)
+- 100 sources = 5.6 MB + (100 × 1.5 MB) = **~156 MB** (was ~1.1 GB)
+- 1000 sources = 5.6 MB + (1000 × 1.5 MB) = **~1.5 GB** (was ~11 GB)
+
+**Memory savings**: ~85-90% reduction through component sharing!
 
 ### Automatic Cleanup
 
@@ -106,16 +142,56 @@ logs_config:
 
 ### Goroutine Count
 
-Each pipeline uses **10 goroutines**:
+**Shared goroutines** (ONE set for ALL sources):
 - 1 window manager
 - 4 template extraction workers
-- 1 embedding batcher
-- 1 DMD queue manager
-- 1 DMD analyzer
-- 1 anomaly detector
 - 1 alert manager
+- **Total shared**: 6 goroutines
 
-**Total goroutines**: `10 × number_of_active_sources`
+**Per-source goroutines** (multiplied by N sources):
+- 1 embedding batcher
+- 1 DMD analyzer
+- 2 routing goroutines (template filter + DMD result router)
+- **Total per-source**: 4 goroutines
+
+**Total goroutines**: `6 + (4 × number_of_active_sources)`
+
+**Examples**:
+- 10 sources = 6 + (4 × 10) = **46 goroutines** (was ~100)
+- 100 sources = 6 + (4 × 100) = **406 goroutines** (was ~1000)
+- 1000 sources = 6 + (4 × 1000) = **4006 goroutines** (was ~10000)
+
+**Goroutine savings**: ~60% reduction through component sharing!
+
+### Global Clock & Synchronization
+
+All sources are synchronized on a **single global clock**:
+
+**How it works**:
+1. Window manager ticks every 60 seconds (Step interval)
+2. ALL sources flush their current window simultaneously
+3. New windows created for all sources at the same time
+4. Empty windows are flushed too (maintains time-series continuity)
+
+**Benefits**:
+- **Perfect synchronization**: All sources at same window count after same duration
+- **Predictable DMD startup**: All sources reach 7 windows in exactly 7 minutes
+- **Simpler debugging**: No per-source time calculations
+- **Time-series continuity**: Empty windows represent "no activity" periods
+
+**Example timeline**:
+```
+T=0s:   Global clock starts
+T=5s:   source-A receives first log → window created
+T=15s:  source-B receives first log → window created
+T=60s:  ✓ BOTH sources flush (window 1)
+T=120s: ✓ BOTH sources flush (window 2)
+T=180s: ✓ BOTH sources flush (window 3)
+...
+T=420s: ✓ BOTH sources flush (window 7) → DMD can start!
+```
+
+This ensures all sources accumulate windows at the **exact same rate**, regardless of when they start receiving logs.
 
 ## Configuration
 
@@ -178,9 +254,29 @@ stats := driftDetector.GetStats()
 
 ### Prometheus Metrics
 
-Per-source metrics are **not** separated by default to avoid metric cardinality explosion. All metrics are aggregated across sources.
+All metrics are now **tagged by source** for granular observability:
 
-To track per-source metrics, you would need to add source labels to the metrics (not currently implemented).
+**Available metrics**:
+- `logdrift_anomalies_detected_total{severity="warning|critical",source="file:nginx"}`
+- `logdrift_dmd_reconstruction_error{source="file:nginx"}`
+- `logdrift_dmd_normalized_error{source="file:nginx"}`
+
+**Example queries**:
+```promql
+# Anomalies per source
+logdrift_anomalies_detected_total{source="file:nginx"}
+
+# Reconstruction error for specific source
+logdrift_dmd_reconstruction_error{source="file:mysql"}
+
+# Total anomalies across all sources
+sum(logdrift_anomalies_detected_total)
+
+# Sources with high normalized error (>2 sigma)
+logdrift_dmd_normalized_error > 2
+```
+
+**Cardinality note**: Metric cardinality equals number of active sources. For deployments with 100+ sources, monitor cardinality to avoid Prometheus performance issues.
 
 ### Logs
 

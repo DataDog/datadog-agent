@@ -7,24 +7,39 @@ The drift detector component has been **fully integrated** into the Datadog Agen
 ## Integration Architecture
 
 ```
-External Application
-        ↓
-    [Log Source]
+External Applications
+    ├─ nginx, mysql, custom apps
+    └─ Each with unique source identifier
         ↓
    Logs Agent
         ↓
   [Processor] ← HERE: Drift detector integration point
+        ↓        (calls ProcessLog with sourceKey)
         ↓
-  Drift Detector (if enabled)
+  Drift Detector Manager (if enabled)
         ↓
-   [Pipeline Stages]
-   - Template Extraction
-   - Embedding API
-   - Hankel DMD
-   - Alerting
+   ┌────────────────────────────────────┐
+   │  SHARED COMPONENTS (1 instance)    │
+   │  ├─ Window Manager (global clock)  │
+   │  ├─ Template Extractor (4 workers) │
+   │  ├─ Alert Manager                  │
+   │  └─ HTTP Transport (10 conns)      │
+   └────────────────────────────────────┘
         ↓
-  Prometheus Metrics + Structured Logs
+   ┌────────────────────────────────────┐
+   │  PER-SOURCE PIPELINES              │
+   │  ├─ Embedding Client per source    │
+   │  └─ DMD Analyzer per source        │
+   └────────────────────────────────────┘
+        ↓
+  Prometheus Metrics (tagged by source) + Structured Logs
 ```
+
+**Key Features**:
+- **Hybrid architecture**: Shared components for efficiency, per-source for isolation
+- **Global synchronization**: All sources flush windows simultaneously every 60s
+- **Source tagging**: All metrics and logs tagged with source identifier
+- **Resource efficient**: ~85% memory reduction vs per-source duplication
 
 ## Implementation Details
 
@@ -54,6 +69,7 @@ External Application
    - Added `driftDetector` field to Processor struct
    - Updated `New()` to accept drift detector
    - **CRITICAL**: Added call to `ProcessLog()` in `processMessage()` method
+   - Extracts source key from log message
    - Processes every log after metrics but before redacting rules
 
 ### Processing Flow
@@ -61,21 +77,27 @@ External Application
 When a log message arrives:
 
 1. **Metrics recorded** (decoded, truncation counts)
-2. **Drift detector called** ✅ (if enabled and not nil)
+2. **Source key extracted** from `msg.Origin.LogSource`
+   - Format: `{type}:{identifier}` (e.g., `file:nginx`, `docker:my-container`)
+   - Identifier derived from Service, Source, or LogSource Name
+3. **Drift detector called** ✅ (if enabled and not nil)
    ```go
    if p.driftDetector != nil {
-       if dd, ok := p.driftDetector.(interface {
-           ProcessLog(timestamp time.Time, content string)
-       }); ok {
-           timestamp := time.Unix(0, msg.IngestionTimestamp)
-           dd.ProcessLog(timestamp, string(msg.GetContent()))
+       // Extract source key
+       sourceKey := "default"
+       if msg.Origin != nil && msg.Origin.LogSource != nil {
+           sourceKey = extractSourceKey(msg.Origin.LogSource)
        }
+
+       // Process with source isolation
+       timestamp := time.Unix(0, msg.IngestionTimestamp)
+       p.driftDetector.ProcessLog(sourceKey, timestamp, string(msg.GetContent()))
    }
    ```
-3. **Redacting rules applied** (exclude/include/mask)
-4. **Message rendered**
-5. **Message encoded**
-6. **Sent to backend**
+4. **Redacting rules applied** (exclude/include/mask)
+5. **Message rendered**
+6. **Message encoded**
+7. **Sent to backend**
 
 ## Configuration
 
@@ -153,11 +175,23 @@ To verify the integration is working:
    curl http://localhost:5000/metrics | grep logdrift
    ```
 
-3. **Expected metrics**:
-   - `logdrift_dmd_reconstruction_error`
-   - `logdrift_dmd_normalized_error`
-   - `logdrift_anomalies_detected_total{severity="warning"}`
-   - `logdrift_anomalies_detected_total{severity="critical"}`
+3. **Expected metrics** (all tagged by source):
+   - `logdrift_dmd_reconstruction_error{source="file:nginx"}`
+   - `logdrift_dmd_normalized_error{source="file:nginx"}`
+   - `logdrift_anomalies_detected_total{severity="warning",source="file:nginx"}`
+   - `logdrift_anomalies_detected_total{severity="critical",source="file:nginx"}`
+
+   Query examples:
+   ```promql
+   # All sources with anomalies
+   logdrift_anomalies_detected_total
+
+   # Specific source
+   logdrift_dmd_normalized_error{source="file:nginx"}
+
+   # Total anomalies across all sources
+   sum(logdrift_anomalies_detected_total)
+   ```
 
 ## Performance Impact
 
@@ -166,9 +200,27 @@ When disabled (`enabled: false`):
 - **No performance impact**
 
 When enabled:
-- **Minimal overhead**: ~1-5ms per log for type checking and channel send
+- **Minimal per-log overhead**: ~1-5ms per log for source key extraction and channel send
 - **Non-blocking**: Uses buffered channel (10,000 capacity)
 - **Back-pressure**: Drops logs if channel is full (prevents agent slowdown)
+
+### Resource Usage by Scale
+
+**Memory** (with shared component architecture):
+- 10 sources: ~21 MB (was ~110 MB)
+- 50 sources: ~81 MB (was ~550 MB)
+- 100 sources: ~156 MB (was ~1.1 GB)
+- **Savings**: ~85-90% vs per-source duplication
+
+**CPU**:
+- Shared template extraction (4 workers) = constant overhead
+- Per-source embedding + DMD = linear scaling
+- **Note**: Global clock ensures all sources process simultaneously (may cause CPU spikes every 60s)
+
+**Network** (to embedding service):
+- All sources share HTTP transport (10 connections)
+- Embedding requests batched per source
+- **Rate**: ~1 request per source per minute (when active)
 
 ## Troubleshooting
 
