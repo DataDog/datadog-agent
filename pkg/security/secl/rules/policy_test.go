@@ -306,7 +306,6 @@ func TestActionSetVariable(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
@@ -325,12 +324,6 @@ func TestActionSetVariable(t *testing.T) {
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
-
-	scopedVariables := rs.scopedVariables["process"].(*eval.ScopedVariables)
-
-	assert.Equal(t, scopedVariables.Len(), 1)
-	event.ProcessCacheEntry.Release()
-	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
 func TestActionSetVariableTTL(t *testing.T) {
@@ -415,7 +408,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessContext = &model.ProcessContext{
 		Process: model.Process{
 			ContainerContext: model.ContainerContext{
@@ -603,7 +595,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -800,7 +791,6 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -898,7 +888,6 @@ func TestActionSetVariableInherited(t *testing.T) {
 			},
 		},
 	}
-	event.ProcessCacheEntry.Retain()
 	event.SetFieldValue("open.file.path", "/tmp/guess")
 
 	ctx := eval.NewContext(event)
@@ -935,7 +924,6 @@ func TestActionSetVariableInherited(t *testing.T) {
 			Ancestor: event.ProcessCacheEntry,
 		},
 	}
-	event2.ProcessCacheEntry.Retain()
 	event2.SetFieldValue("open.file.path", "/tmp/guess2")
 
 	ctx = eval.NewContext(event2)
@@ -968,7 +956,6 @@ func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *
 	if ancestor != nil {
 		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
 	}
-	event.ProcessCacheEntry.Retain()
 	event.SetFieldValue("open.file.path", path)
 	return event
 }
@@ -1182,7 +1169,6 @@ func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *m
 			},
 		},
 	}
-	event.ProcessCacheEntry.Retain()
 	if ancestor != nil {
 		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
 	}
@@ -1533,7 +1519,6 @@ func TestActionSetVariableExpression(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -1564,7 +1549,6 @@ func TestActionSetVariableExpression(t *testing.T) {
 	event2 := model.NewFakeEvent()
 	event2.Type = uint32(model.ConnectEventType)
 	processCacheEntry = &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event2.ProcessCacheEntry = processCacheEntry
 	connectIP := net.IPNet{
 		IP:   net.IPv4(192, 168, 1, 1),
@@ -2381,7 +2365,6 @@ func TestActionSetVariableLength(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessContext = &model.ProcessContext{
 		Process: model.Process{
 			ContainerContext: model.ContainerContext{

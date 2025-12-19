@@ -799,8 +799,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		entry.Retain()
-
 		event := p.newEBPFPooledEventFromPCE(entry)
 		event.Source = model.EventSourceReplay
 
@@ -815,7 +813,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
 		if ok {
 			for _, s := range snapshotBoundSockets {
-				entry.Retain()
 				bindEvent := p.newBindEventFromReplay(entry, s)
 				bindEvent.Source = model.EventSourceReplay
 
@@ -842,9 +839,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
-		if event.ProcessCacheEntry != nil {
-			event.ProcessCacheEntry.Release()
-		}
 		p.putBackPoolEvent(event)
 	}
 	// send not triggered remediations

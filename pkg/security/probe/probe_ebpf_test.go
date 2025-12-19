@@ -69,64 +69,6 @@ func TestPutBackPoolEvent(t *testing.T) {
 		assert.Equal(t, uint64(0), newEvent.TimestampRaw)
 	})
 
-	t.Run("put back event with ProcessCacheEntry with refCount 1", func(t *testing.T) {
-		event := p.getPoolEvent()
-
-		// Create a ProcessCacheEntry with a release callback to track if Release was called
-		releaseCalled := false
-		pce := model.NewProcessCacheEntry(func(_ *model.ProcessCacheEntry) {
-			releaseCalled = true
-		})
-		pce.Retain() // refCount becomes 1
-		event.ProcessCacheEntry = pce
-
-		// Set some fields to verify they get reset
-		event.Type = uint32(model.ExecEventType)
-		event.TimestampRaw = 12345
-
-		p.putBackPoolEvent(event)
-
-		// Verify that Release was not called
-		assert.False(t, releaseCalled, "Release callback should not have been called")
-
-		// Get a new event from the pool (should be the one we just put back)
-		newEvent := p.getPoolEvent()
-
-		// Verify that the event was reset (Type should be 0)
-		assert.Equal(t, uint32(0), newEvent.Type)
-		assert.Equal(t, uint64(0), newEvent.TimestampRaw)
-	})
-
-	t.Run("put back event with ProcessCacheEntry with refCount greater than 1", func(t *testing.T) {
-		event := p.getPoolEvent()
-
-		// Create a ProcessCacheEntry with a release callback to track if Release was called
-		releaseCalled := false
-		pce := model.NewProcessCacheEntry(func(_ *model.ProcessCacheEntry) {
-			releaseCalled = true
-		})
-		pce.Retain() // refCount becomes 1
-		pce.Retain() // refCount becomes 2
-		event.ProcessCacheEntry = pce
-
-		// Set some fields to verify they get reset
-		event.Type = uint32(model.ExecEventType)
-		event.TimestampRaw = 12345
-
-		p.putBackPoolEvent(event)
-
-		// Verify that Release was called but coreRelease callback was NOT called
-		// (since refCount > 1, it should just decrement the counter)
-		assert.False(t, releaseCalled, "Release callback should NOT have been called when refCount > 1")
-
-		// Get a new event from the pool (should be the one we just put back)
-		newEvent := p.getPoolEvent()
-
-		// Verify that the event was reset (Type should be 0)
-		assert.Equal(t, uint32(0), newEvent.Type)
-		assert.Equal(t, uint64(0), newEvent.TimestampRaw)
-	})
-
 	t.Run("put back event preserves Os field after reset", func(t *testing.T) {
 		event := p.getPoolEvent()
 		event.ProcessCacheEntry = nil

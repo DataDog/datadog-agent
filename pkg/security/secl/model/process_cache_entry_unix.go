@@ -22,14 +22,9 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
 	pc.validLineageResult = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	parent.Retain()
 }
 
 func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
