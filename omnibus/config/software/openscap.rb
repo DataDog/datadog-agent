@@ -20,12 +20,27 @@ build do
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
     " #{install_dir}/embedded/lib/libacl.so"
+
+  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
+    " #{install_dir}/embedded/lib/libattr.so"
+
+  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
+
+  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
+    " #{install_dir}/embedded/lib/libblkid.so"
 end
 
-dependency 'attr'
+
+# dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
-dependency 'dbus'
+# dependency 'dbus'
 dependency 'libgcrypt'
 dependency 'libselinux'
 dependency 'libsepol'
@@ -34,7 +49,7 @@ dependency 'libyaml'
 dependency 'pcre2'
 dependency 'popt'
 dependency 'rpm'
-dependency 'util-linux'
+# dependency 'util-linux'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"
