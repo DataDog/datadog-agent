@@ -2044,16 +2044,6 @@ core,github.com/shurcooL/httpfs/filter,MIT,Copyright (c) 2015 Dmitri Shuralyov
 core,github.com/shurcooL/httpfs/union,MIT,Copyright (c) 2015 Dmitri Shuralyov
 core,github.com/signalfx/sapm-proto/client,Apache-2.0,"Copyright 2019 Splunk, Inc."
 core,github.com/signalfx/sapm-proto/gen,Apache-2.0,"Copyright 2019 Splunk, Inc."
-core,github.com/sijms/go-ora/v2,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/advanced_nego,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/advanced_nego/ntlmssp,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/configurations,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/converters,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/lazy_init,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/network,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
-core,github.com/sijms/go-ora/v2/trace,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
