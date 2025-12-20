@@ -1,9 +1,11 @@
-single_machine_performance-regression_detector-merge_base_check:
+single_machine_performance-regression_detector-baseline_check:
   stage: .pre
   timeout: 10m
   rules:
     - !reference [.except_coverage_pipeline]
-    - !reference [.on_dev_branches]
+    - !reference [.except_mergequeue]
+    - <<: *if_release_branch
+      when: never
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
@@ -12,7 +14,7 @@ single_machine_performance-regression_detector-merge_base_check:
     paths:
       - regression_detector.env
   variables:
-    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base or parent commit calculation
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
@@ -20,14 +22,22 @@ single_machine_performance-regression_detector-merge_base_check:
     - git fetch origin
     # Get the base branch from release.json
     - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
-    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
-    # Compute merge base of current commit and main
-    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
-    - echo "Merge base is ${SMP_MERGE_BASE}"
     # Compute four days before now as UNIX timestamp
     - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
-    # Compute UNIX timestamp of potential baseline SHA
-    - BASELINE_SHA="${SMP_MERGE_BASE}"
+    # Determine baseline SHA based on branch type
+    - |
+      if [[ "${CI_COMMIT_BRANCH}" == "${SMP_BASE_BRANCH}" ]]; then
+        # On main branch: use parent commit
+        echo "Main branch detected - using parent commit as baseline"
+        BASELINE_SHA=$(git rev-parse ${CI_COMMIT_SHA}^)
+        echo "Parent commit: ${BASELINE_SHA}"
+      else
+        # On PR branch: use merge base
+        echo "PR branch detected - looking for merge base with ${SMP_BASE_BRANCH}"
+        SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+        echo "Merge base: ${SMP_MERGE_BASE}"
+        BASELINE_SHA="${SMP_MERGE_BASE}"
+      fi
     - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
     # Check if baseline SHA is too old
     - |
@@ -66,10 +76,10 @@ single_machine_performance-regression_detector-merge_base_check:
           echo "Commit ${BASELINE_SHA} is recent enough"
           echo "Checking if image exists for commit ${BASELINE_SHA}..."
       done
-    - echo "Image exists for commit ${BASELINE_SHA}"
+    - echo "Found ECR image for commit ${BASELINE_SHA}"
     # Save the baseline SHA to an artifact file
     - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
-    - echo "Merge-base check passed. Baseline SHA saved to artifact."
+    - echo "Baseline check passed. Baseline SHA saved to artifact."
 
 .single-machine-performance-run_regression_detector:
   stage: functional_test
@@ -78,7 +88,9 @@ single_machine_performance-regression_detector-merge_base_check:
   tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_dev_branches]
+    - !reference [.except_mergequeue]
+    - <<: *if_release_branch
+      when: never
     - when: on_success
   artifacts:
     expire_in: 1 weeks
@@ -153,7 +165,17 @@ single_machine_performance-regression_detector-merge_base_check:
       }
     - chmod +x smp
     - source regression_detector.env
-    - echo "Baseline SHA is ${BASELINE_SHA}"
+    - echo "Baseline SHA: ${BASELINE_SHA}"
+    # Set replicate count based on branch
+    - |
+      SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
+      if [[ "${CI_COMMIT_BRANCH}" == "${SMP_BASE_BRANCH}" ]]; then
+        SMP_REPLICATES="--replicas 10"
+        echo "Main branch: using 10 replicates"
+      else
+        SMP_REPLICATES=""
+        echo "PR branch: using default replicate count"
+      fi
     # Copy the baseline SHA to SMP for debugging purposes later
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_TEAM_ID}-smp-artifacts/information/"
@@ -174,7 +196,8 @@ single_machine_performance-regression_detector-merge_base_check:
       --comparison-sha ${CI_COMMIT_SHA} \
       --target-config-dir test/regression/ \
       --submission-metadata submission_metadata \
-      --tags ${SMP_TAGS} || {
+      --tags ${SMP_TAGS} \
+      ${SMP_REPLICATES} || {
         exit_code=$?
         echo "smp job submit command failed with code $exit_code"
         datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
@@ -313,7 +336,7 @@ single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
   needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
+    - job: single_machine_performance-regression_detector-baseline_check
       artifacts: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
@@ -329,7 +352,7 @@ single-machine-performance-metal-runners-regression_detector:
     - .single-machine-performance-run_regression_detector
   allow_failure: true
   needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
+    - job: single_machine_performance-regression_detector-baseline_check
       artifacts: true
       optional: true
     - job: single_machine_performance-full-amd64-a7
