@@ -7,6 +7,7 @@ set -e
 
 # Define excluded files (Linux-specific dependencies not needed for Windows)
 LINUX_ONLY=(
+    # openscap
     "acl.rb"
     "attr.rb"
     "dbus.rb"
@@ -24,6 +25,11 @@ LINUX_ONLY=(
     "util-linux.rb"
     "xmlsec.rb"
     "zstd.rb"
+
+    # other
+    "init-scripts-agent.rb"
+    "init-scripts-ddot.rb"
+    "init-scripts-iot.rb"
 )
 
 # Determine the comparison base
