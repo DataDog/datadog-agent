@@ -67,32 +67,7 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-security'
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
     elsif redhat_target? || suse_target?
-      # Ship a different upstart job definition on RHEL to accommodate the old
-      # version of upstart (0.6.5) that RHEL 6 provides.
-      erb source: "upstart_redhat.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.process.conf.erb",
-          dest: "/etc/init/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.sysprobe.conf.erb",
-          dest: "/etc/init/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.trace.conf.erb",
-          dest: "/etc/init/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.security.conf.erb",
-          dest: "/etc/init/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.data-plane.conf.erb",
-          dest: "/etc/init/datadog-agent-data-plane.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}"
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
