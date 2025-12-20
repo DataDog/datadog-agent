@@ -155,7 +155,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := Chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -240,7 +240,8 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
-func chown(ctx context.Context, path string, username string, group string) (err error) {
+// Chown changes the ownership of a file to the specified owner and group.
+func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
@@ -254,7 +255,7 @@ func chown(ctx context.Context, path string, username string, group string) (err
 
 func filesInDir(dir string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("error walking path: %w", err)
 		}

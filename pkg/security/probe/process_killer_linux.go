@@ -13,6 +13,8 @@ import (
 
 	psutil "github.com/shirou/gopsutil/v4/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -52,13 +54,15 @@ const (
 
 // ProcessKillerLinux defines the process kill linux implementation
 type ProcessKillerLinux struct {
-	killFunc func(pid, sig uint32) error
+	killFunc       func(pid, sig uint32) error
+	cgroupResolver *cgroup.Resolver
 }
 
 // NewProcessKillerOS returns a ProcessKillerOS
-func NewProcessKillerOS(f func(pid, sig uint32) error) ProcessKillerOS {
+func NewProcessKillerOS(killFunc func(pid, sig uint32) error, cgroupResolver *cgroup.Resolver) ProcessKillerOS {
 	return &ProcessKillerLinux{
-		killFunc: f,
+		killFunc:       killFunc,
+		cgroupResolver: cgroupResolver,
 	}
 }
 
@@ -79,31 +83,41 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 	return syscall.Kill(pc.pid, syscall.Signal(sig))
 }
 
-// TODO: do a better job than returning only the direct lineage
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
-	if entry.ContainerContext.ContainerID != "" && scope == "container" {
+	containerID := entry.ContainerContext.ContainerID
+	if containerID != "" && scope == "container" {
 		pcs := []killContext{}
-		pids, paths := entry.GetContainerPIDs()
-		l := min(len(pids), len(paths))
-		for i := 0; i < l; i++ {
-			pid := pids[i]
-			path := paths[i]
-			if pid < 1 || path == "" {
-				continue
+
+		// Use the CGroupResolver to get all PIDs of the container
+		if p.cgroupResolver != nil {
+			var pids []uint32
+			if workload, found := p.cgroupResolver.GetContainerWorkload(containerutils.ContainerID(containerID)); found {
+				pids = workload.GetPIDs()
 			}
-			proc, err := psutil.NewProcess(int32(pid))
-			if err != nil {
-				continue
+
+			for _, pid := range pids {
+				if pid < 1 {
+					continue
+				}
+				proc, err := psutil.NewProcess(int32(pid))
+				if err != nil {
+					continue
+				}
+				createdAt, err := proc.CreateTime()
+				if err != nil || createdAt == 0 {
+					continue
+				}
+				// Get the executable path from procfs
+				exe, err := proc.Exe()
+				if err != nil {
+					continue
+				}
+				pcs = append(pcs, killContext{
+					pid:       int(pid),
+					path:      exe,
+					createdAt: uint64(createdAt),
+				})
 			}
-			createdAt, err := proc.CreateTime()
-			if err != nil || createdAt == 0 {
-				continue
-			}
-			pcs = append(pcs, killContext{
-				pid:       int(pid),
-				path:      path,
-				createdAt: uint64(createdAt),
-			})
 		}
 		return pcs, nil
 	}

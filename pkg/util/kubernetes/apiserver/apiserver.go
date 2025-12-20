@@ -48,6 +48,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 )
 
 var (
@@ -141,6 +143,9 @@ type APIClient struct {
 
 	// DynamicInformerFactory gives access to dynamic informers
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+
+	// CustomResourceDefinitionsFactory gives access to CustomResourceDefinition informers
+	APIExentionsInformerFactory apiextentionsinformer.SharedInformerFactory
 
 	//
 	// Internal
@@ -320,6 +325,15 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
 
+// GetAPIExtensionsInformerWithOptions return the informer factory for customResourceDefinitions
+func (c *APIClient) GetAPIExtensionsInformerWithOptions(resyncPeriod *time.Duration, options ...apiextentionsinformer.SharedInformerOption) apiextentionsinformer.SharedInformerFactory {
+	if resyncPeriod == nil {
+		resyncPeriod = &c.defaultInformerResyncPeriod
+	}
+
+	return apiextentionsinformer.NewSharedInformerFactoryWithOptions(c.CRDInformerClient, *resyncPeriod, options...)
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
@@ -379,6 +393,7 @@ func (c *APIClient) connect() error {
 
 	// Creating informers
 	c.InformerFactory = c.GetInformerWithOptions(nil)
+	c.APIExentionsInformerFactory = c.GetAPIExtensionsInformerWithOptions(nil)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
@@ -469,7 +484,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 		// we do not process event if we can't interact with the CM.
 		return "", time.Now(), err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if cmEvent.Data == nil {
 		cmEvent.Data = make(map[string]string)
 	}
@@ -482,7 +497,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	}
 	log.Tracef("%s is %q", token, tokenValue)
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
@@ -507,13 +522,13 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 	if err != nil {
 		return err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if tokenConfigMap.Data == nil {
 		tokenConfigMap.Data = make(map[string]string)
 	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
@@ -604,9 +619,9 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
-	var metaList []string
-	for _, s := range serviceList {
-		metaList = append(metaList, "kube_service:"+s)
+	metaList := make([]string, len(serviceList))
+	for i, s := range serviceList {
+		metaList[i] = "kube_service:" + s
 	}
 	return metaList, nil
 }

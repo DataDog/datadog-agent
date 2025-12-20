@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -167,15 +168,16 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName    string // empty means all containers
-	lang       language
-	image      string
-	registry   string
-	repository string
-	tag        string
+	ctrName          string // empty means all containers
+	lang             language
+	image            string
+	canonicalVersion string
+	registry         string
+	repository       string
+	tag              string
 }
 
-func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
+func (i *libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(imageResolver)
 		if !ok {
@@ -186,6 +188,9 @@ func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResol
 		}
 
 		reqs.libRequirementOptions = opts
+		if i.canonicalVersion != "" {
+			mutatecommon.AddAnnotation(pod, fmt.Sprintf("internal.apm.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
+		}
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
 			return err
@@ -197,7 +202,7 @@ func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResol
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
+func (i *libInfo) initContainers(resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -226,8 +231,12 @@ func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 	if resolver != nil {
 		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
 		image, ok := resolver.Resolve(i.registry, i.repository, i.tag)
+
 		if ok {
 			i.image = image.FullImageRef
+			i.canonicalVersion = image.CanonicalVersion
+		} else {
+			i.canonicalVersion = ""
 		}
 	}
 
@@ -244,11 +253,11 @@ func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 	}
 }
 
-func (i libInfo) volumeMount() volumeMount {
+func (i *libInfo) volumeMount() volumeMount {
 	return v2VolumeMountLibrary
 }
 
-func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
+func (i *libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
@@ -258,4 +267,8 @@ func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 		volumeMounts:   []volumeMount{i.volumeMount()},
 		volumes:        []volume{sourceVolume},
 	}, true
+}
+
+func initContainerName(lang language) string {
+	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
