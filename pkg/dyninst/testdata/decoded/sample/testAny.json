@@ -514,11 +514,7 @@
             "arguments": {
               "a": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           },
