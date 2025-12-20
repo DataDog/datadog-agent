@@ -2,8 +2,27 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
-# Defines a "sqlite3" target for the lib
-bazel_dep(name = "sqlite3", version = "3.46.1")
+http_file = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_file")
+
+sqlite_ver = ("3", "50", "04")
+
+sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
+
+http_archive(
+    name = "sqlite3",
+    build_file = "//deps:sqlite3.BUILD.bazel",
+    files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
+    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
+    strip_prefix = sqlite_amalgamation,
+    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
+)
+
+http_file(
+    name = "sqlite3_license",
+    downloaded_file_path = "LICENSE.md",
+    sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
+    url = "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md".format(".".join([v.lstrip("0") for v in sqlite_ver])),
+)
 
 http_archive(
     name = "xz",

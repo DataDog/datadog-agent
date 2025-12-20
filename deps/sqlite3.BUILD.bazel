@@ -1,0 +1,78 @@
+"""Agent specific BUILD file for sqlite3."""
+
+load("@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:blessing"],
+    license_text = "LICENSE.md",
+    visibility = ["//visibility:public"],
+)
+
+_SQLITE3_PUBLIC_HEADERS = [
+    "sqlite3.h",
+    "sqlite3ext.h",
+]
+
+cc_library(
+    name = "libsqlite3",
+    srcs = [
+        "sqlite3.c",
+    ],
+    hdrs = _SQLITE3_PUBLIC_HEADERS,
+    includes = ["."],
+    copts = [
+        "-Wall",
+        "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+        "-DSQLITE_THREADSAFE=1",
+        "-O2",
+    ] + select({
+        "@platforms//os:windows": [
+            "/O2",
+            "/wd4232",  # nonstandard extension used
+            "/wd4244",  # possible loss of data
+            "/wd4267",  # possible loss of data
+            "/wd4996",  # deprecated functions
+        ],
+        "//conditions:default": ["-O3"],
+    }),
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "sqlite3",
+    deps = [":libsqlite3"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":sqlite3",
+    libname = "libsqlite3",
+    version = "3.50.4",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = _SQLITE3_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+)
