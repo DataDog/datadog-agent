@@ -1254,3 +1254,237 @@ resolve_root_device: false
 	assert.Nil(t, err)
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
 }
+
+// TestDeviceMapperResolution tests that device-mapper devices (dm-X) are resolved
+// to their friendly /dev/mapper/* names for tagging (matching Python psutil behavior)
+func TestDeviceMapperResolution_WhenGopsutilReturnsDmDevice_ThenMetricsHaveFriendlyMapperName(t *testing.T) {
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 252, Minor: 0}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+	// Setup /dev/mapper/ocivolume-root -> ../dm-0 symlink
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	assert.NoError(t, fs.MkdirAll("/dev", 0755))
+	// The symlink is relative (as it typically is in Linux)
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-0", "/dev/mapper/ocivolume-root"))
+	// Also create the dm-0 device file
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-0", []byte{}, 0644))
+	// Create mountinfo with /dev/mapper/ocivolume-root
+	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/ocivolume-root rw,attr2,inode64,logbufs=8,logbsize=32k,noquota
+104 1 252:1 / /oled rw,relatime shared:2 - xfs /dev/mapper/ocivolume-oled rw,attr2,inode64,logbufs=8,logbsize=32k,noquota
+`),
+		0644)
+	assert.Nil(t, err)
+	// Setup symlink for ocivolume-oled as well
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-1", "/dev/mapper/ocivolume-oled"))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-1", []byte{}, 0644))
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	// gopsutil returns /dev/dm-0 (after resolving the symlink internally)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				// gopsutil resolves /dev/mapper/ocivolume-root to /dev/dm-0
+				Device:     "/dev/dm-0",
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/dm-1",
+				Mountpoint: "/oled",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Metrics should have the friendly /dev/mapper/ocivolume-root name, not /dev/dm-0
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/ocivolume-root", "device_name:ocivolume-root"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/mapper/ocivolume-root", "device_name:ocivolume-root"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/mapper/ocivolume-root", "device_name:ocivolume-root"})
+	// Second device-mapper device should also be resolved
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/ocivolume-oled", "device_name:ocivolume-oled"})
+}
+
+// TestDeviceMapperResolution_WhenSymlinkResolutionFails_ThenMetricsHaveOriginalDmName
+// tests that when we can't resolve the symlink, we fall back to the original device name
+func TestDeviceMapperResolution_WhenSymlinkResolutionFails_ThenMetricsHaveOriginalDmName(t *testing.T) {
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 252, Minor: 0}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	// Create mountinfo with /dev/mapper/ocivolume-root but NO symlink
+	// (symlink resolution will fail)
+	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/ocivolume-root rw,attr2,inode64,logbufs=8,logbsize=32k,noquota
+`),
+		0644)
+	assert.Nil(t, err)
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/dm-0",
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// When symlink resolution fails, metrics should have the original dm-X name
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/dm-0", "device_name:dm-0"})
+}
+
+// TestDeviceMapperResolution_WithLowercaseDeviceTag verifies that lowercase_device_tag
+// works correctly with device-mapper resolution
+func TestDeviceMapperResolution_WithLowercaseDeviceTag(t *testing.T) {
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 252, Minor: 0}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	assert.NoError(t, fs.MkdirAll("/dev", 0755))
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-0", "/dev/mapper/OCIVolume-Root"))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-0", []byte{}, 0644))
+	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/OCIVolume-Root rw,attr2,inode64
+`),
+		0644)
+	assert.Nil(t, err)
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/dm-0",
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("lowercase_device_tag: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Device tag should be lowercase, device_name should preserve original case
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/ocivolume-root", "device_name:OCIVolume-Root"})
+}
+
+// TestDeviceMapperResolution_WithMixedDeviceTypes verifies that regular devices
+// and device-mapper devices work together correctly
+func TestDeviceMapperResolution_WithMixedDeviceTypes(t *testing.T) {
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 8, Minor: 1}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	assert.NoError(t, fs.MkdirAll("/dev", 0755))
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-0", "/dev/mapper/vg-lv"))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-0", []byte{}, 0644))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/sda1", []byte{}, 0644))
+	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/vg-lv rw
+104 1 8:1 / /boot rw,relatime shared:2 - ext4 /dev/sda1 rw
+`),
+		0644)
+	assert.Nil(t, err)
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/dm-0", // gopsutil resolves mapper symlink
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda1", // regular device stays as-is
+				Mountpoint: "/boot",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Device-mapper device should be resolved to friendly name
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/vg-lv", "device_name:vg-lv"})
+	// Regular device should keep its original name
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
+}

@@ -366,7 +366,11 @@ func TestExtractServiceMetadata(t *testing.T) {
 			useImprovedAlgorithm := tt.useImprovedAlgorithm
 			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
-			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
+			if tt.expectedServiceTag != "" {
+				assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
+			} else {
+				assert.Nil(t, se.GetServiceContext(proc.Pid))
+			}
 		})
 	}
 }

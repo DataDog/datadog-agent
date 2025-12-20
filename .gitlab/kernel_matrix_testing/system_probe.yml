@@ -2,7 +2,9 @@
 upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - pull_test_dockers_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: x86_64
@@ -12,7 +14,9 @@ upload_dependencies_sysprobe_x64:
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - pull_test_dockers_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: arm64
@@ -89,7 +93,9 @@ pull_test_dockers_arm64:
 upload_minimized_btfs_sysprobe_x64:
   extends:
     - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_x64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - generate_minimized_btfs_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
@@ -100,7 +106,9 @@ upload_minimized_btfs_sysprobe_x64:
 upload_minimized_btfs_sysprobe_arm64:
   extends:
     - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_arm64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - generate_minimized_btfs_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
@@ -171,7 +179,9 @@ upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
   needs:
-    ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+    - !reference [.kmt_setup_needs]
+    - prepare_sysprobe_ebpf_functional_tests_x64
+    - tests_ebpf_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
@@ -182,11 +192,9 @@ upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
   needs:
-    [
-      "go_deps",
-      "prepare_sysprobe_ebpf_functional_tests_arm64",
-      "tests_ebpf_arm64",
-    ]
+    - !reference [.kmt_setup_needs]
+    - prepare_sysprobe_ebpf_functional_tests_arm64
+    - tests_ebpf_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   variables:

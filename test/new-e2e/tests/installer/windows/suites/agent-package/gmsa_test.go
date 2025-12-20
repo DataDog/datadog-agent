@@ -8,7 +8,9 @@ package agenttests
 import (
 	"fmt"
 	"strings"
+	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -17,8 +19,6 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-
-	"testing"
 )
 
 const (
@@ -32,6 +32,8 @@ type testAgentUpgradeOnDCWithGMSASuite struct {
 // TestAgentUpgradesOnDCWithGMSA tests the usage of the Datadog installer to upgrade the Datadog Agent package on a Domain Controller
 // with a Agent gMSA.
 func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
+	//TODO: https://datadoghq.atlassian.net/browse/WINA-2095
+	flake.Mark(t)
 	e2e.Run(t, &testAgentUpgradeOnDCWithGMSASuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(

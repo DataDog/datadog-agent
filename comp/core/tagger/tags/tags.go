@@ -111,6 +111,9 @@ const (
 	// which is either true (dedicated CPUs) or false
 	KubeStaticCPUsTag = "kube_static_cpus"
 
+	// KubeServerVersion is the tag for the Kubernetes server version
+	KubeServerVersion = "kube_server_version"
+
 	// CPURestartPolicy is the tag for the container's CPU restart policy
 	CPURestartPolicy = "cpu_restart_policy"
 	// MemoryRestartPolicy is the tag for the container's memory restart policy
