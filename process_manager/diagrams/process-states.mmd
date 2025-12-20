@@ -1,0 +1,28 @@
+stateDiagram-v2
+    [*] --> Created: register
+    
+    Created --> Starting: start
+    
+    Starting --> Running: fork success
+    Starting --> Failed: fork failed
+    
+    Running --> Stopping: stop
+    Running --> Exited: exit (code=0)
+    Running --> Failed: exit (code≠0)
+    
+    Stopping --> Stopped: process exits
+    
+    Exited --> Starting: restart (policy)
+    Failed --> Starting: restart (policy)
+    Failed --> Crashed: start_limit_exceeded
+    
+    Stopped --> [*]
+    Crashed --> [*]
+    
+    note right of Created: Process registered but not started
+    note right of Running: Process has PID and is executing
+    note right of Stopped: Explicitly stopped (no restart)
+    note right of Crashed: Terminal state Manual intervention required
+
+
+

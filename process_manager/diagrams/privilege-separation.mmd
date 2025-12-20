@@ -1,0 +1,41 @@
+flowchart TB
+    subgraph root[" "]
+        direction LR
+        ROOTLABEL["root<br/>(privileged)"]
+        PM["dd-procmgrd<br/>(Process Manager)"]
+        SYSPROBE["system-probe<br/>(eBPF, kernel access)"]
+        SECURITY["security-agent<br/>(security monitoring)"]
+        ROOTLABEL ~~~ PM
+        PM ~~~ SYSPROBE
+        PM ~~~ SECURITY
+    end
+
+    subgraph ddagent[" "]
+        direction LR
+        LABEL["dd-agent user<br/>(unprivileged)"]
+        subgraph services[" "]
+            direction TB
+            AGENT["datadog-agent"]
+            TRACE["trace-agent"]
+            PROCESS["process-agent"]
+        end
+        LABEL ~~~ services
+    end
+
+    PM -->|"fork() as root"| SYSPROBE
+    PM -->|"fork() as root"| SECURITY
+    PM -->|"fork() + setuid/setgid + capabilities"| AGENT
+    PM -->|"fork() + setuid/setgid + capabilities"| TRACE
+    PM -->|"fork() + setuid/setgid + capabilities"| PROCESS
+
+    style root fill:#ffe0e0,stroke:#cc0000,stroke-width:2px
+    style ROOTLABEL fill:#cc0000,stroke:#990000,color:#fff
+    style ddagent fill:#e0ffe0,stroke:#009900,stroke-width:2px
+    style services fill:#e0ffe0,stroke:none
+    style LABEL fill:#009900,stroke:#006600,color:#fff
+    style PM fill:#ffaaaa,stroke:#cc0000
+    style SYSPROBE fill:#ffaaaa,stroke:#cc0000
+    style SECURITY fill:#ffaaaa,stroke:#cc0000
+    style AGENT fill:#aaffaa,stroke:#009900
+    style TRACE fill:#aaffaa,stroke:#009900
+    style PROCESS fill:#aaffaa,stroke:#009900

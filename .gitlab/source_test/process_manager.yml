@@ -1,0 +1,293 @@
+---
+# Process Manager Rust Tests
+# Runs unit tests and e2e tests for the process manager component
+
+.process_manager_tests_base:
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+  before_script:
+    # Install Rust toolchain if not present
+    - |
+      if ! command -v cargo &> /dev/null; then
+        echo "Installing Rust toolchain..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source $HOME/.cargo/env
+      fi
+    - rustc --version
+    - cargo --version
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - process_manager/target/debug/junit-*.xml
+    reports:
+      junit: process_manager/target/debug/junit-*.xml
+
+# Unit tests for process manager engine
+process_manager_unit_tests:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  script:
+    - cd process_manager
+    - echo "Running process manager unit tests..."
+    - cargo test --lib --workspace --verbose
+    - echo "Running engine integration tests..."
+    - cargo test -p pm_engine --verbose
+
+# E2E tests for process manager (non-Linux-specific)
+process_manager_e2e_tests:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  script:
+    - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --release --bins
+    - echo "Running e2e tests..."
+    # Run most e2e tests, excluding Linux-specific ones like ambient capabilities
+    # Set binary paths to use release builds (CI builds with --release)
+    # Paths are relative to tests/ directory (where test binaries run from)
+    - export PM_DAEMON_BINARY="../target/release/dd-procmgrd"
+    - export PM_CLI_BINARY="../target/release/dd-procmgr"
+    - |
+      cargo test -p pm-e2e-tests \
+        --test e2e_basic \
+        --test e2e_auto_start \
+        --test e2e_config_loading \
+        --test e2e_daemon_port \
+        --test e2e_dependencies \
+        --test e2e_environment_pidfile \
+        --test e2e_health_checks \
+        --test e2e_health_check_restart \
+        --test e2e_process_types \
+        --test e2e_restart \
+        --test e2e_startup \
+        --test e2e_unique_names \
+        --test e2e_update \
+        --test e2e_conflicts \
+        --test e2e_binds_to \
+        --verbose -- --test-threads=1
+  timeout: 30m
+
+# E2E tests for Linux-specific features (capabilities, cgroups, etc.)
+process_manager_e2e_tests_linux:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/'
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  script:
+    - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --release --bins
+    - echo "Running Linux-specific e2e tests..."
+    # Set binary paths to use release builds (CI builds with --release)
+    # Paths are relative to tests/ directory (where test binaries run from)
+    - export PM_DAEMON_BINARY="../target/release/dd-procmgrd"
+    - export PM_CLI_BINARY="../target/release/dd-procmgr"
+    - |
+      cargo test -p pm-e2e-tests \
+        --test e2e_ambient_capabilities \
+        --test e2e_resource_limits \
+        --test e2e_runtime_directory \
+        --test e2e_orphan_processes \
+        --test e2e_socket_activation \
+        --test e2e_socket_reactivation \
+        --test e2e_condition_path_exists \
+        --test e2e_cli_resources \
+        --verbose -- --test-threads=1
+  timeout: 30m
+
+# Quick smoke test for fast feedback
+process_manager_smoke_test:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - if: '$FAST_TESTS == "true"'
+    - changes:
+        - process_manager/**/*
+  script:
+    - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --bins
+    - echo "Running quick smoke tests..."
+    - cargo test --test e2e_startup --test e2e_basic --verbose
+  timeout: 5m
+
+# Windows build and test job
+.process_manager_windows_base:
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  extends:
+    - .windows_docker_default
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - process_manager/target/x86_64-pc-windows-gnu/release/*.exe
+
+# Windows unit tests for process manager
+process_manager_unit_tests_windows:
+  extends:
+    - .process_manager_windows_base
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      # Enable TLS 1.2 for HTTPS connections
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    - |
+      # Install MinGW-w64 toolchain (required for GNU target)
+      if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
+        Write-Host "Downloading MinGW-w64..."
+        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
+        Write-Host "Extracting MinGW-w64..."
+        7z x mingw64.7z -oC:\ -y
+      }
+      $env:PATH = "C:\mingw64\bin;$env:PATH"
+    - |
+      # Install protoc (required for prost-build)
+      if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
+        Write-Host "Downloading protoc..."
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protoc-25.1-win64.zip"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
+        Write-Host "Extracting protoc..."
+        Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
+      }
+      $env:PATH = "C:\protoc\bin;$env:PATH"
+    - |
+      # Install Rust toolchain with GNU target
+      if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Rust toolchain..."
+        Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+        .\rustup-init.exe -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+      }
+    - rustc --version
+    - cargo --version
+    - gcc --version
+    - protoc --version
+    - cd process_manager
+    - echo "Running process manager unit tests on Windows..."
+    - cargo test --lib --workspace --verbose --target x86_64-pc-windows-gnu
+  timeout: 45m
+
+# Windows build verification (ensure binaries compile for Windows)
+process_manager_build_windows:
+  extends:
+    - .process_manager_windows_base
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      # Enable TLS 1.2 for HTTPS connections
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    - |
+      # Install MinGW-w64 toolchain (required for GNU target)
+      if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
+        Write-Host "Downloading MinGW-w64..."
+        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
+        Write-Host "Extracting MinGW-w64..."
+        7z x mingw64.7z -oC:\ -y
+      }
+      $env:PATH = "C:\mingw64\bin;$env:PATH"
+    - |
+      # Install protoc (required for prost-build)
+      if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
+        Write-Host "Downloading protoc..."
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protoc-25.1-win64.zip"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
+        Write-Host "Extracting protoc..."
+        Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
+      }
+      $env:PATH = "C:\protoc\bin;$env:PATH"
+    - |
+      # Install Rust toolchain with GNU target
+      if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Rust toolchain..."
+        Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+        .\rustup-init.exe -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+      }
+    - rustc --version
+    - cargo --version
+    - gcc --version
+    - protoc --version
+    - cd process_manager
+    - echo "Building process manager binaries for Windows (GNU toolchain)..."
+    - cargo build --release --bins --target x86_64-pc-windows-gnu
+    - echo "Verifying binaries exist..."
+    - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgrd.exe
+    - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgr.exe
+  timeout: 45m
+

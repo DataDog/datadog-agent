@@ -1,0 +1,119 @@
+processes:
+  # Example 1: HTTP health check
+  web-server:
+    command: python3
+    args:
+      - -m
+      - http.server
+      - "8000"
+    restart: always
+    health_check:
+      type: http
+      endpoint: http://localhost:8000
+      method: GET
+      expected_status: 200
+      interval: 10     # Check every 10 seconds
+      timeout: 3       # 3 second timeout per check
+      retries: 3       # Fail after 3 consecutive failures
+      start_period: 5  # Grace period before first check
+    stdout: inherit
+    stderr: inherit
+
+  # Example 2: TCP port health check
+  redis-server:
+    command: redis-server
+    args:
+      - --port
+      - "6379"
+    restart: on-failure
+    health_check:
+      type: tcp
+      host: localhost
+      port: 6379
+      interval: 15
+      timeout: 2
+      retries: 2
+      start_period: 3
+    stdout: inherit
+    stderr: inherit
+
+  # Example 3: Exec (command) health check
+  batch-processor:
+    command: /bin/bash
+    args:
+      - -c
+      - |
+        while true; do
+          echo "Processing batch..."
+          sleep 5
+        done
+    restart: always
+    health_check:
+      type: exec
+      command: /bin/sh
+      args:
+        - -c
+        - "ps aux | grep -v grep | grep 'Processing batch' > /dev/null"
+      interval: 20
+      timeout: 5
+      retries: 3
+      start_period: 0  # No grace period
+    stdout: inherit
+    stderr: inherit
+
+  # Example 4: Process without health check (for comparison)
+  simple-logger:
+    command: /bin/bash
+    args:
+      - -c
+      - |
+        while true; do
+          echo "[$(date)] Log message"
+          sleep 10
+        done
+    restart: never
+    stdout: inherit
+    stderr: inherit
+
+  # Example 5: HTTP health check with custom endpoint
+  api-server:
+    command: /bin/bash
+    args:
+      - -c
+      - |
+        python3 << 'EOF'
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        import json
+
+        class HealthHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == '/health':
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(b'{"status": "healthy"}')
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def log_message(self, format, *args):
+                pass  # Suppress default logging
+
+        server = HTTPServer(('localhost', 8080), HealthHandler)
+        print("API server running on http://localhost:8080")
+        print("Health check endpoint: http://localhost:8080/health")
+        server.serve_forever()
+        EOF
+    restart: always
+    health_check:
+      type: http
+      endpoint: http://localhost:8080/health
+      method: GET
+      expected_status: 200
+      interval: 5
+      timeout: 2
+      retries: 3
+      start_period: 2
+    stdout: inherit
+    stderr: inherit
+

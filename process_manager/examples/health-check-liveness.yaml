@@ -1,0 +1,90 @@
+# Health Check with Liveness Probe Example
+# Demonstrates Kubernetes-style liveness probe (restart on health failure)
+
+processes:
+  # Example 1: Web API with automatic restart on health failure
+  web-api:
+    command: /usr/local/bin/myapi
+    working_dir: /app
+    auto_start: true
+    restart: on-failure
+
+    health_check:
+      type: http
+      endpoint: http://localhost:8080/health
+      method: GET
+      expected_status: 200
+      interval: 10              # Check every 10 seconds
+      timeout: 3                # Timeout after 3 seconds
+      retries: 3                # Mark unhealthy after 3 consecutive failures
+      start_period: 30          # Wait 30s after start before checking
+      restart_after: 5          # Kill & restart after 5 consecutive failures
+                                # (K8s liveness probe behavior)
+
+    resources:
+      limits:
+        memory: 512M
+        cpu: 1000m
+
+  # Example 2: Database (health check only, never restart on health failure)
+  postgres:
+    command: /usr/bin/postgres
+    args: ["-D", "/var/lib/postgresql/data"]
+    working_dir: /var/lib/postgresql
+    auto_start: true
+    restart: on-failure
+
+    health_check:
+      type: tcp
+      host: localhost
+      port: 5432
+      interval: 30
+      timeout: 5
+      retries: 3
+      restart_after: 0          # NEVER restart on health failure (default)
+                                # Only informational monitoring
+
+    resources:
+      limits:
+        memory: 2G
+        cpu: 2000m
+
+  # Example 3: Worker with exec health check
+  worker:
+    command: /usr/local/bin/worker
+    working_dir: /app
+    auto_start: true
+    restart: on-failure
+
+    health_check:
+      type: exec
+      command: /usr/local/bin/worker-health-check.sh
+      interval: 60
+      timeout: 10
+      retries: 2
+      start_period: 10
+      restart_after: 3          # Restart after 3 failed health checks
+
+## Notes:
+##
+## restart_after Behavior:
+##   0 = Never restart (default, Docker/systemd behavior)
+##       - Health status is informational only
+##   N > 0 = Kill & restart after N consecutive failures (K8s liveness probe)
+##       - Process is sent SIGKILL when threshold reached
+##       - restart_policy determines if it restarts (usually on-failure/always)
+##
+## When to Use restart_after > 0:
+##   ✅ Stateless web services
+##   ✅ API servers
+##   ✅ Worker processes
+##   ❌ Databases (connections will be lost)
+##   ❌ Stateful services
+##   ❌ Services with slow startup (>2 min)
+##
+## Best Practices:
+##   - Set restart_after > retries (give it time to mark unhealthy first)
+##   - Use generous start_period for slow-starting services
+##   - Test health check endpoint returns quickly (<timeout)
+##   - Avoid tight intervals (causes CPU load and false positives)
+
