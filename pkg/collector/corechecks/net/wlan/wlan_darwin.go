@@ -85,8 +85,9 @@ type guiIPCResponse struct {
 }
 
 // createIPCResponseSchema generates a JSON schema for IPC response validation
+// Returns interface{} to avoid exposing gojsonschema.Schema in the common WLANCheck struct
 // This is called once during check initialization
-func createIPCResponseSchema() (*gojsonschema.Schema, error) {
+func createIPCResponseSchema() (interface{}, error) {
 	reflector := jsonschema.Reflector{}
 	schema, err := reflector.Reflect(guiIPCResponse{})
 	if err != nil {
@@ -484,8 +485,13 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 
 	// Validate response against JSON schema (if available)
 	if c.ipcSchema != nil {
+		// Cast interface{} back to concrete type for validation
+		schema, ok := c.ipcSchema.(*gojsonschema.Schema)
+		if !ok {
+			return wifiInfo{}, fmt.Errorf("invalid schema type")
+		}
 		documentLoader := gojsonschema.NewStringLoader(responseLine)
-		result, err := c.ipcSchema.Validate(documentLoader)
+		result, err := schema.Validate(documentLoader)
 		if err != nil {
 			return wifiInfo{}, fmt.Errorf("schema validation failed: %w", err)
 		}

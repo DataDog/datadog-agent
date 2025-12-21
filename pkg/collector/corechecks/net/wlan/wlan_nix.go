@@ -10,8 +10,6 @@ package wlan
 
 import (
 	"errors"
-
-	"github.com/xeipuuv/gojsonschema"
 )
 
 // getWiFiInfo is a package-level function variable for testability
@@ -29,6 +27,6 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 }
 
 // createIPCResponseSchema is a stub for non-darwin platforms
-func createIPCResponseSchema() (*gojsonschema.Schema, error) {
+func createIPCResponseSchema() (interface{}, error) {
 	return nil, errors.New("IPC schema validation only needed on macOS")
 }

@@ -16,7 +16,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 const (
@@ -46,7 +45,7 @@ type WLANCheck struct {
 	lastBSSID   string
 	lastSSID    string
 	isWarmedUp  bool
-	ipcSchema   *gojsonschema.Schema // Pre-compiled JSON schema for IPC validation
+	ipcSchema   interface{} // Pre-compiled JSON schema for IPC validation (Darwin only, stored as interface{} to avoid import)
 }
 
 func (c *WLANCheck) String() string {

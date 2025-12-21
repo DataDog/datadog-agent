@@ -14,7 +14,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/xeipuuv/gojsonschema"
 	"golang.org/x/sys/windows"
 )
 
@@ -711,6 +710,6 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 }
 
 // createIPCResponseSchema is a stub for Windows (IPC validation only needed on macOS)
-func createIPCResponseSchema() (*gojsonschema.Schema, error) {
+func createIPCResponseSchema() (interface{}, error) {
 	return nil, errors.New("IPC schema validation only needed on macOS")
 }
