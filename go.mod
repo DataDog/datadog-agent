@@ -29,7 +29,6 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
-	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
@@ -251,7 +250,6 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.0
-	github.com/godror/godror v0.49.6
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
@@ -280,7 +278,6 @@ require (
 	github.com/itchyny/gojq v0.12.17 // indirect
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jellydator/ttlcache/v3 v3.4.0
-	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
@@ -615,7 +612,6 @@ require (
 	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.0
-	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -987,7 +983,6 @@ require (
 )
 
 require (
-	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.142.0 // indirect

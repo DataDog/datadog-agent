@@ -155,8 +155,6 @@
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 
-/.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx @DataDog/database-monitoring
-
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-devx @DataDog/windows-products
@@ -220,8 +218,6 @@
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx
-/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
@@ -445,7 +441,6 @@
 /pkg/collector/corechecks/orchestrator/   @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
-/pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/agent-security @DataDog/container-integrations
 /pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core

@@ -52,7 +52,6 @@ from tasks import (
     notes,
     notify,
     omnibus,
-    oracle,
     otel_agent,
     owners,
     package,
@@ -208,7 +207,6 @@ ns.add_collection(quality_gates)
 ns.add_collection(protobuf)
 ns.add_collection(notes)
 ns.add_collection(notify)
-ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(full_host_profiler)
 ns.add_collection(selinux)
