@@ -17,12 +17,14 @@ opt-level = 3
 
 //! Merge multiple fine-grained-monitor Parquet files into a single file.
 //!
+//! Uses streaming writes to handle arbitrarily large datasets without
+//! loading all data into memory.
+//!
 //! Usage:
 //!     ./merge_parquet.rs /path/to/parquet/dir -o merged.parquet
 //!     ./merge_parquet.rs file1.parquet file2.parquet -o merged.parquet
 
 use anyhow::{Context, Result};
-use arrow::record_batch::RecordBatch;
 use clap::{Parser, ValueEnum};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
@@ -96,6 +98,30 @@ fn find_parquet_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     Ok(sorted)
 }
 
+/// Extract schema from the first valid parquet file
+fn get_schema_from_files(files: &[PathBuf]) -> Result<Arc<arrow::datatypes::Schema>> {
+    for path in files {
+        let metadata = std::fs::metadata(path)?;
+        if metadata.len() == 0 {
+            continue;
+        }
+
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+
+        let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+
+        return Ok(builder.schema().clone());
+    }
+
+    anyhow::bail!("No valid parquet files found to extract schema")
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let total_start = Instant::now();
@@ -109,11 +135,23 @@ fn main() -> Result<()> {
 
     eprintln!("Found {} parquet files to merge", input_files.len());
 
-    // Read all files and collect batches
-    let read_start = Instant::now();
-    let mut all_batches: Vec<RecordBatch> = Vec::new();
-    let mut schema: Option<Arc<arrow::datatypes::Schema>> = None;
+    // Get schema from first valid file
+    let schema = get_schema_from_files(&input_files)?;
+
+    // Create output writer upfront - this enables streaming writes
+    eprintln!("Creating output file {:?}...", args.output);
+    let output_file = File::create(&args.output).context("Failed to create output file")?;
+
+    let props = WriterProperties::builder()
+        .set_compression(args.compression.to_parquet())
+        .build();
+
+    let mut writer = ArrowWriter::try_new(output_file, schema, Some(props))?;
+
+    // Stream through all files, writing batches directly to output
+    let stream_start = Instant::now();
     let mut total_rows: u64 = 0;
+    let mut total_batches: u64 = 0;
     let mut files_read = 0;
 
     for (i, path) in input_files.iter().enumerate() {
@@ -140,18 +178,15 @@ fn main() -> Result<()> {
             }
         };
 
-        // Capture schema from first file
-        if schema.is_none() {
-            schema = Some(builder.schema().clone());
-        }
-
         let reader = builder.with_batch_size(65536).build()?;
 
+        // Stream batches directly to output - no buffering in memory
         for batch_result in reader {
             match batch_result {
                 Ok(batch) => {
                     total_rows += batch.num_rows() as u64;
-                    all_batches.push(batch);
+                    total_batches += 1;
+                    writer.write(&batch)?;
                 }
                 Err(e) => {
                     eprintln!("  Warning: Error reading batch from {}: {}", path.display(), e);
@@ -161,58 +196,42 @@ fn main() -> Result<()> {
 
         files_read += 1;
 
-        if (i + 1) % 10 == 0 {
+        if (i + 1) % 100 == 0 {
             eprintln!(
-                "  Read {}/{} files ({} rows)",
+                "  Processed {}/{} files ({} rows) [{:.1}s]",
                 i + 1,
                 input_files.len(),
-                format_number(total_rows)
+                format_number(total_rows),
+                stream_start.elapsed().as_secs_f64()
             );
         }
     }
 
-    if all_batches.is_empty() {
+    if total_rows == 0 {
+        // Clean up empty output file
+        drop(writer);
+        let _ = std::fs::remove_file(&args.output);
         anyhow::bail!("No valid data found in parquet files");
     }
 
-    eprintln!(
-        "  Read {} files, {} batches, {} rows [{:.2}s]",
-        files_read,
-        all_batches.len(),
-        format_number(total_rows),
-        read_start.elapsed().as_secs_f64()
-    );
-
-    // Write merged file
-    let write_start = Instant::now();
-    eprintln!("Writing merged file to {:?}...", args.output);
-
-    let output_file = File::create(&args.output).context("Failed to create output file")?;
-
-    let props = WriterProperties::builder()
-        .set_compression(args.compression.to_parquet())
-        .build();
-
-    let mut writer = ArrowWriter::try_new(output_file, schema.unwrap(), Some(props))?;
-
-    for batch in &all_batches {
-        writer.write(batch)?;
-    }
-
+    // Finalize output file
+    eprintln!("Finalizing output file...");
     writer.close()?;
 
     let output_size = std::fs::metadata(&args.output)?.len();
+
     eprintln!(
-        "  Wrote {} rows [{:.2}s]",
+        "\nDone! Merged {} files, {} batches, {} rows [{:.2}s]",
+        files_read,
+        total_batches,
         format_number(total_rows),
-        write_start.elapsed().as_secs_f64()
+        stream_start.elapsed().as_secs_f64()
     );
 
     eprintln!(
-        "\nDone! Output: {:?} ({:.2} MB, {} rows) [{:.2}s total]",
+        "Output: {:?} ({:.2} MB) [{:.2}s total]",
         args.output,
         output_size as f64 / 1024.0 / 1024.0,
-        format_number(total_rows),
         total_start.elapsed().as_secs_f64()
     );
 
