@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,6 +51,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	buffer                    ringbuffer.RingBufferInterface[*message.Message]
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -58,23 +60,37 @@ type Processor struct {
 }
 
 // New returns an initialized Processor with config support for failover notifications.
-func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+func New(
+	config pkgconfigmodel.Reader,
+	inputChan, outputChan chan *message.Message,
+	processingRules []*config.ProcessingRule,
+	encoder Encoder,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	hostname hostnameinterface.Component,
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string,
+) *Processor {
 
 	p := &Processor{
-		config:                    config,
-		inputChan:                 inputChan,
-		outputChan:                outputChan, // strategy input
-		processingRules:           processingRules,
-		encoder:                   encoder,
-		configChan:                make(chan failoverConfig, 1),
+		config:          config,
+		inputChan:       inputChan,
+		outputChan:      outputChan, // strategy input
+		processingRules: processingRules,
+		encoder:         encoder,
+		configChan: make(
+			chan failoverConfig,
+			1,
+		),
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
 		pipelineMonitor:           pipelineMonitor,
-		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
-		instanceID:                instanceID,
+		utilization: pipelineMonitor.MakeUtilizationMonitor(
+			metrics.ProcessorTlmName,
+			instanceID,
+		),
+		instanceID: instanceID,
+		buffer:     ringbuffer.NewRingBuffer[*message.Message](500),
 	}
 
 	// Initialize cached failover config
@@ -89,10 +105,21 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
+func (p *Processor) onLogsFailoverSettingChanged(
+	setting string,
+	_ pkgconfigmodel.Source,
+	_, _ any,
+	_ uint64,
+) {
 	// Only update if the changed setting affects failover configuration
-	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
-	if slices.Contains(MRFConfigFields, setting) {
+	var MRFConfigFields = []string{
+		configMRFFailoverLogs,
+		configMRFServiceAllowlist,
+	}
+	if slices.Contains(
+		MRFConfigFields,
+		setting,
+	) {
 		p.updateFailoverConfig()
 	}
 }
@@ -110,7 +137,10 @@ func (p *Processor) updateFailoverConfig() {
 	var serviceAllowlist map[string]struct{}
 	if conf.isFailoverActive && p.config.IsConfigured(configMRFServiceAllowlist) {
 		rawList := p.config.GetStringSlice(configMRFServiceAllowlist)
-		serviceAllowlist = make(map[string]struct{}, len(rawList))
+		serviceAllowlist = make(
+			map[string]struct{},
+			len(rawList),
+		)
 		for _, allowed := range rawList {
 			serviceAllowlist[allowed] = struct{}{}
 		}
@@ -165,6 +195,7 @@ func (p *Processor) run() {
 				return
 			}
 			p.processMessage(msg)
+			p.buffer.Push(msg)
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
@@ -177,17 +208,33 @@ func (p *Processor) run() {
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
 	defer p.utilization.Stop()
-	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
+	defer p.pipelineMonitor.ReportComponentEgress(
+		msg,
+		metrics.ProcessorTlmName,
+		p.instanceID,
+	)
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 	// Record truncation metrics if the message is truncated
 	if msg.ParsingExtra.IsTruncated {
 		if msg.Origin != nil {
-			metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
+			metrics.TlmTruncatedCount.Inc(
+				msg.Origin.Service(),
+				msg.Origin.Source(),
+			)
 		} else {
-			metrics.TlmTruncatedCount.Inc("", "")
+			metrics.TlmTruncatedCount.Inc(
+				"",
+				"",
+			)
 		}
 	}
+	log.Infof(
+		"PROCESSING LOG: status=%q hostname=%q length=%d",
+		msg.Status,
+		msg.Hostname,
+		msg.RawDataLen,
+	)
 
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
@@ -196,27 +243,44 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// render the message
 		rendered, err := msg.Render()
 		if err != nil {
-			log.Error("can't render the msg", err)
+			log.Error(
+				"can't render the msg",
+				err,
+			)
 			return
 		}
 		msg.SetRendered(rendered)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
-		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
+		p.diagnosticMessageReceiver.HandleMessage(
+			msg,
+			rendered,
+			"",
+		)
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)
 		}
 
 		// encode the message to its final format, it is done in-place
-		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
-			log.Error("unable to encode msg ", err)
+		if err := p.encoder.Encode(
+			msg,
+			p.GetHostname(msg),
+		); err != nil {
+			log.Error(
+				"unable to encode msg ",
+				err,
+			)
 			return
 		}
 
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
-		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
+		p.pipelineMonitor.ReportComponentIngress(
+			msg,
+			metrics.StrategyTlmName,
+			p.instanceID,
+		)
 	}
 }
 
@@ -248,13 +312,19 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------
 
-	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+	rules := append(
+		p.processingRules,
+		msg.Origin.LogSource.Config.ProcessingRules...,
+	)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
 			// if this message matches, we ignore it
 			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
+				msg.RecordProcessingRule(
+					rule.Type,
+					rule.Name,
+				)
 				return false
 			}
 		case config.IncludeAtMatch:
@@ -262,18 +332,36 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			if !rule.Regex.Match(content) {
 				return false
 			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
+			msg.RecordProcessingRule(
+				rule.Type,
+				rule.Name,
+			)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
+			if isMatchingLiteralPrefix(
+				rule.Regex,
+				content,
+			) {
 				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
+				content = rule.Regex.ReplaceAll(
+					content,
+					rule.Placeholder,
+				)
+				if !bytes.Equal(
+					originalContent,
+					content,
+				) {
+					msg.RecordProcessingRule(
+						rule.Type,
+						rule.Name,
+					)
 				}
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
+				msg.RecordProcessingRule(
+					rule.Type,
+					rule.Name,
+				)
 				return false
 			}
 
@@ -286,13 +374,19 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 // isMatchingLiteralPrefix uses a potential literal prefix from the given regex
 // to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
+func isMatchingLiteralPrefix(
+	r *regexp.Regexp,
+	content []byte,
+) bool {
 	prefix, _ := r.LiteralPrefix()
 	if prefix == "" {
 		return true
 	}
 
-	return bytes.Contains(content, []byte(prefix))
+	return bytes.Contains(
+		content,
+		[]byte(prefix),
+	)
 }
 
 // GetHostname returns the hostname to applied the given log message
