@@ -14,6 +14,8 @@ def diff(dir1: str, dir2: str, sort_by_size: bool = False):
         for filename in filenames:
             dir1filepath = os.path.join(dirpath, filename)
             relfilepath = dir1filepath.removeprefix(dir1)
+            # Normalize path separators for Windows compatibility
+            relfilepath = relfilepath.replace('/', os.sep) if relfilepath.startswith('/') else relfilepath
             dir2filepath = dir2 + relfilepath
 
             if not os.path.exists(dir2filepath) and not os.path.islink(dir2filepath):
@@ -32,6 +34,8 @@ def diff(dir1: str, dir2: str, sort_by_size: bool = False):
         for filename in filenames:
             dir2filepath = os.path.join(dirpath, filename)
             relfilepath = dir2filepath.removeprefix(dir2)
+            # Normalize path separators for Windows compatibility
+            relfilepath = relfilepath.replace('/', os.sep) if relfilepath.startswith('/') else relfilepath
             if relfilepath not in seen:
                 s2 = os.stat(dir2filepath, follow_symlinks=False)
                 dir2not1.append((relfilepath, s2.st_size))
