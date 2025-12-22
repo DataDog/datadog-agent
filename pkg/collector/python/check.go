@@ -64,6 +64,7 @@ type PythonCheck struct {
 	interval       time.Duration
 	lastWarnings   []error
 	source         string
+	provider       string
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
@@ -196,6 +197,11 @@ func (c *PythonCheck) ConfigSource() string {
 	return c.source
 }
 
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *PythonCheck) ConfigProvider() string {
+	return c.provider
+}
+
 // Loader returns the check loader
 func (*PythonCheck) Loader() string {
 	return PythonCheckLoaderName
@@ -249,7 +255,7 @@ func (c *PythonCheck) getPythonWarnings() []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -358,6 +364,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	}
 	c.instance = check
 	c.source = source
+	c.provider = provider
 
 	// Add the possibly configured service as a tag for this check
 	s, err := c.senderManager.GetSender(c.id)

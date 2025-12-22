@@ -52,7 +52,7 @@ user_email: "%s"`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.user
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "")
 	require.NoError(t, err)
 
 	return check

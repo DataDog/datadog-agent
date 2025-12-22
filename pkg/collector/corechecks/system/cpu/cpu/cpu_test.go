@@ -119,7 +119,7 @@ func TestCPUCheckLinuxErrorInInstanceConfig(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -128,7 +128,7 @@ func TestCPUCheckLinuxErrorReportTotalPerCPUConfigNotBoolean(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: "string_value"`), nil, "test")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: "string_value"`), nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -142,7 +142,7 @@ func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
 	err := cpuCheck.Run()
 
@@ -158,7 +158,7 @@ func TestContextSwitchesError(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Nil(t, err)
@@ -171,7 +171,7 @@ func TestContextSwitchesOk(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Nil(t, err)
@@ -188,7 +188,7 @@ func TestNumCoresError(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, cpuInfoError, err)
@@ -201,7 +201,7 @@ func TestNumCoresOk(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, nil, err)
@@ -218,7 +218,7 @@ func TestSystemCpuMetricsError(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, cpuTimesError, err)
@@ -241,7 +241,7 @@ func TestSystemCpuMetricsEmpty(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, expectedError, err)
@@ -260,7 +260,7 @@ func TestSystemCpuMetricsNotReportedOnFirstCheck(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, nil, err)
@@ -290,7 +290,7 @@ func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	cpuCheck.Run()
 	err := cpuCheck.Run()
 
@@ -317,7 +317,7 @@ func TestSystemCpuMetricsPerCpuError(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, cpuTimesError, err)
@@ -346,7 +346,7 @@ func TestSystemCpuMetricsPerCpuDefault(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, nil, err)
@@ -373,7 +373,7 @@ func TestSystemCpuMetricsPerCpuFalse(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: false`), nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: false`), nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, nil, err)
@@ -400,7 +400,7 @@ func TestSystemCpuMetricsPerCpuTrue(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.SetupAcceptAll()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test", "")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, nil, err)

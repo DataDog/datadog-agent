@@ -62,7 +62,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 
 	memCheck := new(Check)
 	mock := mocksender.NewMockSender(memCheck.ID())
-	memCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	memCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
 
 	mock.On("Gauge", "system.mem.cached", 3456789000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.committed", 2345678000.0/mbSize, "", []string(nil)).Return().Times(1)

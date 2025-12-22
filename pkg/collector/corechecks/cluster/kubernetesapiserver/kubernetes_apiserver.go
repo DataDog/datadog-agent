@@ -155,8 +155,8 @@ func newCheck(tagger tagger.Component) check.Check {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

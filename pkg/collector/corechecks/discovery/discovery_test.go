@@ -32,7 +32,7 @@ func TestDiscoveryCheckRun(t *testing.T) {
 	check := newCheck()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -57,7 +57,7 @@ func TestDiscoveryCheckWarningsPersist(t *testing.T) {
 	check := newCheck()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -99,7 +99,7 @@ func TestProcessLogWarningStructure(t *testing.T) {
 	check := newCheck()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -135,7 +135,7 @@ func TestProcessLogWarningRemoval(t *testing.T) {
 	check := newCheck()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "")
 	require.NoError(t, err)
 
 	err = check.Run()

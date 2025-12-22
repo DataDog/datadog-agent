@@ -96,7 +96,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
-	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
@@ -166,7 +166,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
 		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -175,7 +175,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		fakeTagger.SetGlobalTags([]string{"tag1:value1", "tag2:value2"}, nil, nil, nil)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
 		assert.ElementsMatch(t, []string{"tag1:value1", "tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -192,7 +192,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		err = instanceConfigData.MergeAdditionalTags([]string{"instance_tag1:value1", "instance_tag2:value2"})
 		assert.NoError(t, err)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, instanceConfigData, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, instanceConfigData, "test", "")
 		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -240,7 +240,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 		setupMockAPIClient(orchCheck)
 
-		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "orchestrator check is configured but the feature is disabled")
 	})
@@ -256,7 +256,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 		setupMockAPIClient(orchCheck)
 
-		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "orchestrator check is configured but the cluster name is empty")
 	})

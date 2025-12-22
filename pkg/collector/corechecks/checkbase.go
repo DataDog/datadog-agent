@@ -48,6 +48,7 @@ type CheckBase struct {
 	latestWarnings []error
 	checkInterval  time.Duration
 	source         string
+	provider       string
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
@@ -76,9 +77,9 @@ func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *CheckBase) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	c.senderManager = senderManager
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func (c *CheckBase) Configure(senderManager sender.SenderManager, _ uint64, data
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConfig, instanceConfig integration.Data, source string) error {
+func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConfig, instanceConfig integration.Data, source string, provider string) error {
 	c.senderManager = senderManager
 	handleConf := func(conf integration.Data, c *CheckBase) error {
 		commonOptions := integration.CommonInstanceConfig{}
@@ -151,6 +152,7 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 		}
 
 		c.source = source
+		c.provider = provider
 		return nil
 	}
 	if err := handleConf(initConfig, c); err != nil {
@@ -212,6 +214,11 @@ func (c *CheckBase) Version() string {
 // from the agent
 func (c *CheckBase) ConfigSource() string {
 	return c.source
+}
+
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *CheckBase) ConfigProvider() string {
+	return c.provider
 }
 
 // Loader returns the loader name for the check.
