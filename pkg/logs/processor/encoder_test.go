@@ -283,3 +283,45 @@ func TestEncoderToValidUTF8(t *testing.T) {
 	assert.Equal(t, "a����z", toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
 	assert.Equal(t, "世界����z 世界", toValidUtf8([]byte("世界\xf0\x8f\xbf\xbfz 世界")))
 }
+
+func BenchmarkJSONEncoder_Encode(b *testing.B) {
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+	source := sources.NewLogSource("", logsConfig)
+
+	b.Run("valid", func(b *testing.B) {
+		content := []byte(strings.Repeat("x", 100))
+		var msg *message.Message
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for range b.N {
+			msg = newMessage(content, source, message.StatusError)
+			msg.State = message.StateRendered // we can only encode rendered message
+			msg.Origin.LogSource = source
+			msg.Origin.SetTags([]string{"a", "b:c"})
+
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
+		}
+	})
+
+	b.Run("invalid", func(b *testing.B) {
+		content := []byte(strings.Repeat("x", 100) + "\uFFFD")
+		var msg *message.Message
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for range b.N {
+			msg = newMessage(content, source, message.StatusError)
+			msg.State = message.StateRendered // we can only encode rendered message
+			msg.Origin.LogSource = source
+			msg.Origin.SetTags([]string{"a", "b:c"})
+
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
+		}
+	})
+}
