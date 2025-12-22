@@ -3487,7 +3487,6 @@ api_key:
 #     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{ if .DockerTagging }}
-
 ###########################
 ## Docker tag extraction ##
 ###########################
