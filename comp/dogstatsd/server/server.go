@@ -33,6 +33,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -86,6 +87,7 @@ type dependencies struct {
 	Telemetry  telemetry.Component
 	Hostname   hostnameinterface.Component
 	FilterList filterlist.Component
+	Observer   option.Option[observer.Component]
 }
 
 type provides struct {
@@ -137,6 +139,7 @@ type server struct {
 	extraTags               []string
 	Debug                   serverdebug.Component
 	filterList              filterlist.Component
+	observerHandle          observer.Handle
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -201,6 +204,11 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+
+	// Initialize observer handle if observer component is available
+	if obs, ok := deps.Observer.Get(); ok {
+		s.observerHandle = obs.GetHandle("dogstatsd")
+	}
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -725,6 +733,9 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 				for idx := range samples {
 					s.Debug.StoreMetricStats(samples[idx])
+					if s.observerHandle != nil {
+						s.observerHandle.ObserveMetric(&samples[idx])
+					}
 
 					if samples[idx].Timestamp > 0.0 {
 						batcher.appendLateSample(samples[idx])
