@@ -6,6 +6,7 @@
 package remoteconfig
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
@@ -23,7 +24,7 @@ import (
 )
 
 type KeysManager interface {
-	Start()
+	Start(ctx context.Context)
 	GetKey(keyId string) types.DecodedKey
 	WaitForReady()
 }
@@ -37,8 +38,6 @@ type keysManager struct {
 	firstCallbackCompleted bool
 }
 
-// RcClient represents a remote configuration client.
-// TODO Copied from comp/remote-config/rcclient/component.go. but we probably don't want to depend on `comp` things from `pkg`
 type RcClient interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
@@ -52,8 +51,8 @@ func New(rcClient RcClient) KeysManager {
 	}
 }
 
-func (k *keysManager) Start() {
-	log.Info("Subscribing to remote config updates")
+func (k *keysManager) Start(ctx context.Context) {
+	log.FromContext(ctx).Info("Subscribing to remote config updates")
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
 }
 

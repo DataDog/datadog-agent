@@ -575,22 +575,13 @@ def get_msm_info(ctx):
         }
         info['url'] = f"{base_url}/{info['build']}/ddprocmoninstall-{info['version']}.msm"
         msm_info['DDPROCMON'] = info
-    if 'WINDOWS_APMINJECT_VERSION' in env:
-        info = {
-            'filename': 'ddapminstall.msm',
-            'build': env['WINDOWS_APMINJECT_MODULE'],
-            'version': env['WINDOWS_APMINJECT_VERSION'],
-            'shasum': env['WINDOWS_APMINJECT_SHASUM'],
-        }
-        info['url'] = f"{base_url}/{info['build']}/ddapminstall-{info['version']}.msm"
-        msm_info['APMINJECT'] = info
     return msm_info
 
 
 @task(
     iterable=['drivers'],
     help={
-        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON)',
     },
 )
 def fetch_driver_msm(ctx, drivers=None):
@@ -599,7 +590,7 @@ def fetch_driver_msm(ctx, drivers=None):
 
     Defaults to the versions provided in the dependencies section of release.json
     """
-    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON']
 
     msm_info = get_msm_info(ctx)
     if not drivers:
