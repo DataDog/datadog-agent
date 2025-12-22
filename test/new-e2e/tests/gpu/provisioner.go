@@ -139,6 +139,8 @@ type provisionerParams struct {
 	systemData             systemData
 	instanceType           string
 	dockerImages           []string
+	migStrategy            string
+	migConfig              string
 }
 
 func getDefaultProvisionerParams() *provisionerParams {
@@ -270,10 +272,17 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		deps := append(validateDevices, installEcrCredsHelperCmd)
 
-		clusterOpts := nvidia.NewKindClusterOptions(
+		clusterOptsSlice := []nvidia.KindClusterOption{
 			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),
 			nvidia.WithCudaSanityCheckImage(params.systemData.cudaSanityCheckImage),
-		)
+		}
+		if params.migStrategy != "" {
+			clusterOptsSlice = append(clusterOptsSlice, nvidia.WithMIGStrategy(params.migStrategy))
+		}
+		if params.migConfig != "" {
+			clusterOptsSlice = append(clusterOptsSlice, nvidia.WithMIGConfig(params.migConfig))
+		}
+		clusterOpts := nvidia.NewKindClusterOptions(clusterOptsSlice...)
 
 		kindCluster, err := nvidia.NewKindCluster(&awsEnv, host, name, clusterOpts, utils.PulumiDependsOn(deps...))
 		if err != nil {
