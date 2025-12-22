@@ -29,6 +29,7 @@ type IncrementalJSONValidator struct {
 	decoder  *json.Decoder
 	writer   *bytes.Buffer
 	objCount int
+	hadValid bool
 }
 
 // NewIncrementalJSONValidator creates a new IncrementalJSONValidator.
@@ -38,6 +39,7 @@ func NewIncrementalJSONValidator() *IncrementalJSONValidator {
 		decoder:  json.NewDecoder(buf),
 		writer:   buf,
 		objCount: 0,
+		hadValid: false,
 	}
 }
 
@@ -78,8 +80,13 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 
 	}
 	if !isValid {
+		if len(bytes.TrimSpace(s)) == 0 && d.hadValid && d.objCount <= 0 {
+			return Complete
+		}
 		return Invalid
 	}
+
+	d.hadValid = true
 
 	if d.objCount <= 0 {
 		return Complete
@@ -92,4 +99,5 @@ func (d *IncrementalJSONValidator) Reset() {
 	d.writer.Reset()
 	d.decoder = json.NewDecoder(d.writer)
 	d.objCount = 0
+	d.hadValid = false
 }
