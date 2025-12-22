@@ -56,21 +56,20 @@ type handle struct {
 
 // ObserveMetric observes a DogStatsD metric sample.
 func (h *handle) ObserveMetric(sample observerdef.MetricView) {
-	// Add to storage
 	timestamp := int64(sample.GetTimestamp())
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
-	series := h.observer.storage.Add(
-		h.source,
-		sample.GetName(),
-		sample.GetValue(),
-		timestamp,
-		sample.GetRawTags(),
-	)
+	name := sample.GetName()
+	tags := sample.GetRawTags()
 
-	// Run time series analyses
-	h.runTSAnalyses(series)
+	// Add to storage
+	h.observer.storage.Add(h.source, name, sample.GetValue(), timestamp, tags)
+
+	// Run time series analyses (using average aggregation)
+	if series := h.observer.storage.GetSeries(h.source, name, tags, AggregateAverage); series != nil {
+		h.runTSAnalyses(*series)
+	}
 }
 
 // ObserveLog observes a log message.
@@ -80,10 +79,12 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	for _, analysis := range h.observer.analyses {
 		result := analysis.Analyze(msg)
 
-		// Add metrics from log analysis to storage
+		// Add metrics from log analysis to storage, then run TS analyses
 		for _, m := range result.Metrics {
-			series := h.observer.storage.Add(h.source, m.Name, m.Value, timestamp, m.Tags)
-			h.runTSAnalyses(series)
+			h.observer.storage.Add(h.source, m.Name, m.Value, timestamp, m.Tags)
+			if series := h.observer.storage.GetSeries(h.source, m.Name, m.Tags, AggregateAverage); series != nil {
+				h.runTSAnalyses(*series)
+			}
 		}
 
 		// TODO: forward anomalies to appropriate destination
@@ -92,7 +93,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 }
 
 // runTSAnalyses runs all time series analyses on a series.
-func (h *handle) runTSAnalyses(series *observerdef.SeriesStats) {
+func (h *handle) runTSAnalyses(series observerdef.Series) {
 	for _, tsAnalysis := range h.observer.tsAnalyses {
 		result := tsAnalysis.Analyze(series)
 		// TODO: forward anomalies to appropriate destination

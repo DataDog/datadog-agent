@@ -84,38 +84,28 @@ type AnomalyOutput struct {
 	Tags        []string
 }
 
-// SeriesStats contains accumulated statistics for a time series.
-type SeriesStats struct {
+// Series is a time series with simple timestamp/value points.
+// This is the simplified view passed to TimeSeriesAnalysis.
+type Series struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	Points    []StatPoint
+	Points    []Point
 }
 
-// StatPoint holds summary statistics for a single time bucket.
-type StatPoint struct {
-	Timestamp int64 // Unix seconds (bucket start)
-	Sum       float64
-	Count     int64
-	Min       float64
-	Max       float64
-}
-
-// Value returns the mean for this point.
-func (p *StatPoint) Value() float64 {
-	if p.Count == 0 {
-		return 0
-	}
-	return p.Sum / float64(p.Count)
+// Point is a single timestamp/value pair.
+type Point struct {
+	Timestamp int64
+	Value     float64
 }
 
 // TimeSeriesAnalysis analyzes a time series for anomalies.
-// Implementations should be stateless and fast since they run synchronously.
+// Implementations should be stateless and just do math on the points.
 type TimeSeriesAnalysis interface {
 	// Name returns the analysis name for debugging.
 	Name() string
 	// Analyze examines a series and returns any detected anomalies.
-	Analyze(series *SeriesStats) TimeSeriesAnalysisResult
+	Analyze(series Series) TimeSeriesAnalysisResult
 }
 
 // TimeSeriesAnalysisResult contains outputs from time series analysis.

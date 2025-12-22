@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"math"
 	"sort"
 	"strings"
 
@@ -15,23 +14,89 @@ import (
 
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
-	series map[string]*observer.SeriesStats
+	series map[string]*seriesStats
+}
+
+// seriesStats contains accumulated statistics for a time series (internal).
+type seriesStats struct {
+	Namespace string
+	Name      string
+	Tags      []string
+	Points    []statPoint
+}
+
+// statPoint holds summary statistics for a single time bucket (internal).
+type statPoint struct {
+	Timestamp int64
+	Sum       float64
+	Count     int64
+	Min       float64
+	Max       float64
+}
+
+// Aggregate specifies which statistic to extract from summary stats.
+type Aggregate int
+
+const (
+	AggregateAverage Aggregate = iota
+	AggregateSum
+	AggregateCount
+	AggregateMin
+	AggregateMax
+)
+
+// aggregate extracts the specified statistic from this point.
+func (p *statPoint) aggregate(agg Aggregate) float64 {
+	switch agg {
+	case AggregateAverage:
+		if p.Count == 0 {
+			return 0
+		}
+		return p.Sum / float64(p.Count)
+	case AggregateSum:
+		return p.Sum
+	case AggregateCount:
+		return float64(p.Count)
+	case AggregateMin:
+		return p.Min
+	case AggregateMax:
+		return p.Max
+	default:
+		return 0
+	}
+}
+
+// toSeries converts internal stats to the simplified Series for analyses.
+func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
+	points := make([]observer.Point, len(s.Points))
+	for i, p := range s.Points {
+		points[i] = observer.Point{
+			Timestamp: p.Timestamp,
+			Value:     p.aggregate(agg),
+		}
+	}
+	return observer.Series{
+		Namespace: s.Namespace,
+		Name:      s.Name,
+		Tags:      s.Tags,
+		Points:    points,
+	}
 }
 
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series: make(map[string]*observer.SeriesStats),
+		series: make(map[string]*seriesStats),
 	}
 }
 
 // Add records a data point for a named metric in a namespace.
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) *observer.SeriesStats {
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]
 	if !exists {
-		stats = &observer.SeriesStats{
+		stats = &seriesStats{
 			Namespace: namespace,
 			Name:      name,
 			Tags:      copyTags(tags),
@@ -64,7 +129,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		}
 	} else {
 		// Create new bucket
-		stats.Points = append(stats.Points, observer.StatPoint{
+		stats.Points = append(stats.Points, statPoint{
 			Timestamp: bucket,
 			Sum:       value,
 			Count:     1,
@@ -76,22 +141,25 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			return stats.Points[i].Timestamp < stats.Points[j].Timestamp
 		})
 	}
-
-	return stats
 }
 
-// GetSeries returns the accumulated stats for a series.
-func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string) *observer.SeriesStats {
+// GetSeries returns the series using the specified aggregation.
+func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
 	key := seriesKey(namespace, name, tags)
-	return s.series[key]
+	stats := s.series[key]
+	if stats == nil {
+		return nil
+	}
+	series := stats.toSeries(agg)
+	return &series
 }
 
-// AllSeries returns all series in a namespace.
-func (s *timeSeriesStorage) AllSeries(namespace string) []*observer.SeriesStats {
-	var result []*observer.SeriesStats
+// AllSeries returns all series in a namespace using the specified aggregation.
+func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observer.Series {
+	var result []observer.Series
 	for _, stats := range s.series {
 		if stats.Namespace == namespace {
-			result = append(result, stats)
+			result = append(result, stats.toSeries(agg))
 		}
 	}
 	return result
@@ -112,14 +180,4 @@ func copyTags(tags []string) []string {
 	result := make([]string, len(tags))
 	copy(result, tags)
 	return result
-}
-
-// floatMin returns the minimum of two floats.
-func floatMin(a, b float64) float64 {
-	return math.Min(a, b)
-}
-
-// floatMax returns the maximum of two floats.
-func floatMax(a, b float64) float64 {
-	return math.Max(a, b)
 }

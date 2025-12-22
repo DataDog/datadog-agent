@@ -22,12 +22,12 @@ func TestSpikeDetector_NotEnoughPoints(t *testing.T) {
 	d := &SpikeDetector{}
 
 	// Empty series
-	result := d.Analyze(&observer.SeriesStats{})
+	result := d.Analyze(observer.Series{})
 	assert.Empty(t, result.Anomalies)
 
 	// Only one point
-	result = d.Analyze(&observer.SeriesStats{
-		Points: []observer.StatPoint{{Sum: 10, Count: 1}},
+	result = d.Analyze(observer.Series{
+		Points: []observer.Point{{Value: 10}},
 	})
 	assert.Empty(t, result.Anomalies)
 }
@@ -36,14 +36,14 @@ func TestSpikeDetector_NoSpike(t *testing.T) {
 	d := &SpikeDetector{}
 
 	// Stable values - no spike
-	series := &observer.SeriesStats{
+	series := observer.Series{
 		Namespace: "test",
 		Name:      "my.metric",
 		Tags:      []string{"env:prod"},
-		Points: []observer.StatPoint{
-			{Timestamp: 1, Sum: 10, Count: 1},
-			{Timestamp: 2, Sum: 12, Count: 1},
-			{Timestamp: 3, Sum: 11, Count: 1},
+		Points: []observer.Point{
+			{Timestamp: 1, Value: 10},
+			{Timestamp: 2, Value: 12},
+			{Timestamp: 3, Value: 11},
 		},
 	}
 
@@ -55,15 +55,15 @@ func TestSpikeDetector_Spike(t *testing.T) {
 	d := &SpikeDetector{}
 
 	// Last value is > 2x average of prior values
-	series := &observer.SeriesStats{
+	series := observer.Series{
 		Namespace: "test",
 		Name:      "my.metric",
 		Tags:      []string{"env:prod"},
-		Points: []observer.StatPoint{
-			{Timestamp: 1, Sum: 10, Count: 1}, // 10
-			{Timestamp: 2, Sum: 10, Count: 1}, // 10
-			{Timestamp: 3, Sum: 10, Count: 1}, // 10
-			{Timestamp: 4, Sum: 50, Count: 1}, // 50 > 2*10
+		Points: []observer.Point{
+			{Timestamp: 1, Value: 10},
+			{Timestamp: 2, Value: 10},
+			{Timestamp: 3, Value: 10},
+			{Timestamp: 4, Value: 50}, // 50 > 2*10
 		},
 	}
 
@@ -79,10 +79,10 @@ func TestSpikeDetector_ExactlyDoubleIsNotSpike(t *testing.T) {
 	d := &SpikeDetector{}
 
 	// Last value is exactly 2x - not a spike (we need > 2x)
-	series := &observer.SeriesStats{
-		Points: []observer.StatPoint{
-			{Sum: 10, Count: 1},
-			{Sum: 20, Count: 1}, // exactly 2x
+	series := observer.Series{
+		Points: []observer.Point{
+			{Value: 10},
+			{Value: 20}, // exactly 2x
 		},
 	}
 
@@ -94,11 +94,11 @@ func TestSpikeDetector_ZeroAverage(t *testing.T) {
 	d := &SpikeDetector{}
 
 	// Zero average - should not flag
-	series := &observer.SeriesStats{
-		Points: []observer.StatPoint{
-			{Sum: 0, Count: 1},
-			{Sum: 0, Count: 1},
-			{Sum: 10, Count: 1},
+	series := observer.Series{
+		Points: []observer.Point{
+			{Value: 0},
+			{Value: 0},
+			{Value: 10},
 		},
 	}
 

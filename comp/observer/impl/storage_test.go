@@ -10,42 +10,79 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add first point
-	stats := s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
+	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
-	require.NotNil(t, stats)
-	assert.Equal(t, "test", stats.Namespace)
-	assert.Equal(t, "my.metric", stats.Name)
-	assert.Equal(t, []string{"env:prod"}, stats.Tags)
-	require.Len(t, stats.Points, 1)
-	assert.Equal(t, int64(1000), stats.Points[0].Timestamp)
-	assert.Equal(t, 10.0, stats.Points[0].Sum)
-	assert.Equal(t, int64(1), stats.Points[0].Count)
-	assert.Equal(t, 10.0, stats.Points[0].Min)
-	assert.Equal(t, 10.0, stats.Points[0].Max)
+	require.NotNil(t, series)
+	assert.Equal(t, "test", series.Namespace)
+	assert.Equal(t, "my.metric", series.Name)
+	assert.Equal(t, []string{"env:prod"}, series.Tags)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
+	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
-func TestTimeSeriesStorage_AddSameBucket(t *testing.T) {
+func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add multiple points to same bucket
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
 	s.Add("test", "my.metric", 20.0, 1000, []string{"env:prod"})
-	stats := s.Add("test", "my.metric", 5.0, 1000, []string{"env:prod"})
+	s.Add("test", "my.metric", 5.0, 1000, []string{"env:prod"})
+	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
-	require.Len(t, stats.Points, 1)
-	assert.Equal(t, 35.0, stats.Points[0].Sum)
-	assert.Equal(t, int64(3), stats.Points[0].Count)
-	assert.Equal(t, 5.0, stats.Points[0].Min)
-	assert.Equal(t, 20.0, stats.Points[0].Max)
-	assert.InDelta(t, 11.67, stats.Points[0].Value(), 0.01)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	// Average of 10, 20, 5 = 35/3 = 11.67
+	assert.InDelta(t, 11.67, series.Points[0].Value, 0.01)
+}
+
+func TestTimeSeriesStorage_AddSameBucket_Sum(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", 10.0, 1000, nil)
+	s.Add("test", "my.metric", 20.0, 1000, nil)
+	s.Add("test", "my.metric", 5.0, 1000, nil)
+	series := s.GetSeries("test", "my.metric", nil, AggregateSum)
+
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 35.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", 10.0, 1000, nil)
+	s.Add("test", "my.metric", 20.0, 1000, nil)
+	s.Add("test", "my.metric", 5.0, 1000, nil)
+	series := s.GetSeries("test", "my.metric", nil, AggregateCount)
+
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 3.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", 10.0, 1000, nil)
+	s.Add("test", "my.metric", 20.0, 1000, nil)
+	s.Add("test", "my.metric", 5.0, 1000, nil)
+
+	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
+	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
+
+	require.NotNil(t, minSeries)
+	require.NotNil(t, maxSeries)
+	assert.Equal(t, 5.0, minSeries.Points[0].Value)
+	assert.Equal(t, 20.0, maxSeries.Points[0].Value)
 }
 
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
@@ -54,13 +91,18 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	// Add points to different buckets
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
 	s.Add("test", "my.metric", 20.0, 1001, []string{"env:prod"})
-	stats := s.Add("test", "my.metric", 30.0, 1002, []string{"env:prod"})
+	s.Add("test", "my.metric", 30.0, 1002, []string{"env:prod"})
+	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
-	require.Len(t, stats.Points, 3)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 3)
 	// Points should be sorted by timestamp
-	assert.Equal(t, int64(1000), stats.Points[0].Timestamp)
-	assert.Equal(t, int64(1001), stats.Points[1].Timestamp)
-	assert.Equal(t, int64(1002), stats.Points[2].Timestamp)
+	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
+	assert.Equal(t, int64(1001), series.Points[1].Timestamp)
+	assert.Equal(t, int64(1002), series.Points[2].Timestamp)
+	assert.Equal(t, 10.0, series.Points[0].Value)
+	assert.Equal(t, 20.0, series.Points[1].Value)
+	assert.Equal(t, 30.0, series.Points[2].Value)
 }
 
 func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
@@ -70,13 +112,13 @@ func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
 	s.Add("test", "my.metric", 20.0, 1000, []string{"env:staging"})
 
-	prodStats := s.GetSeries("test", "my.metric", []string{"env:prod"})
-	stagingStats := s.GetSeries("test", "my.metric", []string{"env:staging"})
+	prodSeries := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
+	stagingSeries := s.GetSeries("test", "my.metric", []string{"env:staging"}, AggregateAverage)
 
-	require.NotNil(t, prodStats)
-	require.NotNil(t, stagingStats)
-	assert.Equal(t, 10.0, prodStats.Points[0].Sum)
-	assert.Equal(t, 20.0, stagingStats.Points[0].Sum)
+	require.NotNil(t, prodSeries)
+	require.NotNil(t, stagingSeries)
+	assert.Equal(t, 10.0, prodSeries.Points[0].Value)
+	assert.Equal(t, 20.0, stagingSeries.Points[0].Value)
 }
 
 func TestTimeSeriesStorage_TagOrderDoesNotMatter(t *testing.T) {
@@ -86,17 +128,17 @@ func TestTimeSeriesStorage_TagOrderDoesNotMatter(t *testing.T) {
 	s.Add("test", "my.metric", 10.0, 1000, []string{"a:1", "b:2"})
 	s.Add("test", "my.metric", 20.0, 1000, []string{"b:2", "a:1"})
 
-	stats := s.GetSeries("test", "my.metric", []string{"a:1", "b:2"})
-	require.NotNil(t, stats)
-	assert.Equal(t, 30.0, stats.Points[0].Sum)
-	assert.Equal(t, int64(2), stats.Points[0].Count)
+	series := s.GetSeries("test", "my.metric", []string{"a:1", "b:2"}, AggregateAverage)
+	require.NotNil(t, series)
+	// Average of 10 and 20 = 15
+	assert.Equal(t, 15.0, series.Points[0].Value)
 }
 
 func TestTimeSeriesStorage_GetSeries_NotFound(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	stats := s.GetSeries("test", "nonexistent", nil)
-	assert.Nil(t, stats)
+	series := s.GetSeries("test", "nonexistent", nil, AggregateAverage)
+	assert.Nil(t, series)
 }
 
 func TestTimeSeriesStorage_AllSeries(t *testing.T) {
@@ -107,19 +149,28 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 	s.Add("ns1", "metric2", 20.0, 1000, nil)
 	s.Add("ns2", "metric3", 30.0, 1000, nil)
 
-	ns1Series := s.AllSeries("ns1")
-	ns2Series := s.AllSeries("ns2")
+	ns1Series := s.AllSeries("ns1", AggregateAverage)
+	ns2Series := s.AllSeries("ns2", AggregateAverage)
 
 	assert.Len(t, ns1Series, 2)
 	assert.Len(t, ns2Series, 1)
 }
 
-func TestStatPoint_Value(t *testing.T) {
-	// Zero count
-	p := &observer.StatPoint{Count: 0, Sum: 10.0}
-	assert.Equal(t, 0.0, p.Value())
+func TestStatPoint_aggregate(t *testing.T) {
+	p := &statPoint{
+		Sum:   100.0,
+		Count: 4,
+		Min:   10.0,
+		Max:   40.0,
+	}
 
-	// Normal case
-	p = &observer.StatPoint{Count: 4, Sum: 100.0}
-	assert.Equal(t, 25.0, p.Value())
+	assert.Equal(t, 25.0, p.aggregate(AggregateAverage))
+	assert.Equal(t, 100.0, p.aggregate(AggregateSum))
+	assert.Equal(t, 4.0, p.aggregate(AggregateCount))
+	assert.Equal(t, 10.0, p.aggregate(AggregateMin))
+	assert.Equal(t, 40.0, p.aggregate(AggregateMax))
+
+	// Zero count returns 0 for average
+	p2 := &statPoint{Count: 0, Sum: 10.0}
+	assert.Equal(t, 0.0, p2.aggregate(AggregateAverage))
 }

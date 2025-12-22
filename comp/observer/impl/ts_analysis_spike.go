@@ -22,7 +22,7 @@ func (s *SpikeDetector) Name() string {
 }
 
 // Analyze checks if the latest value in a series is a spike.
-func (s *SpikeDetector) Analyze(series *observer.SeriesStats) observer.TimeSeriesAnalysisResult {
+func (s *SpikeDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
 	if len(series.Points) < 2 {
 		return observer.TimeSeriesAnalysisResult{}
 	}
@@ -30,12 +30,12 @@ func (s *SpikeDetector) Analyze(series *observer.SeriesStats) observer.TimeSerie
 	// Calculate average of all but last point
 	var sum float64
 	for i := 0; i < len(series.Points)-1; i++ {
-		sum += series.Points[i].Value()
+		sum += series.Points[i].Value
 	}
 	avg := sum / float64(len(series.Points)-1)
 
 	// Check if latest is a spike (> 2x average)
-	latest := series.Points[len(series.Points)-1].Value()
+	latest := series.Points[len(series.Points)-1].Value
 	if avg > 0 && latest > 2*avg {
 		return observer.TimeSeriesAnalysisResult{
 			Anomalies: []observer.AnomalyOutput{{
