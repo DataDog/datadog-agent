@@ -94,6 +94,28 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
+// markCommonFlakes marks known flaky error patterns that can occur across all GPU tests
+func markCommonFlakes(t *testing.T) {
+	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
+	// we are not able to debug from the logs. We mark the test as flaky in that case only.
+	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
+
+	// incident-36753: unattended-upgrades is not being disabled properly
+	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
+}
+
+// markK8sFlakes marks known flaky error patterns specific to Kubernetes GPU tests
+func markK8sFlakes(t *testing.T) {
+	markCommonFlakes(t)
+
+	// Temporary fix while we debug the issue
+	flake.MarkOnLog(t, "panic: Expected to find a single pod")
+
+	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
+	// we're not breaking main if we get rate limited
+	flake.MarkOnLog(t, "rate limit")
+}
+
 type gpuHostSuite struct {
 	gpuBaseSuite[environments.Host]
 }
@@ -117,12 +139,7 @@ func TestGPUHostSuiteUbuntu1804Driver510(t *testing.T) {
 }
 
 func runGpuHostSuite(t *testing.T, gpuSystem systemName) {
-	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
-	// we are not able to debug from the logs. We mark the test as flaky in that case only.
-	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
-
-	// incident-36753: unattended-upgrades is not being disabled properly
-	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
+	markCommonFlakes(t)
 
 	provParams := getDefaultProvisionerParams()
 
@@ -168,26 +185,28 @@ type gpuK8sSuite struct {
 // TestGPUK8sSuiteUbuntu2204 runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
-	runGpuK8sSuite(t, gpuSystemUbuntu2204)
+	runGpuK8sSuite(t, gpuSystemUbuntu2204, "", "", "")
+}
+
+// TestGPUK8sSuiteMIG runs tests for the VM interface with MIG-enabled A100 GPUs on p4d.24xlarge
+// using the "single" strategy where all GPUs use the same MIG profile.
+// This test is expensive (~$32/hour) and should only be run manually.
+func TestGPUK8sSuiteMIG(t *testing.T) {
+	runGpuK8sSuite(t, gpuSystemUbuntu2204, "p4d.24xlarge", "single", "all-1g.5gb")
+}
+
+// TestGPUK8sSuiteMIGMixed runs tests for the VM interface with MIG-enabled A100 GPUs on p4d.24xlarge
+// using the "mixed" strategy where GPUs can have different MIG profiles.
+// This test is expensive (~$32/hour) and should only be run manually.
+func TestGPUK8sSuiteMIGMixed(t *testing.T) {
+	runGpuK8sSuite(t, gpuSystemUbuntu2204, "p4d.24xlarge", "mixed", "mixed-1g.5gb")
 }
 
 // Note: The Kind cluster cannot be setup on Ubuntu 18.04, so we don't test for k8s setup
 // on that system.
 
-func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
-	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
-	// we are not able to debug from the logs. We mark the test as flaky in that case only.
-	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
-
-	// Temporary fix while we debug the issue
-	flake.MarkOnLog(t, "panic: Expected to find a single pod")
-
-	// incident-36753: unattended-upgrades is not being disabled properly
-	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
-
-	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
-	// we're not breaking main if we get rate limited
-	flake.MarkOnLog(t, "rate limit")
+func runGpuK8sSuite(t *testing.T, gpuSystem systemName, instanceType, migStrategy, migConfig string) {
+	markK8sFlakes(t)
 	provParams := getDefaultProvisionerParams()
 
 	systemData, ok := gpuSystems[gpuSystem]
@@ -195,6 +214,17 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 		t.Fatalf("invalid system name: %s", gpuSystem)
 	}
 	provParams.systemData = systemData
+
+	// Override instance type if specified (e.g., for MIG testing with p4d.24xlarge)
+	if instanceType != "" {
+		provParams.instanceType = instanceType
+	}
+
+	// Configure MIG if strategy and config are provided
+	if migStrategy != "" {
+		provParams.migStrategy = migStrategy
+		provParams.migConfig = migConfig
+	}
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())

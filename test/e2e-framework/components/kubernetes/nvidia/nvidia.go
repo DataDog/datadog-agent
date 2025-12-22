@@ -83,6 +83,14 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *K
 		return nil, fmt.Errorf("failed to install GPU operator: %w", err)
 	}
 
+	// If MIG is enabled, configure it
+	if clusterOpts.migStrategy != "" && clusterOpts.migConfig != "" {
+		err = configureMIG(env, vm, cluster, clusterOpts, utils.MergeOptions(opts, utils.PulumiDependsOn(operator))...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure MIG: %w", err)
+		}
+	}
+
 	return &KindCluster{
 		Cluster:     cluster,
 		GPUOperator: operator,
@@ -268,6 +276,14 @@ func installGPUOperator(env config.Env, clusterOpts *KindClusterOptions, opts ..
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
+	// Build helm values with optional MIG support
+	helmValues := pulumi.Map{}
+	if clusterOpts.migStrategy != "" {
+		helmValues["mig"] = pulumi.Map{
+			"strategy": pulumi.String(clusterOpts.migStrategy),
+		}
+	}
+
 	helmInstall, err := helm.NewRelease(env.Ctx(), "gpu-operator", &helm.ReleaseArgs{
 		RepositoryOpts: helm.RepositoryOptsArgs{
 			Repo: pulumi.String("https://nvidia.github.io/gpu-operator"),
@@ -277,10 +293,53 @@ func installGPUOperator(env config.Env, clusterOpts *KindClusterOptions, opts ..
 		Version:          pulumi.String(clusterOpts.gpuOperatorVersion),
 		CreateNamespace:  pulumi.Bool(true),
 		DependencyUpdate: pulumi.BoolPtr(true),
+		Values:           helmValues,
 	}, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return helmInstall, nil
+}
+
+// configureMIG labels the worker nodes with the MIG configuration and validates that MIG devices are created
+func configureMIG(env config.Env, vm *remote.Host, cluster *kubernetes.Cluster, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) error {
+	// Label all worker nodes with the MIG config
+	labelCmd, err := vm.OS.Runner().Command(
+		env.CommonNamer().ResourceName("mig-label-nodes"),
+		&command.Args{
+			Create: pulumi.Sprintf("kubectl label nodes --overwrite --kubeconfig=<(kind get kubeconfig --name %s) -l node-role.kubernetes.io/worker= nvidia.com/mig.config=%s", cluster.ClusterName, clusterOpts.migConfig),
+		},
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to label nodes for MIG: %w", err)
+	}
+
+	// Wait for the MIG configuration to be applied (indicated by the state label)
+	waitCmd, err := vm.OS.Runner().Command(
+		env.CommonNamer().ResourceName("mig-wait-ready"),
+		&command.Args{
+			Create: pulumi.Sprintf("for i in {1..60}; do if kubectl get nodes --kubeconfig=<(kind get kubeconfig --name %s) -l nvidia.com/mig.config.state=success 2>/dev/null | grep -q worker; then echo 'MIG configured successfully'; exit 0; fi; echo 'Waiting for MIG configuration...'; sleep 5; done; echo 'MIG configuration timed out'; exit 1", cluster.ClusterName),
+		},
+		utils.MergeOptions(opts, utils.PulumiDependsOn(labelCmd))...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to wait for MIG configuration: %w", err)
+	}
+
+	// Validate that MIG devices are available as allocatable resources in Kubernetes
+	// Check that worker nodes have nvidia.com/mig-* resources
+	_, err = vm.OS.Runner().Command(
+		env.CommonNamer().ResourceName("mig-validate"),
+		&command.Args{
+			Create: pulumi.Sprintf("kubectl get nodes --kubeconfig=<(kind get kubeconfig --name %s) -o json | grep -q 'nvidia.com/mig' && echo 'MIG resources found in cluster'", cluster.ClusterName),
+		},
+		utils.MergeOptions(opts, utils.PulumiDependsOn(waitCmd))...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to validate MIG devices: %w", err)
+	}
+
+	return nil
 }
