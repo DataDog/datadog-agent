@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed device-mapper (LVM) device tagging in the diskv2 check to match Python psutil behavior.
+    Previously, devices were reported as ``dm-X`` (e.g., ``device:dm-0``) instead of their friendly
+    ``/dev/mapper/*`` names (e.g., ``device:ocivolume-root``). This ensures backward compatibility
+    with the Python disk check and preserves existing dashboards and monitors.
