@@ -14,7 +14,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -154,28 +153,6 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractorFunc = func(imageResolver ImageResolver) annotationExtractor[injectorOption] {
-	injectorVersionAnnotationExtractor := annotationExtractor[injectorOption]{
-		key: "admission.datadoghq.com/apm-inject.version",
-		do: infallibleFn(func(tag string) injectorOption {
-			return injectorWithImageTag(tag, imageResolver)
-		},
-		),
-	}
-
-	return injectorVersionAnnotationExtractor
-}
-
-var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.custom-image",
-	do:  infallibleFn(injectorWithImageName),
-}
-
-var injectorDebugAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.debug",
-	do:  infallibleFn(injectorDebug),
-}
-
 func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
 	return func(i *injector) {
 		i.opts = opts
@@ -212,7 +189,7 @@ func injectorDebug(boolean string) injectorOption {
 	if boolean != "" {
 		debug, err = strconv.ParseBool(boolean)
 		if err != nil {
-			log.Errorf("parse admission.datadoghq.com/apm-inject.debug: %s", err)
+			log.Errorf("parse %s: %s", AnnotationEnableDebug, err)
 		}
 	}
 	return func(i *injector) {
@@ -240,7 +217,7 @@ func (i *injector) podMutator() podMutator {
 		}
 
 		if i.canonicalVersion != "" {
-			mutatecommon.AddAnnotation(pod, "internal.apm.datadoghq.com/injector-canonical-version", i.canonicalVersion)
+			SetAnnotation(pod, AnnotationInjectorCanonicalVersion, i.canonicalVersion)
 		}
 
 		if err := i.requirements().injectPod(pod, ""); err != nil {
