@@ -150,20 +150,17 @@
         .container-item input[type="checkbox"] {
             flex-shrink: 0;
         }
+        .container-item .container-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            flex-shrink: 0;
+            background: #ddd;
+        }
         .container-item .container-id {
             font-family: monospace;
             font-weight: 500;
         }
-        .container-item .container-qos {
-            font-size: 10px;
-            padding: 2px 4px;
-            border-radius: 3px;
-            background: #e0e0e0;
-            color: #555;
-        }
-        .container-item .container-qos.Guaranteed { background: #d4edda; color: #155724; }
-        .container-item .container-qos.Burstable { background: #fff3cd; color: #856404; }
-        .container-item .container-qos.BestEffort { background: #f8d7da; color: #721c24; }
         .container-item .container-avg {
             margin-left: auto;
             font-size: 10px;
@@ -486,19 +483,26 @@
             const list = document.getElementById('containerList');
             const currentlySelected = getSelectedContainerIds();
 
+            // Build selected order map for color assignment
+            const selectedOrder = {};
+            currentlySelected.forEach((id, idx) => { selectedOrder[id] = idx; });
+
             list.innerHTML = containers.map((c, i) => {
                 // Preserve selection, or auto-select first 5 if nothing selected
                 const isSelected = currentlySelected.length > 0
                     ? currentlySelected.includes(c.info.short_id)
                     : i < 5;
                 const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
-                const qosClass = c.info.qos_class || '?';
+
+                // Color swatch matches chart color for selected containers
+                const colorIdx = isSelected ? (selectedOrder[c.info.short_id] ?? i) : -1;
+                const color = colorIdx >= 0 ? COLORS[colorIdx % COLORS.length] : '#ddd';
 
                 return `<label class="container-item">
                     <input type="checkbox" value="${c.info.short_id}"
                            ${isSelected ? 'checked' : ''} onchange="onContainerChange()">
+                    <span class="container-color" style="background: ${color}"></span>
                     <span class="container-id">${c.info.short_id}</span>
-                    <span class="container-qos ${qosClass}">${qosClass}</span>
                     <span class="container-avg">avg: ${avgStr}</span>
                 </label>`;
             }).join('');
@@ -510,6 +514,8 @@
         }
 
         function onContainerChange() {
+            // Re-render list to update color swatches, then load data
+            renderContainerList();
             loadTimeseries();
         }
 
