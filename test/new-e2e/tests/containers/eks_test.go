@@ -283,19 +283,19 @@ func (suite *eksSuite) TestHostTags() {
 		// EKS suite run multiple hosts, with various OS, various CPU architecture
 		// The only common tag is: `stackid`
 		ExpectedTags: &[]string{
-			"^stackid:" + suite.clusterName + "$",
+			`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 		},
 		// the bellow list of tags is from various hosts
 		// if the tag is present
 		OptionalTags: &[]string{
-			"^arch:(amd|arm)64$",
-			"^cluster_name:" + suite.clusterName + "$",
-			"^kube_cluster_name:" + suite.clusterName + "$",
-			"^kube_distribution:eks$",
-			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
-			"nodegroup-image:ami-[0-9a-f]{17}",
-			"^orch_cluster_id:[0-9a-f-]{36}$",
-			"^os:linux$",
+			`^arch:(amd|arm)64$`,
+			`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^kube_distribution:eks$`,
+			`^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\.ec2\.internal$`,
+			`nodegroup-image:ami-[0-9a-f]{17}`,
+			`^orch_cluster_id:[0-9a-f-]{36}$`,
+			`^os:linux$`,
 		},
 	}
 

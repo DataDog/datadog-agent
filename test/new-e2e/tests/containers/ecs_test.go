@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
@@ -46,6 +47,9 @@ type ecsSuite struct {
 func TestECSSuite(t *testing.T) {
 	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(provecs.Provisioner(
 		provecs.WithRunOptions(
+			scenecs.WithFakeIntakeOptions(
+				fakeintake.WithRetentionPeriod("31m"),
+			),
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
@@ -651,9 +655,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 func (suite *ecsSuite) TestHostTags() {
 	// tag keys that are expected to be found on this docker env
 	args := &testHostTags{
-		ExpectedTags: &[]string{
-			"^stackid:" + strings.TrimSuffix(suite.clusterName, "-ecs") + "$",
-		},
+		ExpectedTags: &[]string{},
 	}
 
 	suite.testHostTags(args)

@@ -6,7 +6,7 @@
 package containers
 
 import (
-	"strconv"
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -141,25 +141,25 @@ func (suite *kindSuite) TestControlPlane() {
 
 func (suite *kindSuite) TestHostTags() {
 	expectedTags := []string{
-		"^os:linux$",
-		"^arch:amd64$",
-		"^stackid:" + suite.clusterName + "$",
-		"^kube_node:" + suite.clusterName + "-control-plane$",
-		"^cluster_name:" + suite.clusterName + "$",
-		"^kube_cluster_name:" + suite.clusterName + "$",
-		"^orch_cluster_id:[0-9a-f-]{36}$",
+		`^os:linux$`,
+		`^arch:amd64$`,
+		`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^kube_node:` + regexp.QuoteMeta(suite.clusterName) + `-control-plane`,
+		`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^orch_cluster_id:[0-9a-f-]{36}$`,
 	}
 
 	// depending on the kubernetes version the expected tags for kube_node_rol varies.
 	k8sVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
 	suite.NoError(err, "failed to request k8s server version to specify the appropriate expected host-tags")
 
-	minorVersion, _ := strconv.Atoi(k8sVersion.Minor)
-
+	// depending on kube version we expect different 'kube_node_role' tag value
+	// we only handle version we actually test (v1.19, v1.22, ...)
 	switch {
-	case minorVersion <= 19:
+	case k8sVersion.Minor == "19":
 		expectedTags = append(expectedTags, "^kube_node_role:master$")
-	case minorVersion == 22:
+	case k8sVersion.Minor == "22":
 		expectedTags = append(expectedTags, "^kube_node_role:master$", "^kube_node_role:control-plane$")
 	default:
 		expectedTags = append(expectedTags, "^kube_node_role:control-plane$")

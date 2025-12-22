@@ -1098,8 +1098,13 @@ func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
 }
 
 // GetHostTags returns the latest host information received by the fake intake
-func (c *Client) GetHostTags(hostname string) []*aggregator.HostTags {
-	return c.hostAggregator.GetPayloadsByName(hostname)
+func (c *Client) GetHostTags(hostname string) ([]*aggregator.HostTags, error) {
+	err := c.getHostTags()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.hostAggregator.GetPayloadsByName(hostname), nil
 }
 
 // GetHosts returns the list of all known hostnames that have sent some host-tags

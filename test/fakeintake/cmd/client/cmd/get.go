@@ -33,7 +33,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewGetProcessesCommand(cl),
 		NewGetSBOMCommand(cl),
 		NewGetTracesCommand(cl),
-		NewGetHostTags(cl),
+		NewGetHosts(cl),
 	)
 
 	return cmd

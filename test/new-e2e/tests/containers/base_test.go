@@ -14,6 +14,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -615,23 +616,6 @@ func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *tes
 	}
 }
 
-func getLatestHostInfos(hostInfos []*aggregator.HostTags) *aggregator.HostTags {
-	if len(hostInfos) <= 0 {
-		return nil
-	}
-
-	var latestHostInfo = hostInfos[0]
-
-	for _, host := range hostInfos {
-		if latestHostInfo.GetCollectedTime().Before(host.GetCollectedTime()) {
-			// current `host` is more recent, keep it
-			latestHostInfo = host
-		}
-	}
-
-	return latestHostInfo
-}
-
 func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 	suite.EventuallyWithT(func(ct *assert.CollectT) {
 		c := &myCollectT{
@@ -651,26 +635,26 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 		assert.NoError(c, err, "failed to get hosts from host-tags payload")
 		assert.GreaterOrEqual(c, len(hosts), 1, "empty host-tags payload, no hosts found")
 
+		regexTags := lo.Map(*args.ExpectedTags, func(tag string, _ int) *regexp.Regexp {
+			return regexp.MustCompile(tag)
+		})
+
+		var optionalRegexTags []*regexp.Regexp
+		if args.OptionalTags != nil {
+			optionalRegexTags = lo.Map(*args.OptionalTags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+		}
+
 		for _, host := range hosts {
 			suite.T().Logf("%s - validate host tags on host %s", time.Now().Format(time.TimeOnly), host)
 
-			hostInfos := suite.Fakeintake.GetHostTags(host)
+			hostInfos, err := suite.Fakeintake.GetHostTags(host)
+			assert.NoError(c, err, "failed to get host-tags for host %s", host)
 			assert.GreaterOrEqual(c, len(hostInfos), 1, "missing host tags in payload, should be len >= 1")
 
-			regexTags := lo.Map(*args.ExpectedTags, func(tag string, _ int) *regexp.Regexp {
-				return regexp.MustCompile(tag)
-			})
-
-			var optionalRegexTags []*regexp.Regexp
-			if args.OptionalTags != nil {
-				optionalRegexTags = lo.Map(*args.OptionalTags, func(tag string, _ int) *regexp.Regexp {
-					return regexp.MustCompile(tag)
-				})
-			}
-
 			// we only want the latest known hostInfos
-			hostInfo := getLatestHostInfos(hostInfos)
-			suite.NotNil(c, hostInfo, "non empty list of hostInfos should never return nil")
+			hostInfo := hostInfos[len(hostInfos)-1]
 
 			// we don't know how to handle payloads with no host-name.
 			// these are fargate host that runs side containers for the test.
@@ -680,10 +664,9 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 
 			hostTags := hostInfo.HostTags
 
-			suite.NotNil(c, hostTags, "wrong payload, could not find 'host-tags' object in payload")
-			err := assertTags(hostTags, regexTags, optionalRegexTags, false)
+			require.NotNil(c, hostTags, "wrong payload, could not find 'host-tags' object in payload")
+			err = assertTags(hostTags, regexTags, optionalRegexTags, false)
 			assert.NoError(c, err, "failed to match host-tags - found host-tags: %s", strings.Join(hostTags, ","))
-
 		}
 
 	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
