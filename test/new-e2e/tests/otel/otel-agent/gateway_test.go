@@ -95,5 +95,6 @@ func (s *gatewayTestSuite) TestOTelGatewayInstalled() {
 }
 
 func (s *gatewayTestSuite) TestOTelGatewayFlare() {
+	s.T().Skip("gateway e2e test is not using CI image, skip for now")
 	utils.TestOTelGatewayFlareCmd(s)
 }
