@@ -31,9 +31,9 @@ Bug Fixes
   This ensures customers that migrated from Python to Go disk check see
   consistent ``device:`` tag values (e.g., ``C:\`` becomes ``c:``).
 
-- Implemented a fix so that the Agent does not try to schedule the `orchestrator_kubelet_config` check when
-  the `orchestrator_explorer.kubelet_config_check.enabled` config is
-  set to `false`.
+- Implemented a fix so that the Agent does not try to schedule the ``orchestrator_kubelet_config`` check when
+  the ``orchestrator_explorer.kubelet_config_check.enabled`` config is
+  set to ``false``.
 
 
 .. _Release Notes_7.73.1:
