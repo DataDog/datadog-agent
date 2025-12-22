@@ -119,7 +119,7 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString("Applying configurations...\n")
 	// ensure config root is created with correct permissions
-	err = paths.EnsureInstallerDataDir()
+	err = paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}

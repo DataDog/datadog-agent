@@ -635,3 +635,13 @@ func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserS
 func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
 	return ""
 }
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFLessFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err != nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
+}
