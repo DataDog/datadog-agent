@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Viewer</title>
+    <!-- REQ-MV-001: uPlot for canvas-based rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 12px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .header h1 {
+            font-size: 18px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-group label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+            white-space: nowrap;
+        }
+        select, input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        select { min-width: 140px; }
+        #containerSelect {
+            height: 80px;
+            min-width: 220px;
+        }
+        #containerSearch {
+            width: 150px;
+        }
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-info { background: #17a2b8; color: white; }
+        .status {
+            color: #666;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin-left: auto;
+        }
+        .charts-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+        }
+        #mainChart {
+            width: 100%;
+            height: calc(100vh - 220px);
+            min-height: 400px;
+        }
+        /* REQ-MV-006: Range overview */
+        #overviewChart {
+            width: 100%;
+            height: 60px;
+            margin-top: 8px;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+            font-size: 16px;
+        }
+        /* REQ-MV-008: Oscillation tooltip */
+        .oscillation-tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 3px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Metrics Viewer</h1>
+
+        <!-- REQ-MV-002: Metric selector -->
+        <div class="control-group">
+            <label>Metric:</label>
+            <select id="metricSelect"></select>
+        </div>
+
+        <!-- REQ-MV-003: Filters -->
+        <div class="control-group">
+            <label>QoS:</label>
+            <select id="qosFilter">
+                <option value="">All</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Namespace:</label>
+            <select id="namespaceFilter">
+                <option value="">All</option>
+            </select>
+        </div>
+
+        <!-- REQ-MV-004: Container search and selection -->
+        <div class="control-group">
+            <label>Search:</label>
+            <input type="text" id="containerSearch" placeholder="Filter containers...">
+        </div>
+        <div class="control-group">
+            <label>Containers:</label>
+            <select id="containerSelect" multiple></select>
+        </div>
+
+        <div class="control-group">
+            <button class="btn-primary" onclick="selectTop(5)">Top 5</button>
+            <button class="btn-primary" onclick="selectTop(10)">Top 10</button>
+            <button class="btn-secondary" onclick="clearSelection()">Clear</button>
+        </div>
+
+        <!-- REQ-MV-007: Oscillation study toggle -->
+        <div class="control-group">
+            <button class="btn-info" id="oscillationBtn" onclick="toggleOscillation()">Oscillation</button>
+        </div>
+
+        <!-- REQ-MV-009: Rescale Y button -->
+        <div class="control-group">
+            <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
+            <button class="btn-warning" onclick="resetZoom()">Reset</button>
+        </div>
+
+        <span class="status" id="status">Loading...</span>
+    </div>
+
+    <div class="charts-container">
+        <div class="legend" id="legend"></div>
+        <div id="mainChart"></div>
+        <div id="overviewChart"></div>
+    </div>
+
+    <!-- REQ-MV-008: Oscillation tooltip -->
+    <div class="oscillation-tooltip" id="oscillationTooltip"></div>
+
+    <script>
+        // State
+        let metrics = [];
+        let containers = [];
+        let currentData = {};  // container -> [{time_ms, value}]
+        let oscillationData = {};  // container -> {windows: [...]}
+        let oscillationEnabled = false;
+        let mainPlot = null;
+        let overviewPlot = null;
+        let originalXRange = null;
+        let originalYRange = null;
+
+        // Colors for traces
+        const COLORS = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ];
+
+        // --- Data Loading ---
+
+        async function loadMetrics() {
+            const res = await fetch('/api/metrics');
+            const data = await res.json();
+            metrics = data.metrics;
+
+            const select = document.getElementById('metricSelect');
+            select.innerHTML = metrics.map(m =>
+                `<option value="${m.name}">${m.name} (${m.sample_count.toLocaleString()})</option>`
+            ).join('');
+
+            if (metrics.length > 0) {
+                await loadFilters();
+                await loadContainers();
+            }
+        }
+
+        async function loadFilters() {
+            const res = await fetch('/api/filters');
+            const data = await res.json();
+
+            const qosSelect = document.getElementById('qosFilter');
+            qosSelect.innerHTML = '<option value="">All</option>' +
+                data.qos_classes.map(q => `<option value="${q}">${q}</option>`).join('');
+
+            const nsSelect = document.getElementById('namespaceFilter');
+            nsSelect.innerHTML = '<option value="">All</option>' +
+                data.namespaces.map(n => `<option value="${n}">${n}</option>`).join('');
+        }
+
+        async function loadContainers() {
+            const metric = document.getElementById('metricSelect').value;
+            const qos = document.getElementById('qosFilter').value;
+            const ns = document.getElementById('namespaceFilter').value;
+            const search = document.getElementById('containerSearch').value;
+
+            let url = `/api/containers?metric=${encodeURIComponent(metric)}`;
+            if (qos) url += `&qos_class=${encodeURIComponent(qos)}`;
+            if (ns) url += `&namespace=${encodeURIComponent(ns)}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+
+            const res = await fetch(url);
+            const data = await res.json();
+            containers = data.containers;
+
+            const select = document.getElementById('containerSelect');
+            const wasSelected = new Set(Array.from(select.selectedOptions).map(o => o.value));
+
+            select.innerHTML = containers.map((c, i) => {
+                const selected = wasSelected.has(c.info.short_id) || (wasSelected.size === 0 && i < 5);
+                const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
+                const label = `${c.info.short_id} (${c.info.qos_class || '?'}) avg:${avgStr}`;
+                return `<option value="${c.info.short_id}" ${selected ? 'selected' : ''}>${label}</option>`;
+            }).join('');
+
+            document.getElementById('status').textContent = `${containers.length} containers`;
+            await loadTimeseries();
+        }
+
+        async function loadTimeseries() {
+            const metric = document.getElementById('metricSelect').value;
+            const select = document.getElementById('containerSelect');
+            const selected = Array.from(select.selectedOptions).map(o => o.value);
+
+            if (selected.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            document.getElementById('status').textContent = 'Loading...';
+
+            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(metric)}&containers=${selected.join(',')}`);
+            const data = await res.json();
+
+            currentData = {};
+            data.forEach(d => { currentData[d.container] = d.data; });
+
+            renderChart(selected);
+
+            if (oscillationEnabled) {
+                await loadOscillationData();
+            }
+
+            const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
+            document.getElementById('status').textContent =
+                `${selected.length} containers, ${totalPoints.toLocaleString()} points`;
+        }
+
+        // REQ-MV-007: Load oscillation study data
+        async function loadOscillationData() {
+            const metric = document.getElementById('metricSelect').value;
+            const select = document.getElementById('containerSelect');
+            const selected = Array.from(select.selectedOptions).map(o => o.value);
+
+            if (selected.length === 0) return;
+
+            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(metric)}&containers=${selected.join(',')}`);
+            const data = await res.json();
+
+            oscillationData = {};
+            data.results.forEach(r => { oscillationData[r.container] = r; });
+
+            if (mainPlot) {
+                mainPlot.redraw();
+            }
+        }
+
+        // --- Chart Rendering ---
+
+        function showEmptyState() {
+            document.getElementById('mainChart').innerHTML =
+                '<div class="empty-state">Select containers to display timeseries</div>';
+            document.getElementById('overviewChart').innerHTML = '';
+            document.getElementById('legend').innerHTML = '';
+            mainPlot = null;
+            overviewPlot = null;
+        }
+
+        function renderChart(containerIds) {
+            const chartDiv = document.getElementById('mainChart');
+            const overviewDiv = document.getElementById('overviewChart');
+            const legendDiv = document.getElementById('legend');
+
+            // Build uPlot data: [timestamps, ...values]
+            // First, collect all timestamps
+            let allTimes = new Set();
+            containerIds.forEach(id => {
+                const data = currentData[id] || [];
+                data.forEach(p => allTimes.add(p.time_ms));
+            });
+            let timestamps = Array.from(allTimes).sort((a, b) => a - b);
+
+            if (timestamps.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            // Build value arrays (aligned to timestamps)
+            const timeToIdx = new Map(timestamps.map((t, i) => [t, i]));
+            const series = containerIds.map(id => {
+                const values = new Array(timestamps.length).fill(null);
+                const data = currentData[id] || [];
+                data.forEach(p => {
+                    const idx = timeToIdx.get(p.time_ms);
+                    if (idx !== undefined) values[idx] = p.value;
+                });
+                return values;
+            });
+
+            // Convert timestamps to seconds for uPlot
+            const uplotData = [
+                timestamps.map(t => t / 1000),
+                ...series
+            ];
+
+            // Build series config
+            const uplotSeries = [
+                { label: 'Time' },
+                ...containerIds.map((id, i) => ({
+                    label: id,
+                    stroke: COLORS[i % COLORS.length],
+                    width: 1.5,
+                    points: { show: false }
+                }))
+            ];
+
+            // Build legend
+            legendDiv.innerHTML = containerIds.map((id, i) => {
+                const container = containers.find(c => c.info.short_id === id);
+                const qos = container?.info.qos_class || '?';
+                return `<div class="legend-item">
+                    <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
+                    <span>${id} (${qos})</span>
+                </div>`;
+            }).join('');
+
+            // Store original ranges for reset
+            const xMin = timestamps[0] / 1000;
+            const xMax = timestamps[timestamps.length - 1] / 1000;
+            let yMax = 0;
+            series.forEach(s => {
+                s.forEach(v => { if (v !== null && v > yMax) yMax = v; });
+            });
+            originalXRange = [xMin, xMax];
+            originalYRange = [0, yMax * 1.1];
+
+            // REQ-MV-005: uPlot options with zoom/pan
+            const opts = {
+                width: chartDiv.clientWidth,
+                height: chartDiv.clientHeight,
+                series: uplotSeries,
+                scales: {
+                    x: { time: true },
+                    y: { range: (u, min, max) => [0, max * 1.1] }
+                },
+                cursor: {
+                    drag: { x: true, y: false, setScale: true }  // REQ-MV-005: Drag to zoom
+                },
+                hooks: {
+                    draw: [drawOscillationOverlay],  // REQ-MV-008: Draw oscillation markers
+                    setScale: [syncOverview]
+                },
+                axes: [
+                    { stroke: '#666', grid: { stroke: '#eee' } },
+                    { stroke: '#666', grid: { stroke: '#eee' } }
+                ]
+            };
+
+            // Destroy previous plots
+            if (mainPlot) mainPlot.destroy();
+            if (overviewPlot) overviewPlot.destroy();
+
+            chartDiv.innerHTML = '';
+            overviewDiv.innerHTML = '';
+
+            mainPlot = new uPlot(opts, uplotData, chartDiv);
+
+            // REQ-MV-006: Overview chart
+            const overviewOpts = {
+                width: overviewDiv.clientWidth,
+                height: 50,
+                series: uplotSeries.map((s, i) => i === 0 ? s : { ...s, width: 1 }),
+                scales: {
+                    x: { time: true },
+                    y: { range: (u, min, max) => [0, max * 1.1] }
+                },
+                cursor: {
+                    drag: { x: true, y: false, setScale: false },
+                    sync: { key: 'overview' }
+                },
+                axes: [
+                    { show: false },
+                    { show: false }
+                ],
+                legend: { show: false },
+                hooks: {
+                    setSelect: [onOverviewSelect]
+                }
+            };
+
+            overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
+        }
+
+        // REQ-MV-006: Sync overview selection with main chart
+        function syncOverview(u) {
+            if (!overviewPlot) return;
+            const xRange = u.scales.x;
+            if (xRange.min !== undefined && xRange.max !== undefined) {
+                // Draw selection rectangle on overview
+                const left = overviewPlot.valToPos(xRange.min, 'x');
+                const right = overviewPlot.valToPos(xRange.max, 'x');
+                overviewPlot.setSelect({ left, width: right - left, top: 0, height: 50 });
+            }
+        }
+
+        // REQ-MV-006: Handle overview selection
+        function onOverviewSelect(u) {
+            if (!mainPlot || !u.select.width) return;
+            const left = u.posToVal(u.select.left, 'x');
+            const right = u.posToVal(u.select.left + u.select.width, 'x');
+            mainPlot.setScale('x', { min: left, max: right });
+        }
+
+        // REQ-MV-008: Draw oscillation overlay
+        function drawOscillationOverlay(u) {
+            if (!oscillationEnabled) return;
+
+            const ctx = u.ctx;
+            const xScale = u.scales.x;
+            const yScale = u.scales.y;
+
+            const selectedIds = Array.from(document.getElementById('containerSelect').selectedOptions)
+                .map(o => o.value);
+
+            selectedIds.forEach((id, idx) => {
+                const result = oscillationData[id];
+                if (!result || !result.windows) return;
+
+                const color = COLORS[idx % COLORS.length];
+
+                result.windows.forEach(w => {
+                    const x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
+                    const x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
+                    const y1 = u.valToPos(yScale.max, 'y', true);
+                    const y2 = u.valToPos(yScale.min, 'y', true);
+
+                    // Skip if outside visible range
+                    if (x2 < 0 || x1 > u.width) return;
+
+                    // Draw shaded region
+                    ctx.fillStyle = color + '20';
+                    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+
+                    // Draw period markers (vertical dashed lines)
+                    const period = w.metrics.period || 10;
+                    const periodMs = period * 1000;
+                    ctx.strokeStyle = color;
+                    ctx.setLineDash([4, 4]);
+                    ctx.lineWidth = 1;
+
+                    for (let t = w.start_time_ms; t <= w.end_time_ms; t += periodMs) {
+                        const x = u.valToPos(t / 1000, 'x', true);
+                        if (x >= 0 && x <= u.width) {
+                            ctx.beginPath();
+                            ctx.moveTo(x, y1);
+                            ctx.lineTo(x, y2);
+                            ctx.stroke();
+                        }
+                    }
+                    ctx.setLineDash([]);
+                });
+            });
+        }
+
+        // --- Actions ---
+
+        // REQ-MV-004: Select top N containers by average value
+        function selectTop(n) {
+            const select = document.getElementById('containerSelect');
+            Array.from(select.options).forEach((opt, i) => { opt.selected = i < n; });
+            loadTimeseries();
+        }
+
+        function clearSelection() {
+            const select = document.getElementById('containerSelect');
+            Array.from(select.options).forEach(opt => { opt.selected = false; });
+            loadTimeseries();
+        }
+
+        // REQ-MV-007: Toggle oscillation study
+        function toggleOscillation() {
+            oscillationEnabled = !oscillationEnabled;
+            const btn = document.getElementById('oscillationBtn');
+            btn.classList.toggle('btn-info', !oscillationEnabled);
+            btn.classList.toggle('btn-success', oscillationEnabled);
+
+            if (oscillationEnabled) {
+                loadOscillationData();
+            } else {
+                oscillationData = {};
+                if (mainPlot) mainPlot.redraw();
+            }
+        }
+
+        // REQ-MV-009: Rescale Y-axis to visible data
+        function rescaleY() {
+            if (!mainPlot) return;
+
+            const xRange = mainPlot.scales.x;
+            const selectedIds = Array.from(document.getElementById('containerSelect').selectedOptions)
+                .map(o => o.value);
+
+            let yMin = Infinity, yMax = -Infinity;
+
+            selectedIds.forEach(id => {
+                const data = currentData[id] || [];
+                data.forEach(p => {
+                    const t = p.time_ms / 1000;
+                    if (t >= xRange.min && t <= xRange.max) {
+                        if (p.value < yMin) yMin = p.value;
+                        if (p.value > yMax) yMax = p.value;
+                    }
+                });
+            });
+
+            if (yMin !== Infinity && yMax !== -Infinity) {
+                const padding = (yMax - yMin) * 0.05 || 1;
+                mainPlot.setScale('y', {
+                    min: Math.max(0, yMin - padding),
+                    max: yMax + padding
+                });
+            }
+        }
+
+        // REQ-MV-005: Reset zoom to full range
+        function resetZoom() {
+            if (!mainPlot || !originalXRange) return;
+            mainPlot.setScale('x', { min: originalXRange[0], max: originalXRange[1] });
+            mainPlot.setScale('y', { min: originalYRange[0], max: originalYRange[1] });
+            if (overviewPlot) {
+                overviewPlot.setSelect({ left: 0, width: 0, top: 0, height: 0 });
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('metricSelect').addEventListener('change', () => loadContainers());
+        document.getElementById('qosFilter').addEventListener('change', () => loadContainers());
+        document.getElementById('namespaceFilter').addEventListener('change', () => loadContainers());
+        document.getElementById('containerSelect').addEventListener('change', () => loadTimeseries());
+
+        // REQ-MV-004: Debounced search
+        let searchTimeout;
+        document.getElementById('containerSearch').addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadContainers(), 300);
+        });
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (mainPlot) {
+                const chartDiv = document.getElementById('mainChart');
+                mainPlot.setSize({ width: chartDiv.clientWidth, height: chartDiv.clientHeight });
+            }
+            if (overviewPlot) {
+                const overviewDiv = document.getElementById('overviewChart');
+                overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 50 });
+            }
+        });
+
+        // REQ-MV-005: Scroll wheel zoom
+        document.getElementById('mainChart').addEventListener('wheel', (e) => {
+            if (!mainPlot) return;
+            e.preventDefault();
+
+            const rect = mainPlot.root.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const xVal = mainPlot.posToVal(x, 'x');
+
+            const xRange = mainPlot.scales.x;
+            const factor = e.deltaY > 0 ? 1.2 : 0.8;
+            const newMin = xVal - (xVal - xRange.min) * factor;
+            const newMax = xVal + (xRange.max - xVal) * factor;
+
+            mainPlot.setScale('x', { min: newMin, max: newMax });
+        }, { passive: false });
+
+        // Initialize
+        loadMetrics();
+    </script>
+</body>
+</html>
