@@ -200,7 +200,7 @@ func wordToFastChecker(word string) string {
 	bestLen := 0
 	best := ""
 
-	for _, sub := range strings.Split(word, "*") {
+	for sub := range strings.SplitSeq(word, "*") {
 		if len(sub) > bestLen {
 			bestLen = len(sub)
 			best = sub

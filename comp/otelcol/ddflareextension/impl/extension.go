@@ -52,11 +52,11 @@ type ddExtension struct {
 var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
 
 func extensionType(s string) string {
-	index := strings.Index(s, "/")
-	if index == -1 {
+	before, _, ok := strings.Cut(s, "/")
+	if !ok {
 		return s
 	}
-	return s[:index]
+	return before
 }
 
 // NotifyConfig implements the ConfigWatcher interface, which allows this extension

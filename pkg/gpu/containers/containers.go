@@ -115,8 +115,8 @@ func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Devi
 		return devices, nil
 	}
 
-	visibleDevices := strings.Split(visibleDevicesVar, ",")
-	for _, device := range visibleDevices {
+	visibleDevices := strings.SplitSeq(visibleDevicesVar, ",")
+	for device := range visibleDevices {
 		matchingDevice, err := findDeviceByIndex(devices, device)
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)

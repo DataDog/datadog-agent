@@ -50,7 +50,7 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 		return
 	}
 
-	for _, elt := range strings.Split(value, sep) {
+	for elt := range strings.SplitSeq(value, sep) {
 		key := unique.Make(name + ":" + elt)
 		target[key.Value()] = true
 	}

@@ -25,7 +25,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 
 	if mnt.FSType == "btrfs" {
 		var subvol string
-		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+		for opt := range strings.SplitSeq(mnt.VFSOptions, ",") {
 			name, val, ok := strings.Cut(opt, "=")
 			if ok && name == "subvol" {
 				subvol = val

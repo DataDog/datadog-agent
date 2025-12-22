@@ -10,6 +10,7 @@ package compliance
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/elastic/go-libaudit/v2"
 	"github.com/elastic/go-libaudit/v2/rule"
@@ -24,24 +25,24 @@ type FileWatchRule rule.FileWatchRule
 
 // Resolve the file watch rule
 func (r *FileWatchRule) Resolve() interface{} {
-	permissions := ""
+	var permissions strings.Builder
 	for _, p := range r.Permissions {
 		switch p {
 		case rule.ReadAccessType:
-			permissions += "r"
+			permissions.WriteString("r")
 		case rule.WriteAccessType:
-			permissions += "w"
+			permissions.WriteString("w")
 		case rule.ExecuteAccessType:
-			permissions += "e"
+			permissions.WriteString("e")
 		case rule.AttributeChangeAccessType:
-			permissions += "a"
+			permissions.WriteString("a")
 		}
 	}
 
 	return map[string]interface{}{
 		"path":        r.Path,
 		"enabled":     true,
-		"permissions": permissions,
+		"permissions": permissions.String(),
 	}
 }
 

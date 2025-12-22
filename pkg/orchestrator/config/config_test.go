@@ -219,7 +219,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	for _, val := range strings.Split(expectedValue, " ") {
+	for val := range strings.SplitSeq(expectedValue, " ") {
 		suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, val)
 	}
 }
@@ -233,7 +233,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	for _, val := range strings.Split(expectedValue, " ") {
+	for val := range strings.SplitSeq(expectedValue, " ") {
 		suite.Contains(redact.GetSensitiveAnnotationsAndLabels(), val)
 	}
 }
