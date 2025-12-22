@@ -9,6 +9,8 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/nacl/box"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -96,6 +100,8 @@ type daemonImpl struct {
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
+
+	secretsPubKey, secretsPrivKey *[32]byte
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -151,10 +157,16 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
 	gcInterval := config.GetDuration("installer.gc_interval")
-	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
+
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate box key: %w", err)
+	}
+
+	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -169,6 +181,8 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		taskDB:          taskDB,
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
+		secretsPubKey:   secretsPubKey,
+		secretsPrivKey:  secretsPrivKey,
 	}
 	i.refreshState(context.Background())
 	return i
@@ -271,6 +285,42 @@ func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
 	config, ok := configs[version]
 	if !ok {
 		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
+	}
+	return config, nil
+}
+
+func (d *daemonImpl) decryptConfigSecrets(config installerConfig, encryptedSecrets map[string]string) (installerConfig, error) {
+	for key, encoded := range encryptedSecrets {
+		// 1. Check any file operation in the config contains SEC[key]
+		found := false
+		for _, operation := range config.FileOperations {
+			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s]", key)) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		// 2. Decode the base64 encoded secret
+		raw, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return installerConfig{}, fmt.Errorf("could not decode secret %s: %w", key, err)
+		}
+
+		// 3. Decrypt the secret
+		decrypted, ok := box.OpenAnonymous(nil, raw, d.secretsPubKey, d.secretsPrivKey)
+		if !ok {
+			return installerConfig{}, fmt.Errorf("could not decrypt secret %s: %w", key, err)
+		}
+
+		// 4. Replace the secret in the patch
+		for i := range config.FileOperations {
+			if strings.Contains(string(config.FileOperations[i].Patch), fmt.Sprintf("SEC[%s]", key)) {
+				config.FileOperations[i].Patch = bytes.ReplaceAll(config.FileOperations[i].Patch, []byte(fmt.Sprintf("SEC[%s]", key)), decrypted)
+			}
+		}
 	}
 	return config, nil
 }
@@ -656,6 +706,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if err != nil {
 			return fmt.Errorf("could not get config: %w", err)
 		}
+		c, err = d.decryptConfigSecrets(c, params.EncryptedSecrets)
+		if err != nil {
+			return fmt.Errorf("could not decrypt secrets: %w", err)
+		}
 		var ops config.Operations
 		ops.DeploymentID = c.ID
 		for _, operation := range c.FileOperations {
@@ -810,6 +864,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		packages = append(packages, p)
 	}
 	d.rc.SetState(&pbgo.ClientUpdater{
+		SecretsPubKey:      base64.StdEncoding.EncodeToString(d.secretsPubKey[:]),
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})

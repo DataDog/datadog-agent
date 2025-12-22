@@ -7,6 +7,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"path/filepath"
 	"runtime"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -245,6 +248,9 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader) // TODO: make this deterministic?
+	require.NoError(t, err)
+
 	daemon := newDaemon(
 		rc,
 		func(_ *env.Env) installer.Installer { return pm },
@@ -252,6 +258,8 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -485,6 +493,8 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader) // TODO: make this deterministic?
+	require.NoError(t, err)
 
 	testEnv := &env.Env{
 		RemoteUpdates: true,
@@ -497,6 +507,8 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -529,6 +541,106 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
 	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
 
 	pm.AssertExpectations(t)
+}
+
+func TestDecryptConfigSecrets(t *testing.T) {
+	// Generate test encryption keys
+	pubKey, privKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	// Helper function to encrypt and encode a secret
+	encryptSecret := func(t *testing.T, plaintext string, pubKey *[32]byte) string {
+		encrypted, err := box.SealAnonymous(nil, []byte(plaintext), pubKey, rand.Reader)
+		require.NoError(t, err)
+		return base64.StdEncoding.EncodeToString(encrypted)
+	}
+
+	t.Run("successfully decrypt and replace secrets", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		apiKey := "my-api-key"
+		appKey := "my-app-key"
+		encryptedAPI := encryptSecret(t, apiKey, pubKey)
+		encryptedApp := encryptSecret(t, appKey, pubKey)
+
+		config := installerConfig{
+			ID: "test-config",
+			FileOperations: []installerConfigFileOperation{
+				{
+					FileOperationType: "patch",
+					FilePath:          "/etc/datadog/datadog.yaml",
+					Patch:             []byte(`api_key: SEC[apikey]`),
+				},
+				{
+					FileOperationType: "patch",
+					FilePath:          "/etc/datadog/datadog.yaml",
+					Patch:             []byte(`app_key: SEC[appkey]`),
+				},
+			},
+		}
+
+		result, err := d.decryptConfigSecrets(config, map[string]string{
+			"apikey": encryptedAPI,
+			"appkey": encryptedApp,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "api_key: "+apiKey, string(result.FileOperations[0].Patch))
+		assert.Equal(t, "app_key: "+appKey, string(result.FileOperations[1].Patch))
+	})
+
+	t.Run("invalid base64 encoding returns error", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		config := installerConfig{
+			FileOperations: []installerConfigFileOperation{
+				{
+					Patch: []byte(`api_key: SEC[apikey]`),
+				},
+			},
+		}
+
+		_, err := d.decryptConfigSecrets(config, map[string]string{
+			"apikey": "not-valid-base64!!!",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not decode secret")
+	})
+
+	t.Run("decryption with wrong key returns error", func(t *testing.T) {
+		wrongPubKey, _, err := box.GenerateKey(rand.Reader)
+		require.NoError(t, err)
+
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		encryptedSecret := encryptSecret(t, "secret-value", wrongPubKey)
+
+		config := installerConfig{
+			FileOperations: []installerConfigFileOperation{
+				{
+					Patch: []byte(`api_key: SEC[apikey]`),
+				},
+			},
+		}
+
+		_, err = d.decryptConfigSecrets(config, map[string]string{
+			"apikey": encryptedSecret,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not decrypt secret")
+	})
 }

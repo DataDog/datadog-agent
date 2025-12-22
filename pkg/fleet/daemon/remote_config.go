@@ -283,8 +283,9 @@ type expectedState struct {
 }
 
 type experimentTaskParams struct {
-	Version     string   `json:"version"`
-	InstallArgs []string `json:"install_args"`
+	Version          string            `json:"version"`
+	InstallArgs      []string          `json:"install_args"`
+	EncryptedSecrets map[string]string `json:"encrypted_secrets"`
 }
 
 type installPackageTaskParams struct {
