@@ -413,6 +413,9 @@ func validateOTelFlareContents(s OTelTestSuite, pod corev1.Pod, flarePath string
 		"config/env-config.yaml",
 		"config/runtime-config.yaml",
 		"environment.json",
+		"otel/otel-flare/health_check/dd-autoconfigured.dat",
+		"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat",
+		"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat",
 	}
 
 	for _, expectedFile := range expectedFiles {

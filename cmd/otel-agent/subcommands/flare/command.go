@@ -221,6 +221,9 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 	// Collect environment variables
 	envVars := getEnvironmentAsMap()
 
+	// Discover debug source URLs from runtime configuration
+	debugSources := discoverDebugSources(ctx, uris)
+
 	// Build response
 	resp := &extensiontypes.Response{
 		BuildInfoResponse: extensiontypes.BuildInfoResponse{
@@ -237,7 +240,7 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 			EnvConfig:             envConfig,
 		},
 		DebugSourceResponse: extensiontypes.DebugSourceResponse{
-			Sources: map[string]extensiontypes.OTelFlareSource{},
+			Sources: debugSources,
 		},
 		Environment: envVars,
 	}
@@ -371,6 +374,138 @@ func getEnvironmentAsMap() map[string]string {
 		}
 	}
 	return env
+}
+
+// discoverDebugSources discovers debug extension URLs from the configuration
+func discoverDebugSources(ctx context.Context, uris []string) map[string]extensiontypes.OTelFlareSource {
+	sources := make(map[string]extensiontypes.OTelFlareSource)
+
+	if len(uris) == 0 {
+		return sources
+	}
+
+	// Load runtime configuration to discover extensions
+	rs := confmap.ResolverSettings{
+		URIs: uris,
+		ProviderFactories: []confmap.ProviderFactory{
+			fileprovider.NewFactory(),
+			envprovider.NewFactory(),
+			yamlprovider.NewFactory(),
+			httpprovider.NewFactory(),
+			httpsprovider.NewFactory(),
+		},
+		DefaultScheme: "env",
+	}
+
+	resolver, err := confmap.NewResolver(rs)
+	if err != nil {
+		return sources
+	}
+
+	cfg, err := resolver.Resolve(ctx)
+	if err != nil {
+		return sources
+	}
+
+	// Look for extensions in the configuration
+	extensionsConf, err := cfg.Sub("extensions")
+	if err != nil {
+		return sources
+	}
+
+	extensions := extensionsConf.ToStringMap()
+	for extensionName := range extensions {
+		// Extract extension type (e.g., "pprof/dd-autoconfigured" -> "pprof")
+		extType := extractExtensionType(extensionName)
+
+		// Check if this is a supported debug extension
+		extractor, ok := supportedDebugExtensions[extType]
+		if !ok {
+			continue
+		}
+
+		// Get the extension configuration
+		exconf, err := extensionsConf.Sub(extensionName)
+		if err != nil {
+			continue
+		}
+
+		// Extract the endpoint URL
+		uri, err := extractor(exconf)
+		if err != nil {
+			continue
+		}
+
+		// Generate URLs based on extension type
+		var uris []string
+		switch extType {
+		case "pprof":
+			uris = []string{
+				uri + "/debug/pprof/heap",
+				uri + "/debug/pprof/allocs",
+				uri + "/debug/pprof/profile",
+			}
+		case "zpages":
+			uris = []string{
+				uri + "/debug/servicez",
+				uri + "/debug/pipelinez",
+				uri + "/debug/extensionz",
+				uri + "/debug/featurez",
+				uri + "/debug/tracez",
+			}
+		default:
+			uris = []string{uri}
+		}
+
+		sources[extensionName] = extensiontypes.OTelFlareSource{
+			URLs: uris,
+		}
+	}
+
+	return sources
+}
+
+// extractExtensionType extracts the extension type from a full extension name
+// e.g., "pprof/dd-autoconfigured" -> "pprof"
+func extractExtensionType(extensionName string) string {
+	if idx := strings.Index(extensionName, "/"); idx != -1 {
+		return extensionName[:idx]
+	}
+	return extensionName
+}
+
+// supportedDebugExtensions maps extension types to their endpoint extractors
+var supportedDebugExtensions = map[string]func(*confmap.Conf) (string, error){
+	"health_check": extractHealthCheckEndpoint,
+	"pprof":        extractPprofEndpoint,
+	"zpages":       extractZpagesEndpoint,
+}
+
+// extractHealthCheckEndpoint extracts the endpoint from a health_check extension config
+func extractHealthCheckEndpoint(conf *confmap.Conf) (string, error) {
+	endpoint := "localhost:13133" // default
+	if conf.IsSet("endpoint") {
+		endpoint = conf.Get("endpoint").(string)
+	}
+	return "http://" + endpoint, nil
+}
+
+// extractPprofEndpoint extracts the endpoint from a pprof extension config
+func extractPprofEndpoint(conf *confmap.Conf) (string, error) {
+	endpoint := "localhost:1777" // default
+	if conf.IsSet("endpoint") {
+		endpoint = conf.Get("endpoint").(string)
+	}
+	return "http://" + endpoint, nil
+}
+
+// extractZpagesEndpoint extracts the endpoint from a zpages extension config
+func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
+	endpoint := "localhost:55679" // default
+	if conf.IsSet("endpoint") {
+		endpoint = conf.Get("endpoint").(string)
+	}
+	return "http://" + endpoint, nil
 }
 
 // createFlareArchive creates a zip archive with the diagnostic data
