@@ -33,7 +33,6 @@ type FunctionTool struct {
 	description string
 	properties  map[string]Property
 	handler     func(parameters map[string]string) (any, error)
-	isExported  bool
 }
 
 var registry = map[string]FunctionTool{
@@ -46,7 +45,6 @@ var registry = map[string]FunctionTool{
 		handler: func(parameters map[string]string) (any, error) {
 			return listFiles(parameters["directory"], parameters["extension"])
 		},
-		isExported: true,
 	},
 	"tail_file": {
 		description: "Read the last N lines of a text file (such as a log file).",
@@ -57,7 +55,24 @@ var registry = map[string]FunctionTool{
 		handler: func(parameters map[string]string) (any, error) {
 			return tailFile(parameters["file_path"], parameters["n_lines"])
 		},
-		isExported: true,
+	},
+	"apply_k8s_resource": {
+		description: "Apply a Kubernetes resource to the cluster.",
+		properties: map[string]Property{
+			"resource_path": {Type: "string", Description: "The full path of the resource to apply."},
+		},
+		handler: func(parameters map[string]string) (any, error) {
+			return applyK8sResource(parameters["resource_path"])
+		},
+	},
+	"delete_k8s_resource": {
+		description: "Delete a Kubernetes resource from the cluster.",
+		properties: map[string]Property{
+			"resource_path": {Type: "string", Description: "The full path of the resource to delete."},
+		},
+		handler: func(parameters map[string]string) (any, error) {
+			return deleteK8sResource(parameters["resource_path"])
+		},
 	},
 }
 
