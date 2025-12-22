@@ -31,8 +31,9 @@ var (
 	// wlanGetNetworkBssList = wlanAPI.NewProc("WlanGetNetworkBssList")
 	wlanFreeMemory = wlanAPI.NewProc("WlanFreeMemory")
 
-	iphlpapi    = windows.NewLazyDLL("iphlpapi.dll")
-	getIfEntry2 = iphlpapi.NewProc("GetIfEntry2")
+	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
+	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
+	convertInterfaceGuidToLuid = iphlpapi.NewProc("ConvertInterfaceGuidToLuid")
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_interface_state-r1
@@ -407,11 +408,21 @@ func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-getifentry2
+// https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-convertinterfaceguidtoluid
 // Use GetIfEntry2() for the wlan Interface GUID
 func getWlanMacAddr(wlanItfGuid windows.GUID) (string, error) {
+	// row will be initialized to 0 (by Go standard)
 	var row MIB_IF_ROW2
-	row.InterfaceGuid = wlanItfGuid
-	ret, _, _ := getIfEntry2.Call(uintptr(unsafe.Pointer(&row)))
+
+	// To find Interface details via GetIfEntry2() function, its InterfaceLuid or InterfaceIndex fields need to be set.
+	// We will set InterfaceLuid field by converting passed Interface Guid to its Luid via ConvertInterfaceGuidToLuid.
+	ret, _, _ := convertInterfaceGuidToLuid.Call(
+		uintptr(unsafe.Pointer(&wlanItfGuid)),
+		uintptr(unsafe.Pointer(&row.InterfaceLuid)))
+	if ret != 0 {
+		return "", fmt.Errorf("ConvertInterfaceGuidToLuid call failed. Error: %d", ret)
+	}
+	ret, _, _ = getIfEntry2.Call(uintptr(unsafe.Pointer(&row)))
 	if ret != 0 {
 		return "", fmt.Errorf("GetIfEntry2 call failed. Error: %d", ret)
 	}
