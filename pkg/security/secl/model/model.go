@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -93,7 +94,7 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	Releasable
+	*Releasable
 	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
@@ -101,8 +102,10 @@ type ContainerContext struct {
 }
 
 // Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+func (c *ContainerContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(c.ContainerID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -503,10 +506,6 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-
-	refCount    uint64                     `field:"-"`
-	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
-	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -517,46 +516,22 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	// `coreRelease` function should not be cleared on reset
-	// it's used for pool and cache size management
-	pc.onRelease = nil
 }
 
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
+type cleanupKey struct{}
 
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, callback)
+		runtime.AddCleanup(pc, func(_ cleanupKey) {
+			callback()
+		}, cleanupKey{})
 	}
-}
-
-func (pc *ProcessCacheEntry) callReleaseCallbacks() {
-	for _, cb := range pc.onRelease {
-		cb()
-	}
-	if pc.coreRelease != nil {
-		pc.coreRelease(pc)
-	}
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	if pc.refCount > 1 {
-		pc.refCount--
-		return
-	}
-
-	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{coreRelease: coreRelease}
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

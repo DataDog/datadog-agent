@@ -14,11 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -36,7 +36,12 @@ type WorkflowRunner struct {
 	taskLoop     *Loop
 }
 
-func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) (*WorkflowRunner, error) {
+func NewWorkflowRunner(
+	configuration *config.Config,
+	keysManager remoteconfig.KeysManager,
+	verifier *taskverifier.TaskVerifier,
+	opmsClient opms.Client,
+) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
 		registry:     privatebundles.NewRegistry(),
 		opmsClient:   opmsClient,
@@ -53,16 +58,12 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 		return
 	}
 	startTime := time.Now()
-	if n.keysManager != nil {
-		n.keysManager.Start()
-	}
+	n.keysManager.Start(ctx)
 	n.taskLoop = NewLoop(n)
 	go func() {
-		if n.keysManager != nil {
-			log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-			n.keysManager.WaitForReady()
-			observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
-		}
+		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
+		n.keysManager.WaitForReady()
+		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.taskLoop.Run(ctx)
 	}()
 }

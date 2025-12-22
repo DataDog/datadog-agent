@@ -168,6 +168,10 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
+			case workloadmeta.KindCRD:
+				tagInfos = append(tagInfos, c.handleCRD(ev)...)
+			case workloadmeta.KindKubeCapabilities:
+				tagInfos = append(tagInfos, c.handleKubeCapabilities(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -220,7 +224,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
-			tagList.AddLow(tags.DockerImage, fmt.Sprintf("%s:%s", image.Name, image.Tag))
+			tagList.AddLow(tags.DockerImage, image.Name+":"+image.Tag)
 		} else {
 			tagList.AddLow(tags.DockerImage, image.Name)
 		}
@@ -750,12 +754,76 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 
 // extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
 func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+	gpuUUID := strings.ToLower(gpu.ID)
 	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
-	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.KubeGPUUUID, gpuUUID)
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
+
+	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+		tagList.AddLow(tags.GPUSlicingMode, "mig")
+	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
+		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
+	} else {
+		tagList.AddLow(tags.GPUSlicingMode, "none")
+	}
+
+	if gpu.ParentGPUUUID == "" {
+		tagList.AddLow(tags.GPUParentGPUUUID, gpuUUID)
+	} else {
+		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
+	}
+}
+
+func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
+	crd := ev.Entity.(*workloadmeta.CRD)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow("crd_group", crd.Group)
+	tagList.AddLow("crd_kind", crd.Kind)
+	tagList.AddLow("crd_version", crd.Version)
+	tagList.AddLow("crd_name", crd.Name)
+	tagList.AddLow("crd_namespace", crd.Namespace)
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               crdSource,
+			EntityID:             common.BuildTaggerEntityID(crd.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []*types.TagInfo {
+	kubeCapabilities := ev.Entity.(*workloadmeta.KubeCapabilities)
+
+	tagList := taglist.NewTagList()
+	tagList.AddLow(tags.KubeServerVersion, kubeCapabilities.Version.String())
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kubeCapabilitiesSource,
+			EntityID:             common.BuildTaggerEntityID(kubeCapabilities.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
@@ -840,9 +908,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tagList.AddHigh(tags.ContainerID, container.ID)
 
 	if container.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", container.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, container.Name+"_"+pod.Name)
 	} else if podContainer.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, podContainer.Name+"_"+pod.Name)
 	}
 
 	image := podContainer.Image
@@ -977,7 +1045,7 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {

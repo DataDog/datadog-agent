@@ -14,33 +14,6 @@ import (
 )
 
 func TestGetContainerAppTags(t *testing.T) {
-	service := &ContainerApp{}
-
-	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
-	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
-	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
-	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--6nyz8z7-b845f7667-m7hlv")
-
-	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
-	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
-
-	tags := service.GetTags()
-
-	assert.Equal(t, map[string]string{
-		"app_name":         "test_app_name",
-		"origin":           "containerapp",
-		"region":           "eastus",
-		"revision":         "test_revision",
-		"replica_name":     "test--6nyz8z7-b845f7667-m7hlv",
-		"_dd.origin":       "containerapp",
-		"aca.replica.name": "test--6nyz8z7-b845f7667-m7hlv",
-		"aca.app.name":     "test_app_name",
-		"aca.app.region":   "eastus",
-		"aca.app.revision": "test_revision",
-	}, tags)
-}
-
-func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	service := NewContainerApp()
 
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
@@ -76,6 +49,33 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	}, tags)
 
 	assert.Nil(t, err)
+}
+
+func TestGetContainerAppTagsBeforeInit(t *testing.T) {
+	// This test demonstrates that GetTags can be called before Init
+	// and will correctly fall back to environment variables for subscription_id and resource_group
+	service := NewContainerApp()
+	t.Setenv("CONTAINER_APP_NAME", "test_app")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.westus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--replica")
+
+	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
+	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
+
+	// Call GetTags BEFORE Init - it should still get the values from env vars
+	tags := service.GetTags()
+
+	err := service.Init(nil)
+	assert.NoError(t, err)
+
+	// Verify that subscription_id and resource_group are populated from env vars
+	assert.Equal(t, "test_subscription_id", tags["subscription_id"])
+	assert.Equal(t, "test_resource_group", tags["resource_group"])
+	assert.Equal(t, "test_subscription_id", tags["aca.subscription.id"])
+	assert.Equal(t, "test_resource_group", tags["aca.resource.group"])
+	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["resource_id"])
+	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["aca.resource.id"])
 }
 
 func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {

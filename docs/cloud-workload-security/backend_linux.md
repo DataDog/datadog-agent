@@ -441,6 +441,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "rule_context": {
                     "$ref": "#/$defs/RuleContext",
                     "description": "RuleContext rule context"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the event"
                 }
             },
             "additionalProperties": false,
@@ -1953,6 +1957,34 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
         },
+        "SetrlimitEvent": {
+            "properties": {
+                "resource": {
+                    "type": "string",
+                    "description": "Resource being limited"
+                },
+                "rlim_cur": {
+                    "type": "integer",
+                    "description": "Current limit"
+                },
+                "rlim_max": {
+                    "type": "integer",
+                    "description": "Maximum limit"
+                },
+                "target": {
+                    "$ref": "#/$defs/ProcessContext",
+                    "description": "process context of the setrlimit target"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "resource",
+                "rlim_cur",
+                "rlim_max"
+            ],
+            "description": "SetrlimitEventSerializer serializes a setrlimit event"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -2276,6 +2308,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
+        "signature": {
+            "type": "string"
+        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -2359,6 +2394,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "prctl": {
             "$ref": "#/$defs/PrCtlEvent"
+        },
+        "setrlimit": {
+            "$ref": "#/$defs/SetrlimitEvent"
         }
     },
     "additionalProperties": false,
@@ -2381,6 +2419,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `signature` | string |  |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
@@ -2409,6 +2448,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
+| `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
 
 ## `AWSIMDSEvent`
 
@@ -3095,6 +3135,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "rule_context": {
             "$ref": "#/$defs/RuleContext",
             "description": "RuleContext rule context"
+        },
+        "source": {
+            "type": "string",
+            "description": "Source of the event"
         }
     },
     "additionalProperties": false,
@@ -3113,6 +3157,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `variables` | Variables values |
 | `rule_context` | RuleContext rule context |
+| `source` | Source of the event |
 
 | References |
 | ---------- |
@@ -5279,6 +5324,52 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `filter` | Filter instructions |
 | `filter_hash` | Filter hash |
 
+
+## `SetrlimitEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "resource": {
+            "type": "string",
+            "description": "Resource being limited"
+        },
+        "rlim_cur": {
+            "type": "integer",
+            "description": "Current limit"
+        },
+        "rlim_max": {
+            "type": "integer",
+            "description": "Maximum limit"
+        },
+        "target": {
+            "$ref": "#/$defs/ProcessContext",
+            "description": "process context of the setrlimit target"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "resource",
+        "rlim_cur",
+        "rlim_max"
+    ],
+    "description": "SetrlimitEventSerializer serializes a setrlimit event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `resource` | Resource being limited |
+| `rlim_cur` | Current limit |
+| `rlim_max` | Maximum limit |
+| `target` | process context of the setrlimit target |
+
+| References |
+| ---------- |
+| [ProcessContext](#processcontext) |
 
 ## `SignalEvent`
 

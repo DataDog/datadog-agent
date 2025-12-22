@@ -87,7 +87,6 @@ type EBPFResolver struct {
 	opts         ResolverOpts
 
 	// stats
-	processCacheEntryCount    *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -105,8 +104,6 @@ type EBPFResolver struct {
 	entryCache              map[uint32]*model.ProcessCacheEntry
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
 	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
-
-	processCacheEntryPool *Pool
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -145,7 +142,7 @@ func (p *EBPFResolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *EBPFResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 
@@ -161,10 +158,6 @@ func (p *EBPFResolver) CountBrokenLineage() {
 func (p *EBPFResolver) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
-	}
-
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getProcessCacheEntryCount(), []string{}, 1.0); err != nil {
-		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	for _, resolutionType := range metrics.AllTypesTags {
@@ -584,15 +577,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64, newPid bool) {
 	entry.Source = source
 
-	if prev := p.entryCache[entry.Pid]; prev != nil {
-		prev.Release()
-	}
-
 	p.entryCache[entry.Pid] = entry
-	entry.Retain()
-	// only increment the cache entry count when we first retain the entry,
-	// the count will be decremented once the entry is released
-	p.processCacheEntryCount.Inc()
 
 	if newPid && p.cgroupResolver != nil {
 		// add the new PID in the right cgroup_resolver bucket
@@ -682,7 +667,6 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -1537,11 +1521,6 @@ func (p *EBPFResolver) getEntryCacheSize() float64 {
 	return float64(len(p.entryCache))
 }
 
-// getProcessCacheEntryCount returns the cache size of the process resolver
-func (p *EBPFResolver) getProcessCacheEntryCount() float64 {
-	return float64(p.processCacheEntryCount.Load())
-}
-
 // SetState sets the process resolver state
 func (p *EBPFResolver) SetState(state int64) {
 	p.state.Store(state)
@@ -1572,6 +1551,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 
 	if cgroupContext.CGroupID != "" {
 		pce.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.Process.ContainerContext.CreatedAt = uint64(pce.Process.ExecTime.UnixNano())
 
 		// update the PID in the right cgroup_resolver bucket
 		if p.cgroupResolver != nil {
@@ -1617,7 +1597,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		processCacheEntryCount:    atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),
@@ -1646,8 +1625,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	for _, tag := range allInodeErrTags() {
 		p.inodeErrStats[tag] = atomic.NewInt64(0)
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.processCacheEntryCount.Dec() })
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)

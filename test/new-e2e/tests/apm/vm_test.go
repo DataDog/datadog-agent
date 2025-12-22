@@ -399,6 +399,63 @@ apm_config.probabilistic_sampler.hash_seed: 22
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
+func (s *VMFakeintakeSuite) TestAPMModeDefault() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apm-mode-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testAPMMode(c, s.Env().FakeIntake, "")
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed finding traces with correct APM mode")
+}
+
+func (s *VMFakeintakeSuite) TestAPMModeEdge() {
+	cfg := `apm_config.mode: edge`
+	opts := vmProvisionerOpts(awshost.WithRunOptions(
+		ec2.WithAgentOptions(
+			agentparams.WithAgentConfig(vmAgentConfig(s.transport, cfg)),
+		),
+	))
+	s.UpdateEnv(awshost.Provisioner(opts...))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apm-mode-edge-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testAPMMode(c, s.Env().FakeIntake, "edge")
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=edge")
+}
+
+// TODO: TestAPMMode with DD_APM_MODE env var configured
+
 func (s *VMFakeintakeSuite) TestSIGTERM() {
 	output := s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/trace-agent.pid")
 	pid, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)

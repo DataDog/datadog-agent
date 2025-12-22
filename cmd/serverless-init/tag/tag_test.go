@@ -104,13 +104,22 @@ func TestDdTags(t *testing.T) {
 	assert.Equal(t, "value6", mergedTags["key6"])
 }
 
-func TestWithoutHighCardinalityTags(t *testing.T) {
-	tags := map[string]string{"key1": "value1", "key2": "value2", "container_id": "abc", "replica_name": "abc"}
-	filteredTags := WithoutHighCardinalityTags(tags)
+func TestMakeMetricAgentTags(t *testing.T) {
+	tags := map[string]string{
+		"key1":                "value1",
+		"key2":                "value2",
+		"container_id":        "abc",
+		"replica_name":        "abc",
+		"gcrj.execution_name": "exec-123",
+		"gcrj.task_index":     "0",
+		"gcrj.task_attempt":   "1",
+		"gcrj.task_count":     "10",
+	}
+	filteredTags := MakeMetricAgentTags(tags)
 	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, filteredTags)
 }
 
-func TestBackendTraceStatsTag(t *testing.T) {
+func TestMakeTraceAgentTags(t *testing.T) {
 	tests := []struct {
 		name                  string
 		envValue              string
@@ -144,9 +153,10 @@ func TestBackendTraceStatsTag(t *testing.T) {
 				t.Setenv(enableBackendTraceStatsEnvVar, tt.envValue)
 			}
 
-			tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0), "_dd.datadog_init_version")
+			tags := MakeTraceAgentTags(make(map[string]string, 0))
 
 			if tt.expectComputeStatsTag {
+				// compute_stats should be present in modified tags
 				assert.Equal(t, serverlessTag.ComputeStatsValue, tags[serverlessTag.ComputeStatsKey])
 			} else {
 				_, hasComputeStats := tags[serverlessTag.ComputeStatsKey]

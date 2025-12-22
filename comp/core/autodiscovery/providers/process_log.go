@@ -107,14 +107,14 @@ func discoverIntegrationSources() map[string]bool {
 			continue
 		}
 
-		err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Continue walking, don't fail on individual errors
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
 			}
-			if info.Name() != "conf.yaml.example" && info.Name() != "conf.yaml" {
+			if d.Name() != "conf.yaml.example" && d.Name() != "conf.yaml" {
 				return nil
 			}
 
