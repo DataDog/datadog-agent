@@ -233,6 +233,39 @@ required.
 
 When user clicks reset (full time range), Y-axis auto-scales to fit all data.
 
+## REQ-MV-010: Graceful Empty Data Display
+
+### Empty Data Detection
+
+After building series arrays in `renderChart()`, check for valid data:
+
+1. Count non-null values across all series
+2. If all values are null → show "No data available" message
+3. If all values are zero/constant → ensure minimum Y-axis range
+
+### Y-Axis Minimum Range
+
+When `yMax` is 0 or very small, use a fallback range to prevent chart collapse:
+
+```javascript
+// Ensure minimum Y-axis range for constant/zero data
+if (yMax === 0) {
+    yMax = 1;  // Fallback for all-zero data
+}
+originalYRange = [0, yMax * 1.1];
+```
+
+### Empty State Message
+
+New variant of `showEmptyState()` for metrics with timestamps but no values:
+
+```javascript
+function showNoDataState(metricName) {
+    // Shows: "No data recorded for [metric]"
+    // Explains: metric exists but has no non-null values
+}
+```
+
 ## Data Flow Summary
 
 ```
