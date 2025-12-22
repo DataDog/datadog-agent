@@ -138,6 +138,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	"github.com/DataDog/datadog-agent/comp/mcp"
+	mcpServer "github.com/DataDog/datadog-agent/comp/mcp/server"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -282,6 +284,7 @@ func run(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
+	_ mcpServer.Component,
 	_ langDetectionCl.Component,
 	_ internalAPI.Component,
 	_ packagesigning.Component,
@@ -508,6 +511,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
+		mcp.Bundle(),
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		collectorimpl.Module(),
