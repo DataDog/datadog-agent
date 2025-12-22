@@ -145,7 +145,7 @@ func qualifiedType(module *common.Module, kind string) string {
 }
 
 // handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
-func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefix, prefix, kind, event string, restrictedTo []string, opOverrides, commentText, containerStructName string, iterator *common.StructField, isArray bool) {
+func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefix, prefix, kind, event string, restrictedTo []string, opOverrides []string, commentText, containerStructName string, iterator *common.StructField, isArray bool) {
 	if verbose {
 		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s, isArray: %v\n", name, kind, alias, isArray)
 	}
@@ -278,7 +278,7 @@ func addLengthOpField(module *common.Module, alias string, field *common.StructF
 }
 
 // handleIterator adds iterator to list of exposed SECL iterators of the module
-func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText, opOverrides string, isPointer, isArray bool) *common.StructField {
+func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText string, opOverrides []string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
 	if aliasPrefix != "" {
 		alias = aliasPrefix + "." + field.name
@@ -311,7 +311,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 }
 
 // handleFieldWithHandler adds non-embedded fields with handlers to list of exposed SECL fields and event types of the module
-func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, containerStructName, event string, restrictedTo []string, fieldCommentText, opOverrides, handler string, isPointer, isArray bool, fieldIterator *common.StructField) {
+func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, containerStructName, event string, restrictedTo []string, fieldCommentText string, opOverrides []string, handler string, isPointer, isArray bool, fieldIterator *common.StructField) {
 	alias := field.name
 
 	if aliasPrefix != "" {
@@ -549,13 +549,13 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				continue
 			}
 
-			var opOverrides string
+			var opOverrides []string
 			var fields []seclField
 			var gettersOnlyFields []seclField
 			if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
 				opOverrides, fields, gettersOnlyFields = parseTags(tags, typeSpec.Name.Name)
 
-				if opOverrides == "" && fields == nil && gettersOnlyFields == nil {
+				if len(opOverrides) == 0 && fields == nil && gettersOnlyFields == nil {
 					continue
 				}
 			} else {
@@ -677,8 +677,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 	}
 }
 
-func parseTags(tags *structtag.Tags, containerStructName string) (string, []seclField, []seclField) {
-	var opOverrides string
+func parseTags(tags *structtag.Tags, containerStructName string) ([]string, []seclField, []seclField) {
+	var opOverrides []string
 	var fields []seclField
 	var gettersOnlyFields []seclField
 
@@ -693,7 +693,7 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 				}
 
 				if field.name == "-" {
-					return "", nil, nil
+					return nil, nil, nil
 				}
 
 				field.containerStructName = containerStructName
@@ -706,7 +706,7 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 			}
 
 		case "op_override":
-			opOverrides = tag.Value()
+			opOverrides = append(opOverrides, strings.Split(tag.Value(), ",")...)
 		}
 	}
 
@@ -732,10 +732,47 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 	return &astFiles, nil
 }
 
+func _sortFieldsByChecks(module *common.Module, fields map[string]*common.StructField, fieldNames []string) {
+	slices.SortFunc(fieldNames, func(a string, b string) int {
+		fieldA := fields[a]
+		if fieldA.Ref != "" {
+			fieldA = fields[fieldA.Ref]
+		}
+
+		fieldB := fields[b]
+		if fieldB.Ref != "" {
+			fieldB = fields[fieldB.Ref]
+		}
+
+		checksA := getFieldHandlersChecks(module.AllFields, fieldA)
+		checksB := getFieldHandlersChecks(module.AllFields, fieldB)
+
+		if checksA == checksB {
+			return strings.Compare(a, b)
+		}
+
+		return strings.Compare(checksA, checksB)
+	})
+}
+
+func sortFieldsByChecks(module *common.Module) {
+	for fieldName, field := range module.Fields {
+		if field.Event != "" || field.IsLength {
+			continue
+		}
+		module.FieldsOrderByChecks = append(module.FieldsOrderByChecks, fieldName)
+	}
+	_sortFieldsByChecks(module, module.Fields, module.FieldsOrderByChecks)
+
+	for _, evt := range module.EventTypes {
+		_sortFieldsByChecks(module, module.Fields, evt.Fields)
+	}
+}
+
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
@@ -772,6 +809,8 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
 	}
 
+	sortFieldsByChecks(module)
+
 	return module, nil
 }
 
@@ -780,7 +819,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, "go:build "+tag)
 		}
 	}
 	return formattedBuildTags
@@ -1150,6 +1189,7 @@ var funcMap = map[string]interface{}{
 	"IsReadOnly":               isReadOnly,
 	"GenGetter":                genGetter,
 	"UpperCase":                upperCase,
+	"Join":                     strings.Join,
 }
 
 //go:embed accessors.tmpl

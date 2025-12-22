@@ -237,6 +237,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     for job, job_details in config.items():
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'SHOULD_RUN_IN_FLAKES_FINDER' in job_details['variables']
             and job_details['variables']['SHOULD_RUN_IN_FLAKES_FINDER'] == "true"
             and not job.startswith(".")
@@ -251,16 +252,16 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
         if "needs" in job:
             job["needs"] = update_needs_parent(
                 job["needs"],
-                deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"],
-                package_deps=[
-                    "agent_deb-x64-a7-fips",
-                    "agent_deb-x64-a7",
-                    "windows_msi_and_bosh_zip_x64-a7-fips",
-                    "windows_msi_and_bosh_zip_x64-a7",
-                    "agent_rpm-x64-a7",
-                    "agent_suse-x64-a7",
+                deps_to_keep=[
+                    "go_e2e_deps",
+                    "tests_windows_sysprobe_x64",
+                    "tests_windows_secagent_x64",
+                    "go_e2e_test_binaries",
+                    "go_tools_deps",
                 ],
+                package_deps=[],
             )
+        job["needs"].append({"pipeline": "$PARENT_PIPELINE_ID", "job": "all-artifacts"})
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
@@ -274,6 +275,9 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     updated_jobs = update_child_job_variables(kept_job)
     # Create n jobs with the same configuration
     for job in kept_job:
+        n_needs = 0
+        if "needs" in updated_jobs[job]:
+            n_needs = len(updated_jobs[job]["needs"])
         for i in range(n):
             new_jobs[f"{job}-{i}"] = copy.deepcopy(updated_jobs[job])
             new_jobs[f"{job}-{i}"]["stage"] = f"flake-finder-{i}"
@@ -283,6 +287,17 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
 
             new_jobs[f"{job}-{i}"]["rules"] = [{"when": "always"}]
             if i > 0:
+                if "parallel" in updated_jobs[job] and "matrix" in updated_jobs[job]["parallel"]:
+                    if len(updated_jobs[job]["parallel"]["matrix"]) + n_needs > 50:  # Max 50 needs in a job
+                        # We only keep the first matrix entry to avoid reaching the limit and to still make sure all the jobs are not executed at the exactly same time
+                        new_jobs[f"{job}-{i}"]["needs"].append(
+                            {
+                                "job": f"{job}-{i - 1}",
+                                "artifacts": False,
+                                "parallel": {"matrix": [copy.deepcopy(updated_jobs[job]["parallel"]["matrix"][0])]},
+                            }
+                        )
+                        continue
                 new_jobs[f"{job}-{i}"]["needs"].append({"job": f"{job}-{i - 1}", "artifacts": False})
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:

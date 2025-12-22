@@ -102,11 +102,12 @@ func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImag
 		return workloadmeta.ContainerImage{}
 	}
 
-	imgID, digestErr := parseDigests([]string{ctrStatus.ImageRef})
+	digest, digestErr := parseDigests([]string{ctrStatus.ImageRef})
 	if digestErr != nil {
-		imgID = ctrStatus.ImageRef
+		digest = ctrStatus.ImageRef
 	}
 
+	imgID := ctrStatus.GetImageId()
 	wmImg, err := workloadmeta.NewContainerImage(imgID, imageSpec.Image)
 	if err != nil {
 		log.Debugf("Failed to create image: %v", err)
@@ -116,7 +117,7 @@ func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImag
 		// Don't log if the container image could not be created
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, digestErr)
 	}
-	wmImg.RepoDigest = ctrStatus.ImageRef
+	wmImg.RepoDigest = digest
 
 	return wmImg
 }

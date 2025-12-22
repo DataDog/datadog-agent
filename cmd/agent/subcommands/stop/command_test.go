@@ -10,11 +10,8 @@ package stop
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +20,6 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"stop"},
 		stop,
-		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
+		func(_ *cliParams, _ core.BundleParams) {
 		})
 }

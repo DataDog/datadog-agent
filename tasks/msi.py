@@ -18,7 +18,8 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
 # Windows only import
 try:
@@ -77,15 +78,13 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', flavor=None):
-    env = load_dependencies(ctx)
+def _get_env(ctx, flavor=None):
+    env = get_effective_dependencies_env()
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['AGENT_FLAVOR'] = flavor
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
@@ -93,7 +92,7 @@ def _get_env(ctx, major_version='7', flavor=None):
     # Used for installation directories registry keys
     # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
     # TODO: How best to configure the OpenSSL version?
-    env['AGENT_OPENSSL_VERSION'] = "3.4"
+    env['AGENT_OPENSSL_VERSION'] = "3.5"
 
     return env
 
@@ -284,6 +283,54 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
+    """Build DatadogInterop DLL using the standard build command."""
+    datadog_interop_sln = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", "DatadogInterop.sln")
+    cmd = _get_vs_build_command(
+        f'msbuild "{datadog_interop_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        vstudio_root,
+    )
+    print(f"Building DatadogInterop: {cmd}")
+    succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
+    if not succeeded:
+        raise Exit("Failed to build DatadogInterop.", code=1)
+
+
+@task
+def build_datadog_interop(ctx, configuration="Release", arch="x64", vstudio_root=None, copy_to_root=True):
+    """
+    Build the libdatadog-interop.dll required for software inventory.
+
+    This DLL provides interop functionality for MS Store apps collection on Windows.
+
+    Args:
+        configuration: Build configuration (Release or Debug)
+        arch: Target architecture (x64)
+        vstudio_root: Path to Visual Studio installation root
+        copy_to_root: Whether to copy the DLL to the repository root for test access
+    """
+    if sys.platform != 'win32':
+        print("Skipping DatadogInterop build on non-Windows platform")
+        return
+
+    env = get_effective_dependencies_env()
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+
+    if copy_to_root:
+        # Copy the DLL to the repository root so it can be found during test execution
+        dll_source = os.path.join(
+            os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
+        )
+        dll_dest = os.path.join(os.getcwd(), "libdatadog-interop.dll")
+
+        if os.path.exists(dll_source):
+            print(f"Copying DLL from {dll_source} to {dll_dest}")
+            shutil.copy2(dll_source, dll_dest)
+            print("Successfully built and copied libdatadog-interop.dll")
+        else:
+            print(f"Warning: Could not find built DLL at {dll_source}")
+
+
 def _msi_output_name(env):
     if _is_fips_mode(env):
         return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
@@ -296,7 +343,6 @@ def build(
     ctx,
     vstudio_root=None,
     arch="x64",
-    major_version='7',
     flavor=None,
     debug=False,
     build_upgrade=False,
@@ -304,7 +350,7 @@ def build(
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, flavor=flavor)
+    env = _get_env(ctx, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -316,6 +362,14 @@ def build(
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
+
+    # Build libdatadog-interop.dll
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+    datadog_interop_output = os.path.join(
+        os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
+    )
+    shutil.copy2(datadog_interop_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'libdatadog-interop.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
@@ -370,9 +424,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     env = {}
     env['OMNIBUS_TARGET'] = 'installer'
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     configuration = _msbuild_configuration(debug=debug)
@@ -403,11 +455,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version)
+    env = _get_env(ctx)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -420,7 +472,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
@@ -502,7 +554,7 @@ def get_msm_info(ctx):
     """
     Get the merge module info from the release.json
     """
-    env = load_dependencies(ctx)
+    env = get_effective_dependencies_env()
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
@@ -523,22 +575,13 @@ def get_msm_info(ctx):
         }
         info['url'] = f"{base_url}/{info['build']}/ddprocmoninstall-{info['version']}.msm"
         msm_info['DDPROCMON'] = info
-    if 'WINDOWS_APMINJECT_VERSION' in env:
-        info = {
-            'filename': 'ddapminstall.msm',
-            'build': env['WINDOWS_APMINJECT_MODULE'],
-            'version': env['WINDOWS_APMINJECT_VERSION'],
-            'shasum': env['WINDOWS_APMINJECT_SHASUM'],
-        }
-        info['url'] = f"{base_url}/{info['build']}/ddapminstall-{info['version']}.msm"
-        msm_info['APMINJECT'] = info
     return msm_info
 
 
 @task(
     iterable=['drivers'],
     help={
-        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON)',
     },
 )
 def fetch_driver_msm(ctx, drivers=None):
@@ -547,7 +590,7 @@ def fetch_driver_msm(ctx, drivers=None):
 
     Defaults to the versions provided in the dependencies section of release.json
     """
-    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON']
 
     msm_info = get_msm_info(ctx)
     if not drivers:

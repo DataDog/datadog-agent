@@ -12,14 +12,11 @@ from tasks.libs.ciproviders.gitlab_api import BASE_URL, get_pipeline
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.notify.utils import (
     AWS_S3_CP_CMD,
-    CHANNEL_BROADCAST,
     PROJECT_NAME,
     get_ci_visibility_job_url,
 )
 from tasks.libs.pipeline.data import get_failed_jobs
-from tasks.libs.pipeline.notifications import (
-    get_pr_from_commit,
-)
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, get_pr_from_commit
 from tasks.owners import channel_owners, make_partition
 
 """
@@ -186,7 +183,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"]))
+    failed_jobs = get_failed_jobs(get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"]), PROJECT_NAME)
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 
@@ -258,7 +255,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     partition = make_partition(all_alerts, jobowners, get_channels=True)
 
     for channel in partition:
-        if channel == CHANNEL_BROADCAST:
+        if channel == DEFAULT_SLACK_CHANNEL:
             # All alerts are sent to the broadcast channel. Continue here to prevent duplicates.
             continue
         consecutive = ConsecutiveJobAlert(
@@ -269,10 +266,10 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         )
         metrics.extend(send_alert(channel, consecutive, cumulative))
 
-    # Send all alerts to CHANNEL_BROADCAST
+    # Send all alerts to DEFAULT_SLACK_CHANNEL
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
-    metrics.extend(send_alert(CHANNEL_BROADCAST, consecutive, cumulative))
+    metrics.extend(send_alert(DEFAULT_SLACK_CHANNEL, consecutive, cumulative))
 
     if metrics:
         send_metrics(metrics)

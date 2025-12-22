@@ -1,0 +1,33 @@
+# Test that non-Go processes are filtered out.
+# Create a Python process - it should never be discovered.
+- !initialize
+  current_time: 0
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "python"
+    service: "python-service"
+- !advance-time {to: 200}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "python"
+    service: "python-service"
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+state:
+  current_time: 200
+  last_scan: 200
+  process_delays: [100]
+  processes_in_procfs: [1001]

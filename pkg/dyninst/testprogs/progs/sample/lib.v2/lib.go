@@ -8,9 +8,17 @@
 // gets escaped in DWARF, making this useful for our tests.
 package lib_v2
 
+import "fmt"
+
 var dummy int
 
 //go:noinline
 func FooV2() {
 	dummy++
+}
+
+type V2Type struct{}
+
+func (v *V2Type) MyMethod() {
+	fmt.Println("")
 }

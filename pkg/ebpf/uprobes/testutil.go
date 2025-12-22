@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	consumertestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -90,9 +89,9 @@ type MockBinaryInspector struct {
 }
 
 // Inspect is a mock implementation of the BinaryInspector.Inspect method.
-func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
+func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests map[int][]SymbolRequest) (map[int]*InspectionResult, error) {
 	args := m.Called(fpath, requests)
-	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Error(1)
+	return args.Get(0).(map[int]*InspectionResult), args.Error(1)
 }
 
 // Cleanup is a mock implementation of the BinaryInspector.Cleanup method.
@@ -130,7 +129,7 @@ func getLibSSLPath(t *testing.T) string {
 	require.NoError(t, err)
 
 	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+	return filepath.Join(libmmap, "libssl.so."+runtime.GOARCH)
 }
 
 // SetRegistry allows changing the file registry used by the attacher. This is useful for testing purposes, to

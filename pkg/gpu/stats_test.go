@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func addStream(t *testing.T, streamHandlers *streamCollection, pid uint32, strea
 
 	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
-	streamHandlers.streams[key] = stream
+	streamHandlers.streams.Store(key, stream)
 
 	return stream
 }
@@ -75,7 +76,7 @@ func addGlobalStream(t *testing.T, streamHandlers *streamCollection, pid uint32,
 
 	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
-	streamHandlers.globalStreams[key] = stream
+	streamHandlers.globalStreams.Store(key, stream)
 
 	return stream
 }
@@ -90,7 +91,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
@@ -191,7 +192,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
@@ -299,7 +300,7 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(ktime), Pid_tgid: uint64(pid)<<32 + uint64(pid), Stream_id: streamID},
@@ -323,7 +324,7 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 	require.Len(t, statsGen.aggregators, 1)
 
 	// If we remove the stream, the aggregator should be marked as inactive in the next getStats call
-	streamHandlers.streams = make(map[streamKey]*StreamHandler)
+	streamHandlers.streams = sync.Map{}
 	stats, err = statsGen.getStats(ktime + int64(20*time.Second))
 	require.NoError(t, err)
 	require.NotNil(t, stats)

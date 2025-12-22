@@ -53,10 +53,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 		envs                        map[string]string
 		lang                        language.Language
 		expectedGeneratedName       string
-		expectedDDService           string
 		expectedAdditionalServices  []string
 		expectedGeneratedNameSource ServiceNameSource
-		ddServiceInjected           bool
 		fs                          *SubDirFS
 		skipOnWindows               bool
 	}{
@@ -75,26 +73,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			expectedGeneratedName:       "my-server",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name: "single arg executable with DD_SERVICE",
-			cmdline: []string{
-				"./my-server.sh",
-			},
-			envs:                        map[string]string{"DD_SERVICE": "my-service"},
-			expectedDDService:           "my-service",
-			expectedGeneratedName:       "my-server",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name: "single arg executable with DD_TAGS",
-			cmdline: []string{
-				"./my-server.sh",
-			},
-			envs:                        map[string]string{"DD_TAGS": "service:my-service"},
-			expectedDDService:           "my-service",
 			expectedGeneratedName:       "my-server",
 			expectedGeneratedNameSource: CommandLine,
 		},
@@ -571,21 +549,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
 			lang:                        language.Java,
-			expectedDDService:           "custom",
-			expectedGeneratedName:       "app",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			// The system property takes priority over the environment variable, see
-			// https://docs.datadoghq.com/tracing/trace_collection/library_config/java/
-			name: "java with dd_service as system property and DD_SERVICE",
-			cmdline: []string{
-				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
-			},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "dd-service-from-env"},
-			expectedDDService:           "dd-service-from-property",
-			expectedGeneratedName:       "app",
+			expectedGeneratedName:       "custom",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -644,6 +608,55 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "Erlang beam.smp with CouchDB progname",
+			cmdline: []string{
+				"/usr/lib/erlang/erts-12.3/bin/beam.smp",
+				"--",
+				"-root", "/usr/lib/erlang",
+				"-progname", "couchdb",
+				"-home", "/opt/couchdb",
+			},
+			expectedGeneratedName:       "couchdb",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam with RabbitMQ (erl progname, use home)",
+			cmdline: []string{
+				"/usr/lib/erlang/erts-11.2/bin/beam",
+				"--",
+				"-W", "w",
+				"-K", "true",
+				"-A", "192",
+				"-progname", "erl",
+				"-home", "/var/lib/rabbitmq",
+			},
+			expectedGeneratedName:       "rabbitmq",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam.smp with Riak progname",
+			cmdline: []string{
+				"beam.smp",
+				"--",
+				"-root", "/usr/lib/erlang",
+				"-progname", "riak",
+				"-home", "/var/lib/riak",
+			},
+			expectedGeneratedName:       "riak",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam with no useful name",
+			cmdline: []string{
+				"beam",
+				"--",
+				"-smp", "auto",
+				"-noinput",
+			},
+			expectedGeneratedName:       "beam",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "PHP Laravel",
 			cmdline: []string{
 				"php",
@@ -662,8 +675,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"swoole-server.php",
 			},
 			lang:                        language.PHP,
-			expectedDDService:           "foo",
-			expectedGeneratedName:       "php",
+			expectedGeneratedName:       "foo",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -705,34 +717,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedGeneratedName:       "php8",
 			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "howdy"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually_tags",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_TAGS": "service:howdy"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually_injection",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-			ddServiceInjected:           true,
 		},
 		{
 			name: "gunicorn simple",
@@ -952,14 +936,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 			ctx := NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), fs)
 			ctx.ContextMap = make(DetectorContextMap)
 			meta, ok := ExtractServiceMetadata(tt.lang, ctx)
-			if len(tt.expectedGeneratedName) == 0 && len(tt.expectedDDService) == 0 {
+			if len(tt.expectedGeneratedName) == 0 {
 				require.False(t, ok)
 			} else {
 				require.True(t, ok)
-				require.Equal(t, tt.expectedDDService, meta.DDService)
 				require.Equal(t, tt.expectedGeneratedName, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
-				require.Equal(t, tt.ddServiceInjected, meta.DDServiceInjected)
 				require.Equal(t, tt.expectedGeneratedNameSource, meta.Source)
 			}
 		})

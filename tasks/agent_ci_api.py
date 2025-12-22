@@ -3,9 +3,13 @@
 import os
 import shutil
 import subprocess
+import sys
 
 import requests
 from invoke import task
+
+from tasks.libs.common.auth import datadog_infra_token
+from tasks.libs.common.color import Color, color_message
 
 
 def get_datacenter(env):
@@ -43,6 +47,8 @@ def run(
     prefix='internal/agent-ci-api/',
     jq='auto',
     query='.errors // .data',
+    timeout: float = 600.0,
+    ignore_timeout_error: bool = False,
 ):
     """Triggers the agent-ci-api service.
 
@@ -57,6 +63,8 @@ def run(
         prefix: The prefix to use for the endpoint.
         jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         query: jq query for the output.
+        timeout: Once this timeout is reached, the task will stop with an error.
+        ignore_timeout_error: If True, won't throw an error if the request times out.
 
     Examples:
         $ dda inv -- api hello --env staging
@@ -95,16 +103,7 @@ def run(
 
     token = ''
     if not is_local:
-        token = (
-            ctx.run(
-                'authanywhere --audience rapid-agent-devx'
-                if from_ci
-                else f'ddtool auth token rapid-agent-devx --datacenter {dc} --http-header',
-                hide=True,
-            )
-            .stdout.strip()
-            .removeprefix('Authorization: ')
-        )
+        token = datadog_infra_token(ctx, audience="rapid-agent-devx", datacenter=dc)
     origin_header = os.environ["CI_JOB_ID"] if from_ci else "curl-authanywhere"
     url = (
         f"http://localhost:{localport}/{prefix}{endpoint}"
@@ -118,24 +117,34 @@ def run(
         if is_local
         else f"https://agent-ci-api.{dc}/{prefix}{endpoint}"
     )
-    result = requests.request(
-        method.upper(),
-        url,
-        json=payload,
-        headers={
-            'Authorization': token,
-            'X-DdOrigin': origin_header,
-            'Content-Type': 'application/json',
-        },
-    )
-    if not result.ok:
-        raise RuntimeError(f'Request failed with code {result.status_code}:\n{result.text}')
-    elif use_jq:
-        jq_result = subprocess.run(['jq', '-C', query], input=result.text, text=True)
+    try:
+        result = requests.request(
+            method.upper(),
+            url,
+            json=payload,
+            headers={
+                'Authorization': token,
+                'X-DdOrigin': origin_header,
+                'Content-Type': 'application/json',
+            },
+            timeout=timeout,
+        )
+        if not result.ok:
+            raise RuntimeError(f'Request failed with code {result.status_code}:\n{result.text}')
+        elif use_jq:
+            jq_result = subprocess.run(['jq', '-C', query], input=result.text, text=True)
 
-        # Jq parsing failed, ignore (otherwise everything is already printed)
-        if jq_result.returncode != 0:
-            print(result.text)
+            # Jq parsing failed, ignore (otherwise everything is already printed)
+            if jq_result.returncode != 0:
+                print(result.text)
+    except requests.Timeout as e:
+        if ignore_timeout_error:
+            print(
+                f'{color_message("Warning", Color.ORANGE)}: Agent CI API request {url} timed out after {timeout} seconds, ignoring error...',
+                file=sys.stderr,
+            )
+        else:
+            raise TimeoutError(f'Agent CI API request {url} timed out after {timeout} seconds') from e
 
 
 @task

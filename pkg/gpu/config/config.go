@@ -36,10 +36,22 @@ type Config struct {
 	KernelCacheQueueSize int
 	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
 	RingBufferSizePagesPerDevice int
+	// RingBufferWakeupSize is the number of bytes that need to be available in the ring buffer before waking up userspace.
+	RingBufferWakeupSize int
+	// RingBufferFlushInterval is the interval at which the ring buffer should be flushed
+	RingBufferFlushInterval time.Duration
 	// StreamConfig is the configuration for the streams.
 	StreamConfig StreamConfig
 	// AttacherDetailedLogs indicates whether the probe should enable detailed logs for the uprobe attacher.
 	AttacherDetailedLogs bool
+	// DeviceCacheRefreshInterval is the interval at which the probe scans for the latest devices
+	DeviceCacheRefreshInterval time.Duration
+	// CgroupReapplyInterval is the interval at which to re-apply cgroup device configuration. 0 means no re-application.
+	// Defaults to 30 seconds. It is used to fix race conditions between systemd and the system-probe permission patching.
+	CgroupReapplyInterval time.Duration
+	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
+	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
+	CgroupReapplyInfinitely bool
 }
 
 // StreamConfig is the configuration for the streams.
@@ -70,6 +82,8 @@ func New() *Config {
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
+		RingBufferWakeupSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),
+		RingBufferFlushInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_flush_interval")),
 		StreamConfig: StreamConfig{
 			MaxActiveStreams:      spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_active")),
 			Timeout:               time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "timeout_seconds"))) * time.Second,
@@ -78,6 +92,9 @@ func New() *Config {
 			MaxPendingKernelSpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_kernel_spans")),
 			MaxPendingMemorySpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_memory_spans")),
 		},
-		AttacherDetailedLogs: spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		AttacherDetailedLogs:       spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
+		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
+		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 	}
 }

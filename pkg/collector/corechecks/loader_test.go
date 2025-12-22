@@ -7,7 +7,6 @@ package corechecks
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -25,7 +24,7 @@ type TestCheck struct {
 
 func (c *TestCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, _ integration.Data, _ string) error {
 	if string(data) == "err" {
-		return fmt.Errorf("testError")
+		return errors.New("testError")
 	}
 	if string(data) == "skip" {
 		return check.ErrSkipCheckInstance
@@ -63,7 +62,7 @@ func TestLoad(t *testing.T) {
 	cc := integration.Config{Name: "foo", Instances: i}
 	l, _ := NewGoCheckLoader()
 
-	_, err := l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
+	_, err := l.Load(aggregator.NewNoOpSenderManager(), cc, i[0], 0)
 	if err != nil {
 		t.Fatalf("Expected nil error, found: %v", err)
 	}
@@ -74,7 +73,7 @@ func TestLoad(t *testing.T) {
 	}
 	cc = integration.Config{Name: "foo", Instances: i}
 
-	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0], 0)
 
 	if err == nil {
 		t.Fatalf("Expected error, found: nil")
@@ -86,7 +85,7 @@ func TestLoad(t *testing.T) {
 	}
 	cc = integration.Config{Name: "foo", Instances: i}
 
-	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0], 0)
 
 	if !errors.Is(err, check.ErrSkipCheckInstance) {
 		t.Fatalf("Expected ErrSkipCheckInstance, found: %v", err)
@@ -98,7 +97,7 @@ func TestLoad(t *testing.T) {
 	}
 	cc = integration.Config{Name: "bar", Instances: i}
 
-	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0], 0)
 
 	if err == nil {
 		t.Fatal("Expected error, found: nil")

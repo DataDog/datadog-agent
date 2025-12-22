@@ -20,6 +20,8 @@ import (
 const (
 	// BasenameApproverKernelMapName defines the basename approver kernel map name
 	BasenameApproverKernelMapName = "basename_approvers"
+	// InUpperLayerApproverKernelMapName defines the in upper layer approver kernel map name
+	InUpperLayerApproverKernelMapName = "in_upper_layer_approvers"
 
 	// PolicyApproverType is the type of policy approver
 	PolicyApproverType = "policy"
@@ -29,6 +31,8 @@ const (
 	FlagApproverType = "flag"
 	// AUIDApproverType is the type of auid approver
 	AUIDApproverType = "auid"
+	// InUpperLayerApproverType is the type of in upper layer approver
+	InUpperLayerApproverType = "in_upper_layer"
 )
 
 type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
@@ -41,6 +45,15 @@ func newBasenameKFilter(tableName string, eventType model.EventType, basename st
 		approverType: BasenameApproverType,
 		tableName:    tableName,
 		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		eventMask:    uint64(1 << (eventType - 1)),
+	}, nil
+}
+
+func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilter, error) {
+	return &eventMaskKFilter{
+		approverType: InUpperLayerApproverType,
+		tableName:    tableName,
+		tableKey:     uint32(0),
 		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
@@ -79,7 +92,7 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (kFilter, erro
 	}, nil
 }
 
-func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, error) {
+func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...uint64) (kFilter, error) {
 	var bitmask uint64
 	for _, flag := range flags {
 		bitmask |= flag
@@ -88,7 +101,7 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, erro
 	return &arrayKFilter{
 		approverType: FlagApproverType,
 		tableName:    tableName,
-		index:        uint32(0),
+		index:        index,
 		value:        ebpf.NewUint64FlagsMapItem(bitmask),
 		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
 	}, nil
@@ -98,12 +111,12 @@ func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
 	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
-func getEnumsKFilters(tableName string, enums ...uint64) (kFilter, error) {
+func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) (kFilter, error) {
 	var flags []uint64
 	for _, enum := range enums {
-		flags = append(flags, 1<<enum)
+		flags = append(flags, 1<<(enum%64))
 	}
-	return newKFilterWithUInt64Flags(tableName, flags...)
+	return newKFilterWithUInt64FlagsAndIndex(tableName, index, flags...)
 }
 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
@@ -192,4 +205,6 @@ func init() {
 	KFilterGetters["bpf"] = bpfKFiltersGetter
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
+	KFilterGetters["prctl"] = prctlKFiltersGetter
+	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
 }

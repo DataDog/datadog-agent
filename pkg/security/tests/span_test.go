@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestSpan(t *testing.T) {
 
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
-	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-span")
 		if err != nil {
 			t.Fatal(err)
@@ -73,12 +74,12 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})
 
-	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-span-exec")
 		if err != nil {
 			t.Fatal(err)
@@ -105,7 +106,7 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})

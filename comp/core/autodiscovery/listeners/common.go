@@ -8,18 +8,20 @@
 package listeners
 
 import (
-	"fmt"
 	"hash/fnv"
 	"maps"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
+
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -28,18 +30,18 @@ const (
 
 // getStandardTags extract standard tags from labels of kubernetes services
 func getStandardTags(labels map[string]string) []string {
-	tags := []string{}
 	if labels == nil {
-		return tags
+		return []string{}
 	}
 	labelToTagKeys := map[string]string{
 		kubernetes.EnvTagLabelKey:     tagKeyEnv,
 		kubernetes.VersionTagLabelKey: tagKeyVersion,
 		kubernetes.ServiceTagLabelKey: tagKeyService,
 	}
+	tags := make([]string, 0, len(labelToTagKeys))
 	for labelKey, tagKey := range labelToTagKeys {
 		if tagValue, found := labels[labelKey]; found {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, tagValue))
+			tags = append(tags, tagKey+":"+tagValue)
 		}
 	}
 	return tags
@@ -86,4 +88,10 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 		maps.Copy(annotations, check.AD.GetIncludeAnnotations())
 	}
 	return annotations
+}
+
+// shouldSkipPodReadiness checks if a pod should skip readiness checks based on its annotations
+func shouldSkipPodReadiness(pod *workloadmeta.KubernetesPod) bool {
+	tolerate, ok := pod.Annotations[tolerateUnreadyAnnotation]
+	return ok && tolerate == "true"
 }

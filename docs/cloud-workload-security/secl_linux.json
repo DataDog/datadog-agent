@@ -8,41 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "cgroup.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "cgroup.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "cgroup.id",
-          "definition": "ID of the cgroup",
-          "property_doc_link": "common-cgroupcontext-id-doc"
-        },
-        {
-          "name": "cgroup.version",
-          "definition": "[Experimental] Version of the cgroup API",
-          "property_doc_link": "common-cgroupcontext-version-doc"
-        },
-        {
-          "name": "container.created_at",
-          "definition": "Timestamp of the creation of the container",
-          "property_doc_link": "container-created_at-doc"
-        },
-        {
-          "name": "container.id",
-          "definition": "ID of the container",
-          "property_doc_link": "container-id-doc"
-        },
-        {
-          "name": "container.tags",
-          "definition": "Tags of the container",
-          "property_doc_link": "container-tags-doc"
-        },
-        {
           "name": "event.async",
           "definition": "True if the syscall was asynchronous",
           "property_doc_link": "event-async-doc"
@@ -71,6 +36,16 @@
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
+        },
+        {
+          "name": "event.signature",
+          "definition": "Signature of the process pid and its cgroup with agent secret key",
+          "property_doc_link": "event-signature-doc"
+        },
+        {
+          "name": "event.source",
+          "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
+          "property_doc_link": "event-source-doc"
         },
         {
           "name": "event.timestamp",
@@ -123,6 +98,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -148,9 +133,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.ancestors.created_at",
@@ -268,9 +263,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.ancestors.file.package.source_version",
@@ -413,9 +428,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.package.source_version",
@@ -503,19 +538,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "process.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "process.args",
@@ -563,6 +643,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -588,9 +678,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.created_at",
@@ -708,9 +808,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.file.package.source_version",
@@ -853,9 +973,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.interpreter.file.package.source_version",
@@ -953,6 +1093,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.parent.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -978,9 +1128,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.parent.created_at",
@@ -1098,9 +1258,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.parent.file.package.source_version",
@@ -1243,9 +1423,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.parent.interpreter.file.package.source_version",
@@ -1328,19 +1528,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.parent.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "process.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "process.pid",
@@ -1373,19 +1618,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "process.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "process.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "process.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "process.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "process.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -1522,6 +1812,25 @@
       ]
     },
     {
+      "name": "capabilities",
+      "definition": "A process used some capabilities",
+      "type": "Process",
+      "from_agent_version": "7.70",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "capabilities.attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+          "property_doc_link": "capabilities-attempted-doc"
+        },
+        {
+          "name": "capabilities.used",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+          "property_doc_link": "capabilities-used-doc"
+        }
+      ]
+    },
+    {
       "name": "capset",
       "definition": "A process changed its capacity set",
       "type": "Process",
@@ -1623,9 +1932,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "cgroup_write.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "cgroup_write.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "cgroup_write.file.package.source_version",
@@ -1752,9 +2081,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chdir.file.package.source_version",
@@ -1896,9 +2245,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chmod.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chmod.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chmod.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chmod.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chmod.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chmod.file.package.source_version",
@@ -2055,9 +2424,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chown.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chown.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chown.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chown.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chown.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chown.file.package.source_version",
@@ -2261,6 +2650,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -2317,6 +2711,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "exec.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exec.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "exec.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -2342,9 +2746,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "exec.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exec.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exec.created_at",
@@ -2502,9 +2916,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exec.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exec.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exec.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exec.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exec.file.package.source_version",
@@ -2647,9 +3081,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exec.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exec.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exec.interpreter.file.package.source_version",
@@ -2737,19 +3191,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "exec.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "exec.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "exec.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "exec.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "exec.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "exec.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -2806,6 +3305,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "exit.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exit.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
@@ -2841,9 +3350,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "exit.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exit.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exit.created_at",
@@ -2961,9 +3480,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exit.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exit.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exit.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exit.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exit.file.package.source_version",
@@ -3106,9 +3645,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exit.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exit.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exit.interpreter.file.package.source_version",
@@ -3191,19 +3750,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "exit.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "exit.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "exit.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "exit.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "exit.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "exit.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -3308,6 +3912,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -3399,9 +4008,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "link.file.destination.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "link.file.destination.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.destination.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "link.file.destination.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "link.file.destination.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "link.file.destination.package.source_version",
@@ -3509,9 +4138,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "link.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "link.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "link.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "link.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "link.file.package.source_version",
@@ -3663,9 +4312,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "load_module.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "load_module.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "load_module.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "load_module.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "load_module.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "load_module.file.package.source_version",
@@ -3812,9 +4481,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "mkdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "mkdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mkdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "mkdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "mkdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "mkdir.file.package.source_version",
@@ -3951,9 +4640,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "mmap.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "mmap.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mmap.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "mmap.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "mmap.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "mmap.file.package.source_version",
@@ -4257,9 +4966,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "open.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "open.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "open.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "open.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "open.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "open.file.package.source_version",
@@ -4331,6 +5060,66 @@
       "experimental": false,
       "properties": [
         {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        },
+        {
           "name": "packet.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -4394,6 +5183,40 @@
           "name": "packet.tls.version",
           "definition": "TLS version",
           "property_doc_link": "packet-tls-version-doc"
+        },
+        {
+          "name": "packet.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        }
+      ]
+    },
+    {
+      "name": "prctl",
+      "definition": "A prctl command was executed",
+      "type": "Process",
+      "from_agent_version": "7.71",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "prctl.is_name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "prctl-is_name_truncated-doc"
+        },
+        {
+          "name": "prctl.new_name",
+          "definition": "New name of the process",
+          "property_doc_link": "prctl-new_name-doc"
+        },
+        {
+          "name": "prctl.option",
+          "definition": "prctl option",
+          "property_doc_link": "prctl-option-doc"
+        },
+        {
+          "name": "prctl.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -4460,6 +5283,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -4485,9 +5318,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.created_at",
@@ -4605,9 +5448,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.package.source_version",
@@ -4750,9 +5613,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.source_version",
@@ -4840,19 +5723,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "ptrace.tracee.args",
@@ -4900,6 +5828,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -4925,9 +5863,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.created_at",
@@ -5045,9 +5993,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.file.package.source_version",
@@ -5190,9 +6158,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.package.source_version",
@@ -5290,6 +6278,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -5315,9 +6313,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.parent.created_at",
@@ -5435,9 +6443,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.package.source_version",
@@ -5580,9 +6608,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.package.source_version",
@@ -5665,19 +6713,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.parent.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "ptrace.tracee.pid",
@@ -5710,19 +6803,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "ptrace.tracee.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -5819,9 +6957,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "removexattr.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "removexattr.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "removexattr.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "removexattr.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "removexattr.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "removexattr.file.package.source_version",
@@ -5953,9 +7111,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rename.file.destination.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.destination.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rename.file.destination.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rename.file.destination.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rename.file.destination.package.source_version",
@@ -6063,9 +7241,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rename.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rename.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rename.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rename.file.package.source_version",
@@ -6202,9 +7400,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rmdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rmdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rmdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rmdir.file.package.source_version",
@@ -6394,6 +7612,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -6419,9 +7647,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.ancestors.created_at",
@@ -6539,9 +7777,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.ancestors.file.package.source_version",
@@ -6684,9 +7942,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.ancestors.interpreter.file.package.source_version",
@@ -6774,19 +8052,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "setrlimit.target.args",
@@ -6834,6 +8157,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -6859,9 +8192,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.created_at",
@@ -6979,9 +8322,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.file.package.source_version",
@@ -7124,9 +8487,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.interpreter.file.package.source_version",
@@ -7224,6 +8607,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.parent.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -7249,9 +8642,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.parent.created_at",
@@ -7369,9 +8772,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.parent.file.package.source_version",
@@ -7514,9 +8937,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.parent.interpreter.file.package.source_version",
@@ -7599,19 +9042,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.parent.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "setrlimit.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "setrlimit.target.pid",
@@ -7644,19 +9132,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "setrlimit.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -7669,22 +9202,22 @@
       "properties": [
         {
           "name": "setsockopt.filter_hash",
-          "definition": "Hash of the socket filter using sha256",
+          "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_hash-doc"
         },
         {
           "name": "setsockopt.filter_instructions",
-          "definition": "Filter instructions",
+          "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_instructions-doc"
         },
         {
           "name": "setsockopt.filter_len",
-          "definition": "Length of the filter",
+          "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_len-doc"
         },
         {
           "name": "setsockopt.is_filter_truncated",
-          "definition": "Indicates that the filter is truncated",
+          "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-is_filter_truncated-doc"
         },
         {
@@ -7719,7 +9252,7 @@
         },
         {
           "name": "setsockopt.used_immediates",
-          "definition": "List of immediate values used in the filter",
+          "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-used_immediates-doc"
         }
       ]
@@ -7856,9 +9389,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setxattr.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setxattr.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setxattr.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setxattr.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setxattr.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setxattr.file.package.source_version",
@@ -7965,6 +9518,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -7990,9 +9553,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.ancestors.created_at",
@@ -8110,9 +9683,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.ancestors.file.package.source_version",
@@ -8255,9 +9848,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.package.source_version",
@@ -8345,19 +9958,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "signal.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.target.args",
@@ -8405,6 +10063,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8430,9 +10098,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.created_at",
@@ -8550,9 +10228,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.file.package.source_version",
@@ -8695,9 +10393,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.interpreter.file.package.source_version",
@@ -8795,6 +10513,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.parent.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8820,9 +10548,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.parent.created_at",
@@ -8940,9 +10678,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.parent.file.package.source_version",
@@ -9085,9 +10843,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.package.source_version",
@@ -9170,19 +10948,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.parent.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "signal.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.target.pid",
@@ -9215,19 +11038,64 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.user_session.id",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
+        },
+        {
           "name": "signal.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_auth_method",
+          "definition": "SSH authentication method used by the user",
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_client_ip",
+          "definition": "SSH client IP of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_public_key",
+          "definition": "SSH public key used for authentication (if applicable)",
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.type",
@@ -9319,9 +11187,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "splice.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "splice.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "splice.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "splice.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "splice.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "splice.file.package.source_version",
@@ -9507,9 +11395,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "unlink.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "unlink.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "unlink.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "unlink.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "unlink.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "unlink.file.package.source_version",
@@ -9675,9 +11583,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "utimes.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "utimes.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "utimes.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "utimes.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "utimes.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "utimes.file.package.source_version",
@@ -9978,6 +11906,56 @@
       "examples": []
     },
     {
+      "name": "*.caps_attempted",
+      "link": "common-process-caps_attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used",
+      "link": "common-process-caps_used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.change_time",
       "link": "common-filefields-change_time-doc",
       "type": "int",
@@ -10060,25 +12038,25 @@
       "examples": []
     },
     {
-      "name": "*.container.id",
-      "link": "common-process-container-id-doc",
-      "type": "string",
-      "definition": "Container ID",
+      "name": "*.created_at",
+      "link": "common-containercontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
       "prefixes": [
-        "exec",
-        "exit",
-        "process",
-        "process.ancestors",
-        "process.parent",
-        "ptrace.tracee",
-        "ptrace.tracee.ancestors",
-        "ptrace.tracee.parent",
-        "setrlimit.target",
-        "setrlimit.target.ancestors",
-        "setrlimit.target.parent",
-        "signal.target",
-        "signal.target.ancestors",
-        "signal.target.parent"
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -10764,7 +12742,6 @@
       "type": "string",
       "definition": "ID of the cgroup",
       "prefixes": [
-        "cgroup",
         "exec.cgroup",
         "exit.cgroup",
         "process.ancestors.cgroup",
@@ -10779,6 +12756,81 @@
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-containercontext-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-usersessioncontext-id-doc",
+      "type": "string",
+      "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.identity",
+      "link": "common-usersessioncontext-identity-doc",
+      "type": "string",
+      "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
       ],
       "constants": "",
       "constants_link": "",
@@ -10861,7 +12913,6 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
-        "cgroup.file",
         "cgroup_write.file",
         "chdir.file",
         "chmod.file",
@@ -11044,7 +13095,7 @@
     },
     {
       "name": "*.k8s_groups",
-      "link": "common-usersessioncontext-k8s_groups-doc",
+      "link": "common-k8ssessioncontext-k8s_groups-doc",
       "type": "string",
       "definition": "Kubernetes groups of the user that executed the process",
       "prefixes": [
@@ -11068,8 +13119,33 @@
       "examples": []
     },
     {
+      "name": "*.k8s_session_id",
+      "link": "common-k8ssessioncontext-k8s_session_id-doc",
+      "type": "int",
+      "definition": "Unique identifier of the kubernetes session",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.k8s_uid",
-      "link": "common-usersessioncontext-k8s_uid-doc",
+      "link": "common-k8ssessioncontext-k8s_uid-doc",
       "type": "string",
       "definition": "Kubernetes UID of the user that executed the process",
       "prefixes": [
@@ -11094,7 +13170,7 @@
     },
     {
       "name": "*.k8s_username",
-      "link": "common-usersessioncontext-k8s_username-doc",
+      "link": "common-k8ssessioncontext-k8s_username-doc",
       "type": "string",
       "definition": "Kubernetes username of the user that executed the process",
       "prefixes": [
@@ -11429,7 +13505,6 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
-        "cgroup.file",
         "cgroup_write.file",
         "chdir.file",
         "chmod.file",
@@ -11628,10 +13703,238 @@
       "examples": []
     },
     {
+      "name": "*.package.epoch",
+      "link": "common-fileevent-package-epoch-doc",
+      "type": "int",
+      "definition": "[Experimental] Epoch of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.release",
+      "link": "common-fileevent-package-release-doc",
+      "type": "string",
+      "definition": "[Experimental] Release of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_epoch",
+      "link": "common-fileevent-package-source_epoch-doc",
+      "type": "int",
+      "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_release",
+      "link": "common-fileevent-package-source_release-doc",
+      "type": "string",
+      "definition": "[Experimental] Release of the source package of the package that provided this file",
       "prefixes": [
         "cgroup_write.file",
         "chdir.file",
@@ -11967,6 +14270,7 @@
         "mount",
         "mprotect",
         "open",
+        "prctl",
         "ptrace",
         "removexattr",
         "rename",
@@ -12042,6 +14346,31 @@
       "examples": []
     },
     {
+      "name": "*.session_type",
+      "link": "common-usersessioncontext-session_type-doc",
+      "type": "int",
+      "definition": "Type of the user session",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.size",
       "link": "common-networkcontext-size-doc",
       "type": "int",
@@ -12049,6 +14378,156 @@
       "prefixes": [
         "network",
         "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_auth_method",
+      "link": "common-sshsessioncontext-ssh_auth_method-doc",
+      "type": "int",
+      "definition": "SSH authentication method used by the user",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "SSHAuthMethod",
+      "constants_link": "sshauthmethod",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_client_ip",
+      "link": "common-sshsessioncontext-ssh_client_ip-doc",
+      "type": "IP/CIDR",
+      "definition": "SSH client IP of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_client_port",
+      "link": "common-sshsessioncontext-ssh_client_port-doc",
+      "type": "int",
+      "definition": "SSH client port of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_public_key",
+      "link": "common-sshsessioncontext-ssh_public_key-doc",
+      "type": "string",
+      "definition": "SSH public key used for authentication (if applicable)",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_session_id",
+      "link": "common-sshsessioncontext-ssh_session_id-doc",
+      "type": "int",
+      "definition": "Unique identifier of the SSH user session on the host",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.tags",
+      "link": "common-containercontext-tags-doc",
+      "type": "string",
+      "definition": "Tags of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -12102,6 +14581,19 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-networkcontext-type-doc",
+      "type": "int",
+      "definition": "Type of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network Protocol Types",
+      "constants_link": "network-protocol-types",
       "examples": []
     },
     {
@@ -12279,7 +14771,6 @@
       "type": "int",
       "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
-        "cgroup",
         "exec.cgroup",
         "exit.cgroup",
         "process.ancestors.cgroup",
@@ -12441,6 +14932,30 @@
       ],
       "constants": "BPF program types",
       "constants_link": "bpf-program-types",
+      "examples": []
+    },
+    {
+      "name": "capabilities.attempted",
+      "link": "capabilities-attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used",
+      "link": "capabilities-used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
       "examples": []
     },
     {
@@ -12660,42 +15175,6 @@
       "examples": []
     },
     {
-      "name": "container.created_at",
-      "link": "container-created_at-doc",
-      "type": "int",
-      "definition": "Timestamp of the creation of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.id",
-      "link": "container-id-doc",
-      "type": "string",
-      "definition": "ID of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.tags",
-      "link": "container-tags-doc",
-      "type": "string",
-      "definition": "Tags of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "dns.id",
       "link": "dns-id-doc",
       "type": "int",
@@ -12844,6 +15323,30 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.signature",
+      "link": "event-signature-doc",
+      "type": "string",
+      "definition": "Signature of the process pid and its cgroup with agent secret key",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.source",
+      "link": "event-source-doc",
+      "type": "string",
+      "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
       "prefixes": [
         ""
       ],
@@ -13488,6 +15991,42 @@
       "examples": []
     },
     {
+      "name": "prctl.is_name_truncated",
+      "link": "prctl-is_name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.new_name",
+      "link": "prctl-new_name-doc",
+      "type": "string",
+      "definition": "New name of the process",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.option",
+      "link": "prctl-option-doc",
+      "type": "int",
+      "definition": "prctl option",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "ptrace.request",
       "link": "ptrace-request-doc",
       "type": "int",
@@ -13695,7 +16234,7 @@
       "name": "setsockopt.filter_hash",
       "link": "setsockopt-filter_hash-doc",
       "type": "string",
-      "definition": "Hash of the socket filter using sha256",
+      "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -13707,7 +16246,7 @@
       "name": "setsockopt.filter_instructions",
       "link": "setsockopt-filter_instructions-doc",
       "type": "string",
-      "definition": "Filter instructions",
+      "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -13719,7 +16258,7 @@
       "name": "setsockopt.filter_len",
       "link": "setsockopt-filter_len-doc",
       "type": "int",
-      "definition": "Length of the filter",
+      "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -13731,7 +16270,7 @@
       "name": "setsockopt.is_filter_truncated",
       "link": "setsockopt-is_filter_truncated-doc",
       "type": "bool",
-      "definition": "Indicates that the filter is truncated",
+      "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -13803,7 +16342,7 @@
       "name": "setsockopt.used_immediates",
       "link": "setsockopt-used_immediates-doc",
       "type": "int",
-      "definition": "List of immediate values used in the filter",
+      "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -17660,6 +20199,61 @@
       ]
     },
     {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Network directions",
       "link": "network-directions",
       "description": "Network directions are the supported directions of network packets.",
@@ -17796,6 +20390,257 @@
         },
         {
           "name": "PIPE_BUF_FLAG_LOSS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "PrCtl Options",
+      "link": "prctl-options",
+      "description": "PrCtl Options are the supported options for the prctl event",
+      "all": [
+        {
+          "name": "PR_CAP_AMBIENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_DROP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL_GET",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MM",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_VMA",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_ENABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_DISABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_RESET_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PTRACER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SYSCALL_USER_DISPATCH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_ENABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TID_ADDRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_AUXV",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_SET_ICACHE_FLUSH_CTX",
           "architecture": "all"
         }
       ]
@@ -18117,6 +20962,25 @@
         },
         {
           "name": "RLIMIT_RTTIME",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SSHAuthMethod",
+      "link": "sshauthmethod",
+      "description": "SSH authentication methods.",
+      "all": [
+        {
+          "name": "password",
+          "architecture": "all"
+        },
+        {
+          "name": "public_key",
+          "architecture": "all"
+        },
+        {
+          "name": "unknown",
           "architecture": "all"
         }
       ]
@@ -19219,6 +22083,25 @@
       "all": [
         {
           "name": "AT_REMOVEDIR",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "UserSessionTypes",
+      "link": "usersessiontypes",
+      "description": "UserSessionTypes are the supported user session types.",
+      "all": [
+        {
+          "name": "unknown",
+          "architecture": "all"
+        },
+        {
+          "name": "k8s",
+          "architecture": "all"
+        },
+        {
+          "name": "ssh",
           "architecture": "all"
         }
       ]

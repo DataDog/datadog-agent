@@ -24,8 +24,15 @@ int hook_rtnl_create_link(ctx_t *ctx) {
         return 0;
     }
 
+	u64 rtnl_link_ops_kind_offset;
+    LOAD_CONSTANT("rtnl_link_ops_kind_offset", rtnl_link_ops_kind_offset);
+
     char *kind_ptr;
-    if (bpf_probe_read(&kind_ptr, sizeof(char *), &ops->kind) < 0 || !kind_ptr) {
+    if (bpf_probe_read(&kind_ptr, sizeof(char *), (void *)ops + rtnl_link_ops_kind_offset) < 0) {
+        return 0;
+    }
+
+	if (!kind_ptr) {
         return 0;
     }
 
@@ -251,7 +258,7 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     fill_cgroup_context(entry, &evt.cgroup);
     fill_span_context(&evt.span);
 
-    send_event(ctx, EVENT_VETH_PAIR, evt);
+    send_event(ctx, EVENT_VETH_PAIR_NS, evt);
     return 0;
 }
 

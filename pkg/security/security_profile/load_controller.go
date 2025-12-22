@@ -113,7 +113,7 @@ func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	newDump := dump.NewActivityDump(m.pathsReducer, prev.Profile.Metadata.DifferentiateArgs, 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, newLoadConfig, func(ad *dump.ActivityDump) {
 		ad.Profile.Header = prev.Profile.Header
 		ad.Profile.Metadata = prev.Profile.Metadata
-		ad.Profile.Metadata.Name = fmt.Sprintf("activity-dump-%s", utils.RandString(10))
+		ad.Profile.Metadata.Name = "activity-dump-" + utils.RandString(10)
 		ad.Profile.Metadata.Start = now
 		ad.Profile.Metadata.End = now.Add(newTimeout)
 		ad.Profile.AddTags(prev.Profile.GetTags())
@@ -139,7 +139,7 @@ func (m *Manager) getOverweightDumps() []*dump.ActivityDump {
 		if dumpSize >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
-			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile] = true
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 		}
 	}
 	for _, i := range toDelete {
@@ -165,8 +165,7 @@ func (m *Manager) triggerLoadController() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
-				// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:
@@ -183,6 +182,6 @@ func (m *Manager) triggerLoadController() {
 		}
 
 		// remove container ID from the map of ignored container IDs for the snapshot
-		delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile)
+		delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
 	}
 }

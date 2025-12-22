@@ -13,20 +13,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 
-	infraos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
@@ -147,7 +148,7 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 			return err
 		}
 
-		windowsVM, err := ec2.NewVM(awsEnv, "WindowsVM", ec2.WithOS(infraos.WindowsDefault))
+		windowsVM, err := ec2.NewVM(awsEnv, "WindowsVM", ec2.WithOS(infraos.WindowsServerDefault))
 		if err != nil {
 			return err
 		}

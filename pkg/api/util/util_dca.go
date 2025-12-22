@@ -9,6 +9,8 @@ package util
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,11 +19,13 @@ import (
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	tokenLock sync.RWMutex
-	dcaToken  string
+	tokenLock                sync.RWMutex
+	dcaToken                 string
+	crossNodeClientTLSConfig *tls.Config
 )
 
 // InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
@@ -50,6 +54,48 @@ func GetDCAAuthToken() string {
 	return dcaToken
 }
 
+// SetCrossNodeClientTLSConfig sets the TLS configuration for cross-node communication if not already set.
+func SetCrossNodeClientTLSConfig(config *tls.Config) {
+	if config == nil {
+		return
+	}
+
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
+	if crossNodeClientTLSConfig != nil {
+		log.Warn("Cross-node client TLS configuration is already set, ignoring the new configuration")
+		return
+	}
+
+	// Clone the provided config to avoid modifying the original one
+	crossNodeClientTLSConfig = config.Clone()
+}
+
+// TestOnlyResetCrossNodeClientTLSConfig resets the TLS configuration for cross-node communication.
+// This is used for testing purposes only.
+func TestOnlyResetCrossNodeClientTLSConfig() {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
+	crossNodeClientTLSConfig = nil
+}
+
+// GetCrossNodeClientTLSConfig returns the TLS configuration for cross-node communication.
+func GetCrossNodeClientTLSConfig() (*tls.Config, error) {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
+
+	if crossNodeClientTLSConfig == nil {
+		return nil, errors.New("cross-node client TLS configuration is not set")
+	}
+
+	if crossNodeClientTLSConfig.InsecureSkipVerify {
+		log.Debug("TLS verification is bypassed for Cross-node communication")
+	}
+	return crossNodeClientTLSConfig, nil
+}
+
 // TokenValidator is a middleware that validates the session token for the DCA.
 // It checks the "Authorization" header for a Bearer token and compares it to the
 // session token stored in the configuration.
@@ -59,7 +105,7 @@ func TokenValidator(tokenGetter func() string) func(w http.ResponseWriter, r *ht
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-			err = fmt.Errorf("no session token provided")
+			err = errors.New("no session token provided")
 			http.Error(w, err.Error(), 401)
 			return err
 		}
@@ -74,7 +120,7 @@ func TokenValidator(tokenGetter func() string) func(w http.ResponseWriter, r *ht
 
 		// The following comparison must be evaluated in constant time
 		if len(tok) != 2 || !constantCompareStrings(tok[1], tokenGetter()) {
-			err = fmt.Errorf("invalid session token")
+			err = errors.New("invalid session token")
 			http.Error(w, err.Error(), 403)
 		}
 

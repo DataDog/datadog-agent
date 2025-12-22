@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -36,9 +37,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id interface{}) []string
-	ResolveWithErr(id interface{}) ([]string, error)
-	GetValue(id interface{}, tag string) string
+	Resolve(id containerutils.WorkloadID) []string
+	ResolveWithErr(id containerutils.WorkloadID) ([]string, error)
+	GetValue(id containerutils.WorkloadID, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -47,35 +48,35 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id interface{}) []string {
+func (t *DefaultResolver) Resolve(id containerutils.WorkloadID) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id interface{}) ([]string, error) {
+func (t *DefaultResolver) ResolveWithErr(id containerutils.WorkloadID) ([]string, error) {
 	return t.resolveWorkloadTags(id)
 }
 
 // resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
-func (t *DefaultResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+func (t *DefaultResolver) resolveWorkloadTags(id containerutils.WorkloadID) ([]string, error) {
 	if id == nil {
-		return nil, fmt.Errorf("nil workload id")
+		return nil, errors.New("nil workload id")
 	}
 
 	switch v := id.(type) {
 	case containerutils.ContainerID:
 		if len(v) == 0 {
-			return nil, fmt.Errorf("empty container id")
+			return nil, errors.New("empty container id")
 		}
 		// Resolve as a container ID
 		return GetTagsOfContainer(t.tagger, v)
 	case containerutils.CGroupID:
 		if len(v) == 0 {
-			return nil, fmt.Errorf("empty cgroup id")
+			return nil, errors.New("empty cgroup id")
 		}
 		// CGroup resolution is only supported on Linux
-		return nil, fmt.Errorf("cgroup resolution not supported on this platform")
+		return nil, errors.New("cgroup resolution not supported on this platform")
 	default:
 		return nil, fmt.Errorf("unknown workload id type: %T", id)
 	}
@@ -93,7 +94,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id interface{}, tag string) string {
+func (t *DefaultResolver) GetValue(id containerutils.WorkloadID, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 

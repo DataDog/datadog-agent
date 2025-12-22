@@ -8,6 +8,8 @@ package eval
 
 import (
 	"strings"
+
+	"github.com/charlievieth/strcase"
 )
 
 func nextSegment(str string) (bool, string, int) {
@@ -40,18 +42,16 @@ func nextSegment(str string) (bool, string, int) {
 	return star, str[start:end], end
 }
 
-func index(s, subtr string, caseInsensitive bool) int {
+func index(s, substr string, caseInsensitive bool) int {
 	if caseInsensitive {
-		s = strings.ToLower(s)
-		subtr = strings.ToLower(subtr)
+		return strcase.Index(s, substr)
 	}
-	return strings.Index(s, subtr)
+	return strings.Index(s, substr)
 }
 
 func hasPrefix(s, prefix string, caseInsensitive bool) bool {
 	if caseInsensitive {
-		s = strings.ToLower(s)
-		prefix = strings.ToLower(prefix)
+		return strcase.HasPrefix(s, prefix)
 	}
 	return strings.HasPrefix(s, prefix)
 }

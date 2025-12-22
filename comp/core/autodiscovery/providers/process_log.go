@@ -6,12 +6,17 @@
 package providers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -19,9 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -32,27 +45,123 @@ type serviceLogRef struct {
 }
 
 type processLogConfigProvider struct {
-	workloadmetaStore    workloadmeta.Component
-	serviceLogRefs       map[string]*serviceLogRef
-	pidToServiceIDs      map[int32][]string
-	unreadableFilesCache *simplelru.LRU[string, struct{}]
-	mu                   sync.RWMutex
+	workloadmetaStore       workloadmeta.Component
+	tagger                  tagger.Component
+	logsFilters             workloadfilter.FilterBundle
+	serviceLogRefs          map[string]*serviceLogRef
+	pidToServiceIDs         map[int32][]string
+	unreadableFilesCache    *simplelru.LRU[string, struct{}]
+	validIntegrationSources map[string]bool
+	mu                      sync.RWMutex
+	excludeAgent            bool
 }
 
 var _ types.ConfigProvider = &processLogConfigProvider{}
 var _ types.StreamingConfigProvider = &processLogConfigProvider{}
 
+func addSources(sources map[string]bool, path string, sourcePattern *regexp.Regexp) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Debugf("Could not read %s: %v", path, err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if matches := sourcePattern.FindStringSubmatch(scanner.Text()); len(matches) > 1 {
+			source := matches[1]
+			if _, ok := sources[source]; ok {
+				continue
+			}
+
+			sources[source] = true
+			log.Tracef("Discovered integration source: %s from %s", source, path)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Debugf("Could not read %s: %v", path, err)
+	}
+}
+
+// discoverIntegrationSources scans configuration directories to find valid
+// integration log sources by parsing conf.yaml.example files (or conf.yaml
+// files) and extracting log source names.
+func discoverIntegrationSources() map[string]bool {
+	sources := make(map[string]bool)
+
+	// Build search paths similar to LoadComponents
+	searchPaths := []string{
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
+		pkgconfigsetup.Datadog().GetString("confd_path"),
+	}
+
+	log.Tracef("Discovering integration sources from paths: %v", searchPaths)
+
+	// Pattern to match source lines like "source: nginx" (including commented-out lines).
+	sourcePattern := regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
+
+	for _, searchPath := range searchPaths {
+		if searchPath == "" {
+			continue
+		}
+
+		err := filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil // Continue walking, don't fail on individual errors
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if d.Name() != "conf.yaml.example" && d.Name() != "conf.yaml" {
+				return nil
+			}
+
+			addSources(sources, path, sourcePattern)
+
+			return nil
+		})
+
+		if err != nil {
+			log.Debugf("Error discovering integration sources in %s: %v", searchPath, err)
+		}
+	}
+
+	log.Debugf("Discovered %d integration sources", len(sources))
+
+	if len(sources) > 0 {
+		// Agent sources need to be special cased since they don't come with log
+		// examples.  If we don't have any integration sources at all (likely
+		// due to errors), don't add the agent sources, but just allow the
+		// source selection function to allow all sources.
+		for _, agentName := range agentProcessNames {
+			sources[agentName] = true
+		}
+	}
+
+	return sources
+}
+
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	// Discover available integration sources
+	validSources := discoverIntegrationSources()
+
 	return &processLogConfigProvider{
-		workloadmetaStore:    wmeta,
-		serviceLogRefs:       make(map[string]*serviceLogRef),
-		pidToServiceIDs:      make(map[int32][]string),
-		unreadableFilesCache: cache,
+		workloadmetaStore:       wmeta,
+		tagger:                  tagger,
+		logsFilters:             filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs, workloadfilter.ProcessCELGlobal}}),
+		serviceLogRefs:          make(map[string]*serviceLogRef),
+		pidToServiceIDs:         make(map[int32][]string),
+		unreadableFilesCache:    cache,
+		validIntegrationSources: validSources,
+		excludeAgent:            pkgconfigsetup.Datadog().GetBool("logs_config.process_exclude_agent"),
 	}, nil
 }
 
@@ -104,7 +213,10 @@ func (p *processLogConfigProvider) processEvents(evBundle workloadmeta.EventBund
 }
 
 func checkFileReadable(logPath string) error {
-	file, err := os.Open(logPath)
+	// Check readability with the privileged logs client to match what the
+	// log tailer uses.  That client can use the privileged logs module in
+	// system-probe if it is available.
+	file, err := privilegedlogsclient.Open(logPath)
 	if err != nil {
 		log.Infof("Discovered log file %s could not be opened: %v", logPath, err)
 		return err
@@ -123,7 +235,7 @@ func checkFileReadable(logPath string) error {
 
 	if !utf8.Valid(buf) {
 		log.Infof("Discovered log file %s is not a text file", logPath)
-		return fmt.Errorf("file is not a text file")
+		return errors.New("file is not a text file")
 	}
 
 	return nil
@@ -136,16 +248,21 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 
 	err := checkFileReadable(logPath)
 	if err != nil {
-		// We want to display permissions errors in the agent status.
+		// We want to display permissions errors in the agent status.  Other
+		// errors such as file not found are likely due to the log file having
+		// gone away and are not actionable.
 		if errors.Is(err, os.ErrPermission) {
-			status.AddGlobalWarning(logPath, fmt.Sprintf("Discovered log file %s could not be opened due to lack of permissions", logPath))
+			message := fmt.Sprintf("Discovered log file %s could not be opened due to lack of permissions", logPath)
+			discovery.AddWarning(logPath, err, message)
+			status.AddGlobalWarning(logPath, message)
 		}
 
 		oldestPath, _, _ := p.unreadableFilesCache.GetOldest()
 		evicted := p.unreadableFilesCache.Add(logPath, struct{}{})
 		// We don't want to keep the number of warnings growing forever, so
-		// only keep warnings for files in our lru.
+		// only keep warnings for files in our LRU cache.
 		if evicted {
+			discovery.RemoveWarning(oldestPath)
 			status.RemoveGlobalWarning(oldestPath)
 		}
 
@@ -154,9 +271,30 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 
 	// Remove any existing warning for this file, since it is readable. Note that we won't get here
 	// for an existing file until it is evicted from the LRU cache.
+	discovery.RemoveWarning(logPath)
 	status.RemoveGlobalWarning(logPath)
 
 	return true
+}
+
+var agentProcessNames = []string{
+	"agent",
+	"process-agent",
+	"trace-agent",
+	"security-agent",
+	"system-probe",
+}
+
+func isAgentProcess(process *workloadmeta.Process) bool {
+	// Check if the process name matches any of the known agent process names;
+	// we may not be able to make assumptions about the executable paths.
+	for _, agentName := range agentProcessNames {
+		if process.Name == agentName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
@@ -173,6 +311,11 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
+			if p.excludeAgent && isAgentProcess(process) {
+				log.Debugf("Excluding agent process %d (comm=%s) from process log collection", process.Pid, process.Comm)
+				continue
+			}
+
 			// The set of logs monitored by this service may change, so we need
 			// to handle deleting existing logs too. First, decrement refcounts
 			// for existing service IDs associated with this PID. Any logs still
@@ -189,8 +332,21 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 			// process still has logs.
 			delete(p.pidToServiceIDs, process.Pid)
 
+			var filterProcess *workloadfilter.Process
+			if p.logsFilters != nil {
+				filterProcess = workloadmetafilter.CreateProcess(process)
+			}
+
 			newServiceIDs := []string{}
 			for _, logFile := range process.Service.LogFiles {
+				if filterProcess != nil {
+					filterProcess.SetLogFile(logFile)
+					if p.logsFilters.IsExcluded(filterProcess) {
+						log.Debugf("Process %d log file %s excluded by CEL filter", process.Pid, logFile)
+						continue
+					}
+				}
+
 				newServiceIDs = append(newServiceIDs, logFile)
 
 				if ref, exists := p.serviceLogRefs[logFile]; exists {
@@ -254,41 +410,84 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 // getServiceName returns the name of the service to be used in the log config.
 func getServiceName(service *workloadmeta.Service) string {
-	if len(service.TracerMetadata) > 0 {
-		return service.TracerMetadata[0].ServiceName
-	}
-
-	if service.DDService != "" {
-		return service.DDService
+	if service.UST.Service != "" {
+		return service.UST.Service
 	}
 
 	return service.GeneratedName
 }
 
+var generatedNameToSource = map[string]string{
+	"apache2":           "apache",
+	"catalina":          "tomcat",
+	"clickhouse-server": "clickhouse",
+	"cockroach":         "cockroachdb",
+	"kafka.Kafka":       "kafka",
+	"postgres":          "postgresql",
+	"mongod":            "mongodb",
+	"mysqld":            "mysql",
+	"redis-server":      "redis",
+	"slapd":             "openldap",
+	"tailscaled":        "tailscale",
+}
+
+var languageToSource = map[languagemodels.LanguageName]string{
+	languagemodels.Python: "python",
+	languagemodels.Go:     "go",
+	languagemodels.Java:   "java",
+	languagemodels.Node:   "nodejs",
+	languagemodels.Ruby:   "ruby",
+	languagemodels.Dotnet: "csharp",
+}
+
+func fixupGeneratedName(generatedName string) string {
+	if replacement, ok := generatedNameToSource[generatedName]; ok {
+		return replacement
+	}
+
+	// Handle special prefixes
+	if strings.HasPrefix(generatedName, "org.elasticsearch.") {
+		return "elasticsearch"
+	}
+	if strings.HasPrefix(generatedName, "org.sonar.") {
+		return "sonarqube"
+	}
+
+	return generatedName
+}
+
 // getSource returns the source to be used in the log config. This needs to
 // match the integration pipelines, see
-// https://app.datadoghq.com/logs/pipelines/pipeline/library. For now, this has
-// some handling for some common cases, until a better solution is available.
-func getSource(service *workloadmeta.Service) string {
-	source := service.GeneratedName
+// https://app.datadoghq.com/logs/pipelines/pipeline/library.
+func (p *processLogConfigProvider) getSource(process *workloadmeta.Process) string {
+	service := process.Service
+	candidate := fixupGeneratedName(service.GeneratedName)
 
-	// Binary name differs from the integration name
-	if source == "apache2" {
-		return "apache"
-	}
-	if source == "postgres" {
-		return "postgresql"
-	}
-	if source == "catalina" {
-		return "tomcat"
+	if p.validIntegrationSources[candidate] {
+		return candidate
 	}
 
-	// The generated name may be the WSGI application name
+	// If we don't know what the valid sources are, just use the candidate as is.
+	if len(p.validIntegrationSources) == 0 {
+		return candidate
+	}
+
+	// For gunicorn applications, the generated name may be the WSGI application
+	// name, so check the source of the generated name and prefer the gunicorn
+	// log source over the generic Python log source.
 	if service.GeneratedNameSource == "gunicorn" {
 		return "gunicorn"
 	}
 
-	return source
+	// If we have a language-specific parser, use that as the source.
+	if process.Language == nil {
+		return candidate
+	}
+	if source, ok := languageToSource[process.Language.Name]; ok {
+		return source
+	}
+
+	return candidate
 }
 
 func getIntegrationName(logFile string) string {
@@ -299,15 +498,27 @@ func getServiceID(logFile string) string {
 	return fmt.Sprintf("%s://%s", names.ProcessLog, logFile)
 }
 
+func (p *processLogConfigProvider) getProcessTags(pid int32) ([]string, error) {
+	if p.tagger == nil {
+		return nil, errors.New("tagger not available")
+	}
+	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
+	return p.tagger.Tag(entityID, taggertypes.HighCardinality)
+}
+
 func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, logFile string) (integration.Config, error) {
 	name := getServiceName(process.Service)
-	source := getSource(process.Service)
+	source := p.getSource(process)
 
 	logConfig := map[string]interface{}{
 		"type":    "file",
 		"path":    logFile,
 		"service": name,
 		"source":  source,
+	}
+
+	if tags, err := p.getProcessTags(process.Pid); err == nil && len(tags) > 0 {
+		logConfig["tags"] = tags
 	}
 
 	data, err := json.Marshal([]map[string]interface{}{logConfig})

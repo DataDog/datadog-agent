@@ -7,7 +7,7 @@ package inventoryagentimpl
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"runtime"
 	"sort"
 	"testing"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -46,8 +47,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: confOverrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -88,7 +88,7 @@ func TestGetPayload(t *testing.T) {
 func TestInitDataErrorInstallInfo(t *testing.T) {
 	defer func() { installinfoGet = installinfo.Get }()
 	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -121,13 +121,14 @@ func TestInitData(t *testing.T) {
 		"runtime_security_config.activity_dump.enabled":        true,
 		"runtime_security_config.remote_configuration.enabled": true,
 		"network_config.enabled":                               true,
+		"traceroute.enabled":                                   true,
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
-		"service_monitoring_config.enable_http2_monitoring":    true,
-		"service_monitoring_config.enable_kafka_monitoring":    true,
-		"service_monitoring_config.enable_postgres_monitoring": true,
-		"service_monitoring_config.enable_redis_monitoring":    true,
+		"service_monitoring_config.http2.enabled":              true,
+		"service_monitoring_config.kafka.enabled":              true,
+		"service_monitoring_config.postgres.enabled":           true,
+		"service_monitoring_config.redis.enabled":              true,
 		"service_monitoring_config.tls.istio.enabled":          true,
 		"service_monitoring_config.tls.go.enabled":             true,
 		"discovery.enabled":                                    true,
@@ -163,6 +164,7 @@ func TestInitData(t *testing.T) {
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
 		"site":                             "test",
 		"eks_fargate":                      true,
+		"synthetics.collector.enabled":     true,
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -172,11 +174,13 @@ func TestInitData(t *testing.T) {
 		"ec2_prefer_imdsv2":                           true,
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
+		"remote_updates":                              true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"sbom.enabled":                                true,
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
+		"infrastructure_mode":                         "basic",
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
@@ -206,6 +210,7 @@ func TestInitData(t *testing.T) {
 		"feature_imdsv2_enabled":                     true,
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
+		"feature_remote_updates_enabled":             true,
 		"feature_process_enabled":                    true,
 		"feature_container_images_enabled":           true,
 
@@ -219,6 +224,8 @@ func TestInitData(t *testing.T) {
 		"feature_networks_enabled":                     true,
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,
+		"feature_traceroute_enabled":                   true,
+		"feature_synthetics_collector_enabled":         true,
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
@@ -244,12 +251,21 @@ func TestInitData(t *testing.T) {
 		"system_probe_gateway_lookup_enabled":          true,
 		"system_probe_root_namespace_enabled":          true,
 		"system_probe_max_connections_per_message":     10,
+		"infrastructure_mode":                          "basic",
 	}
 
 	if !kernel.IsIPv6Enabled() {
 		expected["system_probe_track_tcp_6_connections"] = false
 		expected["system_probe_track_udp_6_connections"] = false
 	}
+
+	// Redis may be disabled by adjust_usm.go on kernels < 5.4
+	if !sysprobecfg.RedisMonitoringSupported() {
+		expected["feature_usm_redis_enabled"] = false
+	}
+
+	// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+	expected["feature_usm_http2_enabled"] = sysprobecfg.HTTP2MonitoringSupported()
 
 	for name, value := range expected {
 		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
@@ -282,9 +298,7 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, ia.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.Eventually(t, func() bool {
-		return assert.True(t, ia.RefreshTriggered())
-	}, 5*time.Second, 1*time.Second)
+	assert.True(t, ia.RefreshTriggered())
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
@@ -347,7 +361,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -388,7 +402,7 @@ func TestFetchProcessAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -435,7 +449,7 @@ func TestFetchTraceAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -482,7 +496,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	isPrebuiltDeprecated := prebuilt.IsDeprecated()
@@ -498,6 +512,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -537,7 +552,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
@@ -555,6 +570,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -605,8 +621,12 @@ network_config:
   enable_gateway_lookup: true
   enable_root_netns: true
 
+traceroute:
+  enabled: true
+
 service_monitoring_config:
-  enable_http_monitoring: true
+  http:
+    enabled: true
   tls:
     native:
       enabled: true
@@ -617,10 +637,14 @@ service_monitoring_config:
     go:
       enabled: true
   enabled: true
-  enable_kafka_monitoring: true
-  enable_postgres_monitoring: true
-  enable_redis_monitoring: true
-  enable_http2_monitoring: true
+  kafka:
+    enabled: true
+  postgres:
+    enabled: true
+  redis:
+    enabled: true
+  http2:
+    enabled: true
   enable_http_stats_by_status_code: true
 
 discovery:
@@ -657,6 +681,7 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -743,32 +768,18 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	}
 
 	sort.Strings(keys)
-	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "fleet_policies_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	expected := []string{
+		"provided_configuration",
+		"full_configuration",
+		"file_configuration",
+		"environment_variable_configuration",
+		"agent_runtime_configuration",
+		"fleet_policies_configuration",
+		"remote_configuration",
+		"cli_configuration",
+		"source_local_configuration",
+	}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
-}
-
-func TestGetDiagnosticsDisabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": false,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.NotContains(t, payload.Metadata, "diagnostics")
-}
-
-func TestGetDiagnosticsEnabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": true,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.Contains(t, payload.Metadata, "diagnostics")
 }

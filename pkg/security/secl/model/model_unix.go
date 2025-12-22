@@ -6,12 +6,12 @@
 //go:build unix
 
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate event_deep_copy -tags unix -types-file model.go -output event_deep_copy_unix.go
 
 // Package model holds model related files
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -33,10 +33,8 @@ const (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -44,12 +42,10 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			ProcessContext:   &ProcessContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers:  &FakeFieldHandlers{},
+			ProcessContext: &ProcessContext{},
+			Os:             runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -60,11 +56,8 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerCreatedAt
-// gengetter: GetContainerId
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -82,41 +75,43 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
-	CGroupContext  *CGroupContext `field:"cgroup"`
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 
 	// fim events
-	Chmod       ChmodEvent     `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
-	Chown       ChownEvent     `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
-	Open        OpenEvent      `field:"open" event:"open"`               // [7.27] [File] A file was opened
-	Mkdir       MkdirEvent     `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
-	Rmdir       RmdirEvent     `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
-	Rename      RenameEvent    `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
-	Unlink      UnlinkEvent    `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
-	Utimes      UtimesEvent    `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
-	Link        LinkEvent      `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
-	SetXAttr    SetXAttrEvent  `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
-	RemoveXAttr SetXAttrEvent  `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Splice      SpliceEvent    `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Mount       MountEvent     `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
-	Chdir       ChdirEvent     `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
-	Setrlimit   SetrlimitEvent `field:"setrlimit" event:"setrlimit"`     // [7.68] [Process] A setrlimit command was executed
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
+	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
+	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
+	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
+	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
+	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
+	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
+	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
+	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
+	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
+	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
+	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal        SignalEvent        `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit          ExitEvent          `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
-	Syscalls      SyscallsEvent      `field:"-"`
-	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
+	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
+	Syscalls          SyscallsEvent      `field:"-"`
+	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
+	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -140,6 +135,7 @@ type Event struct {
 	IMDS               IMDSEvent               `field:"imds" event:"imds"`                                 // [7.55] [Network] An IMDS event was captured
 	RawPacket          RawPacketEvent          `field:"packet" event:"packet"`                             // [7.60] [Network] A raw network packet was captured
 	NetworkFlowMonitor NetworkFlowMonitorEvent `field:"network_flow_monitor" event:"network_flow_monitor"` // [7.63] [Network] A network monitor event was sent
+	FailedDNS          FailedDNSEvent          `field:"failed_dns" event:"failed_dns"`                     // [7.7X] [Network] A DNS packet failed to be decoded
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -153,21 +149,29 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
-var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
-var cgroupContextZero CGroupContext
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
-	*e.CGroupContext = cgroupContextZero
+	return func(e *Event) {
+		*e = eventZero
+	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	Releasable
+	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFile    PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
@@ -187,8 +191,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 }
 
 // Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -313,8 +319,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	SpanID  uint64        `field:"-"`
 	TraceID utils.TraceID `field:"-"`
@@ -337,9 +343,14 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
+	CapsAttempted uint64 `field:"caps_attempted"` // SECLDoc[caps_attempted] Definition:`Bitmask of the capabilities that the process attempted to use` Constants:`Kernel Capability constants`
+	CapsUsed      uint64 `field:"caps_used"`      // SECLDoc[caps_used] Definition:`Bitmask of the capabilities that the process successfully used` Constants:`Kernel Capability constants`
+
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -363,9 +374,6 @@ type Process struct {
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
 	SymlinkBasenameStr string              `field:"-"`
 
-	// cache version
-	ScrubbedArgvResolved bool `field:"-"`
-
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
@@ -375,8 +383,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
+
+	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -388,8 +402,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+		String:  pc.Comm,
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -430,10 +447,10 @@ type FileFields struct {
 type FileEvent struct {
 	FileFields
 
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
-	Extension   string `field:"extension,handler:ResolveFileExtension"`                                            // SECLDoc[extension] Definition:`File's extension`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname,OverlayFSPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`               // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                        // SECLDoc[filesystem] Definition:`File's filesystem`
+	Extension   string `field:"extension,handler:ResolveFileExtension"`                                                          // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -446,7 +463,11 @@ type FileEvent struct {
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgEpoch      int    `field:"package.epoch,handler:ResolvePackageEpoch"`                  // SECLDoc[package.epoch] Definition:`[Experimental] Epoch of the package that provided this file`
+	PkgRelease    string `field:"package.release,handler:ResolvePackageRelease"`              // SECLDoc[package.release] Definition:`[Experimental] Release of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
+	PkgSrcEpoch   int    `field:"package.source_epoch,handler:ResolvePackageSourceEpoch"`     // SECLDoc[package.source_epoch] Definition:`[Experimental] Epoch of the source package of the package that provided this file`
+	PkgSrcRelease string `field:"package.source_release,handler:ResolvePackageSourceRelease"` // SECLDoc[package.source_release] Definition:`[Experimental] Release of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
 	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
@@ -498,18 +519,23 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32  `field:"-"`
-	Device         uint32  `field:"-"`
-	ParentPathKey  PathKey `field:"-"`
-	RootPathKey    PathKey `field:"-"`
-	BindSrcMountID uint32  `field:"-"`
-	FSType         string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string  `field:"-"`
-	RootStr        string  `field:"-"`
-	Path           string  `field:"-"`
-	Origin         uint32  `field:"-"`
-	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool    `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID              uint32   `field:"-"`
+	MountIDUnique        uint64   `field:"-"`
+	Device               uint32   `field:"-"`
+	ParentPathKey        PathKey  `field:"-"`
+	Children             []uint32 `field:"-"`
+	RootPathKey          PathKey  `field:"-"`
+	BindSrcMountID       uint32   `field:"-"`
+	BindSrcMountIDUnique uint64   `field:"-"`
+	ParentMountIDUnique  uint64   `field:"-"`
+	FSType               string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr        string   `field:"-"`
+	RootStr              string   `field:"-"`
+	Path                 string   `field:"-"`
+	Origin               uint32   `field:"-"`
+	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	NamespaceInode       uint32   `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -571,11 +597,12 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS     uint32 `field:"-"`
-	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	Pid           uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"-"`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
+	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }
@@ -1006,14 +1033,34 @@ type SetSockOptEvent struct {
 	SyscallEvent
 	SocketType         uint16 `field:"socket_type"`                                                         // SECLDoc[socket_type] Definition:`Socket type`
 	SocketFamily       uint16 `field:"socket_family"`                                                       // SECLDoc[socket_family] Definition:`Socket family`
-	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 	SocketProtocol     uint16 `field:"socket_protocol"`                                                     // SECLDoc[socket_protocol] Definition:`Socket protocol`
 	Level              uint32 `field:"level"`                                                               // SECLDoc[level] Definition:`Socket level`
 	OptName            uint32 `field:"optname"`                                                             // SECLDoc[optname] Definition:`Socket option name`
 	SizeToRead         uint32 `field:"-"`                                                                   // Internal field, not exposed to users
-	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the currently attached filter is truncated. Only available if the optname is \`SO_ATTACH_FILTER\``
 	RawFilter          []byte `field:"-"`                                                                   // Internal field, not exposed to users
-	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
-	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
-	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Instructions of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the currently attached filter using sha256. Only available if the optname is \`SO_ATTACH_FILTER\``
+	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
+}
+
+// CapabilitiesEvent is used to report capabilities usage
+type CapabilitiesEvent struct {
+	Attempted uint64 `field:"attempted,handler:ResolveCapabilitiesAttempted"` // SECLDoc[attempted] Definition:`Bitmask of the capabilities that the process attempted to use since it started running` Constants:`Kernel Capability constants`
+	Used      uint64 `field:"used,handler:ResolveCapabilitiesUsed"`           // SECLDoc[used] Definition:`Bitmask of the capabilities that the process successfully used since it started running` Constants:`Kernel Capability constants`
+}
+
+// PrCtlEvent represents a prctl event
+type PrCtlEvent struct {
+	SyscallEvent
+	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
+	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
+	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
+}
+
+// TracerMemfdSealEvent represents a tracer memfd seal event
+type TracerMemfdSealEvent struct {
+	SyscallEvent
+	Fd uint32
 }

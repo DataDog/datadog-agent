@@ -12,9 +12,11 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -81,6 +83,10 @@ func (m exactMatcher) matches(ptr jsontext.Pointer) bool {
 }
 
 type reMatcher regexp.Regexp
+
+func matchRegexp(re string) matcher {
+	return (*reMatcher)(regexp.MustCompile(re))
+}
 
 func (m *reMatcher) matches(ptr jsontext.Pointer) bool {
 	return (*regexp.Regexp)(m).MatchString(string(ptr))
@@ -169,10 +175,14 @@ func redactStackFrame(v jsontext.Value) jsontext.Value {
 	if err != nil {
 		return v
 	}
-	if !strings.HasPrefix(f.FileName, "runtime/asm_") {
+	isAsm := strings.HasPrefix(f.FileName, "runtime/asm_")
+	isRuntime := strings.HasPrefix(f.FileName, "runtime/")
+	if !isAsm && !isRuntime {
 		return v
 	}
-	f.FileName = "runtime/asm_[arch].s"
+	if isAsm {
+		f.FileName = "runtime/asm_[arch].s"
+	}
 	f.LineNumber = "[lineNumber]"
 	buf, err := json.Marshal(f)
 	if err != nil {
@@ -183,7 +193,11 @@ func redactStackFrame(v jsontext.Value) jsontext.Value {
 
 var defaultRedactors = []jsonRedactor{
 	redactor(
-		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/stack/[[:digit:]]+$`)),
+		exactMatcher(`/logger/thread_id`),
+		replacerFunc(redactGoID),
+	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/stack/[[:digit:]]+$`),
 		replacerFunc(redactStackFrame),
 	),
 	redactor(
@@ -199,8 +213,16 @@ var defaultRedactors = []jsonRedactor{
 		replacement(`"[ts]"`),
 	),
 	redactor(
+		exactMatcher(`/duration`),
+		replacerFunc(redactNonZeroDuration),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
-		replacement(`"[addr]"`),
+		replacerFunc(redactNonZeroAddress),
+	),
+	redactor(
+		exactMatcher(`/debugger/snapshot/captures/return/locals/~0r0/value`),
+		regexpStringReplacer("0x[[:xdigit:]]+", "0x[addr]"),
 	),
 	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
@@ -210,12 +232,155 @@ var defaultRedactors = []jsonRedactor{
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
 		entriesSorter{},
 	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*`),
+		replacerFunc(redactTypesThatDependOnVersion),
+	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*/type`),
+		regexpStringReplacer(
+			`UnknownType\(0x[[:xdigit:]]+\)`,
+			`UnknownType(0x[GoRuntimeType])`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`0x[[:xdigit:]]+`,
+			`0x[addr]`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`map\[.*, \.\.\.\]`,
+			`map[{redacted-entries}, ...]`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`\{mu: `+mutexInternalsRegexp+`\}|`+mutexInternalsRegexp,
+			`{mutex internals}`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`[0-9]+\.[0-9]+ms`,
+			`[duration]ms`,
+		),
+	),
+}
+
+const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`
+
+func redactGoID(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var goid uint64
+	if err := json.Unmarshal(v, &goid); err != nil {
+		return v
+	}
+	if goid == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+func redactNonZeroDuration(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var duration int64
+	if err := json.Unmarshal(v, &duration); err != nil {
+		return v
+	}
+	if duration == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[duration]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+func redactNonZeroAddress(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '"' {
+		return v
+	}
+	var s string
+	if err := json.Unmarshal(v, &s); err != nil {
+		return v
+	}
+	addr, err := strconv.ParseUint(s, 0, 64)
+	if err != nil {
+		return v
+	}
+	if addr == 0 {
+		return v
+	}
+	s = "[addr]"
+	buf, err := json.Marshal(s)
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+// The structure of some types from the stdlib changed over time. Redact them so
+// that golden files are valid across versions.
+func redactTypesThatDependOnVersion(v jsontext.Value) jsontext.Value {
+	var t = struct {
+		Type string `json:"type"`
+	}{}
+	if err := json.Unmarshal(v, &t); err != nil {
+		return v
+	}
+	if t.Type != "sync.Mutex" && t.Type != "sync.Once" {
+		return v
+	}
+	return jsontext.Value(fmt.Sprintf(
+		`"[%s (different in different versions)]"`,
+		t.Type))
+}
+
+func regexpStringReplacer(pat, replacement string) replacer {
+	re := regexp.MustCompile(pat)
+	return replacerFunc(func(v jsontext.Value) jsontext.Value {
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil {
+			return v
+		}
+		if !re.MatchString(s) {
+			return v
+		}
+		replaced := re.ReplaceAllString(s, replacement)
+		marshalled, err := json.Marshal(replaced)
+		if err != nil {
+			return v
+		}
+		return jsontext.Value(marshalled)
+	})
 }
 
 func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	e := jsontext.NewEncoder(
+		&buf,
+		jsontext.WithIndent("  "),
+		jsontext.WithIndentPrefix("  "),
+		jsontext.PreserveRawStrings(false),
+		jsontext.EscapeForHTML(false),
+		jsontext.EscapeForJS(false),
+	)
 	ptrPrefix = jsontext.Pointer(strings.TrimSuffix(string(ptrPrefix), "/"))
 	stackPtr := func() jsontext.Pointer {
 		return jsontext.Pointer(
@@ -233,18 +398,32 @@ func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactor
 	}
 	for {
 		kind, idx := d.StackIndex(d.StackDepth())
+		if kind == 0 {
+			if copyToken() {
+				break
+			}
+			continue
+		}
 		// If we're in an object and this is a key, copy it across.
-		if kind == '{' && idx%2 == 0 || d.PeekKind() == ']' {
+		switch d.PeekKind() {
+		case ']', '}':
+			require.False(t, copyToken(), "unexpected EOF")
+			continue
+		}
+		if kind == '{' && idx%2 == 0 {
 			require.False(t, copyToken(), "unexpected EOF")
 		}
+
 		ptr := stackPtr()
 		var redacted []byte
 		for _, redactor := range redactors {
 			if redactor.matcher.matches(ptr) {
-				v, err := d.ReadValue()
-				require.NoError(t, err)
-				redacted = redactor.replacer.replace(v)
-				break
+				if redacted == nil {
+					v, err := d.ReadValue()
+					require.NoError(t, err)
+					redacted = v
+				}
+				redacted = redactor.replacer.replace(redacted)
 			}
 		}
 

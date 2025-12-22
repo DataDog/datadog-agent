@@ -91,7 +91,15 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
         data->is_kworker = 1;
     }
 
-    struct proc_cache_t *pc = get_proc_cache(tgid);
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (!pid_entry) {
+        return NULL;
+    }
+
+    // copy user session id
+    data->user_session_id = pid_entry->user_session_id;
+
+    struct proc_cache_t *pc = get_proc_from_cookie(pid_entry->cookie);
     if (pc) {
         data->inode = pc->entry.executable.path_key.ino;
     }
@@ -167,6 +175,11 @@ static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache
         cgroup->cgroup_file.path_id = 0;
         cgroup->cgroup_file.ino = 0;
     }
+}
+
+u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
+    struct proc_cache_t *entry = get_proc_cache(tgid);
+    return entry ? entry->cgroup.cgroup_file.ino : 0;
 }
 
 #endif

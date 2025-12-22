@@ -11,3 +11,6 @@ type ContainerID string
 
 // CGroupID represents a cgroup ID
 type CGroupID string
+
+// WorkloadID represents a workload identifier that can be either a container ID or cgroup ID
+type WorkloadID interface{}

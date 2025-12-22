@@ -13,9 +13,12 @@ package serializers
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -23,6 +26,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -74,6 +78,16 @@ type FileSerializer struct {
 	PackageName string `json:"package_name,omitempty"`
 	// System package version
 	PackageVersion string `json:"package_version,omitempty"`
+	// System package epoch
+	PackageEpoch int `json:"package_epoch,omitempty"`
+	// System package release
+	PackageRelease string `json:"package_release,omitempty"`
+	// System package source version
+	PackageSrcVersion string `json:"package_source_version,omitempty"`
+	// System package source epoch
+	PackageSrcEpoch int `json:"package_source_epoch,omitempty"`
+	// System package source release
+	PackageSrcRelease string `json:"package_source_release,omitempty"`
 	// List of cryptographic hashes of the file
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
@@ -204,10 +218,21 @@ type ProcessCredentialsSerializer struct {
 // UserSessionContextSerializer serializes the user session context to JSON
 // easyjson:json
 type UserSessionContextSerializer struct {
-	// Unique identifier of the user session on the host
-	ID string `json:"id,omitempty"`
 	// Type of the user session
 	SessionType string `json:"session_type,omitempty"`
+	// Unique identifier of the user session on the host
+	ID string `json:"id,omitempty"`
+	// Identity of the user session
+	Identity string `json:"identity,omitempty"`
+	K8SSessionContextSerializer
+	SSHSessionContextSerializer
+}
+
+// K8SSessionContextSerializer serializes the kubernetes session context to JSON
+// easyjson:json
+type K8SSessionContextSerializer struct {
+	// Unique identifier of the user session on the host
+	K8SSessionID string `json:"k8s_session_id,omitempty"`
 	// Username of the Kubernetes "kubectl exec" session
 	K8SUsername string `json:"k8s_username,omitempty"`
 	// UID of the Kubernetes "kubectl exec" session
@@ -216,6 +241,21 @@ type UserSessionContextSerializer struct {
 	K8SGroups []string `json:"k8s_groups,omitempty"`
 	// Extra of the Kubernetes "kubectl exec" session
 	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
+}
+
+// SSHSessionContextSerializer serializes the SSH session context to JSON
+// easyjson:json
+type SSHSessionContextSerializer struct {
+	// Unique identifier of the SSH session
+	SSHSessionID string `json:"ssh_session_id,omitempty"`
+	// Port of the SSH session
+	SSHClientPort int `json:"ssh_client_port,omitempty"`
+	// Client IP of the SSH session
+	SSHClientIP string `json:"ssh_client_ip,omitempty"`
+	// Authentication method of the SSH session
+	SSHAuthMethod string `json:"ssh_auth_method,omitempty"`
+	// Public key of the SSH session
+	SSHPublicKey string `json:"ssh_public_key,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
@@ -249,6 +289,10 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// CapsAttempted lists the capabilities that this process tried to use
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// CapsUsed lists the capabilities that this process effectively made use of
+	CapsUsed []string `json:"caps_used,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -583,6 +627,30 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// PrCtlEventSerializer serializes a prctl event
+// easyjson:json
+type PrCtlEventSerializer struct {
+	// PrCtl Option
+	Option string `json:"option"`
+	// New name of the process
+	NewName string `json:"new_name,omitempty"`
+	// Name truncated
+	IsNameTruncated bool `json:"is_name_truncated,omitempty"`
+}
+
+// SetrlimitEventSerializer serializes a setrlimit event
+// easyjson:json
+type SetrlimitEventSerializer struct {
+	// Resource being limited
+	Resource string `json:"resource"`
+	// Current limit
+	Current uint64 `json:"rlim_cur"`
+	// Maximum limit
+	Max uint64 `json:"rlim_max"`
+	// process context of the setrlimit target
+	Target *ProcessContextSerializer `json:"target,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -683,6 +751,7 @@ type SyscallContextSerializer struct {
 	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
 	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
 	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
+	PrCtl      *SyscallArgsSerializer `json:"prctl,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -706,6 +775,7 @@ func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attac
 // easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
+	Signature string `json:"signature,omitempty"`
 
 	*NetworkContextSerializer         `json:"network,omitempty"`
 	*DDContextSerializer              `json:"dd,omitempty"`
@@ -734,6 +804,9 @@ type EventSerializer struct {
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
+	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
+	*PrCtlEventSerializer         `json:"prctl,omitempty"`
+	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -745,6 +818,22 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 		})
 	}
 	return &ses
+}
+
+// CapabilitiesEventSerializer serializes a capabilities usage event
+// easyjson:json
+type CapabilitiesEventSerializer struct {
+	// Capabilities that the process attempted to use since it started running
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// Capabilities that the process successfully used since it started running
+	CapsUsed []string `json:"caps_used,omitempty"`
+}
+
+func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
+	return &CapabilitiesEventSerializer{
+		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+	}
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -780,6 +869,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
+		PackageEpoch:        e.FieldHandlers.ResolvePackageEpoch(e, fe),
+		PackageRelease:      e.FieldHandlers.ResolvePackageRelease(e, fe),
+		PackageSrcVersion:   e.FieldHandlers.ResolvePackageSourceVersion(e, fe),
+		PackageSrcEpoch:     e.FieldHandlers.ResolvePackageSourceEpoch(e, fe),
+		PackageSrcRelease:   e.FieldHandlers.ResolvePackageSourceRelease(e, fe),
 		HashState:           fe.HashState.String(),
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
@@ -869,6 +963,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
+			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -885,7 +981,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			CredentialsSerializer: credsSerializer,
 		}
 
-		if ps.UserSession.ID != 0 {
+		if ps.UserSession.K8SSessionID != 0 || ps.UserSession.SSHSessionID != 0 {
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
@@ -896,10 +992,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.ContainerID) != 0 {
+		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        string(ps.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				ID:        string(ps.ContainerContext.ContainerID),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
 			}
 		}
 
@@ -923,17 +1019,54 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	}
 }
 
-func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
-	e.FieldHandlers.ResolveUserSessionContext(ctx)
+func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
+	e.FieldHandlers.ResolveK8SUserSessionContext(e, &ctx.K8SSessionContext)
+	userSessionContextSerializer.K8SSessionID = strconv.FormatUint(uint64(ctx.K8SSessionID), 16)
+	userSessionContextSerializer.K8SUsername = ctx.K8SUsername
+	userSessionContextSerializer.K8SUID = ctx.K8SUID
+	userSessionContextSerializer.K8SGroups = ctx.K8SGroups
+	userSessionContextSerializer.K8SExtra = ctx.K8SExtra
 
-	return &UserSessionContextSerializer{
-		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: ctx.SessionType.String(),
-		K8SUsername: ctx.K8SUsername,
-		K8SUID:      ctx.K8SUID,
-		K8SGroups:   ctx.K8SGroups,
-		K8SExtra:    ctx.K8SExtra,
+}
+
+func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
+	if model.SSHAuthMethodStrings == nil {
+		model.InitSSHAuthMethodConstants()
 	}
+
+	sshClientIP := ctx.SSHClientIP.IP.String()
+	if sshClientIP == "<nil>" {
+		sshClientIP = ""
+	}
+
+	sshAuthMethod := model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)]
+	if sshAuthMethod == "<nil>" {
+		sshAuthMethod = ""
+	}
+
+	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
+	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
+	userSessionContextSerializer.SSHClientIP = sshClientIP
+	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
+}
+
+func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
+	userSessionContextSerializer := &UserSessionContextSerializer{}
+
+	if ctx.K8SSessionID != 0 {
+		serializeK8sContext(e, ctx, userSessionContextSerializer)
+	}
+	if ctx.SSHSessionID != 0 {
+		serializeSSHContext(ctx, userSessionContextSerializer)
+	}
+	// init the map if not already done
+	model.InitUserSessionTypes()
+
+	userSessionContextSerializer.SessionType = model.UserSessionTypeStrings[usersession.Type(e.FieldHandlers.ResolveSessionType(e, ctx))]
+	userSessionContextSerializer.ID = e.FieldHandlers.ResolveSessionID(e, ctx)
+	userSessionContextSerializer.Identity = e.FieldHandlers.ResolveSessionIdentity(e, ctx)
+	return userSessionContextSerializer
 }
 
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
@@ -1029,9 +1162,6 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 		BaseEvent: model.BaseEvent{
 			FieldHandlers:  e.FieldHandlers,
 			ProcessContext: e.PTrace.Tracee,
-			ContainerContext: &model.ContainerContext{
-				ContainerID: e.PTrace.Tracee.ContainerID,
-			},
 		},
 	}
 
@@ -1151,12 +1281,25 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 }
 
 func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
-	return &RawPacketSerializer{
+	rps := &RawPacketSerializer{
 		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
 		TLSContext: &TLSContextSerializer{
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
 	}
+
+	if e.GetEventType() == model.RawPacketActionEventType {
+		rps.Dropped = new(bool)
+		*rps.Dropped = true
+	}
+
+	packet := gopacket.NewPacket(rp.Data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
+
+	for _, layer := range packet.Layers() {
+		rps.Layers = append(rps.Layers, &LayerSerializer{Type: layer.LayerType().String(), Layer: layer})
+	}
+
+	return rps
 }
 
 func newNetworkStatsSerializer(networkStats *model.NetworkStats, _ *model.Event) *NetworkStatsSerializer {
@@ -1245,7 +1388,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
-
 		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
@@ -1291,7 +1433,7 @@ type DDContextSerializer struct {
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	s := &DDContextSerializer{}
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
-		s.SpanID = fmt.Sprint(e.SpanContext.SpanID)
+		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
 		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
 		return s
 	}
@@ -1304,7 +1446,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
 		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
-			s.SpanID = fmt.Sprint(pce.SpanID)
+			s.SpanID = strconv.FormatUint(pce.SpanID, 10)
 			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
 			break
 		}
@@ -1324,6 +1466,7 @@ func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContex
 		Destination:      newIPPortSerializer(&networkCtx.Destination),
 		Size:             networkCtx.Size,
 		NetworkDirection: model.NetworkDirection(networkCtx.NetworkDirection).String(),
+		Type:             model.NetworkProtocolType(networkCtx.Type).String(),
 	}
 }
 
@@ -1360,9 +1503,33 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	case syscall.SOL_IPV6:
 		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String()
 	default:
-		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
+		SetSockOptEventSerializer.OptName = strconv.FormatUint(uint64(e.SetSockOpt.OptName), 10)
 	}
 	return &SetSockOptEventSerializer
+}
+
+func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
+	return &PrCtlEventSerializer{
+		Option:          model.PrCtlOption(e.PrCtl.Option).String(),
+		NewName:         e.PrCtl.NewName,
+		IsNameTruncated: e.PrCtl.IsNameTruncated,
+	}
+}
+
+func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
+	fakeTargetEvent := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers:  e.FieldHandlers,
+			ProcessContext: e.Setrlimit.Target,
+		},
+	}
+
+	return &SetrlimitEventSerializer{
+		Resource: model.RlimitResource(e.Setrlimit.Resource).String(),
+		Current:  e.Setrlimit.RlimCur,
+		Max:      e.Setrlimit.RlimMax,
+		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent),
+	}
 }
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
@@ -1383,8 +1550,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
-	s := NewEventSerializer(event, rule)
+func MarshalEvent(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) ([]byte, error) {
+	s := NewEventSerializer(event, rule, scrubber)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -1394,13 +1561,14 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule, scrubber),
 		UserContextSerializer: newUserContextSerializer(event),
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
+	s.Signature = event.FieldHandlers.ResolveSignature(event)
 
 	if !event.NetworkContext.IsZero() {
 		s.NetworkContextSerializer = newNetworkContextSerializer(event, &event.NetworkContext)
@@ -1418,9 +1586,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.CGroupContext.CGroupID),
+			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
@@ -1666,7 +1834,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType, model.RawPacketActionEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
 		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)
@@ -1677,6 +1845,13 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	case model.CgroupWriteEventType:
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
+	case model.CapabilitiesEventType:
+		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
+	case model.PrCtlEventType:
+		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
+	case model.SetrlimitEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
+		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
 	}
 
 	return s

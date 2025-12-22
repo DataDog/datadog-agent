@@ -51,6 +51,7 @@ func (s *JmxScheduler) Schedule(configs []integration.Config) {
 				MetricConfig:  config.MetricConfig,
 				Name:          config.Name,
 				Provider:      config.Provider,
+				Source:        config.Source,
 			}
 
 			id := fmt.Sprintf("%v_%x", c.Name, c.IntDigest())

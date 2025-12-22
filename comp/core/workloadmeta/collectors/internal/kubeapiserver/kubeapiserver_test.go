@@ -12,14 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStoreGenerators(t *testing.T) {
@@ -88,10 +86,7 @@ func TestStoreGenerators(t *testing.T) {
 	// Run test for each testcase
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: tt.cfg}),
-			))
+			cfg := config.NewMockWithOverrides(t, tt.cfg)
 			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
 			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
 
@@ -421,10 +416,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: test.cfg}),
-			))
+			cfg := config.NewMockWithOverrides(t, test.cfg)
 
 			client := fakeclientset.NewSimpleClientset()
 			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
@@ -552,7 +544,6 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			name: "resources explicitly requested with apm enabled and also needed for namespace labels as tags",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled":                                     true,
-				"apm_config.instrumentation.targets":                                     []interface{}{"target-1"},
 				"cluster_agent.kube_metadata_collection.enabled":                         true,
 				"cluster_agent.kube_metadata_collection.resources":                       "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tagkubernetes_namespace_labels_as_tagss": `{"label1": "tag1"}`,
@@ -563,7 +554,6 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			name: "apm enabled enables namespace collection",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled": true,
-				"apm_config.instrumentation.targets": []interface{}{"target-1"},
 			},
 			expectedResources: []string{"//nodes", "//namespaces"},
 		},
@@ -571,11 +561,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: test.cfg}),
-			))
-
+			cfg := config.NewMockWithOverrides(t, test.cfg)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}

@@ -34,6 +34,11 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 }
 
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
+
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.RestrictedTo }}
@@ -47,6 +52,24 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 }
 
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
+
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -63,7 +86,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Field.OpOverrides}},
+			OpOverrides: []*eval.OpOverrides{ {{Join $Field.OpOverrides ", "}} },
 			{{- end}}
 			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
@@ -235,7 +258,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return {{$Return}}
 					{{end -}}
 				},
-			{{end -}}
+			{{end}}
 			Field: field,
 			{{- if $Field.Iterator}}
 				{{- if gt $Field.Weight 0}}
@@ -261,7 +284,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 }
 
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		{{range $Name, $Field := .Fields}}
 			{{- if $Field.GettersOnly }}
 				{{continue}}
@@ -270,9 +293,24 @@ func (ev *Event) GetFields() []eval.Field {
 			"{{$Name}}",
 		{{end}}
 	}
+	
+	// Add legacy field names if mapping is available
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
+	}
+	
+	return fields
 }
 
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
+	originalField := field
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
+
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -280,19 +318,25 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{$Field.IsArray}}, nil
 	{{end}}
 	}
 
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
+	}
+
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
 		ev.initProcess()
 	}
 
-	switch field {
+	switch mappedField {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
 			{{continue}}

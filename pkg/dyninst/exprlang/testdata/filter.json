@@ -1,0 +1,17 @@
+{
+  "type": "unsupported",
+  "operation": "filter",
+  "argument": [
+    {
+      "ref": "collection"
+    },
+    {
+      "not": {
+        "isEmpty": {
+          "ref": "@it"
+        }
+      }
+    }
+  ],
+  "error": ""
+}

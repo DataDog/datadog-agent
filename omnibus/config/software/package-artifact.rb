@@ -64,4 +64,3 @@ build do
        vars: { uninstall_command: uninstall_command}
   end
 end
-

@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedSumArray",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -33,7 +33,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -81,7 +81,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[1, 2, 3, ...]"
   },
   {
     "service": "sample",
@@ -90,7 +91,7 @@
       "name": "",
       "method": "main.testInlinedSumArray",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -122,7 +123,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -170,6 +171,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[1, 2, 3, ...]"
   }
 ]

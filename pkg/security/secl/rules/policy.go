@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
@@ -52,10 +53,21 @@ type PolicyRule struct {
 	Accepted bool
 	Error    error
 	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
-	FilterType FilterType
-	Policy     PolicyInfo
-	ModifiedBy []PolicyInfo
-	UsedBy     []PolicyInfo
+	FilterType  FilterType
+	Policy      PolicyInfo
+	ModifiedBy  []PolicyInfo
+	UsedBy      []PolicyInfo
+	EnableCount int // tracks the number of times the rule was enabled/disabled.It is only updated when merging conflicting rules.
+}
+
+// AreActionsSupported returns true if the actions defined on the rule are supported given a list of enabled event types
+func (r *PolicyRule) AreActionsSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	for _, action := range r.Def.Actions {
+		if err := action.IsActionSupported(eventTypeEnabled); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Policies returns an iterator over the policies that this rule is part of.
@@ -90,7 +102,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 
 	wasOverridden := false
 	// for backward compatibility, by default only the expression is copied if no options
-	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
+	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.InternalType == DefaultPolicyType {
 		tmpExpression := rd1.Def.Expression
 		*rd1.Def = *rd2.Def
 		rd1.Def.Expression = tmpExpression
@@ -138,6 +150,13 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 
 // MergeWith merges rule r2 into r
 func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
+
+	if r2.Def.Disabled {
+		r.EnableCount--
+	} else {
+		r.EnableCount++
+	}
+
 	switch r2.Def.Combine {
 	case OverridePolicy:
 		if !r2.Def.Disabled {
@@ -153,27 +172,29 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 		r.Def.Disabled = r2.Def.Disabled
 		r.Policy = r2.Policy
 	} else {
-		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
-			r.Def.Disabled = r2.Def.Disabled
-			r.Policy = r2.Policy
+		if r.Policy.InternalType == DefaultPolicyType && r2.Policy.InternalType == CustomPolicyType {
+			if !r2.Def.Disabled || (r2.Def.Disabled && r.EnableCount < 0) {
+				r.Def.Disabled = r2.Def.Disabled
+				r.Policy = r2.Policy
+			}
 		}
 	}
 
 	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
 }
 
-// PolicyType represents the type of a policy
-type PolicyType string
+// InternalPolicyType represents the internal type of a policy
+type InternalPolicyType string
 
 const (
 	// DefaultPolicyType is the default policy type
-	DefaultPolicyType PolicyType = "default"
+	DefaultPolicyType InternalPolicyType = "default"
 	// CustomPolicyType is the custom policy type
-	CustomPolicyType PolicyType = "custom"
-	// InternalPolicyType is the policy for internal use (bundled_policy_provider)
-	InternalPolicyType PolicyType = "internal"
-	// SelftestPolicy is the policy for self tests
-	SelftestPolicy PolicyType = "selftest"
+	CustomPolicyType InternalPolicyType = "custom"
+	// BundledPolicyType is the policy for internal use (bundled_policy_provider)
+	BundledPolicyType InternalPolicyType = "internal"
+	// SelftestPolicyType is the policy for self tests
+	SelftestPolicyType InternalPolicyType = "selftest"
 )
 
 // PolicyInfo contains information about a policy that aren't part of the policy definition
@@ -182,10 +203,14 @@ type PolicyInfo struct {
 	Name string
 	// Source is the source of the policy
 	Source string
-	// Type is the type of the policy
-	Type PolicyType
+	// InternalType is the internal type of the policy
+	InternalType InternalPolicyType
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	Type string
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
+	// ReplacePolicyID is the ID that this policy should replace
+	ReplacePolicyID string
 	// IsInternal is true if the policy is internal
 	IsInternal bool
 }
@@ -202,19 +227,17 @@ type Policy struct {
 	// Info contains the policy information such as its name, source and type
 	Info PolicyInfo
 	// multiple macros can have the same ID but different filters (e.g. agent version)
-	macros map[MacroID][]*PolicyMacro
+	Macros []*PolicyMacro
 	// multiple rules can have the same ID but different filters (e.g. agent version)
-	rules map[RuleID][]*PolicyRule
+	Rules []*PolicyRule
 }
 
 // GetAcceptedMacros returns the list of accepted macros that are part of the policy
 func (p *Policy) GetAcceptedMacros() []*PolicyMacro {
 	var acceptedMacros []*PolicyMacro
-	for _, macros := range p.macros {
-		for _, macro := range macros {
-			if macro.isAccepted() {
-				acceptedMacros = append(acceptedMacros, macro)
-			}
+	for _, macro := range p.Macros {
+		if macro.isAccepted() {
+			acceptedMacros = append(acceptedMacros, macro)
 		}
 	}
 	return acceptedMacros
@@ -223,11 +246,9 @@ func (p *Policy) GetAcceptedMacros() []*PolicyMacro {
 // GetAcceptedRules returns the list of accepted rules that are part of the policy
 func (p *Policy) GetAcceptedRules() []*PolicyRule {
 	var acceptedRules []*PolicyRule
-	for _, rules := range p.rules {
-		for _, rule := range rules {
-			if rule.isAccepted() {
-				acceptedRules = append(acceptedRules, rule)
-			}
+	for _, rule := range p.Rules {
+		if rule.isAccepted() {
+			acceptedRules = append(acceptedRules, rule)
 		}
 	}
 	return acceptedRules
@@ -236,11 +257,9 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 // GetFilteredRules returns the list of filtered rules that are part of the policy
 func (p *Policy) GetFilteredRules() []*PolicyRule {
 	var filteredRules []*PolicyRule
-	for _, rules := range p.rules {
-		for _, rule := range rules {
-			if rule.isFiltered() {
-				filteredRules = append(filteredRules, rule)
-			}
+	for _, rule := range p.Rules {
+		if rule.isFiltered() {
+			filteredRules = append(filteredRules, rule)
 		}
 	}
 	return filteredRules
@@ -249,14 +268,16 @@ func (p *Policy) GetFilteredRules() []*PolicyRule {
 // SetInternalCallbackAction adds an internal callback action for the given rule IDs
 func (p *Policy) SetInternalCallbackAction(ruleID ...RuleID) {
 	for _, id := range ruleID {
-		if rules, ok := p.rules[id]; ok {
-			for _, rule := range rules {
-				if rule.isAccepted() && rule.Def.ID == id {
-					rule.Actions = append(rule.Actions, &Action{
-						InternalCallback: &InternalCallbackDefinition{},
-						Def:              &ActionDefinition{},
-					})
-				}
+		for _, rule := range p.Rules {
+			if rule.Def.ID != id {
+				continue
+			}
+
+			if rule.isAccepted() && rule.Def.ID == id {
+				rule.Actions = append(rule.Actions, &Action{
+					InternalCallback: &InternalCallbackDefinition{},
+					Def:              &ActionDefinition{},
+				})
 			}
 		}
 	}
@@ -272,7 +293,7 @@ MACROS:
 			Accepted: true,
 			Policy:   p,
 		}
-		p.macros[macroDef.ID] = append(p.macros[macroDef.ID], macro)
+		p.Macros = append(p.Macros, macro)
 		for _, filter := range macroFilters {
 			macro.Accepted, macro.Error = filter.IsMacroAccepted(macroDef)
 			if macro.Error != nil {
@@ -303,7 +324,7 @@ RULES:
 			Accepted: true,
 			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
 		}
-		p.rules[ruleDef.ID] = append(p.rules[ruleDef.ID], rule)
+		p.Rules = append(p.Rules, rule)
 		for _, filter := range ruleFilters {
 			rule.Accepted, rule.Error = filter.IsRuleAccepted(ruleDef)
 			if rule.Error != nil {
@@ -345,15 +366,21 @@ RULES:
 
 // LoadPolicyFromDefinition load a policy from a definition
 func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
-	if def != nil && def.Version != "" {
-		info.Version = def.Version
+	if def != nil {
+		if def.Version != "" {
+			info.Version = def.Version
+		}
+		if def.ReplacePolicyID != "" {
+			info.ReplacePolicyID = def.ReplacePolicyID
+		}
+		if def.Type != "" {
+			info.Type = def.Type
+		}
 	}
 
 	p := &Policy{
-		Def:    def,
-		Info:   *info,
-		macros: make(map[MacroID][]*PolicyMacro, len(def.Macros)),
-		rules:  make(map[RuleID][]*PolicyRule, len(def.Rules)),
+		Def:  def,
+		Info: *info,
 	}
 
 	return p, p.parse(macroFilters, ruleFilters)
@@ -364,7 +391,7 @@ func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, 
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Type: info.Type, Err: err}
 	}
 
 	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)

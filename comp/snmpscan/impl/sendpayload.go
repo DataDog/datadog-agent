@@ -7,12 +7,13 @@ package snmpscanimpl
 
 import (
 	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
-func (s snmpScannerImpl) SendPayload(payload metadata.NetworkDevicesMetadata) error {
+func (s snmpScannerImpl) sendPayload(payload metadata.NetworkDevicesMetadata) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		s.log.Errorf("Error marshalling device metadata: %v", err)

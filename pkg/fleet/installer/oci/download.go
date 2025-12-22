@@ -126,11 +126,11 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}
 	name, ok := manifest.Annotations[AnnotationPackage]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing package annotation")
+		return nil, errors.New("package manifest is missing package annotation")
 	}
 	version, ok := manifest.Annotations[AnnotationVersion]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing version annotation")
+		return nil, errors.New("package manifest is missing version annotation")
 	}
 	size := uint64(0)
 	rawSize, ok := manifest.Annotations[AnnotationSize]
@@ -219,6 +219,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
+		registryOverride = formatImageRef(registryOverride)
 		ref = registryOverride + imageWithIdentifier
 	}
 	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
@@ -232,6 +233,11 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		ref:      ref,
 		keychain: keychain,
 	}
+}
+
+// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+func formatImageRef(override string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
@@ -304,7 +310,7 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 	}
 	return nil, installerErrors.Wrap(
 		installerErrors.ErrPackageNotFound,
-		fmt.Errorf("no matching image found in the index"),
+		errors.New("no matching image found in the index"),
 	)
 }
 
@@ -424,6 +430,10 @@ func isRetryableNetworkError(err error) bool {
 	}
 
 	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "connectex") { // Windows
 		return true
 	}
 

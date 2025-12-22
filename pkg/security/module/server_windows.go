@@ -9,8 +9,21 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
+
+// sshSessionPatcher stub for Windows
+type sshSessionPatcher interface {
+	IsResolved() error
+	PatchEvent(_ interface{})
+}
+
+// createSSHSessionPatcher creates a no-op patcher for Windows
+func createSSHSessionPatcher(_ *model.Event, _ *probe.Probe) sshSessionPatcher {
+	return nil
+}
 
 // DumpDiscarders handles discarder dump requests
 func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
@@ -47,20 +60,8 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, _ *api.SecurityProfil
 	return nil, errors.New("not supported")
 }
 
-// GetStatus returns the status of the module
-func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	apiStatus := &api.Status{
-		SelfTests: a.selfTester.GetStatus(),
-	}
-
-	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-	for _, seclVariable := range seclVariables {
-		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
-	}
-
-	return apiStatus, nil
+func (a *APIServer) fillStatusPlatform(_ *api.Status) error {
+	return nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests

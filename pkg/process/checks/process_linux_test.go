@@ -8,8 +8,8 @@
 package checks
 
 import (
-	"fmt"
 	"math/rand/v2"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +19,6 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -100,10 +99,9 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			))
 
 			processCheck := &ProcessCheck{
-				wmeta:                   mockWLM,
-				probe:                   mockProbe,
-				useWLMProcessCollection: true,
-				clock:                   mockConstantClock,
+				wmeta: mockWLM,
+				probe: mockProbe,
+				clock: mockConstantClock,
 			}
 
 			// MOCKING
@@ -122,35 +120,71 @@ func TestProcessesByPIDWLM(t *testing.T) {
 	}
 }
 
-// TODO: service discovery does not yet distinguish between tcp and udp, so everything is sent as TCP
 func TestFormatPorts(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
-		ports            []uint16
+		portsCollected   bool
+		tcpPorts         []uint16
+		udpPorts         []uint16
 		expectedPortInfo *model.PortInfo
 	}{
 		{
-			description: "normal ports",
-			ports:       []uint16{80, 443},
+			description:    "normal tcp and udp ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{80, 443},
+			udpPorts:       []uint16{53, 123},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{80, 443},
+				Udp: []int32{53, 123},
 			},
 		},
 		{
-			description: "empty ports",
-			ports:       []uint16{},
+			description:    "tcp only ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{80, 443},
+			udpPorts:       nil,
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{80, 443},
+				Udp: nil,
+			},
+		},
+		{
+			description:    "udp only ports",
+			portsCollected: true,
+			tcpPorts:       nil,
+			udpPorts:       []uint16{53, 123},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: nil,
+				Udp: []int32{53, 123},
+			},
+		},
+		{
+			description:    "empty ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{},
+			udpPorts:       []uint16{},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{},
+				Udp: []int32{},
 			},
 		},
 		{
 			description:      "ports not collected",
-			ports:            nil,
+			portsCollected:   false,
+			tcpPorts:         []uint16{},
+			udpPorts:         []uint16{},
+			expectedPortInfo: nil,
+		},
+		{
+			description:      "ports not collected",
+			portsCollected:   false,
+			tcpPorts:         nil,
+			udpPorts:         nil,
 			expectedPortInfo: nil,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			actual := formatPorts(tc.ports)
+			actual := formatPorts(tc.portsCollected, tc.tcpPorts, tc.udpPorts)
 			assert.Equal(t, tc.expectedPortInfo, actual)
 		})
 	}
@@ -330,7 +364,8 @@ func TestFormatServiceDiscovery(t *testing.T) {
 					},
 				},
 				DDService:          "dd_service_name",
-				APMInstrumentation: "provided",
+				APMInstrumentation: true,
+				LogFiles:           []string{"/var/log/app.log", "/var/log/error.log"},
 			},
 			expectedService: &model.ServiceDiscovery{
 				GeneratedServiceName: &model.ServiceName{
@@ -362,6 +397,22 @@ func TestFormatServiceDiscovery(t *testing.T) {
 					},
 				},
 				ApmInstrumentation: true,
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/app.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/error.log",
+							},
+						},
+					},
+				},
 			},
 		},
 		{
@@ -371,7 +422,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 				GeneratedNameSource:      "",
 				AdditionalGeneratedNames: []string{"", ""},
 				DDService:                "",
-				APMInstrumentation:       "none",
+				APMInstrumentation:       false,
 			},
 			expectedService: &model.ServiceDiscovery{
 				GeneratedServiceName:     nil,
@@ -384,6 +435,87 @@ func TestFormatServiceDiscovery(t *testing.T) {
 			description:     "empty service",
 			service:         &procutil.Service{},
 			expectedService: &model.ServiceDiscovery{},
+		},
+		{
+			description: "service with log files only",
+			service: &procutil.Service{
+				LogFiles: []string{"/var/log/nginx/access.log", "/var/log/nginx/error.log", "/var/log/app/application.log"},
+			},
+			expectedService: &model.ServiceDiscovery{
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/nginx/access.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/nginx/error.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/app/application.log",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "service with single log file",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      []string{"/var/log/service.log"},
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/service.log",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "service with nil log files",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      nil,
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: nil,
+			},
+		},
+		{
+			description: "service with empty log files slice",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      []string{},
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: nil,
+			},
 		},
 		{
 			description:     "service not collected",
@@ -401,7 +533,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
 	return &wmdef.Process{
 		EntityID: wmdef.EntityID{
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.Itoa(int(pid)),
 			Kind: wmdef.KindProcess,
 		},
 		Pid:          pid,
@@ -422,9 +554,11 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 				ServiceName: "some-tracer-service",
 			},
 		},
-		DDService:          "dd service name",
-		Ports:              []uint16{6400, 5200},
-		APMInstrumentation: string(apm.Provided),
+		UST: wmdef.UST{
+			Service: "dd service name",
+		},
+		TCPPorts:           []uint16{6400, 5200},
+		APMInstrumentation: true,
 	}
 	return proc
 }

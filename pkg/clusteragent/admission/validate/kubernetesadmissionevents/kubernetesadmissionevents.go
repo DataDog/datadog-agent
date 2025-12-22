@@ -112,7 +112,7 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{})
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained
@@ -194,10 +194,10 @@ func generateDatadogEvent(request *admission.Request, webhookName string) (event
 
 	// Add labels to the tags.
 	for key, value := range newResource.GetLabels() {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value))
+		tags = append(tags, key+":"+value)
 	}
 	for key, value := range oldResource.GetLabels() {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value))
+		tags = append(tags, key+":"+value)
 	}
 
 	return event.Event{

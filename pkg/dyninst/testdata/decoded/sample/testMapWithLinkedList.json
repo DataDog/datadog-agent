@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testMapWithLinkedList",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,17 +23,17 @@
           {
             "function": "main.executeMapFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 146
+            "lineNumber": 158
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 43
+            "lineNumber": 48
           },
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -270,6 +270,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "map[true: {val: 1, b: {val: 2, b: {val: 3, b: {val: 4, b: {val: 5, b: {val: 6, b: {val: 7, b: {val: 8, b: {val: 9, b: {val: 10, b: {val: 11, b: {val: 12, b: {val: 13, b: {val: 14, b: {val: 15, b: {val: 16, b: {val: 17, b: {val: 18, b: {val: 19, b: {val: 20, b: nil}}}}}}}}}}}}}}}}}}}}]"
   }
 ]

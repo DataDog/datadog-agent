@@ -149,9 +149,9 @@ func writerTest(t *testing.T, z bool) {
 	}
 
 	// file should contain no state as traffic had no ancillary data
-	pidMap, entityMap, err := reader.ReadState()
-	assert.Nil(t, pidMap)
-	assert.Nil(t, entityMap)
+	tagState, err := reader.ReadState()
+	assert.Nil(t, tagState.PidMap)
+	assert.Nil(t, tagState.State)
 	assert.Nil(t, err)
 
 	reader.Lock()

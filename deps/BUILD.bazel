@@ -1,0 +1,43 @@
+# Top level of dependencies originating outside this source repository.
+
+package(default_visibility = ["//visibility:private"])
+
+# Do not depend on this.
+# This is a temporary target to make it easy to force build dependencies
+# before they are used by other targets.
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "@bzip2",
+        "@bzip2//:bz2",
+        "@libffi//:ffi",
+        "@libyaml",
+        "@lua//:liblua",
+        "@patchelf",
+        "@sqlite3",
+        "@xz//:lzma",
+        "@zlib//:z",
+    ] + select({
+        "@platforms//os:linux": [
+            "@acl",
+            "@attr",
+            "@gcrypt",
+            "@gpg-error",
+            "@libpcap//:pcap",
+            "@libsepol//:sepol",
+            "@libxml2",
+            "@libxslt",
+            "@nghttp2",
+            "@pcre2",
+            "@zstd",
+        ],
+        "//:macos_arm64": [
+            "@openssl3//:libcrypto",
+        ],
+        "@platforms//os:windows": [
+            "@cpython//:python_win",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//compliance:__pkg__"],
+)

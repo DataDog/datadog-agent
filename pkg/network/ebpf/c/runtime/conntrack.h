@@ -17,6 +17,12 @@
 #include "conntrack/maps.h"
 #include "conntrack/helpers.h"
 
+static __always_inline bool is_conn_nat(const conntrack_tuple_t* orig, const conntrack_tuple_t* reply) {
+    return orig->daddr_l != reply->saddr_l || orig->dport != reply->sport ||
+        orig->saddr_l != reply->daddr_l || orig->sport != reply->dport ||
+        orig->daddr_h != reply->saddr_h;
+}
+
 static __always_inline u32 get_netns(const struct nf_conn *ct) {
     u32 net_ns_inum = 0;
 

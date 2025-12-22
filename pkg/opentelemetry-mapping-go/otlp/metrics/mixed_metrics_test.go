@@ -135,6 +135,19 @@ func TestMapMetrics(t *testing.T) {
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 2,
 		},
+		{
+			name:     "with-infer-delta-interval",
+			otlpfile: "test/otlp/mixed/interval.json",
+			ddogfile: "test/datadog/mixed/interval_inferred.json",
+			options: []TranslatorOption{
+				WithInferDeltaInterval(),
+			},
+		},
+		{
+			name:     "with-infer-delta-interval",
+			otlpfile: "test/otlp/mixed/interval.json",
+			ddogfile: "test/datadog/mixed/interval_not_inferred.json",
+		},
 	}
 
 	for _, testinstance := range tests {
@@ -148,7 +161,7 @@ func TestMapMetrics(t *testing.T) {
 			set.Logger = zap.New(core)
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator, options...)
+			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())

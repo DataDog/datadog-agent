@@ -6,7 +6,6 @@
 package config
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -181,17 +180,8 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
 	var endpoints []unmarshalEndpoint
-	var err error
 	configKey := l.getConfigKey("additional_endpoints")
-	raw := l.getConfig().Get(configKey)
-	if raw == nil {
-		return nil, ""
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
-	}
+	err := structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableStringUnmarshal, structure.EnableSquash)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
@@ -210,12 +200,13 @@ func (l *LogsConfigKeys) taggerWarmupDuration() time.Duration {
 
 func (l *LogsConfigKeys) batchWait() time.Duration {
 	key := l.getConfigKey("batch_wait")
-	batchWait := l.getConfig().GetInt(key)
-	if batchWait < 1 || 10 < batchWait {
-		log.Warnf("Invalid %s: %v should be in [1, 10], fallback on %v", key, batchWait, pkgconfigsetup.DefaultBatchWait)
+	batchWaitFloat := l.getConfig().GetFloat64(key)
+	// Valid range: 0.1 seconds (100ms) to 10 seconds
+	if batchWaitFloat < 0.1 || 10 < batchWaitFloat {
+		log.Warnf("Invalid %s: %v should be in [0.1, 10], fallback on %v", key, batchWaitFloat, pkgconfigsetup.DefaultBatchWait)
 		return pkgconfigsetup.DefaultBatchWait * time.Second
 	}
-	return (time.Duration(batchWait) * time.Second)
+	return time.Duration(batchWaitFloat * float64(time.Second))
 }
 
 func (l *LogsConfigKeys) batchMaxConcurrentSend() int {

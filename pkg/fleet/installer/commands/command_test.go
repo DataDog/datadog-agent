@@ -10,11 +10,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -49,27 +50,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestStates(t *testing.T) {
-	installerBinary, err := os.Executable()
-	assert.NoError(t, err)
-	env := &env.Env{
-		IsFromDaemon: true,
-	}
-	installer := exec.NewInstallerExec(env, installerBinary)
-
-	res, err := installer.States(context.TODO())
-	assert.NoError(t, err)
-
-	expected := map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "7.31.0",
-			Experiment: "7.32.0",
-		},
-	}
-
-	assert.Equal(t, expected, res)
-}
-
 func TestState(t *testing.T) {
 	installerBinary, err := os.Executable()
 	assert.NoError(t, err)
@@ -89,27 +69,6 @@ func TestState(t *testing.T) {
 	assert.Equal(t, expected, res)
 }
 
-func TestConfigStates(t *testing.T) {
-	installerBinary, err := os.Executable()
-	assert.NoError(t, err)
-	env := &env.Env{
-		IsFromDaemon: true,
-	}
-	installer := exec.NewInstallerExec(env, installerBinary)
-
-	res, err := installer.ConfigStates(context.TODO())
-	assert.NoError(t, err)
-
-	expected := map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "abc-def-hij",
-			Experiment: "",
-		},
-	}
-
-	assert.Equal(t, expected, res)
-}
-
 func TestConfigState(t *testing.T) {
 	installerBinary, err := os.Executable()
 	assert.NoError(t, err)
@@ -124,6 +83,35 @@ func TestConfigState(t *testing.T) {
 	expected := repository.State{
 		Stable:     "abc-def-hij",
 		Experiment: "",
+	}
+
+	assert.Equal(t, expected, res)
+}
+
+func TestConfigAndPackageStates(t *testing.T) {
+	installerBinary, err := os.Executable()
+	assert.NoError(t, err)
+	env := &env.Env{
+		IsFromDaemon: true,
+	}
+	installer := exec.NewInstallerExec(env, installerBinary)
+
+	res, err := installer.ConfigAndPackageStates(context.TODO())
+	assert.NoError(t, err)
+
+	expected := &repository.PackageStates{
+		ConfigStates: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "abc-def-hij",
+				Experiment: "",
+			},
+		},
+		States: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "7.31.0",
+				Experiment: "7.32.0",
+			},
+		},
 	}
 
 	assert.Equal(t, expected, res)

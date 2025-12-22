@@ -8,6 +8,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -18,6 +19,7 @@ import (
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -52,14 +54,16 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// setup the configuration system
-	pkgconfigsetup.Datadog().AddConfigPath(newConfigDir)
-	_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+
+	cfg.AddConfigPath(newConfigDir)
+	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 
 	// we won't overwrite the conf file if it contains a valid api_key
-	if pkgconfigsetup.Datadog().GetString("api_key") != "" && !force {
+	if cfg.GetString("api_key") != "" && !force {
 		return fmt.Errorf("%s seems to contain a valid configuration, run the command again with --force or -f to overwrite it",
 			datadogYamlPath)
 	}
@@ -136,7 +140,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// marshal the config object to YAML
-	b, err := yaml.Marshal(pkgconfigsetup.Datadog().AllSettings())
+	b, err := yaml.Marshal(cfg.AllSettings())
 	if err != nil {
 		return fmt.Errorf("unable to marshal config to YAML: %v", err)
 	}
@@ -227,7 +231,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 

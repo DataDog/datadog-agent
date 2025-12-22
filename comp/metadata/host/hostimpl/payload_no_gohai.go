@@ -22,12 +22,6 @@ type Payload struct {
 	// TODO: gohai alternative (or fix gohai)
 }
 
-// SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	// Metadata payloads are analyzed as a whole, so they cannot be split
-	return nil, fmt.Errorf("host Payload splitting is not implemented")
-}
-
 // getPayload returns the complete metadata payload as seen in Agent v5. Note: gohai can't be used on the platforms
 // this module builds for
 func (h *host) getPayload(hostname string) *Payload {

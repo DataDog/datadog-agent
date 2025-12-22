@@ -9,6 +9,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -50,6 +51,9 @@ func newResourceRecommenderSettings(objective datadoghqcommon.DatadogPodAutoscal
 		if err != nil {
 			return nil, err
 		}
+	} else if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
+		// CustomQueryObjective is ignored by the local recommender
+		return nil, nil
 	} else {
 		return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
 	}
@@ -61,7 +65,7 @@ func newResourceRecommenderSettings(objective datadoghqcommon.DatadogPodAutoscal
 
 func getOptionsFromPodResource(target *datadoghqcommon.DatadogPodAutoscalerPodResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
-		return nil, fmt.Errorf("nil target")
+		return nil, errors.New("nil target")
 	}
 
 	if err := validateTarget(target.Value.Type, target.Name, target.Value); err != nil {
@@ -78,7 +82,7 @@ func getOptionsFromPodResource(target *datadoghqcommon.DatadogPodAutoscalerPodRe
 
 func getOptionsFromContainerResource(target *datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
-		return nil, fmt.Errorf("nil target")
+		return nil, errors.New("nil target")
 	}
 
 	if err := validateTarget(target.Value.Type, target.Name, target.Value); err != nil {
@@ -113,10 +117,10 @@ func validateTarget(targetType datadoghqcommon.DatadogPodAutoscalerObjectiveValu
 
 func validateUtilizationValue(value datadoghqcommon.DatadogPodAutoscalerObjectiveValue) error {
 	if value.Utilization == nil {
-		return fmt.Errorf("missing utilization value")
+		return errors.New("missing utilization value")
 	}
 	if *value.Utilization < 1 || *value.Utilization > 100 {
-		return fmt.Errorf("utilization value must be between 1 and 100")
+		return errors.New("utilization value must be between 1 and 100")
 	}
 	return nil
 }

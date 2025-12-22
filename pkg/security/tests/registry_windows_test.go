@@ -47,11 +47,12 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 	}
 	defer test.Close()
 
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
-	test.Run(t, "Test registry with powershell", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "Test registry with powershell", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		inputargs := []string{
 			"-c",
 			"Set-ItemProperty",
@@ -94,11 +95,12 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 	}
 	defer test.Close()
 
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
-	test.Run(t, "Test registry with reg.exe", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "Test registry with reg.exe", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		inputargs := []string{
 			"add",
 			"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -142,11 +144,12 @@ func TestBasicRegistryTestAPI(t *testing.T) {
 	}
 	defer test.Close()
 
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
-	test.Run(t, "Test registry with API", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "Test registry with API", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			key, _, err := registry.CreateKey(windows.HKEY_LOCAL_MACHINE, `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, windows.KEY_READ|windows.KEY_WRITE)
 			if err == nil {

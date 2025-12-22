@@ -7,7 +7,8 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import add_fips_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -30,24 +31,24 @@ def build(
     build_tags=None,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     static=False,
     fips_mode=False,
     no_strip_binary=False,
     arch_suffix=False,
+    injector_only=False,
 ):
     """
     Build cws-instrumentation
     """
     if build_tags is None:
         build_tags = []
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static)
 
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
+        "Version": get_version(ctx),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
         "GitCommit": get_commit_sha(ctx, short=True),
@@ -55,8 +56,12 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(build="cws-instrumentation")
-    build_tags = add_fips_tags(build_tags, fips_mode)
+    build_tags += get_default_build_tags(
+        build="cws-instrumentation", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
+    )
+
+    if injector_only:
+        build_tags.append("cws_instrumentation_injector_only")
 
     agent_bin = BIN_PATH
     if arch_suffix:
@@ -77,6 +82,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
 

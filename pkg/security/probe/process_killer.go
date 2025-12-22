@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -79,7 +80,7 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS(nil)
+		pkos = NewProcessKillerOS(nil, nil)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,
@@ -116,20 +117,33 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 	return stats
 }
 
-func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext) {
+func updateKillActionReport(now time.Time, killQueue *[]killContext, report *KillActionReport, failedToBeKilled []uint32, nbOfKilled int64) {
+	report.Lock()
+	defer report.Unlock()
+	if report.Status == KillActionStatusQueued {
+		if slices.Contains(failedToBeKilled, report.Pid) {
+			if nbOfKilled > 0 {
+				report.Status = KillActionStatusPartiallyPerformed
+				report.KilledAt = now
+				return
+			}
+			report.Status = KillActionStatusError
+			return
+
+		} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
+			return kc.pid == int(report.Pid)
+		}) {
+			report.Status = KillActionStatusPerformed
+			report.KilledAt = now
+			return
+		}
+	}
+}
+func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext, failedToBeKilled []uint32, nbOfKilled int64) {
 	p.Lock()
 	defer p.Unlock()
-
 	for _, report := range p.pendingReports {
-		if report.Status == KillActionStatusQueued {
-			if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
-				return kc.pid == int(report.Pid)
-			}) {
-				report.Status = KillActionStatusPerformed
-				report.KilledAt = now
-				continue
-			}
-		}
+		updateKillActionReport(now, killQueue, report, failedToBeKilled, nbOfKilled)
 	}
 }
 
@@ -163,8 +177,8 @@ func (p *ProcessKiller) killQueuedPidsAndGetNextAlarm(disarmer *ruleDisarmer, no
 	}
 
 	if now.After(disarmer.killQueueAlarm) {
-		p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, disarmer.killQueue)
-		p.updatePendingReportKillPerformed(now, &disarmer.killQueue)
+		failedToBeKilled, nbOfKilled := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, disarmer.killQueue)
+		p.updatePendingReportKillPerformed(now, &disarmer.killQueue, failedToBeKilled, nbOfKilled)
 	} else {
 		if nextAlarm == nil || disarmer.killQueueAlarm.Before(*nextAlarm) {
 			return &disarmer.killQueueAlarm
@@ -239,7 +253,7 @@ func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
-		return false, fmt.Errorf("the enforcement capability is disabled")
+		return false, errors.New("the enforcement capability is disabled")
 	}
 	p.Unlock()
 
@@ -285,7 +299,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	// if a rule with a kill container scope is triggered outside a container,
 	// don't kill anything
-	containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+	containerID := ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	if containerID == "" && scope == "container" {
 		return false
 	}
@@ -424,11 +438,18 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	}
 
 	now := time.Now() // get the current time now to make sure it precedes the any process exit time
-	if p.KillProcesses(true, rule.ID, sig, pcs) {
+	failedPids, nbOfKilled := p.KillProcesses(true, rule.ID, sig, pcs)
+	if len(failedPids) == 0 {
 		report.KilledAt = now
 		report.Status = KillActionStatusPerformed
 	} else {
-		report.Status = KillActionStatusError
+		if nbOfKilled > 0 {
+			report.KilledAt = now
+			report.Status = KillActionStatusPartiallyPerformed
+			log.Warn("some processes failed to be killed in the container with PIDs : ", failedPids)
+		} else {
+			report.Status = KillActionStatusError
+		}
 	}
 
 	ev.ActionReports = append(ev.ActionReports, report)
@@ -438,18 +459,20 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	return true
 }
 
-// KillProcesses kills the given list of processes, returns true if kills has been performed
-func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) bool {
+// KillProcesses kills the given list of processes, returns the list of pids that failed to be killed (nil if everything went well)
+func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) ([]uint32, int64) {
+	var failedToKillPids []uint32
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
-		return false
+		return failedToKillPids, 0
 	}
-
 	var processesKilled int64
 	for _, pc := range kcs {
 		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
 
 		if err := p.os.Kill(uint32(sig), &pc); err != nil {
-			seclog.Debugf("failed to kill process %d: %s", pc.pid, err)
+			seclog.Debugf("failed to kill process %d: %s.", pc.pid, err)
+			failedToKillPids = append(failedToKillPids, uint32(pc.pid))
+
 		} else {
 			processesKilled++
 		}
@@ -464,7 +487,7 @@ func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int,
 	}
 	p.perRuleStatsLock.Unlock()
 
-	return processesKilled != 0
+	return failedToKillPids, processesKilled
 }
 
 // Reset the state and statistics of the process killer

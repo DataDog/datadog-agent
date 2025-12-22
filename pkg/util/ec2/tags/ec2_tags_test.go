@@ -9,16 +9,19 @@ package tags
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -66,11 +69,15 @@ func TestGetSecurityCreds(t *testing.T) {
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
-	cred, err := getSecurityCreds(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "123456", cred.AccessKeyID)
-	assert.Equal(t, "secret access key", cred.SecretAccessKey)
-	assert.Equal(t, "secret token", cred.Token)
+	assert.EventuallyWithT(
+		t, func(_ *assert.CollectT) {
+			cred, err := getSecurityCreds(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, "123456", cred.AccessKeyID)
+			assert.Equal(t, "secret access key", cred.SecretAccessKey)
+			assert.Equal(t, "secret token", cred.Token)
+		},
+		10*time.Second, 1*time.Second)
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
@@ -123,7 +130,7 @@ func mockFetchTagsSuccess(_ context.Context) ([]string, error) {
 }
 
 func mockFetchTagsFailure(_ context.Context) ([]string, error) {
-	return nil, fmt.Errorf("could not fetch tags")
+	return nil, errors.New("could not fetch tags")
 }
 
 func TestGetTags(t *testing.T) {
@@ -146,7 +153,7 @@ func TestGetTagsErrorEmptyCache(t *testing.T) {
 
 	tags, err := GetTags(ctx)
 	assert.Nil(t, tags)
-	assert.Equal(t, fmt.Errorf("unable to get tags from aws and cache is empty: could not fetch tags"), err)
+	assert.Equal(t, errors.New("unable to get tags from aws and cache is empty: could not fetch tags"), err)
 }
 
 func TestGetTagsErrorFullCache(t *testing.T) {
@@ -230,6 +237,14 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 
 	conf.SetWithoutSource("collect_ec2_instance_info", true)
 
+	// Enable ECS EC2 feature and mock ARN fetch
+	env.SetFeatures(t, env.ECSEC2)
+	oldFetchARN := fetchContainerInstanceARN
+	fetchContainerInstanceARN = func(_ context.Context) (string, error) {
+		return "arn:aws:ecs:region:account:container-instance/ci-123", nil
+	}
+	t.Cleanup(func() { fetchContainerInstanceARN = oldFetchARN })
+
 	tags, err := GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 
@@ -239,6 +254,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 		"aws_account:123456abcdef",
 		"image:ami-aaaaaaaaaaaaaaaaa",
 		"availability-zone:eu-west-3a",
+		"container_instance_arn:arn:aws:ecs:region:account:container-instance/ci-123",
 	}
 	assert.Equal(t, expected, tags)
 

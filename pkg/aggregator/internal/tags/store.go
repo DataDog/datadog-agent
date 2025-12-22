@@ -7,9 +7,9 @@
 package tags
 
 import (
-	"fmt"
 	"maps"
 	"math/bits"
+	"strconv"
 
 	"go.uber.org/atomic"
 
@@ -147,10 +147,10 @@ func (tc *Store) updateTelemetry(s *entryStats) {
 	tlmEntries.Set(float64(len(tc.tagsByKey)), t.name)
 
 	for i := 0; i < 3; i++ {
-		tlmTagsetRefsCnt.Set(float64(s.refsFreq[i]), t.name, fmt.Sprintf("%d", i+1))
+		tlmTagsetRefsCnt.Set(float64(s.refsFreq[i]), t.name, strconv.Itoa(i+1))
 	}
 	for i := 3; i < 8; i++ {
-		tlmTagsetRefsCnt.Set(float64(s.refsFreq[i]), t.name, fmt.Sprintf("%d", 1<<(i-1)))
+		tlmTagsetRefsCnt.Set(float64(s.refsFreq[i]), t.name, strconv.Itoa(1<<(i-1)))
 	}
 
 	tlmTagsetMinTags.Set(float64(s.minSize), t.name)

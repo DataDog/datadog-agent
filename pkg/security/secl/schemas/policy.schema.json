@@ -33,6 +33,12 @@
             "log"
           ],
           "title": "LogAction"
+        },
+        {
+          "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
         }
       ],
       "properties": {
@@ -53,6 +59,9 @@
         },
         "log": {
           "$ref": "#/$defs/LogDefinition"
+        },
+        "network_filter": {
+          "$ref": "#/$defs/NetworkFilterDefinition"
         }
       },
       "additionalProperties": false,
@@ -122,7 +131,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "disable_container_disarmer": {
@@ -143,19 +153,15 @@
     },
     "LogDefinition": {
       "properties": {
-        "Level": {
+        "level": {
           "type": "string"
         },
-        "Message": {
+        "message": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "Level",
-        "Message"
-      ],
       "description": "LogDefinition describes the 'log' section of a rule action"
     },
     "MacroDefinition": {
@@ -213,6 +219,26 @@
       ],
       "description": "MacroDefinition holds the definition of a macro"
     },
+    "NetworkFilterDefinition": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "cgroup"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NetworkFilterDefinition describes the 'network_filter' section of a rule action"
+    },
     "OverrideOptions": {
       "properties": {
         "fields": {
@@ -231,9 +257,6 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "fields"
-      ],
       "description": "OverrideOptions defines combine options"
     },
     "RuleDefinition": {
@@ -313,6 +336,9 @@
         },
         "group_id": {
           "type": "string"
+        },
+        "priority": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -335,6 +361,12 @@
             "field"
           ],
           "title": "SetWithField"
+        },
+        {
+          "required": [
+            "expression"
+          ],
+          "title": "SetWithExpression"
         }
       ],
       "properties": {
@@ -426,6 +458,13 @@
   },
   "properties": {
     "version": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "description": "Type is the type of content served by the policy (e.g. \"policy\" for a default policy, \"detection_pack\" or empty for others)"
+    },
+    "replace_policy_id": {
       "type": "string"
     },
     "macros": {

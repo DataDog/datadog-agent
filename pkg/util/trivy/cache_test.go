@@ -236,7 +236,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

@@ -244,7 +244,8 @@ func TestLogsUploader(t *testing.T) {
 		)
 		defer uploaderFactory.Stop()
 		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
-			Tags: "service:test",
+			ContainerID: "test_id",
+			EntityID:    "ci:test_id",
 		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
@@ -255,6 +256,8 @@ func TestLogsUploader(t *testing.T) {
 
 		// receive and validate request
 		req := <-ts.requests
+		assert.Equal(t, req.r.Header.Get(ddHeaderContainerID), "test_id")
+		assert.Equal(t, req.r.Header.Get(ddHeaderEntityID), "ci:test_id")
 		validateLogsRequest(t, []json.RawMessage{msg1, msg2}, req.r)
 
 		// send response and unblock handler

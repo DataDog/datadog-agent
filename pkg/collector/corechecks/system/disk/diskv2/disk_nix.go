@@ -10,6 +10,7 @@ package diskv2
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -40,6 +41,12 @@ func defaultIgnoreCase() bool {
 
 func baseDeviceName(device string) string {
 	return filepath.Base(device)
+}
+
+// normalizeDeviceTag returns the device name for use in the device: tag.
+// On Linux, returns unchanged. On Windows, strips backslashes and lowercases.
+func normalizeDeviceTag(deviceName string) string {
+	return deviceName
 }
 
 func (c *Check) configureCreateMounts() {
@@ -375,7 +382,7 @@ func (r *rootFsDeviceFinder) Find() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not determine rootfs device")
+	return "", errors.New("could not determine rootfs device")
 }
 
 // ReadlinkFs method
@@ -418,7 +425,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 				log.Debugf("error finding root device: %v", err)
 			}
 		} else {
-			log.Debugf("error stat’ing /: %v", err)
+			log.Debugf("error stat'ing /: %v", err)
 		}
 		hostSys := getSysfsPath()
 		for _, line := range lines {
@@ -436,6 +443,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 			blockDeviceID := fieldsFirstPart[2]
 			fieldsSecondPart := strings.Fields(parts[1])
 			device := fieldsSecondPart[1]
+
 			// /dev/root is not the real device name
 			// so we get the real device name from its major/minor number
 			if device == "/dev/root" || device == "rootfs" {
@@ -452,7 +460,34 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 					rootDevices[deviceResolved] = device
 				}
 			}
+
+			// Handle device-mapper devices: gopsutil resolves /dev/mapper/name symlinks
+			// to /dev/dm-X, but we want to use the friendly mapper name for tagging
+			// (matching Python psutil behavior which reads from /etc/mtab)
+			if strings.HasPrefix(device, "/dev/mapper/") {
+				// Resolve the symlink to get the dm-X device that gopsutil will return
+				// Use ReadlinkFs to support testing with mock filesystems
+				resolvedPath, err := ReadlinkFs(c.fs, device)
+				if err != nil {
+					log.Debugf("error resolving device-mapper symlink %s: %v", device, err)
+					continue
+				}
+				// The symlink target could be relative (e.g., "../dm-0") or absolute
+				var resolvedDevice string
+				if filepath.IsAbs(resolvedPath) {
+					resolvedDevice = resolvedPath
+				} else {
+					resolvedDevice = filepath.Join(filepath.Dir(device), resolvedPath)
+					resolvedDevice = filepath.Clean(resolvedDevice)
+				}
+				base := filepath.Base(resolvedDevice)
+				if strings.HasPrefix(base, "dm-") {
+					log.Debugf("device-mapper mapping from mountinfo: %s -> %s", resolvedDevice, device)
+					rootDevices[resolvedDevice] = device
+				}
+			}
 		}
 	}
+
 	return rootDevices, nil
 }

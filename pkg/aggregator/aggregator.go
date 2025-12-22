@@ -27,14 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -162,6 +163,7 @@ var (
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
+	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
@@ -270,6 +272,12 @@ type BufferedAggregator struct {
 	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
+
+	// use this chan to trigger a filterList reconfiguration
+	filterListChan  chan utilstrings.Matcher
+	flushFilterList utilstrings.Matcher
+
+	tagFilterList *TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -347,9 +355,37 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		globalTags:                  tagger.GlobalTags,
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
+
+		filterListChan: make(chan utilstrings.Matcher),
+		tagFilterList:  loadTagFilterList(),
 	}
 
 	return aggregator
+}
+
+func loadTagFilterList() *TagMatcher {
+	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("metric_tag_filterlist")
+
+	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
+	for metricName, tags := range tagFilterListInterface {
+		// Tags can be configured as an object with fields:
+		// tags - array of tags
+		// action - either `include` or `exclude`.
+		// Roundtrip the struct through yaml to load it.
+		tagBytes, err := yaml.Marshal(tags)
+		if err != nil {
+			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+		} else {
+			var tags MetricTagList
+			err = yaml.Unmarshal(tagBytes, &tags)
+			if err != nil {
+				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+			} else {
+				tagFilterList[metricName] = tags
+			}
+		}
+	}
+	return NewTagMatcher(tagFilterList)
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -444,10 +480,10 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano())
+			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample)
+			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
@@ -463,7 +499,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket)
+		checkSampler.addBucket(checkBucket.bucket, agg.tagFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}
@@ -633,17 +669,6 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 			SourceTypeName: "System",
 		})
 	}
-
-	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
-	series.Append(&metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
-		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
-		Host:           agg.hostname,
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
-	})
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
@@ -797,6 +822,9 @@ func (agg *BufferedAggregator) run() {
 			agg.tagsStore.Shrink()
 
 			aggregatorEventPlatformErrorLogged = false
+
+		case matcher := <-agg.filterListChan:
+			agg.flushFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
@@ -991,6 +1019,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		pkgconfigsetup.Datadog().GetBool("check_sampler_expire_metrics"),
 		pkgconfigsetup.Datadog().GetBool("check_sampler_context_metrics"),
 		pkgconfigsetup.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
+		pkgconfigsetup.Datadog().GetBool("check_sampler_allow_sketch_bucket_reset"),
 		agg.tagsStore,
 		id,
 		agg.tagger,

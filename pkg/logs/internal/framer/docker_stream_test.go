@@ -40,7 +40,7 @@ func TestDetectDockerHeader(t *testing.T) {
 		gotLens = append(gotLens, rawDataLen)
 	}
 
-	fr := NewFramer(outputFn, DockerStream, 256000)
+	fr := NewFramer(outputFn, DockerStream, 900000)
 
 	for i := 4; i < 8; i++ {
 		input := []byte("hello\n")
@@ -70,7 +70,7 @@ func TestDetectMultipleDockerHeader(t *testing.T) {
 		gotLens = append(gotLens, rawDataLen)
 	}
 
-	fr := NewFramer(outputFn, DockerStream, 256000)
+	fr := NewFramer(outputFn, DockerStream, 900000)
 
 	var input []byte
 	for i := 0; i < 100; i++ {
@@ -95,7 +95,7 @@ func TestDetectMultipleDockerHeaderOnAChunkedLine(t *testing.T) {
 		gotLens = append(gotLens, rawDataLen)
 	}
 
-	fr := NewFramer(outputFn, DockerStream, 256000)
+	fr := NewFramer(outputFn, DockerStream, 900000)
 
 	var input []byte
 	longestChunk := strings.Repeat("A", 16384)
@@ -132,7 +132,7 @@ func TestDecoderNoNewLineBeforeDockerHeader(t *testing.T) {
 		gotLens = append(gotLens, rawDataLen)
 	}
 
-	fr := NewFramer(outputFn, DockerStream, 256000)
+	fr := NewFramer(outputFn, DockerStream, 900000)
 
 	for i := 4; i < 8; i++ {
 		input := []byte("hello")

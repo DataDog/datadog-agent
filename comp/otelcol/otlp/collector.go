@@ -23,17 +23,15 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -50,51 +48,6 @@ import (
 )
 
 var pipelineError = atomic.NewError(nil)
-
-type tagEnricher struct {
-	cardinality types.TagCardinality
-	tagger      tagger.Component
-}
-
-func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
-	t.cardinality, err = types.StringToTagCardinality(cardinality)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// enrichedTags of a given dimension.
-// In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
-// TODO: we need to move this to TagEnricher processor
-func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	if originID := dimensions.OriginID(); originID != "" {
-		prefix, id, err := types.ExtractPrefixAndID(originID)
-		if err != nil {
-			log.Tracef("Cannot get tags for entity %s: %s", originID, err)
-		} else {
-			entityID := types.NewEntityID(prefix, id)
-			entityTags, err := t.tagger.Tag(entityID, t.cardinality)
-			if err != nil {
-				log.Tracef("Cannot get tags for entity %s: %s", originID, err)
-			} else {
-				enrichedTags = append(enrichedTags, entityTags...)
-			}
-		}
-	}
-
-	globalTags, err := t.tagger.GlobalTags(t.cardinality)
-	if err != nil {
-		log.Trace(err.Error())
-	} else {
-		enrichedTags = append(enrichedTags, globalTags...)
-	}
-
-	return enrichedTags
-}
 
 func getComponents(
 	s serializer.MetricSerializer,
@@ -131,7 +84,7 @@ func getComponents(
 	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, store),
+		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
 		debugexporter.NewFactory(),
 	}
 
@@ -158,6 +111,7 @@ func getComponents(
 		Receivers:  receivers,
 		Processors: processors,
 		Exporters:  exporters,
+		Telemetry:  otelconftelemetry.NewFactory(),
 	}
 
 	return factories, multierr.Combine(errs...)
@@ -183,10 +137,14 @@ type PipelineConfig struct {
 	TracesEnabled bool
 	// LogsEnabled states whether OTLP logs support is enabled.
 	LogsEnabled bool
+	// Logs contains configuration options for the logs
+	Logs map[string]interface{}
 	// Debug contains debug configurations.
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+	// MetricsBatch contains configuration options for the sending queue batch
+	MetricsBatch map[string]interface{}
 }
 
 // shouldSetLoggingSection returns whether debug logging is enabled.

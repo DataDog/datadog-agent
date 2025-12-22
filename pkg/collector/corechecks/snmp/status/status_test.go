@@ -142,37 +142,43 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 		Community: "public",
 	}
 	mockSnmpConfig2 := snmp.Config{
-		Network:   "127.0.10.1/30",
-		Community: "public",
+		Network: "127.0.10.1/30",
+		Authentications: []snmp.Authentication{
+			{
+				Community: "public",
+			},
+		},
 	}
 	mockSnmpConfig3 := snmp.Config{
-		Network:   "127.0.10.1/30",
-		Community: "cisco",
+		Network: "127.0.10.1/30",
+		Authentications: []snmp.Authentication{
+			{
+				Community: "cisco",
+			},
+		},
 	}
 
 	mockConfig := configmock.New(t)
-	mockListenerConfig := map[string]interface{}{
-		"configs": []interface{}{
-			map[string]interface{}{
-				"network":   mockSnmpConfig1.Network,
-				"community": mockSnmpConfig1.Community,
-				"port":      mockSnmpConfig1.Port,
-			},
-			map[string]interface{}{
-				"network":   mockSnmpConfig2.Network,
-				"community": mockSnmpConfig2.Community,
-				"port":      mockSnmpConfig2.Port,
-			},
-			map[string]interface{}{
-				"network":   mockSnmpConfig3.Network,
-				"community": mockSnmpConfig3.Community,
-				"port":      mockSnmpConfig3.Port,
-			},
+	mockListenerConfigs := []interface{}{
+		map[string]interface{}{
+			"network":   mockSnmpConfig1.Network,
+			"community": mockSnmpConfig1.Community,
+			"port":      mockSnmpConfig1.Port,
 		},
-		"workers": 1,
+		map[string]interface{}{
+			"network":         mockSnmpConfig2.Network,
+			"authentications": mockSnmpConfig2.Authentications,
+			"port":            mockSnmpConfig2.Port,
+		},
+		map[string]interface{}{
+			"network":         mockSnmpConfig3.Network,
+			"authentications": mockSnmpConfig3.Authentications,
+			"port":            mockSnmpConfig3.Port,
+		},
 	}
 
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", mockListenerConfigs)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
 	listenerConfig, _ := snmp.NewListenerConfig()
 
@@ -183,13 +189,13 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 	autodiscoveryExpVar := expvar.Get("snmpAutodiscovery").(*expvar.Map)
 
 	autodiscoveryStatus1 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "", DevicesScannedCount: 0}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, snmpConfig1.Digest(snmpConfig1.Network)), &autodiscoveryStatus1)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, 0), &autodiscoveryStatus1)
 
 	autodiscoveryStatus2 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{"127.0.10.1", "127.0.10.2"}, CurrentDevice: "127.0.10.2", DevicesScannedCount: 3}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, snmpConfig2.Digest(snmpConfig2.Network)), &autodiscoveryStatus2)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, 1), &autodiscoveryStatus2)
 
 	autodiscoveryStatus3 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "127.0.10.3", DevicesScannedCount: 4}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, snmpConfig3.Digest(snmpConfig3.Network)), &autodiscoveryStatus3)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, 2), &autodiscoveryStatus3)
 
 	provider := Provider{}
 	tests := []struct {
@@ -257,7 +263,6 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 			assert.Contains(t, output, expectedResult)
 
 			fmt.Printf("%s", b.String())
-
 		}},
 	}
 
@@ -285,13 +290,13 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
 	autodiscoveryExpVar := expvar.Get("snmpDiscovery").(*expvar.Map)
 
 	autodiscoveryStatus1 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "", DevicesScannedCount: 0}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, string(snmpConfig1.DeviceDigest(snmpConfig1.Network))), &autodiscoveryStatus1)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, 0), &autodiscoveryStatus1)
 
 	autodiscoveryStatus2 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{"127.0.10.1", "127.0.10.2"}, CurrentDevice: "127.0.10.2", DevicesScannedCount: 3}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, string(snmpConfig2.DeviceDigest(snmpConfig2.Network))), &autodiscoveryStatus2)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, 0), &autodiscoveryStatus2)
 
 	autodiscoveryStatus3 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "127.0.10.3", DevicesScannedCount: 4}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, string(snmpConfig3.DeviceDigest(snmpConfig3.Network))), &autodiscoveryStatus3)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, 0), &autodiscoveryStatus3)
 
 	provider := Provider{}
 	tests := []struct {

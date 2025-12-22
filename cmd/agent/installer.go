@@ -8,9 +8,10 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands"
-	"github.com/spf13/cobra"
 )
 
 func init() {

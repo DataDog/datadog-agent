@@ -9,6 +9,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -26,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,13 +40,14 @@ import (
 
 type testComponent struct {
 	*pkgagent.Agent
+	wg *sync.WaitGroup
 }
 
 func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
@@ -119,7 +121,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			"Usage metric of OTLP traces in DDOT",
 		),
 	}
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -176,7 +178,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			"Usage metric of OTLP traces in DDOT",
 		),
 	}
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
@@ -199,4 +201,37 @@ func genTraces(traceID pcommon.TraceID, attrs map[string]any) ptrace.Traces {
 	//nolint:errcheck
 	rspans.Resource().Attributes().FromRaw(attrs)
 	return traces
+}
+
+func TestNoPanicSendTraceAfterTraceAgentStop(t *testing.T) {
+	cfg := datadogconfig.Config{
+		API: datadogconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+	}
+
+	params := exportertest.NewNopSettings(Type)
+	tcfg := config.New()
+	tcfg.ReceiverEnabled = false
+	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
+	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	ctx, cancel := context.WithCancel(context.Background())
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+
+	store := serializerexporter.TelemetryStore{}
+	var wg sync.WaitGroup
+	f := NewFactory(testComponent{traceagent, &wg}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	exporter, err := f.CreateTraces(ctx, params, &cfg)
+	assert.NoError(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		traceagent.Run()
+	}()
+	cancel()
+	wg.Wait()
+
+	err = exporter.ConsumeTraces(ctx, simpleTraces())
+	assert.ErrorContains(t, err, "OTLPReceiver in trace agent is already stopped")
 }

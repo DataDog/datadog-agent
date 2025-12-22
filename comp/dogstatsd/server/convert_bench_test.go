@@ -7,13 +7,17 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -22,15 +26,17 @@ import (
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
-	tags := "tag0:val0"
+	var builder strings.Builder
+	builder.WriteString("tag0:val0")
 	for i := 1; i < tagCount; i++ {
-		tags += fmt.Sprintf(",tag%d:val%d", i, i)
+		fmt.Fprintf(&builder, ",tag%d:val%d", i, i)
 	}
+	tags := builder.String()
 
 	if multipleValues {
-		return []byte(fmt.Sprintf("daemon:666:777|h|@0.5|#%s", tags))
+		return []byte("daemon:666:777|h|@0.5|#" + tags)
 	}
-	return []byte(fmt.Sprintf("daemon:666|h|@0.5|#%s", tags))
+	return []byte("daemon:666|h|@0.5|#" + tags)
 }
 
 // used to store the result and avoid optimizations
@@ -82,6 +88,12 @@ type ServerDeps struct {
 	Telemetry telemetry.Component
 }
 
-func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
-	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Options(options...))
+func newServerDeps(t testing.TB) ServerDeps {
+	return fxutil.Test[ServerDeps](t,
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
 }

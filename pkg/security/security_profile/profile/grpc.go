@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -24,8 +25,8 @@ import (
 
 // ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage
 func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRequests map[config.StorageFormat][]config.StorageRequest) *api.ActivityDumpMessage {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	var storage []*api.StorageRequestMessage
 	for _, requests := range storageRequests {
 		for _, request := range requests {
@@ -58,14 +59,15 @@ func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRe
 	}
 	if p.ActivityTree != nil {
 		msg.Stats = &api.ActivityTreeStatsMessage{
-			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
-			FileNodesCount:    p.ActivityTree.Stats.FileNodes,
-			DNSNodesCount:     p.ActivityTree.Stats.DNSNodes,
-			SocketNodesCount:  p.ActivityTree.Stats.SocketNodes,
-			IMDSNodesCount:    p.ActivityTree.Stats.IMDSNodes,
-			SyscallNodesCount: p.ActivityTree.Stats.SyscallNodes,
-			FlowNodesCount:    p.ActivityTree.Stats.FlowNodes,
-			ApproximateSize:   p.ActivityTree.Stats.ApproximateSize(),
+			ProcessNodesCount:    p.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:       p.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:        p.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:     p.ActivityTree.Stats.SocketNodes,
+			IMDSNodesCount:       p.ActivityTree.Stats.IMDSNodes,
+			SyscallNodesCount:    p.ActivityTree.Stats.SyscallNodes,
+			FlowNodesCount:       p.ActivityTree.Stats.FlowNodes,
+			CapabilityNodesCount: p.ActivityTree.Stats.CapabilityNodes,
+			ApproximateSize:      p.ActivityTree.Stats.ApproximateSize(),
 		}
 	}
 	return msg
@@ -75,7 +77,7 @@ func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRe
 func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, map[config.StorageFormat][]config.StorageRequest, error) {
 	metadata := msg.GetMetadata()
 	if metadata == nil {
-		return nil, nil, fmt.Errorf("couldn't create new Profile: missing activity dump metadata")
+		return nil, nil, errors.New("couldn't create new Profile: missing activity dump metadata")
 	}
 
 	startTime, err := time.Parse(time.RFC822, metadata.GetStart())
@@ -139,8 +141,8 @@ func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, 
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
 func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.SecurityProfileMessage {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	// construct the list of image tags for this profile
 	imageTags := ""
@@ -199,7 +201,8 @@ func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.Se
 	defer p.InstancesLock.Unlock()
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
-			ContainerID: string(inst.ContainerID),
+			ContainerID: string(inst.ContainerContext.ContainerID),
+			CGroupID:    string(inst.CGroupContext.CGroupID),
 			Tags:        inst.Tags,
 		})
 	}

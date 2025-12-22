@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -201,7 +202,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request experimentTaskParams
+	var request config.Operations
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -212,7 +213,7 @@ func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Requ
 		response.Error = &APIError{Message: err.Error()}
 		return
 	}
-	err = l.daemon.StartConfigExperiment(r.Context(), pkg, request.Version)
+	err = l.daemon.StartConfigExperiment(r.Context(), pkg, request)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -491,15 +492,8 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 }
 
 // StartConfigExperiment starts a config experiment for a package.
-func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
-	params := experimentTaskParams{
-		Version: version,
-	}
-	body, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
+func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer([]byte(operations)))
 	if err != nil {
 		return err
 	}

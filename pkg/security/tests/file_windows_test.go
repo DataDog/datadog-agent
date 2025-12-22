@@ -35,11 +35,12 @@ func TestBasicFileTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
-	test.Run(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
 		os.MkdirAll("C:\\Temp", 0755)
 
@@ -78,9 +79,10 @@ func TestRenameFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -91,7 +93,7 @@ func TestRenameFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Rename("C:\\Temp\\test.bad", "C:\\Temp\\test.good")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
@@ -115,9 +117,10 @@ func TestDeleteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -128,7 +131,7 @@ func TestDeleteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Remove("C:\\Temp\\test.bad")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
@@ -151,9 +154,10 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -164,7 +168,7 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {
@@ -199,9 +203,10 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -212,7 +217,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {

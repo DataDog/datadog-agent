@@ -34,6 +34,7 @@ type PendingDevice struct {
 	AuthIndex  int
 	WriteCache bool
 	IP         string
+	Failures   int
 }
 
 func (d DeviceInfo) equal(other DeviceInfo) bool {
@@ -50,6 +51,7 @@ type DeviceDeduper interface {
 	MarkIPAsProcessed(ip string)
 	AddPendingDevice(device PendingDevice)
 	GetDedupedDevices() []PendingDevice
+	ResetCounters()
 }
 
 type deviceDeduperImpl struct {
@@ -57,6 +59,7 @@ type deviceDeduperImpl struct {
 	deviceInfos    []DeviceInfo
 	pendingDevices []PendingDevice
 	ipsCounter     map[string]*atomic.Uint32
+	config         snmp.ListenerConfig
 }
 
 // NewDeviceDeduper creates a new DeviceDeduper instance
@@ -65,15 +68,23 @@ func NewDeviceDeduper(config snmp.ListenerConfig) DeviceDeduper {
 		deviceInfos:    make([]DeviceInfo, 0),
 		pendingDevices: make([]PendingDevice, 0),
 		ipsCounter:     make(map[string]*atomic.Uint32),
+		config:         config,
 	}
 
-	for _, config := range config.Configs {
+	deduper.initializeCounters()
+
+	return deduper
+}
+
+func (d *deviceDeduperImpl) initializeCounters() {
+	for _, config := range d.config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
-		startingIP := ipAddr.Mask(ipNet.Mask)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Couldn't parse SNMP network: %s", err)
 			continue
 		}
+
+		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		for currentIP := startingIP; ipNet.Contains(currentIP); IncrementIP(currentIP) {
 			if ignored := config.IsIPIgnored(currentIP); ignored {
@@ -81,16 +92,14 @@ func NewDeviceDeduper(config snmp.ListenerConfig) DeviceDeduper {
 			}
 
 			ipStr := currentIP.String()
-			counter, exists := deduper.ipsCounter[ipStr]
+			counter, exists := d.ipsCounter[ipStr]
 			if !exists {
 				counter = &atomic.Uint32{}
-				deduper.ipsCounter[ipStr] = counter
+				d.ipsCounter[ipStr] = counter
 			}
 			counter.Add(uint32(len(config.Authentications)))
 		}
 	}
-
-	return deduper
 }
 
 func (d *deviceDeduperImpl) checkPreviousIPs(deviceIP string) bool {
@@ -175,6 +184,19 @@ func (d *deviceDeduperImpl) MarkIPAsProcessed(ip string) {
 	if exists {
 		counter.Add(^uint32(0)) // Subtract 1 using bitwise NOT of 0
 	}
+}
+
+// ResetCounters resets the IP counters and device infos for a new discovery interval
+func (d *deviceDeduperImpl) ResetCounters() {
+	d.Lock()
+	defer d.Unlock()
+
+	for _, counter := range d.ipsCounter {
+		counter.Store(0)
+	}
+
+	d.initializeCounters()
+	d.deviceInfos = make([]DeviceInfo, 0)
 }
 
 func minimumIP(ipStr1, ipStr2 string) string {

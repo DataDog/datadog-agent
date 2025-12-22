@@ -5,6 +5,7 @@
 
 //go:build kubelet || docker
 
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
@@ -122,8 +123,9 @@ func (t *base) run(
 				// is unbuffered, any pending writes to this channel could cause a deadlock as the tailers stop
 				// condition is managed in the same goroutine in containerTailerPkg.
 				go func() {
-					//nolint:revive // TODO(AML) Fix revive linter
-					for range erroredContainerID {
+					for id := range erroredContainerID {
+						// Consume messages from channel until closed
+						_ = id
 					}
 				}()
 				stopTailer(inner)

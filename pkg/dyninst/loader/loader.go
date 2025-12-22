@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -21,6 +23,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
@@ -92,7 +95,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	ringbufMapSpec, ok := spec.Maps[ringbufMapName]
 	if !ok {
-		return nil, fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return nil, errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
@@ -109,7 +112,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	bpfProgram, ok := collection.Programs["probe_run_with_cookie"]
 	if !ok {
-		return nil, fmt.Errorf("probe_run_with_cookie program not found in collection")
+		return nil, errors.New("probe_run_with_cookie program not found in collection")
 	}
 
 	maps = nil
@@ -175,6 +178,34 @@ func (p *Program) Close() {
 	if p.Collection != nil {
 		p.Collection.Close() // should already contain the program
 	}
+}
+
+// RuntimeStats are cumulative stats aggregated throughout program lifetime.
+type RuntimeStats struct {
+	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
+	CPU time.Duration
+	// Number of probe hits.
+	HitCnt uint64
+	// Number of probe hits that skipped data capture due to throttling.
+	ThrottledCnt uint64
+}
+
+// RuntimeStats returns the per-core runtime stats for the program.
+func (p *Program) RuntimeStats() []RuntimeStats {
+	statsMap, ok := p.Collection.Maps["stats_buf"]
+	if !ok {
+		return nil
+	}
+	entries := statsMap.Iterate()
+	var key uint32
+	var stats []stats
+	_ = entries.Next(&key, &stats)
+	// This is safe because these two structs have the same layout.
+	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
+	return unsafe.Slice(
+		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
+		len(stats),
+	)
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
@@ -256,7 +287,7 @@ func (l *Loader) init(opts ...Option) error {
 	stripRelocations(l.ebpfSpec)
 	ringbufMapSpec, ok := l.ebpfSpec.Maps[ringbufMapName]
 	if !ok {
-		return fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 	return nil
@@ -280,8 +311,10 @@ func (l *Loader) loadData(
 	const throttlerMapName = "throttler_params"
 	const throttlerStateMapName = "throttler_buf"
 	const probeParamsMapName = "probe_params"
+	const goRuntimeTypeIDsMapName = "go_runtime_type_ids"
+	const goRuntimeTypesMapName = "go_runtime_types"
 
-	mapSpec, codeMap, err := makeArrayMap(codeMapName, serialized.code, true /* singleEntry */)
+	mapSpec, codeMap, err := makeArrayMap(codeMapName, serialized.code, forceSingleEntryMap)
 	spec.Maps[codeMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create code map: %w", err)
@@ -308,11 +341,13 @@ func (l *Loader) loadData(
 		return nil, fmt.Errorf("failed to set prog_id: %w", err)
 	}
 
-	mapSpec, typeIDsMap, err := makeArrayMap(typeIDsMapName, serialized.typeIDs, false /* singleEntry */)
-	spec.Maps[typeIDsMapName] = mapSpec
+	mapSpec, typeIDsMap, err := makeArrayMap(
+		typeIDsMapName, serialized.typeIDs, allowMultipleMapEntries,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type_ids map: %w", err)
 	}
+	spec.Maps[typeIDsMapName] = mapSpec
 	defer func() {
 		if typeIDsMap != nil {
 			typeIDsMap.Close()
@@ -323,7 +358,9 @@ func (l *Loader) loadData(
 		return nil, fmt.Errorf("failed to set num_types: %w", err)
 	}
 
-	mapSpec, typeInfoMap, err := makeArrayMap(typeInfoMapName, serialized.typeInfos, false /* singleEntry */)
+	mapSpec, typeInfoMap, err := makeArrayMap(
+		typeInfoMapName, serialized.typeInfos, allowMultipleMapEntries,
+	)
 	spec.Maps[typeInfoMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type_info map: %w", err)
@@ -333,29 +370,84 @@ func (l *Loader) loadData(
 			typeInfoMap.Close()
 		}
 	}()
+	grts := &serialized.goRuntimeTypeIDs
+	numGoRuntimeTypes := uint32(grts.Len())
+	if numGoRuntimeTypes == 0 {
+		// We're not allowed to have empty maps, so we set a single element with
+		// a zero value, but the associated variable for the length will still
+		// be set to zero.
+		grts.goRuntimeTypes = []uint64{0}
+		grts.typeIDs = []uint64{0}
+	}
+	goRuntimeTypeIDsMapSpec, goRuntimeTypeIDsMap, err := makeArrayMap(
+		goRuntimeTypeIDsMapName, grts.typeIDs, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypeIDsMapName] = goRuntimeTypeIDsMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_type_ids map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypeIDsMap != nil {
+			goRuntimeTypeIDsMap.Close()
+		}
+	}()
+	goRuntimeTypesMapSpec, goRuntimeTypesMap, err := makeArrayMap(
+		goRuntimeTypesMapName, grts.goRuntimeTypes, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypesMapName] = goRuntimeTypesMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_types map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypesMap != nil {
+			goRuntimeTypesMap.Close()
+		}
+	}()
+	if err := setVariable(
+		spec, "num_go_runtime_types", numGoRuntimeTypes,
+	); err != nil {
+		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
+	}
+	// Allow a program to avoid setting common constants if it doesn't have
+	// any. This is something of a hack to allow for the rcscrape program to
+	// avoid needing constants, and corresponds to similar flexibility in the
+	// eBPF program.
+	//
+	// TODO: Remove this by either fully eliminating the rcscrape eBPF program
+	// or fully decoupling it from this program infrastructure.
+	if serialized.commonTypes != (ir.CommonTypes{}) {
+		if err := setCommonConstants(spec, serialized); err != nil {
+			return nil, fmt.Errorf("failed to set common constants: %w", err)
+		}
+	}
 
-	mapSpec, throttlerMap, err := makeArrayMap(throttlerMapName, serialized.throttlerParams, false /* singleEntry */)
-	spec.Maps[throttlerMapName] = mapSpec
+	mapSpec, throttlerMap, err := makeArrayMap(
+		throttlerMapName, serialized.throttlerParams, allowMultipleMapEntries,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create throttler_params map: %w", err)
 	}
+	spec.Maps[throttlerMapName] = mapSpec
 	defer func() {
 		if throttlerMap != nil {
 			throttlerMap.Close()
 		}
 	}()
-	err = setVariable(spec, "num_throttlers", uint32(len(serialized.throttlerParams)))
-	if err != nil {
+	if err := setVariable(
+		spec, "num_throttlers", uint32(len(serialized.throttlerParams)),
+	); err != nil {
 		return nil, fmt.Errorf("failed to set num_throttlers: %w", err)
 	}
 
 	mapSpec, ok := spec.Maps[throttlerStateMapName]
 	if !ok {
-		return nil, fmt.Errorf("throttler_buf map not found in eBPF spec")
+		return nil, errors.New("throttler_buf map not found in eBPF spec")
 	}
 	mapSpec.MaxEntries = uint32(len(serialized.throttlerParams))
 
-	mapSpec, probeParamsMap, err := makeArrayMap(probeParamsMapName, serialized.probeParams, false /* singleEntry */)
+	mapSpec, probeParamsMap, err := makeArrayMap(
+		probeParamsMapName, serialized.probeParams, allowMultipleMapEntries,
+	)
 	spec.Maps[probeParamsMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create probe_params map: %w", err)
@@ -378,21 +470,91 @@ func (l *Loader) loadData(
 	}
 
 	m := map[string]*ebpf.Map{
-		codeMapName:        codeMap,
-		typeIDsMapName:     typeIDsMap,
-		typeInfoMapName:    typeInfoMap,
-		throttlerMapName:   throttlerMap,
-		probeParamsMapName: probeParamsMap,
+		codeMapName:             codeMap,
+		typeIDsMapName:          typeIDsMap,
+		typeInfoMapName:         typeInfoMap,
+		throttlerMapName:        throttlerMap,
+		probeParamsMapName:      probeParamsMap,
+		goRuntimeTypeIDsMapName: goRuntimeTypeIDsMap,
+		goRuntimeTypesMapName:   goRuntimeTypesMap,
 	}
 	codeMap = nil
 	typeIDsMap = nil
 	typeInfoMap = nil
 	throttlerMap = nil
 	probeParamsMap = nil
+	goRuntimeTypeIDsMap = nil
+	goRuntimeTypesMap = nil
 	return m, nil
 }
 
-func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec, *ebpf.Map, error) {
+func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram) error {
+	if err := setVariable(
+		spec, "VARIABLE_runtime_dot_firstmoduledata",
+		serialized.goModuledataInfo.FirstModuledataAddr,
+	); err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__types",
+		serialized.goModuledataInfo.TypesOffset,
+	); err != nil {
+		return err
+	}
+	g := serialized.commonTypes.G
+	m := serialized.commonTypes.M
+	stack, ok := g.FieldByName("stack")
+	if !ok {
+		return errors.New("stack field not found in runtime.g")
+	}
+	stackStruct, ok := stack.Type.(*ir.StructureType)
+	if !ok {
+		return fmt.Errorf("stack field of runtime.g is not a structure type, got %T", stack.Type)
+	}
+	for _, f := range []struct {
+		s            *ir.StructureType
+		fieldName    string
+		variableName string
+	}{
+		{m, "curg", "OFFSET_runtime_dot_m__curg"},
+		{g, "goid", "OFFSET_runtime_dot_g__goid"},
+		{g, "m", "OFFSET_runtime_dot_g__m"},
+		{g, "stack", "OFFSET_runtime_dot_g__stack"},
+		{stackStruct, "hi", "OFFSET_runtime_dot_stack__hi"},
+	} {
+		offset, err := f.s.FieldOffsetByName(f.fieldName)
+		if err != nil {
+			var fields []string
+			for field := range f.s.Fields() {
+				fields = append(fields, field.Name)
+			}
+			err = fmt.Errorf(
+				"failed to get field offset for %s in %s: %w (fields: %s)",
+				f.fieldName, f.s.Name, err, strings.Join(fields, ", "),
+			)
+			panic(err)
+		}
+
+		if err := setVariable(spec, f.variableName, offset); err != nil {
+			return fmt.Errorf(
+				"failed to set %s for %s in %s: %w",
+				f.variableName, f.fieldName, f.s.Name, err,
+			)
+		}
+	}
+	return nil
+}
+
+type arrayMapConfig bool
+
+const (
+	forceSingleEntryMap     arrayMapConfig = true
+	allowMultipleMapEntries arrayMapConfig = false
+)
+
+func makeArrayMap[T any](
+	name string, data []T, cfg arrayMapConfig,
+) (*ebpf.MapSpec, *ebpf.Map, error) {
 	var val T
 	elemSize := uint32(unsafe.Sizeof(val))
 	mapSpec := &ebpf.MapSpec{
@@ -404,12 +566,15 @@ func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec
 		Flags:      features.BPF_F_MMAPABLE,
 	}
 	// singleEntry makes the map have a single element holding all the data.
-	if singleEntry {
+	if cfg == forceSingleEntryMap {
 		mapSpec.ValueSize = mapSpec.MaxEntries * mapSpec.ValueSize
 		mapSpec.MaxEntries = 1
 	}
-	if mapSpec.ValueSize%8 != 0 && !singleEntry {
-		return nil, nil, fmt.Errorf("map %s has value size %d which is not a multiple of 8", name, mapSpec.ValueSize)
+	if mapSpec.ValueSize%8 != 0 && cfg == allowMultipleMapEntries {
+		return nil, nil, fmt.Errorf(
+			"map %s has value size %d which is not a multiple of 8",
+			name, mapSpec.ValueSize,
+		)
 	}
 	m, err := ebpf.NewMap(mapSpec)
 	if err != nil {
@@ -437,7 +602,9 @@ func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec
 	return mapSpec, m, nil
 }
 
-func setVariable(spec *ebpf.CollectionSpec, name string, value uint32) error {
+func setVariable[I uint32 | uint64](
+	spec *ebpf.CollectionSpec, name string, value I,
+) error {
 	vari, ok := spec.Variables[name]
 	if !ok {
 		return fmt.Errorf("variable %s not found in spec", name)

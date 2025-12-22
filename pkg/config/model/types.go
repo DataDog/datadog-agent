@@ -6,22 +6,19 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
-
-	"github.com/mitchellh/mapstructure"
 )
 
-// ConfigFileNotFoundError wrapper error for when a config file is not found
-type ConfigFileNotFoundError struct {
-	Err error
-}
+// ErrConfigFileNotFound is an error for when the config file is not found
+var ErrConfigFileNotFound = errors.New("Config File Not Found")
 
-// Error returns the error message
-func (e ConfigFileNotFoundError) Error() string {
-	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
+// NewConfigFileNotFoundError returns a well known error for the config file missing
+func NewConfigFileNotFoundError(err error) error {
+	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
 // Source stores what edits a setting as a string
@@ -36,6 +33,9 @@ const (
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
 	// SetWithoutSource.
 	SourceUnknown Source = "unknown"
+	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
+	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
+	SourceInfraMode Source = "infra-mode"
 	// SourceFile are the values loaded from configuration file.
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
@@ -61,6 +61,7 @@ const (
 var Sources = []Source{
 	SourceDefault,
 	SourceUnknown,
+	SourceInfraMode,
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
@@ -76,13 +77,14 @@ var sourcesPriority = map[Source]int{
 	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
-	SourceFile:               2,
-	SourceEnvVar:             3,
-	SourceFleetPolicies:      4,
-	SourceAgentRuntime:       5,
-	SourceLocalConfigProcess: 6,
-	SourceRC:                 7,
-	SourceCLI:                8,
+	SourceInfraMode:          2,
+	SourceFile:               3,
+	SourceEnvVar:             4,
+	SourceFleetPolicies:      5,
+	SourceAgentRuntime:       6,
+	SourceLocalConfigProcess: 7,
+	SourceRC:                 8,
+	SourceCLI:                9,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -126,16 +128,6 @@ type Proxy struct {
 // 'NotificationReceiver' should not be blocking.
 type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
 
-// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
-type ConfigChangeNotification struct {
-	Key           string
-	Source        Source
-	PreviousValue interface{}
-	NewValue      interface{}
-	SequenceID    uint64
-	Receivers     []NotificationReceiver
-}
-
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
 	Get(key string) interface{}
@@ -157,6 +149,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
@@ -180,13 +173,12 @@ type Reader interface {
 	//
 	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
 	IsSet(key string) bool
-	// IsConfigured returns true if a setting exists, has a value and doesn't come from the defaults (ie: was
-	// configured by the user). If a setting is configured by the user with the same value than the defaults this
-	// method will still return true as it tests the source of a setting not its value.
+	// IsConfigured returns true if a setting is configured by the user. This means that either:
+	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
+	//  2. The key is for an inner node, and one of its children IsConfigured
 	IsConfigured(key string) bool
-
-	// UnmarshalKey Unmarshal a configuration key into a struct
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
+	// HasSection returns true if the key is for a non-leaf setting that is defined by the user
+	HasSection(key string) bool
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
@@ -270,21 +262,33 @@ type Setup interface {
 // Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
-
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeFleetPolicy(configPath string) error
+
+	// Revert a finished configuration so that more can be build on top of it.
+	// When building is completed, the caller should call BuildSchema.
+	// NOTE: This method should not be used by any new callsites, it is needed
+	// currently because of the unique requirements of OTel's configuration.
+	RevertFinishedBackToBuilder() BuildableConfig
 }
 
-// Config represents an object that can load and store configuration parameters
-// coming from different kind of sources:
-// - defaults
-// - files
-// - environment variables
-// - flags
+// Config is an interface that can read/write the config after it has been
+// build and initialized.
 type Config interface {
+	ReaderWriter
+	Compound
+	// TODO: This method shouldn't be here, but it is depended upon by an external repository
+	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
+	SetKnown(key string)
+}
+
+// BuildableConfig is the most-general interface for the Config, it can be
+// used both to build the config and also to read/write its values. It should
+// only be used when necessary, such as when constructing a new config object
+// from scratch.
+type BuildableConfig interface {
 	ReaderWriter
 	Setup
 	Compound

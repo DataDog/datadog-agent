@@ -6,8 +6,8 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -54,6 +54,10 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter, statsd s
 	case io.EOF, io.ErrUnexpectedEOF:
 		errtag = "unexpected-eof"
 		msg = errtag
+	case context.DeadlineExceeded:
+		status = http.StatusRequestTimeout
+		errtag = "timeout"
+		msg = errtag
 	}
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		status = http.StatusRequestTimeout
@@ -61,7 +65,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter, statsd s
 		msg = errtag
 	}
 
-	tags = append(tags, fmt.Sprintf("error:%s", errtag))
+	tags = append(tags, "error:"+errtag)
 	_ = statsd.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, msg, status)
 }

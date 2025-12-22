@@ -44,13 +44,24 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject     = ethtool.Ethtool{}
-	getEthtoolDrvInfo = ethtoolObject.DriverInfo
-	getEthtoolStats   = ethtoolObject.Stats
+	getNewEthtool = newEthtool
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+type ethtoolInterface interface {
+	DriverInfo(intf string) (ethtool.DrvInfo, error)
+	Stats(intf string) (map[string]uint64, error)
+	Close()
+}
+
+var _ ethtoolInterface = (*ethtool.Ethtool)(nil)
+
+func newEthtool() (ethtoolInterface, error) {
+	eth, err := ethtool.NewEthtool()
+	return eth, err
+}
 
 // NetworkCheck represent a network check
 type NetworkCheck struct {
@@ -126,7 +137,7 @@ func (n defaultNetworkStats) GetNetProcBasePath() string {
 	netProcfsPath := n.procPath
 	// in a containerized environment
 	if os.Getenv("DOCKER_DD_AGENT") != "" && netProcfsPath != "/proc" {
-		netProcfsPath = fmt.Sprintf("%s/1", netProcfsPath)
+		netProcfsPath = netProcfsPath + "/1"
 	}
 	return netProcfsPath
 }
@@ -162,11 +173,18 @@ func (c *NetworkCheck) Run() error {
 
 	submitInterfaceSysMetrics(sender)
 
+	ethtoolObject, err := getNewEthtool()
+	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
+		return err
+	}
+	defer ethtoolObject.Close()
+
 	for _, interfaceIO := range ioByInterface {
 		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -209,7 +227,7 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
-		ifaceTag := []string{fmt.Sprintf("iface:%s", iface.Name())}
+		ifaceTag := []string{"iface:" + iface.Name()}
 		for _, metricName := range sysNetMetrics {
 			metricFileName := metricName
 			if metricName == "up" {
@@ -220,7 +238,7 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 			if err != nil {
 				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
 			}
-			sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
+			sender.Gauge("system.net.iface."+metricName, float64(val), "", ifaceTag)
 		}
 		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
 		queues, err := afero.ReadDir(filesystem, queuesFilepath)
@@ -242,14 +260,14 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
+	tags := []string{"device:" + interfaceIO.Name, "device_name:" + interfaceIO.Name}
 	speedVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/speed", interfaceIO.Name), filesystem)
 	if err == nil {
-		tags = append(tags, fmt.Sprintf("speed:%s", strconv.Itoa(speedVal)))
+		tags = append(tags, "speed:"+strconv.Itoa(speedVal))
 	}
 	mtuVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/mtu", interfaceIO.Name), filesystem)
 	if err == nil {
-		tags = append(tags, fmt.Sprintf("mtu:%s", strconv.Itoa(mtuVal)))
+		tags = append(tags, "mtu:"+strconv.Itoa(mtuVal))
 	}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
@@ -261,28 +279,21 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
 		return nil
 	}
 
-	ethtoolObjectPtr, err := ethtool.NewEthtool()
-	if err != nil {
-		log.Errorf("Failed to create ethtool object: %s", err)
-		return err
-	}
-	ethtoolObject = *ethtoolObjectPtr
-
 	// Preparing the interface name and copy it into the request
-	ifaceBytes := []byte(interfaceIO.Name)
-	if len(ifaceBytes) > 15 {
-		ifaceBytes = ifaceBytes[:15]
+	iface := interfaceIO.Name
+	if len(iface) > 15 {
+		iface = iface[:15]
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -296,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getEthtoolStats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
@@ -315,7 +326,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 
 		count := 0
 		for metricName, metricValue := range enaMetrics {
-			metricName := fmt.Sprintf("system.net.%s", metricName)
+			metricName := "system.net." + metricName
 			sender.Gauge(metricName, float64(metricValue), "", tags)
 			count++
 		}
@@ -333,7 +344,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 			}
 
 			for metricName, metricValue := range keyValuePairing {
-				metricName := fmt.Sprintf("system.net.%s", metricName)
+				metricName := "system.net." + metricName
 				sender.MonotonicCount(metricName, float64(metricValue), "", tags)
 			}
 		}
@@ -371,11 +382,14 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 	}
 	for keyIndex := 0; keyIndex < len(keys); keyIndex++ {
 		statName := keys[keyIndex]
-		continueCase := false
+		continueCase := true
 		queueTag := ""
 		newKey := ""
 		metricPrefix := ""
 		if strings.Contains(statName, "queue_") {
+			// Extract the queue and the metric name from ethtool stat name:
+			//   queue_0_tx_cnt -> (queue:0, tx_cnt)
+			//   tx_queue_0_bytes -> (queue:0, tx_bytes)
 			parts := strings.Split(statName, "_")
 			queueIndex := -1
 			for i, part := range parts {
@@ -386,53 +400,78 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 					}
 				}
 			}
-			if queueIndex == -1 {
-				continueCase = true
+			// It's possible the stat name contains the string "queue" but does not have an index
+			// In this case, this is not actually a queue metric and we should keep trying
+			if queueIndex > -1 {
+				queueNum := parts[queueIndex+1]
+				parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
+				queueTag = "queue:" + queueNum
+				newKey = strings.Join(parts, "_")
+				metricPrefix = ".queue."
 			}
-			queueNum := parts[queueIndex+1]
-			parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
-			queueTag = "queue:" + queueNum
-			newKey = strings.Join(parts, "_")
-			metricPrefix = ".queue."
-		} else {
-			continueCase = true
 		}
 		if continueCase {
+			// Extract the cpu and the metric name from ethtool stat name:
+			//   cpu0_rx_bytes -> (cpu:0, rx_bytes)
 			if strings.HasPrefix(statName, "cpu") {
 				parts := strings.Split(statName, "_")
-				if len(parts) < 2 {
-					continueCase = true
+				if len(parts) >= 2 {
+					cpuNum := parts[0][3:]
+					if _, err := strconv.Atoi(cpuNum); err == nil {
+						queueTag = "cpu:" + cpuNum
+						newKey = strings.Join(parts[1:], "_")
+						metricPrefix = ".cpu."
+						continueCase = false
+					}
 				}
-				cpuNum := parts[0][3:]
-				if _, err := strconv.Atoi(cpuNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "cpu:" + cpuNum
-				newKey = strings.Join(parts[1:], "_")
-				metricPrefix = ".cpu."
-			} else {
-				continueCase = true
 			}
 		}
 		if continueCase {
 			if strings.Contains(statName, "[") && strings.HasSuffix(statName, "]") {
+				// Extract the queue and the metric name from ethtool stat name:
+				//   tx_stop[0] -> (queue:0, tx_stop)
 				parts := strings.SplitN(statName, "[", 2)
-				if len(parts) != 2 {
-					continueCase = true
+				if len(parts) == 2 {
+					metricName := parts[0]
+					queueNum := strings.TrimSuffix(parts[1], "]")
+					if _, err := strconv.Atoi(queueNum); err == nil {
+						queueTag = "queue:" + queueNum
+						newKey = metricName
+						metricPrefix = ".queue."
+						continueCase = false
+					}
 				}
-				metricName := parts[0]
-				queueNum := strings.TrimSuffix(parts[1], "]")
-				if _, err := strconv.Atoi(queueNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "queue:" + queueNum
-				newKey = metricName
-				metricPrefix = ".queue."
-			} else {
-				continueCase = true
 			}
 		}
 		if continueCase {
+			if strings.HasPrefix(statName, "rx") || strings.HasPrefix(statName, "tx") {
+				// Extract the queue and the metric name from ethtool stat name:
+				//   tx0_bytes -> (queue:0, tx_bytes)
+				//   rx1_packets -> (queue:1, rx_packets)
+				parts := strings.Split(statName, "_")
+				queueIndex := -1
+				queueNum := -1
+				for i, part := range parts {
+					if !strings.HasPrefix(part, "rx") && !strings.HasPrefix(part, "tx") {
+						continue
+					}
+					if num, err := strconv.Atoi(part[2:]); err == nil {
+						queueIndex = i
+						queueNum = num
+						break
+					}
+				}
+				if queueIndex > -1 {
+					parts[queueIndex] = parts[queueIndex][:2]
+					queueTag = fmt.Sprintf("queue:%d", queueNum)
+					newKey = strings.Join(parts, "_")
+					metricPrefix = ".queue."
+					continueCase = false
+				}
+			}
+		}
+		if continueCase {
+			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
 				if slices.Contains(ethtoolGlobalMetrics, statName) {
 					queueTag = "global"
@@ -442,6 +481,14 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			}
 		}
 		if newKey != "" && queueTag != "" && metricPrefix != "" {
+			if queueTag != "global" {
+				// we already guard against parsing unsupported NICs
+				queueMetrics := ethtoolMetricNames[driverName]
+				// skip queues metrics we don't support for the NIC
+				if !slices.Contains(queueMetrics, newKey) {
+					continue
+				}
+			}
 			if result[queueTag] == nil {
 				result[queueTag] = make(map[string]uint64)
 			}
@@ -459,7 +506,7 @@ func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats
 					sender.Rate(metricName, float64(metricValue), "", nil)
 				}
 				if c.config.instance.CollectCountMetrics {
-					sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+					sender.MonotonicCount(metricName+".count", float64(metricValue), "", nil)
 				}
 			}
 		}
@@ -482,8 +529,8 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*conn
 	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
 	// The `-H` flag isn't available on old versions of `ss`.
 
-	ipFlag := fmt.Sprintf("--ipv%s", protocol[len(protocol)-1:])
-	protocolFlag := fmt.Sprintf("--%s", protocol[:len(protocol)-1])
+	ipFlag := "--ipv" + protocol[len(protocol)-1:]
+	protocolFlag := "--" + protocol[:len(protocol)-1]
 	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
 	cmd := fmt.Sprintf("ss --numeric %s --all %s", protocolFlag, ipFlag)
 	output, err := runCommandFunction([]string{"sh", "-c", cmd}, env)

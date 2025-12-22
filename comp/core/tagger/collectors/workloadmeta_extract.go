@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -19,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -116,6 +119,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
+
+	logLimiter = log.NewLogLimit(20, 10*time.Minute)
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -127,6 +132,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+				entityID.Kind == workloadmeta.KindKubelet {
+				// No tags. Ignore
+				continue
+			}
+
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -152,11 +163,15 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
-				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
+			case workloadmeta.KindCRD:
+				tagInfos = append(tagInfos, c.handleCRD(ev)...)
+			case workloadmeta.KindKubeCapabilities:
+				tagInfos = append(tagInfos, c.handleKubeCapabilities(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -209,7 +224,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
-			tagList.AddLow(tags.DockerImage, fmt.Sprintf("%s:%s", image.Name, image.Tag))
+			tagList.AddLow(tags.DockerImage, image.Name+":"+image.Tag)
 		} else {
 			tagList.AddLow(tags.DockerImage, image.Name)
 		}
@@ -244,11 +259,77 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	// resize policy tags
+	if container.ResizePolicy.CPURestartPolicy != "" {
+		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
+	}
+
+	if container.ResizePolicy.MemoryRestartPolicy != "" {
+		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+
+	tagList := taglist.NewTagList()
+
+	// Add Unified Service Tagging tags if present in the service metadata
+	if process.Service != nil {
+		ustService := process.Service.UST.Service
+		ustEnv := process.Service.UST.Env
+		ustVersion := process.Service.UST.Version
+
+		tagList.AddStandard(tags.Service, ustService)
+		tagList.AddStandard(tags.Env, ustEnv)
+		tagList.AddStandard(tags.Version, ustVersion)
+
+		for _, tracerMeta := range process.Service.TracerMetadata {
+			for key, value := range tracerMeta.Tags() {
+				if tracermetadata.ShouldSkipServiceTagKV(key, value, ustService, ustEnv, ustVersion) {
+					continue
+				}
+
+				// Add as low cardinality tag since these are application-level
+				// metadata
+				tagList.AddLow(key, value)
+			}
+		}
+	}
+
+	for _, gpuEntityID := range process.GPUs {
+		gpu, err := c.store.GetGPU(gpuEntityID.ID)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
+			}
+			continue
+		}
+
+		c.extractGPUTags(gpu, tagList)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               processSource,
+			EntityID:             common.BuildTaggerEntityID(process.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -512,7 +593,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
+	// These deployments don't report a hostname (task is the unit of identity)
+	// IsSidecar() returns true for both ECS Fargate and managed instances in sidecar mode
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsSidecar()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -524,18 +609,23 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	// add global cluster tags to EC2
-	if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
-		tagInfos = append(tagInfos, &types.TagInfo{
-			Source:               taskSource,
-			EntityID:             types.GetGlobalEntityID(),
-			HighCardTags:         clusterHigh,
-			OrchestratorCardTags: clusterOrch,
-			LowCardTags:          clusterLow,
-			StandardTags:         clusterStandard,
-		})
+	// Global tags only updated when a valid ClusterName is provided
+	// There exist edge cases in the metadata API returning a task without cluster info
+	if task.ClusterName != "" {
+		// Add global cluster tags for EC2 and Managed Instances in daemon mode
+		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
+		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsSidecar()) {
+			tagInfos = append(tagInfos, &types.TagInfo{
+				Source:               taskSource,
+				EntityID:             types.GetGlobalEntityID(),
+				HighCardTags:         clusterHigh,
+				OrchestratorCardTags: clusterOrch,
+				LowCardTags:          clusterLow,
+				StandardTags:         clusterStandard,
+			})
+		}
 	}
-
 	return tagInfos
 }
 
@@ -640,11 +730,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-
-	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
-	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
-	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
-	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	c.extractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -656,6 +742,80 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 		{
 			Source:               gpuSource,
 			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+// extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
+func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+	gpuUUID := strings.ToLower(gpu.ID)
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, gpuUUID)
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
+
+	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+		tagList.AddLow(tags.GPUSlicingMode, "mig")
+	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
+		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
+	} else {
+		tagList.AddLow(tags.GPUSlicingMode, "none")
+	}
+
+	if gpu.ParentGPUUUID == "" {
+		tagList.AddLow(tags.GPUParentGPUUUID, gpuUUID)
+	} else {
+		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
+	}
+}
+
+func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
+	crd := ev.Entity.(*workloadmeta.CRD)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow("crd_group", crd.Group)
+	tagList.AddLow("crd_kind", crd.Kind)
+	tagList.AddLow("crd_version", crd.Version)
+	tagList.AddLow("crd_name", crd.Name)
+	tagList.AddLow("crd_namespace", crd.Namespace)
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               crdSource,
+			EntityID:             common.BuildTaggerEntityID(crd.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []*types.TagInfo {
+	kubeCapabilities := ev.Entity.(*workloadmeta.KubeCapabilities)
+
+	tagList := taglist.NewTagList()
+	tagList.AddLow(tags.KubeServerVersion, kubeCapabilities.Version.String())
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kubeCapabilitiesSource,
+			EntityID:             common.BuildTaggerEntityID(kubeCapabilities.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -727,6 +887,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
+			// Add Argo Rollout tag key if the deployment is controlled by Argo Rollout
+			if pod.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+				tagList.AddLow(tags.KubeArgoRollout, deployment)
+			}
 		}
 		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 	}
@@ -744,9 +908,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tagList.AddHigh(tags.ContainerID, container.ID)
 
 	if container.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", container.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, container.Name+"_"+pod.Name)
 	} else if podContainer.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
+		tagList.AddHigh(tags.DisplayContainerName, podContainer.Name+"_"+pod.Name)
 	}
 
 	image := podContainer.Image
@@ -881,7 +1045,7 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
+	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {

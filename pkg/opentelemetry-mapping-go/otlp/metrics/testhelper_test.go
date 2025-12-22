@@ -14,23 +14,31 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
-func NewTestTranslator(t testing.TB, options ...TranslatorOption) *Translator {
+func NewTestTranslator(t testing.TB, options ...TranslatorOption) *defaultTranslator {
 	t.Helper()
 	set := componenttest.NewNopTelemetrySettings()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	translator, err := NewTranslator(set, attributesTranslator, options...)
+	mt, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	require.NoError(t, err)
-	return translator
+	return mt.(*defaultTranslator)
+}
+
+// TestDatadog represents a test case for Datadog metrics.
+// This structure is not meant to be used directly; use AssertTranslatorMap instead.
+type TestDatadog struct {
+	Metrics TestMetrics
+	Hosts   map[string]struct{}
 }
 
 // TestMetrics is the struct used for serializing Datadog metrics for generating testdata.
@@ -56,6 +64,7 @@ type TestDimensions struct {
 type TestSketch struct {
 	TestDimensions
 	Timestamp uint64
+	Interval  int64
 	Summary   summary.Summary
 	Keys      []int32
 	Counts    []uint32
@@ -65,6 +74,7 @@ type TestTimeSeries struct {
 	TestDimensions
 	Type      DataType
 	Timestamp uint64
+	Interval  int64
 	Value     float64
 }
 
@@ -82,7 +92,7 @@ type TestingT interface {
 //
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
-func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string, datadogfilename string) bool {
+func AssertTranslatorMap(t TestingT, translator Provider, otlpfilename string, datadogfilename string) bool {
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {
@@ -102,19 +112,20 @@ func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string
 	datadogbytes, err := os.ReadFile(datadogfilename)
 	require.NoError(t, err, "failed to read file %q", datadogfilename)
 
-	var expecteddata TestMetrics
+	var expecteddata TestDatadog
 	err = json.Unmarshal(datadogbytes, &expecteddata)
 	require.NoError(t, err, "failed to unmarshal Datadog data from file %q", datadogfilename)
 
 	// Map metrics using translator.
-	var consumer testConsumer
+	consumer := newTestConsumer()
 	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
 	require.NoError(t, err)
 
-	if !assert.Equal(t, expecteddata, consumer.testMetrics) {
+	if !assert.Equal(t, expecteddata.Metrics, consumer.data.Metrics) ||
+		!assert.Equal(t, consumer.data.Hosts, expecteddata.Hosts) {
 		actualfile := datadogfilename + ".actual"
 		t.Logf("Translator output does not match expected data, saving actual data on %q", actualfile)
-		b, err := json.MarshalIndent(&consumer.testMetrics, "", "  ")
+		b, err := json.MarshalIndent(&consumer.data, "", "  ")
 		require.NoError(t, err)
 
 		err = os.WriteFile(actualfile, b, 0660)
@@ -126,9 +137,18 @@ func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string
 }
 
 var _ Consumer = (*testConsumer)(nil)
+var _ HostConsumer = (*testConsumer)(nil)
 
 type testConsumer struct {
-	testMetrics TestMetrics
+	data TestDatadog
+}
+
+func newTestConsumer() testConsumer {
+	return testConsumer{
+		data: TestDatadog{
+			Hosts: make(map[string]struct{}),
+		},
+	}
 }
 
 func (t *testConsumer) ConsumeTimeSeries(
@@ -136,9 +156,10 @@ func (t *testConsumer) ConsumeTimeSeries(
 	dimensions *Dimensions,
 	typ DataType,
 	timestamp uint64,
+	interval int64,
 	value float64,
 ) {
-	t.testMetrics.TimeSeries = append(t.testMetrics.TimeSeries,
+	t.data.Metrics.TimeSeries = append(t.data.Metrics.TimeSeries,
 		TestTimeSeries{
 			TestDimensions: TestDimensions{
 				Name:                dimensions.Name(),
@@ -151,6 +172,7 @@ func (t *testConsumer) ConsumeTimeSeries(
 			},
 			Type:      typ,
 			Timestamp: timestamp,
+			Interval:  interval,
 			Value:     value,
 		})
 }
@@ -159,10 +181,11 @@ func (t *testConsumer) ConsumeSketch(
 	_ context.Context,
 	dimensions *Dimensions,
 	timestamp uint64,
+	interval int64,
 	sketch *quantile.Sketch,
 ) {
 	k, n := sketch.Cols()
-	t.testMetrics.Sketches = append(t.testMetrics.Sketches,
+	t.data.Metrics.Sketches = append(t.data.Metrics.Sketches,
 		TestSketch{
 			TestDimensions: TestDimensions{
 				Name:                dimensions.Name(),
@@ -174,11 +197,34 @@ func (t *testConsumer) ConsumeSketch(
 				OriginProductDetail: dimensions.OriginProductDetail(),
 			},
 			Timestamp: timestamp,
+			Interval:  interval,
 			Summary:   sketch.Basic,
 			Keys:      k,
 			Counts:    n,
 		},
 	)
+}
+
+func (t *testConsumer) ConsumeHost(host string) {
+	t.data.Hosts[host] = struct{}{}
+}
+
+// ConsumeExplicitBoundHistogram is a no-op for test consumer
+func (t *testConsumer) ConsumeExplicitBoundHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.HistogramDataPointSlice,
+) {
+	// no-op: test consumer doesn't need raw histogram data
+}
+
+// ConsumeExponentialHistogram is a no-op for test consumer
+func (t *testConsumer) ConsumeExponentialHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.ExponentialHistogramDataPointSlice,
+) {
+	// no-op: test consumer doesn't need raw histogram data
 }
 
 // TestTestDimensions tests that TestDimensions fields match those of Dimensions.

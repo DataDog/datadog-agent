@@ -24,6 +24,11 @@ build do
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
+        # Push all the pieces built with Bazel.
+
+        # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
+        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
@@ -32,22 +37,16 @@ build do
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
 
-            # service_discovery isn't supported by windows
-            delete "#{confd_dir}/service_discovery.d"
-
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip2` if the default Python runtime is Python 2.
-            delete "#{install_dir}/embedded/bin/pip"
-            delete "#{install_dir}/embedded/bin/pip3"
-            delete "#{install_dir}/embedded/bin/python"
+            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.13
+            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.13
             block 'create relative symlinks within embedded Python distribution' do
               Dir.chdir "#{install_dir}/embedded/bin" do
-                File.symlink 'pip3.12', 'pip3'
+                File.symlink 'pip3.13', 'pip3'
                 File.symlink 'pip3', 'pip'
                 File.symlink 'python3', 'python'
               end
@@ -61,8 +60,13 @@ build do
             delete "#{install_dir}/embedded/lib/cmake"
             # and for libtool files
             delete "#{install_dir}/embedded/lib/*.la"
+
+            # Delete the leftovers of static linking.
+            delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/include/dbus-1.0"
         end
 
+        # TODO: Rather than move these, let's install them to the right place to start
         if linux_target?
             # Move configuration files
             mkdir "#{output_config_dir}/etc/datadog-agent"
@@ -84,8 +88,10 @@ build do
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
             end
 
-            # Create the installer symlink
-            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            # Create the installer symlink if the file doesn't already exist
+            unless File.exist?("#{install_dir}/embedded/bin/installer")
+              link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
@@ -163,12 +169,20 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Deduplicate files using symlinks
+            command "dda inv -- omnibus.deduplicate-files --directory #{install_dir}/embedded", cwd: Dir.pwd
+
+            # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
+            if install_dir.include?("/opt/datadog-packages")
+              # The healthcheck will fail as the rpath doesn't contain install_dir
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+            end
         end
 
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
-            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
@@ -205,6 +219,21 @@ build do
                     ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
+
+            # Check that all binaries are compatible with the minimum macOS version we support
+            # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+            allow_list = [
+              "libddwaf\\.dylib",
+              "secret-generic-connector",
+            ]
+            command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
+                                 live_stream: Omnibus.logger.live_stream(:info),
+                                 env: {
+                                   ARCH: arm_target? ? "arm64" : "x86_64",
+                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   INSTALL_DIR: install_dir,
+                                   ALLOW_PATTERN: "(#{allow_list.join('|')})",
+                                 }
         end
     end
 end

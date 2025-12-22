@@ -1,0 +1,113 @@
+name: network_path
+version: 1.0.0
+files:
+- name: network_path.yaml
+  options:
+  - template: init_config
+    options:
+    - name: min_collection_interval
+      value:
+        type: number
+        example: 60
+        default: 60
+      description: |
+        Specifies how frequently we should probe the endpoint.
+        Min collection interval is defined in seconds.
+      required: false
+    - name: timeout
+      value:
+        type: integer
+        example: 1000
+        default: 1000
+      description: |
+        Specifies how much time in milliseconds the traceroute should
+        wait for a response from each hop before timing out.
+      required: false
+  - template: instances
+    options:
+    - name: hostname
+      value:
+        type: string
+        example: "<HOSTNAME>"
+      description: |
+        Hostname or IP of the target endpoint to monitor via Network Path.
+      required: true
+    - name: port
+      value:
+        type: integer
+        example: "<PORT>"
+      description: |
+        Port of the target endpoint to monitor via Network Path.
+        For UDP, we do not recommend setting the port since it can make probes less reliable.
+        If port is not set, a random port will be used.
+      required: false
+    - name: protocol
+      value:
+        type: string
+        example: "<PROTOCOL>"
+        default: "UDP"
+      description: |
+        Protocol used to monitor an endpoint via Network Path.
+        Available protocols: UDP, TCP, ICMP
+      required: false
+    - name: max_ttl
+      value:
+        type: integer
+        example: "<PORT>"
+        default: 30
+      description: |
+        Specifies the maximum number of hops (max time-to-live value) traceroute will probe.
+      required: false
+    - name: timeout
+      value:
+        type: integer
+        example: 1000
+        default: 1000
+      description: |
+        Specifies how much time in milliseconds the traceroute should
+        wait for a response from each hop before timing out.
+      required: false
+    - name: min_collection_interval
+      value:
+        type: number
+        example: 60
+        default: 60
+      description: |
+        Specifies how frequently we should probe the endpoint.
+        Min collection interval is defined in seconds.
+      required: false
+    - name: source_service
+      value:
+        type: string
+        example: "<SOURCE_SERVICE>"
+      description: |
+        Source service name.
+      required: false
+    - name: destination_service
+      value:
+        type: string
+        example: "<DESTINATION_SERVICE>"
+      description: |
+        Destination service name.
+      required: false
+    - name: tcp_method
+      value:
+        type: string
+        example: "<METHOD>"
+        default: "syn"
+      description: |
+        Traceroute method used to monitor an endpoint via Network Path
+        Available methods: syn, sack, prefer_sack, syn_socket (syn_socket only works on Windows OSes)
+        Note: Windows client versions only support syn_socket
+      required: false
+    - name: tags
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<KEY_1>:<VALUE_1>", "<KEY_2>:<VALUE_2>"]
+      description: |
+        A list of tags to attach to every metric and service check emitted by this instance.
+        
+        Learn more about tagging at https://docs.datadoghq.com/tagging
+      required: false

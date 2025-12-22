@@ -25,18 +25,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -45,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -54,13 +57,13 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,35 +98,31 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams:         secrets.NewEnabledParams(),
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
+				remotehostnameimpl.Module(),
 				statsd.Module(),
+				secretsfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				remoteTaggerfx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) {
-						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-					},
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
+				remoteTaggerfx.Module(tagger.NewRemoteParams()),
 				fx.Provide(func() startstop.Stopper {
 					return startstop.NewSerialStopper()
 				}),
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, compression logscompression.Component, hostname hostnameinterface.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+					hostnameDetected, err := hostname.Get(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -135,14 +134,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component, hostname hostnameinterface.Component) (status.InformationProvider, *compliance.Agent, error) {
+					hostnameDetected, err := hostname.Get(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
+					var sysProbeClient compliance.SysProbeClient
+					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
+						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
+					}
+
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc)
+					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc, sysProbeClient)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -174,6 +178,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
+				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
 			)
 		},
 	}
@@ -384,5 +390,5 @@ func setupInternalProfiling(config config.Component) error {
 }
 
 func secAgentKey(sub string) string {
-	return fmt.Sprintf("security_agent.%s", sub)
+	return "security_agent." + sub
 }

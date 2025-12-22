@@ -7,12 +7,12 @@
 package cloudservice
 
 import (
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"maps"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -52,6 +52,11 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (a *AppService) GetDefaultLogsSource() string {
+	return AppServiceOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (a *AppService) GetOrigin() string {
@@ -64,21 +69,18 @@ func (a *AppService) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for AppService
-func (a *AppService) Init() error {
+func (a *AppService) Init(_ interface{}) error {
 	return nil
 }
 
-// Shutdown is empty for AppService
-func (a *AppService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+// Shutdown emits the shutdown metric for AppService
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
+}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (a *AppService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", appServicePrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (a *AppService) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix)
+	return appServicePrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

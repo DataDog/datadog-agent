@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,8 +21,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -118,18 +120,9 @@ type telemetryConfigFields struct {
 	Site   string `yaml:"site"`
 }
 
-// configAction represents a configuration action with action_type and files
-type configAction struct {
-	ActionType string        `json:"action_type"`
-	Files      []interface{} `json:"files"`
-}
-
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return telemetryConfigFields{}
@@ -377,10 +370,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
+		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.MinimumNArgs(3),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -388,38 +381,15 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
 
-			configs := make([][]byte, len(args)-2)
-			// Case for backward compatibility with the previous version of the config
-			// where the config was {"id":"config-1","files":[{"path": "path/to/config", "contents": "contents"}]}
-			if len(args) == 3 {
-				var configMap configAction
-				err := json.Unmarshal([]byte(args[2]), &configMap)
-				if err != nil {
-					return err
-				}
-				if configMap.ActionType == "" {
-					// Old configs
-					configMap = configAction{
-						ActionType: "write",
-						Files:      configMap.Files,
-					}
-					actionBytes, err := json.Marshal(configMap)
-					if err != nil {
-						return err
-					}
-					configs = [][]byte{actionBytes}
-				} else {
-					configs = [][]byte{[]byte(args[2])}
-				}
-			} else {
-				for i, config := range args[2:] {
-					configs[i] = []byte(config)
-				}
+			var operations config.Operations
+			err = json.Unmarshal([]byte(args[1]), &operations)
+			if err != nil {
+				return err
 			}
-
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
+			i.span.SetTag("params.deployment_id", operations.DeploymentID)
+			i.span.SetTag("params.operations", operations.FileOperations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
 	return cmd
@@ -519,18 +489,7 @@ func getState() (*repository.PackageStates, error) {
 		return nil, err
 	}
 	defer i.stop(err)
-	states, err := i.States(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	configStates, err := i.ConfigStates(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &repository.PackageStates{
-		States:       states,
-		ConfigStates: configStates,
-	}, nil
+	return i.ConfigAndPackageStates(i.ctx)
 }
 
 func getStateCommand() *cobra.Command {

@@ -21,8 +21,8 @@ This combination is intended to model a high-end production scenario.
 
 ### DogStatsD Configuration
 
-- **Throughput**: 100 MiB/s is chosen to represent a high-end production use
-  case
+- **Throughput**: 20 MiB/s is chosen to represent a high-end production use
+  case. This translates to 6k messages/sec.
 - **Message Composition**:
   - 90% metrics (87% counters, 8% gauges, 5% distributions)
   - 5% events

@@ -12,11 +12,13 @@ import (
 	"sync"
 
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 
 	"golang.org/x/sys/windows"
 )
@@ -27,11 +29,12 @@ const logsSource = "windows.events"
 
 // ddLogSubmitter transforms Windows Events into strucuted Logs and submits them to the Logs pipeline
 type ddLogSubmitter struct {
-	doneCh        <-chan struct{}
-	inCh          <-chan *eventWithMessage
-	logsAgent     logsAgent.Component
-	bookmarkSaver *bookmarkSaver
-	logSource     *sources.LogSource
+	doneCh                 <-chan struct{}
+	inCh                   <-chan *eventWithMessage
+	logsAgent              logsAgent.Component
+	bookmarkManager        evtbookmark.Manager
+	logSource              *sources.LogSource
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 func (s *ddLogSubmitter) run(w *sync.WaitGroup) {
@@ -51,8 +54,8 @@ func (s *ddLogSubmitter) run(w *sync.WaitGroup) {
 			return
 		}
 
-		// bookmarkSaver manages whether or not to save/persist the bookmark
-		err = s.bookmarkSaver.updateBookmark(e.winevent)
+		// bookmarkManager manages whether or not to save/persist the bookmark
+		err = s.bookmarkManager.UpdateAndSave(e.winevent.EventRecordHandle)
 		if err != nil {
 			log.Errorf("%v", err)
 		}
@@ -94,16 +97,10 @@ func (s *ddLogSubmitter) enrichEvent(m *windowsevent.Map, e *eventWithMessage) e
 		return fmt.Errorf("Failed to get provider name: %v", err)
 	}
 
-	pm, err := e.evtapi.EvtOpenPublisherMetadata(providerName, "")
-	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
-	}
-	defer evtapi.EvtClosePublisherMetadata(e.evtapi, pm)
-
 	eh := e.winevent.EventRecordHandle
-	task, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageTask)
-	opcode, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageOpcode)
-	level, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageLevel)
+	task, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageTask)
+	opcode, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageOpcode)
+	level, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageLevel)
 
 	_ = m.SetMessage(e.renderedMessage)
 	_ = m.SetTask(task)

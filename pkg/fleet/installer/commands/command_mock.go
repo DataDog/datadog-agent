@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -42,15 +43,6 @@ func (m *installerMock) State(_ context.Context, pkg string) (repository.State, 
 	return repository.State{}, nil
 }
 
-func (m *installerMock) States(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "7.31.0",
-			Experiment: "7.32.0",
-		},
-	}, nil
-}
-
 func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.State, error) {
 	if pkg == "datadog-agent" {
 		return repository.State{
@@ -61,11 +53,19 @@ func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.S
 	return repository.State{}, nil
 }
 
-func (m *installerMock) ConfigStates(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "abc-def-hij",
-			Experiment: "",
+func (m *installerMock) ConfigAndPackageStates(_ context.Context) (*repository.PackageStates, error) {
+	return &repository.PackageStates{
+		ConfigStates: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "abc-def-hij",
+				Experiment: "",
+			},
+		},
+		States: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "7.31.0",
+				Experiment: "7.32.0",
+			},
 		},
 	}, nil
 }
@@ -100,9 +100,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *installerMock) InstallConfigExperiment(
-	_ context.Context, _ string, _ string, _ [][]byte, _ []string,
-) error {
+func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations) error {
 	return nil
 }
 

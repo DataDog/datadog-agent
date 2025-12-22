@@ -6,7 +6,6 @@
 package provider
 
 import (
-	"strconv"
 	"time"
 )
 
@@ -30,8 +29,15 @@ const (
 type collectorCache struct {
 	providerID           string
 	collectors           *Collectors
-	cache                *Cache
+	cache                *CacheWithKey[ccKey]
 	selfContainerIDCache string
+}
+
+type ccKey struct {
+	providerID string
+	prefix     string
+	s1, s2, s3 string
+	number     uint64
 }
 
 // Make sure all methods are implemented
@@ -41,7 +47,9 @@ var (
 )
 
 // MakeCached modifies `collectors` to go through a caching layer
-func MakeCached(providerID string, cache *Cache, collectors *Collectors) *Collectors {
+func MakeCached(providerID string, _ *Cache, collectors *Collectors) *Collectors {
+	cache := NewCacheWithKey[ccKey](cacheGCInterval)
+
 	collectorCache := &collectorCache{
 		providerID: providerID,
 		cache:      cache,
@@ -63,7 +71,7 @@ func MakeCached(providerID string, cache *Cache, collectors *Collectors) *Collec
 // GetContainerStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
-	cacheKey := cc.providerID + "-" + contCoreStatsCachePrefix + containerNS + containerID
+	cacheKey := ccKey{cc.providerID, contCoreStatsCachePrefix, containerNS, containerID, "", 0}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*ContainerStats, error) {
 		return cc.collectors.Stats.Collector.GetContainerStats(containerNS, containerID, cacheValidity)
@@ -73,7 +81,7 @@ func (cc *collectorCache) GetContainerStats(containerNS, containerID string, cac
 // GetContainerNetworkStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
-	cacheKey := cc.providerID + "-" + contNetStatsCachePrefix + containerNS + containerID
+	cacheKey := ccKey{cc.providerID, contNetStatsCachePrefix, containerNS, containerID, "", 0}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*ContainerNetworkStats, error) {
 		return cc.collectors.Network.Collector.GetContainerNetworkStats(containerNS, containerID, cacheValidity)
@@ -83,17 +91,17 @@ func (cc *collectorCache) GetContainerNetworkStats(containerNS, containerID stri
 // GetContainerOpenFilesCount returns the count of open files if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	cacheKey := cc.providerID + "-" + contOpenFilesCachePrefix + containerNS + containerID
+	cacheKey := ccKey{cc.providerID, contOpenFilesCachePrefix, containerNS, containerID, "", 0}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*uint64, error) {
 		return cc.collectors.OpenFilesCount.Collector.GetContainerOpenFilesCount(containerNS, containerID, cacheValidity)
 	})
 }
 
-// GetPIDs returns the container ID for given PID
+// GetPIDs returns the PIDs of processes belonging to a given container ID
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
-	cacheKey := cc.providerID + "-" + contPidsCachePrefix + containerNS + containerID
+	cacheKey := ccKey{cc.providerID, contPidsCachePrefix, containerNS, containerID, "", 0}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() ([]int, error) {
 		return cc.collectors.PIDs.Collector.GetPIDs(containerNS, containerID, cacheValidity)
@@ -103,7 +111,7 @@ func (cc *collectorCache) GetPIDs(containerNS, containerID string, cacheValidity
 // GetContainerIDForPID returns the container ID for given PID
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	cacheKey := cc.providerID + "-" + contPidToCidCachePrefix + strconv.FormatInt(int64(pid), 10)
+	cacheKey := ccKey{cc.providerID, contPidToCidCachePrefix, "", "", "", uint64(pid)}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
 		return cc.collectors.ContainerIDForPID.Collector.GetContainerIDForPID(pid, cacheValidity)
@@ -113,7 +121,7 @@ func (cc *collectorCache) GetContainerIDForPID(pid int, cacheValidity time.Durat
 // GetContainerIDForInode returns a container ID for the given inode.
 // ("", nil) will be returned if no error but the containerd ID was not found.
 func (cc *collectorCache) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
-	cacheKey := cc.providerID + "-" + contInodeToCidCachePrefix + strconv.FormatUint(inode, 10)
+	cacheKey := ccKey{cc.providerID, contInodeToCidCachePrefix, "", "", "", inode}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
 		return cc.collectors.ContainerIDForInode.Collector.GetContainerIDForInode(inode, cacheValidity)
@@ -127,7 +135,7 @@ func (cc *collectorCache) ContainerIDForPodUIDAndContName(podUID, contName strin
 	if initCont {
 		initPrefix = "i-"
 	}
-	cacheKey := cc.providerID + "-" + contPodUIDContNameToCidCachePrefix + podUID + "/" + initPrefix + contName
+	cacheKey := ccKey{cc.providerID, contPodUIDContNameToCidCachePrefix, podUID, initPrefix, contName, 0}
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
 		return cc.collectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName(podUID, contName, initCont, cacheValidity)
@@ -158,7 +166,7 @@ func makeCached[T comparable](cr CollectorRef[T], cache T) CollectorRef[T] {
 	return cr
 }
 
-func getOrFallback[T any](cache *Cache, cacheKey string, cacheValidity time.Duration, collect func() (T, error)) (T, error) {
+func getOrFallback[T any](cache *CacheWithKey[ccKey], cacheKey ccKey, cacheValidity time.Duration, collect func() (T, error)) (T, error) {
 	currentTime := time.Now()
 
 	entry, found, err := cache.Get(currentTime, cacheKey, cacheValidity)

@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package message provides log message data structures and utilities
 package message
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -40,6 +40,7 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
 func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
@@ -56,7 +57,7 @@ func (m *Payload) Count() int64 {
 
 // Size returns the size of the message.
 func (m *Payload) Size() int64 {
-	var size int64 = 0
+	var size int64
 	for _, m := range m.MessageMetas {
 		size += m.Size()
 	}
@@ -69,6 +70,9 @@ type Message struct {
 	MessageMetadata
 }
 
+// MessageMetadata contains metadata information about a log message
+//
+//nolint:revive // exported: ignore package name struct conflict
 type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
@@ -201,6 +205,7 @@ type ParsingExtra struct {
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
+	IsMRFAllow  bool
 	Tags        []string
 }
 
@@ -209,15 +214,6 @@ type ServerlessExtra struct {
 	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
 	// Used in the Serverless Agent
 	Timestamp time.Time
-	// Optional.
-	// Used in the Serverless Agent
-	Lambda *Lambda
-}
-
-// Lambda is a struct storing information about the Lambda function and function execution.
-type Lambda struct {
-	ARN       string
-	RequestID string
 }
 
 // NewMessageWithSource constructs an unstructured message
@@ -299,9 +295,9 @@ func (m *Message) Render() ([]byte, error) {
 	case StateRendered:
 		return m.content, nil
 	case StateEncoded:
-		return m.content, fmt.Errorf("render call on an encoded message")
+		return m.content, errors.New("render call on an encoded message")
 	default:
-		return m.content, fmt.Errorf("unknown message state for rendering")
+		return m.content, errors.New("unknown message state for rendering")
 	}
 }
 
@@ -345,34 +341,11 @@ func (m *BasicStructuredContent) SetContent(content []byte) {
 	m.Data["message"] = string(content)
 }
 
-// NewMessageFromLambda construts a message with content, status, origin and with
-// the given timestamp and Lambda metadata.
-func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string, ingestionTimestamp int64) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			content: content,
-			State:   StateUnstructured,
-		},
-		MessageMetadata: MessageMetadata{
-			Origin:             origin,
-			Status:             status,
-			IngestionTimestamp: ingestionTimestamp,
-			ServerlessExtra: ServerlessExtra{
-				Timestamp: utcTime,
-				Lambda: &Lambda{
-					ARN:       ARN,
-					RequestID: reqID,
-				},
-			},
-		},
-	}
-}
-
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.
 func (m *MessageMetadata) GetStatus() string {
 	if m.Status == "" {
-		m.Status = StatusInfo
+		return StatusInfo
 	}
 	return m.Status
 }
@@ -382,12 +355,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// Message returns all tags that this message is attached with.
+// Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
 	return m.Origin.Tags(m.ProcessingTags)
 }
 
-// Message returns all tags that this message is attached with, as a string.
+// TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }
@@ -417,10 +390,19 @@ func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string)
 
 // TruncatedReasonTag returns a tag with the reason for truncation.
 func TruncatedReasonTag(reason string) string {
-	return fmt.Sprintf("truncated:%s", reason)
+	return "truncated:" + reason
 }
 
 // MultiLineSourceTag returns a tag for multiline logs.
 func MultiLineSourceTag(source string) string {
-	return fmt.Sprintf("multiline:%s", source)
+	return "multiline:" + source
+}
+
+// IsMRF returns true if the payload should be sent to MRF endpoints.
+func (m *Payload) IsMRF() bool {
+	if len(m.MessageMetas) == 0 {
+		return false
+	}
+	// all messages in a payload are either all MRF or not
+	return m.MessageMetas[0].IsMRFAllow
 }

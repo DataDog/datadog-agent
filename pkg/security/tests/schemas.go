@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -28,11 +27,7 @@ import (
 )
 
 func getUpstreamEventSchema() string {
-	sha, _ := os.LookupEnv("CI_COMMIT_SHA")
-	if sha == "" {
-		sha = "main"
-	}
-	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", sha)
+	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", GitAncestorOnMain)
 }
 
 var upstreamEventSchema = getUpstreamEventSchema()
@@ -179,6 +174,10 @@ func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateSetrlimitSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///setrlimit.schema.json")
 }
@@ -294,6 +293,13 @@ func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 	}
 
 	return validateStringSchema(t, string(eventJSON), "file:///ruleset_loaded.schema.json")
+}
+
+//nolint:deadcode,unused
+func validateRawPacketActionSchema(t *testing.T, msg string) bool {
+	t.Helper()
+
+	return validateStringSchema(t, msg, "file:///rawpacket_action.schema.json")
 }
 
 //nolint:deadcode,unused

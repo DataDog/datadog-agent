@@ -26,15 +26,10 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
-from tasks.kernel_matrix_testing.vars import VMCONFIG
+from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
-
-try:
-    import libvirt
-except ImportError:
-    libvirt = None
 
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
@@ -241,7 +236,7 @@ def launch_stack(
         x86_ami_id=x86_ami,
         arm_ami_id=arm_ami,
         ssh_key_name=ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else None,
-        infra_env="aws/sandbox",
+        infra_env="aws/agent-sandbox",
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
@@ -250,7 +245,7 @@ def launch_stack(
 
     prefix = ""
     if provision_instance:
-        prefix = "aws-vault exec sso-sandbox-account-admin -- "
+        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
     ctx.run(f"{prefix}{start_cmd}", env=env)
     info(f"[+] Stack {stack} successfully setup")
 
@@ -271,10 +266,10 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sso-sandbox-account-admin -- "
+        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
 
     build_start_microvms_binary(ctx)
-    start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
+    start_cmd = start_microvms_cmd(infra_env="aws/agent-sandbox", stack_name=stack, destroy=True, local=True)
     ctx.run(f"{prefix}{start_cmd}", env=env)
 
 
@@ -329,7 +324,7 @@ def start_microvms_cmd(
 
 def ec2_instance_ids(ctx: Context, ip_list: list[str]) -> list[str]:
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
+    list_instances_cmd = f"aws-vault exec {AWS_ACCOUNT} -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if res is None or not res.ok:
@@ -370,9 +365,7 @@ def destroy_ec2_instances(ctx: Context, stack: str):
         raise Exit("Too many instance_ids")
 
     ids = ' '.join(instance_ids)
-    res = ctx.run(
-        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
-    )
+    res = ctx.run(f"aws-vault exec {AWS_ACCOUNT} -- aws ec2 terminate-instances --instance-ids {ids}", warn=True)
     if res is None or not res.ok:
         error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
     else:
@@ -396,6 +389,8 @@ def destroy_stack_force(ctx: Context, stack: str):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if os.path.exists(vm_config) and local_vms_in_config(vm_config):
+        import libvirt
+
         conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
@@ -412,7 +407,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     pulumi_stack_name = cast(
         'Result',
         ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
             warn=True,
             hide=True,
         ),
@@ -422,12 +417,12 @@ def destroy_stack_force(ctx: Context, stack: str):
         return
 
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
@@ -446,6 +441,8 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 
 
 def pause_stack(stack: str | None = None):
+    import libvirt
+
     stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
@@ -453,6 +450,8 @@ def pause_stack(stack: str | None = None):
 
 
 def resume_stack(stack=None):
+    import libvirt
+
     stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
@@ -460,6 +459,8 @@ def resume_stack(stack=None):
 
 
 def read_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
@@ -488,6 +489,8 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")

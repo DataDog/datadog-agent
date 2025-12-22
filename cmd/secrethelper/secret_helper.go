@@ -37,7 +37,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/secrethelper/providers"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -172,7 +172,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 		case k8sSecretPrefix:
 			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
 		default:
-			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
+			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: "provider not supported: " + prefix}
 		}
 	}
 

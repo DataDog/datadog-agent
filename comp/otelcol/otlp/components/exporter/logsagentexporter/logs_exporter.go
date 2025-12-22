@@ -13,23 +13,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
-	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
+	"go.uber.org/zap"
 )
 
 // Exporter defines fields for the logs agent exporter
 type Exporter struct {
-	set              component.TelemetrySettings
-	logsAgentChannel chan *message.Message
-	logSource        *sources.LogSource
-	translator       *logsmapping.Translator
-	gatewaysUsage    otel.GatewayUsage
+	set                component.TelemetrySettings
+	logsAgentChannel   chan *message.Message
+	logSource          *sources.LogSource
+	translator         *logsmapping.Translator
+	gatewaysUsage      otel.GatewayUsage
+	orchestratorConfig OrchestratorConfig
+	reporter           *inframetadata.Reporter
+	cfg                *Config
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -58,16 +62,32 @@ func NewExporterWithGatewayUsage(
 	}
 
 	return &Exporter{
-		set:              set,
-		logsAgentChannel: logsAgentChannel,
-		logSource:        logSource,
-		translator:       translator,
-		gatewaysUsage:    gatewaysUsage,
+		set:                set,
+		logsAgentChannel:   logsAgentChannel,
+		logSource:          logSource,
+		translator:         translator,
+		gatewaysUsage:      gatewaysUsage,
+		orchestratorConfig: cfg.OrchestratorConfig,
+		cfg:                cfg,
 	}, nil
 }
 
-// ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
+// ConsumeLogs checks the scope of the logs and routes them to the appropriate consumer
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
+	scope := getLogsScope(ld)
+	switch scope {
+	case K8sObjectsReceiver:
+		if e.orchestratorConfig.Enabled {
+			return e.consumeK8sObjects(ctx, ld)
+		}
+		fallthrough
+	default:
+		return e.consumeRegularLogs(ctx, ld)
+	}
+}
+
+// consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
+func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err error) {
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
@@ -78,6 +98,16 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 			}
 		}
 	}()
+
+	if e.cfg.HostMetadata.Enabled && e.reporter != nil {
+		// Consume resources for host metadata
+		for i := 0; i < ld.ResourceLogs().Len(); i++ {
+			res := ld.ResourceLogs().At(i).Resource()
+			if err := e.reporter.ConsumeResource(res); err != nil {
+				e.set.Logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
+			}
+		}
+	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
 	for _, ddLog := range payloads {
@@ -107,7 +137,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 		content, err := ddLog.MarshalJSON()
 		if err != nil {
-			logger.Error("Error parsing log: " + err.Error())
+			e.set.Logger.Error("error parsing log", zap.Error(err))
 		}
 
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
@@ -121,4 +151,22 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	}
 
 	return nil
+}
+
+// ScopeName represents the name of a scope
+type ScopeName string
+
+// K8sObjectsReceiver is the scope name for the k8sobjectsreceiver
+var K8sObjectsReceiver ScopeName = "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
+
+// getLogsScope extracts the scope name from the logs data
+func getLogsScope(ld plog.Logs) ScopeName {
+	for i := 0; i < ld.ResourceLogs().Len(); i++ {
+		resourceLogs := ld.ResourceLogs().At(i)
+		if resourceLogs.ScopeLogs().Len() > 0 {
+			scopeLogs := resourceLogs.ScopeLogs().At(0)
+			return ScopeName(scopeLogs.Scope().Name())
+		}
+	}
+	return ""
 }

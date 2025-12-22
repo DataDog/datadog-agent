@@ -26,6 +26,10 @@ type testCase struct {
 	validationErr string
 }
 
+func intPtr(v int) *int {
+	return &v
+}
+
 var testCases = []testCase{
 	{
 		name: "log probe with file and lines",
@@ -34,6 +38,63 @@ var testCases = []testCase{
 				"type": "LOG_PROBE",
 				"version": 1,
 				"where": {
+					"methodName": "MyMethod",
+					"sourceFile": "myfile.go",
+					"lines": ["10"]
+				},
+				"tags": ["tag1", "tag2"],
+				"language": "go",
+				"template": "Hello {name}",
+				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
+				"capture": {
+					"maxReferenceDepth": 3,
+					"maxLength": 123,
+					"maxCollectionSize": 100
+				},
+				"sampling": {
+					"snapshotsPerSecond": 1.0
+				},
+				"evaluateAt": "entry"
+			}`,
+		want: &LogProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+						SourceFile: "myfile.go",
+						Lines:      []string{"10"},
+					},
+					Tags:       []string{"tag1", "tag2"},
+					Language:   "go",
+					EvaluateAt: "entry",
+				},
+				Capture: &Capture{
+					MaxReferenceDepth: intPtr(3),
+					MaxLength:         intPtr(123),
+					MaxCollectionSize: intPtr(100),
+				},
+				Sampling: &Sampling{
+					SnapshotsPerSecond: 1.0,
+				},
+				Template: "Hello {name}",
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
+				},
+			},
+		},
+	},
+	{
+		name: "log probe with file and multiple lines",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod",
 					"sourceFile": "myfile.go",
 					"lines": ["10", "20"]
 				},
@@ -43,7 +104,7 @@ var testCases = []testCase{
 				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
 				"capture": {
 					"maxReferenceDepth": 3,
-					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -51,7 +112,6 @@ var testCases = []testCase{
 				},
 				"evaluateAt": "entry"
 			}`,
-		validationErr: `sourceFile and lines are not supported`,
 		want: &LogProbe{
 			LogProbeCommon: LogProbeCommon{
 				ProbeCommon: ProbeCommon{
@@ -59,6 +119,7 @@ var testCases = []testCase{
 					Version: 1,
 					Type:    TypeLogProbe.String(),
 					Where: &Where{
+						MethodName: "MyMethod",
 						SourceFile: "myfile.go",
 						Lines:      []string{"10", "20"},
 					},
@@ -67,20 +128,21 @@ var testCases = []testCase{
 					EvaluateAt: "entry",
 				},
 				Capture: &Capture{
-					MaxReferenceDepth: 3,
-					MaxFieldCount:     10,
-					MaxCollectionSize: 100,
+					MaxReferenceDepth: intPtr(3),
+					MaxLength:         intPtr(123),
+					MaxCollectionSize: intPtr(100),
 				},
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
 				},
 			},
 		},
+		validationErr: `lines must be a single line number`,
 	},
 	{
 		name: "log probe with method and signature",
@@ -99,6 +161,7 @@ var testCases = []testCase{
 				"capture": {
 					"maxReferenceDepth": 3,
 					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -121,17 +184,18 @@ var testCases = []testCase{
 					EvaluateAt: "entry",
 				},
 				Capture: &Capture{
-					MaxReferenceDepth: 3,
-					MaxFieldCount:     10,
-					MaxCollectionSize: 100,
+					MaxReferenceDepth: intPtr(3),
+					MaxFieldCount:     intPtr(10),
+					MaxLength:         intPtr(123),
+					MaxCollectionSize: intPtr(100),
 				},
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
 				},
 			},
 		},

@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedBBB",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -43,7 +43,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -56,14 +56,10 @@
           "location": {
             "method": "main.testInlinedBBB"
           }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBBB"
   }
 ]

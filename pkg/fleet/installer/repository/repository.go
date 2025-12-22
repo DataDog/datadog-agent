@@ -17,8 +17,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -203,7 +205,7 @@ func (r *Repository) Delete(ctx context.Context) error {
 	}
 
 	if len(files) > 0 {
-		return fmt.Errorf("could not delete root directory, not empty after cleanup")
+		return errors.New("could not delete root directory, not empty after cleanup")
 	}
 
 	// Delete the repository directory
@@ -229,20 +231,20 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable link does not exist, invalid state")
+		return errors.New("stable link does not exist, invalid state")
 	}
 	if !repository.experiment.Exists() {
-		return fmt.Errorf("experiment link does not exist, invalid state")
+		return errors.New("experiment link does not exist, invalid state")
 	}
 	// Because we repair directories on windows, repository.setExperiment will
 	// not fail if called for a version that is already set to experiment or
 	// stable while it does on unix.  These check ensure that we have the same
 	// behavior on both platforms.
 	if filepath.Base(*repository.experiment.packagePath) == name {
-		return fmt.Errorf("cannot set new experiment to the same version as the current experiment")
+		return errors.New("cannot set new experiment to the same version as the current experiment")
 	}
 	if filepath.Base(*repository.stable.packagePath) == name {
-		return fmt.Errorf("cannot set new experiment to the same version as stable")
+		return errors.New("cannot set new experiment to the same version as stable")
 	}
 	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
@@ -266,13 +268,13 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable link does not exist, invalid state")
+		return errors.New("stable link does not exist, invalid state")
 	}
 	if !repository.experiment.Exists() {
-		return fmt.Errorf("experiment link does not exist, invalid state")
+		return errors.New("experiment link does not exist, invalid state")
 	}
 	if repository.experiment.Target() == "" || repository.stable.Target() == repository.experiment.Target() {
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
 	if err != nil {
@@ -300,10 +302,10 @@ func (r *Repository) DeleteExperiment(ctx context.Context) error {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable link does not exist, invalid state")
+		return errors.New("stable link does not exist, invalid state")
 	}
 	if !repository.experiment.Exists() {
-		return fmt.Errorf("experiment link does not exist, invalid state")
+		return errors.New("experiment link does not exist, invalid state")
 	}
 	err = repository.setExperimentToStable()
 	if err != nil {
@@ -376,7 +378,7 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 
 func movePackageFromSource(packageName string, rootPath string, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
-		return "", fmt.Errorf("invalid package name")
+		return "", errors.New("invalid package name")
 	}
 	targetPath := filepath.Join(rootPath, packageName)
 	_, err := os.Stat(targetPath)
@@ -393,7 +395,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 			}
 			return targetPath, nil
 		}
-		return "", fmt.Errorf("target package already exists")
+		return "", errors.New("target package already exists")
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("could not stat target package: %w", err)
@@ -418,6 +420,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	}
 
 	// remove left-over packages
+	pkgName := filepath.Base(r.rootPath)
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -435,7 +438,6 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
-		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
 			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
@@ -461,7 +463,34 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 	}
 
+	// special case for the agent package
+	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
+	if pkgName == "datadog-agent" && runtime.GOOS == "linux" {
+		err := removeDebRpmAgentDirectory(r.rootPath)
+		if err != nil {
+			log.Errorf("could not remove agent directory: %v", err)
+		}
+	}
 	return nil
+}
+
+func removeDebRpmAgentDirectory(rootPath string) error {
+	stableLinkPath := filepath.Join(rootPath, stableVersionLink)
+	_, err := os.Stat(stableLinkPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	stablePath, err := filepath.EvalSymlinks(stableLinkPath)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
+		return nil
+	}
+	return os.RemoveAll("/opt/datadog-agent")
 }
 
 type link struct {
@@ -470,7 +499,7 @@ type link struct {
 }
 
 func newLink(linkPath string) (*link, error) {
-	linkExists, err := linkExists(linkPath)
+	linkExists, err := symlink.Exist(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could check if link exists: %w", err)
 	}
@@ -479,7 +508,7 @@ func newLink(linkPath string) (*link, error) {
 			linkPath: linkPath,
 		}, nil
 	}
-	packagePath, err := linkRead(linkPath)
+	packagePath, err := symlink.Read(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read link: %w", err)
 	}
@@ -510,7 +539,7 @@ func (l *link) Target() string {
 }
 
 func (l *link) Set(path string) error {
-	err := linkSet(l.linkPath, path)
+	err := symlink.Set(l.linkPath, path)
 	if err != nil {
 		return fmt.Errorf("could not set link: %w", err)
 	}
@@ -519,7 +548,7 @@ func (l *link) Set(path string) error {
 }
 
 func (l *link) Delete() error {
-	err := linkDelete(l.linkPath)
+	err := symlink.Delete(l.linkPath)
 	if err != nil {
 		return fmt.Errorf("could not delete link: %w", err)
 	}
@@ -529,11 +558,11 @@ func (l *link) Delete() error {
 
 func buildFileMap(rootPath string) (map[string]struct{}, error) {
 	files := make(map[string]struct{})
-	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !d.IsDir() {
 			relPath, err := filepath.Rel(rootPath, path)
 			if err != nil {
 				return fmt.Errorf("failed to get relative path: %w", err)
@@ -574,7 +603,7 @@ func repairDirectory(sourcePath, targetPath string) error {
 	}
 
 	// Walk through source directory and compare/copy files
-	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+	return filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -588,8 +617,12 @@ func repairDirectory(sourcePath, targetPath string) error {
 		// Construct target path
 		targetFilePath := filepath.Join(targetPath, relPath)
 
-		if info.IsDir() {
+		if d.IsDir() {
 			// Create directory if it doesn't exist
+			info, err := d.Info()
+			if err != nil {
+				return fmt.Errorf("failed to get directory info: %w", err)
+			}
 			return os.MkdirAll(targetFilePath, info.Mode())
 		}
 

@@ -11,6 +11,7 @@ package loclist
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 
@@ -69,6 +70,13 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 	pieces := []ir.Piece{}
 	instCnt := 0
 
+	// We expect the ops list to be either:
+	// - a single op
+	// - multiple ops each followed by at least one piece: op, piece, op, piece, piece, op, piece, ...
+	// Consecutive pieces always indicating that parts of the variable data are not available.
+	// This assumption holds true up to go1.24. It no longer holds in go1.25, due to introduction of
+	// dw_op_deref.
+	// TODO(piob): support dw_op_deref
 	for reader.Len() > 0 {
 		instCnt++
 		opcode, err := reader.ReadByte()
@@ -89,7 +97,7 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 		}
 
 		if op != nil {
-			return nil, fmt.Errorf("unconsumed op: %v", op)
+			return nil, fmt.Errorf("unconsumed op: %v, next opcode: 0x%x", op, opcode)
 		}
 
 		switch {
@@ -101,7 +109,7 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 			op = ir.Addr{Addr: offset}
 
 		case opcode == dw_op_deref:
-			return nil, fmt.Errorf("unsupported DW_OP_deref")
+			return nil, errors.New("unsupported DW_OP_deref")
 
 		case dw_const_op_lo <= opcode && opcode <= dw_const_op_hi:
 			return nil, fmt.Errorf("unsupported DW_OP_const* opcode: 0x%x", opcode)

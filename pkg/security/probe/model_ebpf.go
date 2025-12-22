@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
@@ -23,20 +24,42 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 		ExtraValidateFieldFnc: func(field eval.Field, value eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if !probe.constantOffsets.IsPresent(constantfetch.OffsetNameBPFMapStructName) {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 
 			case "bpf.prog.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if !probe.constantOffsets.IsPresent(constantfetch.OffsetNameBPFProgAuxStructName) {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 			case "packet.filter":
 				if probe.isRawPacketNotSupported() {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
-				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts()); err != nil {
+
+				filter := rawpacket.Filter{
+					BPFFilter: value.Value.(string),
+					Policy:    rawpacket.PolicyAllow,
+				}
+
+				if _, err := rawpacket.FilterToInsts(0, filter, rawpacket.DefaultProgOpts()); err != nil {
 					return err
+				}
+			}
+
+			return nil
+		},
+		ExtraValidateRule: func(rule *eval.Rule) error {
+			eventType, err := rule.GetEventType()
+			if err != nil {
+				return fmt.Errorf("unable to detect event type: %w", err)
+			}
+
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				// the filter field is mandatory
+				if len(rule.GetFieldValues("packet.filter")) == 0 {
+					return errors.New("rules for the `packet` event type must use `packet.filter`")
 				}
 			}
 

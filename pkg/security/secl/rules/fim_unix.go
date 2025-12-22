@@ -30,9 +30,14 @@ func expandFim(baseID, groupID, baseExpr string) []expandedRule {
 
 	var expandedRules []expandedRule
 	for _, eventType := range []string{"open", "chmod", "chown", "link", "rename", "unlink", "utimes"} {
-		expr := strings.ReplaceAll(baseExpr, "fim.write.file.", fmt.Sprintf("%s.file.", eventType))
-		if eventType == "open" {
+		expr := strings.ReplaceAll(baseExpr, "fim.write.file.", eventType+".file.")
+		switch eventType {
+		case "open":
 			expr = fmt.Sprintf("(%s) && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0", expr)
+		case "chown":
+			expr = fmt.Sprintf("(%s) && ((chown.file.destination.uid != -1 && chown.file.destination.uid != chown.file.uid) || (chown.file.destination.gid != -1 && chown.file.destination.gid != chown.file.gid))", expr)
+		case "chmod":
+			expr = fmt.Sprintf("(%s) && (chmod.file.destination.mode != chmod.file.mode)", expr)
 		}
 
 		id := fmt.Sprintf("__fim_expanded_%s_%s_%s", eventType, groupID, baseID)

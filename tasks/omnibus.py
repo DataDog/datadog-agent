@@ -1,8 +1,11 @@
+import hashlib
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -25,32 +28,26 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.releasing.version import get_version, load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.libs.releasing.version import get_version
 
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
-        overrides_cmd = ""
+        overrides = []
         if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
+            overrides.append(f"--override=base_dir:{base_dir}")
         if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
+            overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
-
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": overrides_cmd,
+            "overrides": " ".join(overrides),
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -86,7 +83,6 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -95,21 +91,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_dependencies(ctx)
-
-    # Discard windows variables when not on Windows
-    if sys.platform != 'win32':
-        windows_only_vars = [
-            'WINDOWS_DDNPM_DRIVER',
-            'WINDOWS_DDNPM_VERSION',
-            'WINDOWS_DDNPM_SHASUM',
-            'WINDOWS_DDPROCMON_DRIVER',
-            'WINDOWS_DDPROCMON_VERSION',
-            'WINDOWS_DDPROCMON_SHASUM',
-        ]
-        for var in windows_only_vars:
-            if var in env:
-                del env[var]
+    env = get_effective_dependencies_env()
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -118,25 +100,36 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
-    for key in env_override:
-        value = os.environ.get(key)
-        # Only overrides the env var if the value is a non-empty string.
-        if value:
-            env[key] = value
+    external_repos = {
+        "INTEGRATIONS_CORE_VERSION": "https://github.com/DataDog/integrations-core.git",
+        "OMNIBUS_RUBY_VERSION": "https://github.com/DataDog/omnibus-ruby.git",
+    }
+    for key, url in external_repos.items():
+        ref = env[key]
+        if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
+            if not candidates:
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
+            if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
+                warnings.warn(
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
+                )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
+            env[key] = sha1
 
     if sys.platform == 'darwin':
-        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0' if os.uname().machine == "arm64" else '10.12'
+        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         if hardened_runtime:
             env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
-    env['MAJOR_VERSION'] = major_version
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -206,7 +199,6 @@ def build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -239,7 +231,6 @@ def build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -251,8 +242,9 @@ def build(
 
     if not target_project:
         target_project = "agent"
-    if target_project != "agent" and flavor != AgentFlavor.base:
-        print("flavors only make sense when building the agent")
+
+    if flavor != AgentFlavor.base and target_project not in ["agent", "ddot"]:
+        print("flavors only make sense when building the agent or ddot")
         raise Exit(code=1)
     if flavor.is_iot():
         target_project = "iot-agent"
@@ -351,9 +343,12 @@ def build(
                     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
                     bundle_dir.cleanup()
             elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                send_cache_mutation_event(
-                    ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
-                )
+                try:
+                    send_cache_mutation_event(
+                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                    )
+                except Exception as e:
+                    print("Failed to send cache mutation event:", e)
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -362,7 +357,10 @@ def build(
         if name in durations:
             print(f"{name}: {durations[name].duration}")
 
-    send_build_metrics(ctx, durations['Omnibus'].duration)
+    try:
+        send_build_metrics(ctx, durations['Omnibus'].duration)
+    except Exception as e:
+        print("Failed to send metrics:", e)
 
 
 @task
@@ -376,7 +374,6 @@ def manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -388,7 +385,6 @@ def manifest(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -455,7 +451,7 @@ def build_repackaged_agent(ctx, log_level="info"):
             key=_pipeline_id_of_package,
         )
 
-    env = get_omnibus_env(ctx, skip_sign=True, major_version='7', flavor=AgentFlavor.base)
+    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base)
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
@@ -519,6 +515,246 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
     # Don't forget the last package if it exists
     if package_info:
         yield DebPackageInfo.from_metadata(package_info)
+
+
+@task(
+    help={
+        'arch': "Target architecture: 'arm64' or 'amd64' (default: auto-detect from host)",
+        'cache-dir': "Base directory for caches (default: ~/.omnibus-docker-cache)",
+        'workers': "Number of parallel workers for compression and builds (default: 8)",
+        'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
+        'tag': "Tag for the built Docker image (default: localhost/datadog-agent:local)",
+    }
+)
+def docker_build(
+    ctx,
+    arch=None,
+    cache_dir=None,
+    workers=8,
+    build_image=None,
+    tag="localhost/datadog-agent:local",
+):
+    """
+    Build the Agent inside a Docker container and create a runnable Docker image.
+
+    This is ideal for local development when you want production-like builds without
+    setting up a local omnibus/Ruby environment. It handles Docker Desktop VirtioFS
+    quirks and uses the same buildimages as CI.
+
+    Related tasks:
+    - omnibus.build: For CI pipelines or when you have local omnibus/Ruby setup
+    - agent.image-build: Creates Docker image from existing omnibus deb package
+    - agent.hacky-dev-image-build: Quick iteration with locally-built binaries (not omnibus)
+
+    This task:
+    1. Runs the omnibus build inside a Docker container (with caching)
+    2. Creates a Docker image from the build output
+    3. Loads the image into your local Docker daemon
+
+    Examples:
+        # Build and create Docker image (default)
+        dda inv omnibus.docker-build
+
+        # Build with custom image tag
+        dda inv omnibus.docker-build --tag=my-agent:dev
+
+        # Build for specific architecture
+        dda inv omnibus.docker-build --arch=arm64
+    """
+    import glob
+    import platform as plat
+
+    # Auto-detect architecture if not specified
+    if arch is None:
+        machine = plat.machine().lower()
+        if machine in ('arm64', 'aarch64'):
+            arch = 'arm64'
+        elif machine in ('x86_64', 'amd64'):
+            arch = 'amd64'
+        else:
+            raise Exit(f"Unknown architecture: {machine}. Please specify --arch=arm64 or --arch=amd64")
+
+    # Map architecture to cross-compiler triplet
+    if arch == 'arm64':
+        cc = 'aarch64-unknown-linux-gnu-gcc'
+        cxx = 'aarch64-unknown-linux-gnu-g++'
+    elif arch == 'amd64':
+        cc = 'x86_64-unknown-linux-gnu-gcc'
+        cxx = 'x86_64-unknown-linux-gnu-g++'
+    else:
+        raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
+
+    # Resolve build image using version from .gitlab-ci.yml if not specified
+    if build_image is None:
+        from tasks.buildimages import get_tag
+
+        image_tag = get_tag(ctx, image_type="linux")
+        build_image = f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux:{image_tag}"
+
+    # Set up cache directories with intelligent defaults for Workspaces
+    if cache_dir is None:
+        # Detect Workspaces environment (has high-performance /instance_storage SSD mount)
+        if os.path.exists("/instance_storage") and os.path.isdir("/instance_storage"):
+            cache_dir = "/instance_storage/omnibus-docker-cache"
+            print("Detected Workspaces environment, using high-performance storage: /instance_storage")
+        else:
+            # Default to home directory for local development
+            home = os.path.expanduser("~")
+            cache_dir = os.path.join(home, ".omnibus-docker-cache")
+
+    omnibus_dir = os.path.join(cache_dir, "omnibus")
+    gems_dir = os.path.join(cache_dir, "gems")
+    go_mod_dir = os.path.join(cache_dir, "go-mod")
+    go_build_dir = os.path.join(cache_dir, "go-build")
+
+    # VIRTIO-FS WORKAROUND: Single Volume for Git Cache + Install Dir
+    #
+    # Docker Desktop's VirtioFS can corrupt git objects when operations
+    # span multiple bind mounts. Omnibus's git cache uses --git-dir separate
+    # from --work-tree, which normally means reads from /opt/datadog-agent
+    # and writes to /omnibus-git-cache cross volume boundaries.
+    #
+    # VirtioFS may process I/O to different mounts through independent
+    # channels, causing ordering issues that corrupt git's loose objects.
+    #
+    # Solution: Put both directories under ONE bind mount, use a symlink
+    # to maintain the expected /opt/datadog-agent path:
+    #
+    #   Host directory:
+    #     ~/.omnibus-docker-cache/omnibus-state/git-cache/opt/datadog-agent/  (git objects)
+    #     ~/.omnibus-docker-cache/omnibus-state/opt/datadog-agent/            (build artifacts)
+    #
+    #   Container mounts and symlinks:
+    #     MOUNT: ~/.omnibus-docker-cache/omnibus-state/ -> /omnibus-state/
+    #     SYMLINK: /opt/datadog-agent -> /omnibus-state/opt/datadog-agent/
+    #
+    # See: https://github.com/docker/for-mac/issues/7494
+    #      https://docs.kernel.org/filesystems/virtiofs.html
+    #
+    omnibus_state_dir = os.path.join(cache_dir, "omnibus-state")
+    git_cache_subdir = os.path.join(omnibus_state_dir, "git-cache")
+    opt_subdir = os.path.join(omnibus_state_dir, "opt", "datadog-agent")
+
+    # Create directories if they don't exist
+    for d in [omnibus_dir, omnibus_state_dir, git_cache_subdir, opt_subdir, gems_dir, go_mod_dir, go_build_dir]:
+        os.makedirs(d, exist_ok=True)
+
+    # Get current working directory (repo root)
+    repo_root = os.getcwd()
+
+    # Build environment variables
+    env_args = [
+        "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-state/git-cache",
+        f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
+        f"-e DD_CC={cc}",
+        f"-e DD_CXX={cxx}",
+        # Set git safe.directory via env vars (doesn't persist to global config)
+        "-e GIT_CONFIG_COUNT=1",
+        "-e GIT_CONFIG_KEY_0=safe.directory",
+        "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
+        # Skip XZ compression - faster for local dev, use omnibus.build for CI
+        "-e SKIP_PKG_COMPRESSION=true",
+    ]
+
+    # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
+    volume_args = [
+        f"-v {omnibus_dir}:/omnibus",
+        f"-v {omnibus_state_dir}:/omnibus-state",
+        f"-v {gems_dir}:/gems",
+        f"-v {go_mod_dir}:/go/pkg/mod",
+        f"-v {go_build_dir}:/root/.cache/go-build",
+        f"-v {repo_root}:/go/src/github.com/DataDog/datadog-agent",
+    ]
+
+    # Build the docker command
+    env_str = " ".join(env_args)
+    vol_str = " ".join(volume_args)
+
+    # Create symlink for /opt/datadog-agent pointing to the single volume mount
+    # This ensures git-cache and install-dir share the same VirtioFS I/O channel
+    build_cmd = (
+        'bash -c "'
+        'mkdir -p /omnibus-state/opt/datadog-agent && '
+        'rm -rf /opt/datadog-agent && '
+        'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
+        'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
+        '"'
+    )
+    docker_cmd = (
+        f"docker run --rm "
+        f"{env_str} {vol_str} "
+        f"-w /go/src/github.com/DataDog/datadog-agent "
+        f"{build_image} "
+        f"{build_cmd}"
+    )
+
+    print(f"Building Datadog Agent for {arch}")
+    print(f"Build image: {build_image}")
+    print(f"Cache directory: {cache_dir}")
+    print(f"Workers: {workers}")
+    print()
+
+    # Run the omnibus build
+    ctx.run(docker_cmd)
+
+    # Build Docker image from the tarball
+    print("\n" + "=" * 60)
+    print("Building Docker image from tarball...")
+    print("=" * 60 + "\n")
+
+    artifacts_dir = os.path.join(omnibus_dir, "pkg")
+
+    # Find the uncompressed tarball (we always set SKIP_PKG_COMPRESSION=true)
+    tar_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar")
+    tar_files = sorted(glob.glob(tar_pattern), key=os.path.getmtime, reverse=True)
+
+    # Exclude debug packages
+    tar_files = [f for f in tar_files if '-dbg-' not in f]
+
+    if not tar_files:
+        raise Exit(f"No tarball found matching {tar_pattern}. Build may have failed.")
+
+    tarball = tar_files[0]
+
+    artifact_name = os.path.basename(tarball)
+    print(f"Using tarball: {tarball}")
+
+    # Get git info for labels
+    git_url = "https://github.com/DataDog/datadog-agent"
+    git_sha = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+
+    # Map arch to Docker platform
+    platform = f"linux/{arch}"
+
+    # Build the Docker command
+    build_args = [
+        f"--build-arg DD_GIT_REPOSITORY_URL={git_url}",
+        f"--build-arg DD_GIT_COMMIT_SHA={git_sha}",
+        f"--build-arg DD_AGENT_ARTIFACT={artifact_name}",
+    ]
+
+    docker_build_cmd = (
+        f"docker buildx build --platform {platform} "
+        f"--build-context artifacts={artifacts_dir} "
+        f"{' '.join(build_args)} "
+        f"--file Dockerfiles/agent/Dockerfile "
+        f"--tag {tag} "
+        f"--load "
+        f"Dockerfiles/agent"
+    )
+
+    ctx.run(docker_build_cmd)
+
+    # Print clear usage instructions
+    print("\n" + "=" * 60)
+    print("BUILD COMPLETE")
+    print("=" * 60)
+    print(f"\nDocker image: {tag}")
+    print("\nRun the agent:")
+    print(f"  docker run --rm {tag} agent version")
+    print(f"  docker run --rm -it {tag} /bin/bash")
+    print("\nInspect the image:")
+    print(f"  docker run --rm {tag} ls -la /opt/datadog-agent/bin/agent/")
 
 
 def _pipeline_id_of_package(package: DebPackageInfo) -> int:
@@ -612,3 +848,62 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+
+
+@task
+def deduplicate_files(ctx, directory):
+    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+
+    def hash_file(filepath):
+        """Returns the SHA-256 hash of the file's contents."""
+        with open(filepath, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
+
+    def find_duplicates(root_dir):
+        """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
+        hash_to_files = defaultdict(list)
+        for dirpath, _, filenames in os.walk(root_dir):
+            for name in filenames:
+                if not LIB_PATTERN.search(name):
+                    continue
+
+                full_path = os.path.join(dirpath, name)
+                # Only regular files; skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):
+                    try:
+                        if os.path.getsize(full_path) == 0:
+                            continue  # Exclude empty files
+                        file_hash = hash_file(full_path)
+                        hash_to_files[file_hash].append(full_path)
+                    except Exception as e:
+                        print(f"Error hashing {full_path}: {e}")
+        return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
+
+    def replace_with_symlinks(duplicates):
+        """Replaces all duplicates with symlinks to the first original (shortest path wins)."""
+        for files in duplicates.values():
+            files.sort(key=lambda p: (len(p), p))  # shortest path, then lexicographic
+            original = files[0]
+            for dup in files[1:]:
+                try:
+                    os.remove(dup)
+                    rel_path = os.path.relpath(original, os.path.dirname(dup))
+                    os.symlink(rel_path, dup)
+                    print(f"Replaced {dup} with symlink to {original}")
+                except Exception as e:
+                    print(f"Failed to replace {dup}: {e}")
+
+    root = os.path.abspath(directory)
+    if not os.path.isdir(root):
+        print(f"{root} is not a valid directory.")
+        return
+
+    print(f"Scanning for duplicates in: {root}")
+    duplicates = find_duplicates(root)
+
+    if not duplicates:
+        return
+
+    print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
+    replace_with_symlinks(duplicates)

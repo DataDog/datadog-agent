@@ -81,6 +81,9 @@ func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.Containe
 		}
 		if policy.Mode != nil {
 			m.Mode = string(*policy.Mode)
+		} else {
+			// Default to Auto if not set
+			m.Mode = string(v1.ContainerScalingModeAuto)
 		}
 		if policy.ControlledValues != nil {
 			m.ControlledValues = string(*policy.ControlledValues)

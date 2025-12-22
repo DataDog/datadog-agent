@@ -7,14 +7,15 @@ package cloudservice
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,7 +54,7 @@ const (
 	resourceName      = "resource_name"
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gpc.run"
+	cloudRunPrefix    = "gcp.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -131,6 +132,11 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRun) GetDefaultLogsSource() string {
+	return CloudRunOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
@@ -143,21 +149,18 @@ func (c *CloudRun) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for CloudRun
-func (c *CloudRun) Init() error {
+func (c *CloudRun) Init(_ interface{}) error {
 	return nil
 }
 
-// Shutdown is empty for CloudRun
-func (c *CloudRun) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+// Shutdown emits the shutdown metric for CloudRun
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
+}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *CloudRun) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", cloudRunPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (c *CloudRun) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix)
+	return cloudRunPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
@@ -172,7 +175,7 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug(fmt.Sprintf("cloud run namespace SET TO: %s", cloudRunFunction))
+	log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 	return cloudRunFunctionMode
 }
 

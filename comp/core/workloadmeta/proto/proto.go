@@ -7,10 +7,13 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -69,6 +72,27 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		return &pb.WorkloadmetaEvent{
 			Type:    protoEventType,
 			EcsTask: protoECSTask,
+		}, nil
+	case workloadmeta.KindProcess:
+		process := entity.(*workloadmeta.Process)
+		protoProcess, err := protoProcessFromWorkloadmetaProcess(process)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.WorkloadmetaEvent{
+			Type:    protoEventType,
+			Process: protoProcess,
+		}, nil
+	case workloadmeta.KindCRD:
+		crd := entity.(*workloadmeta.CRD)
+		protoCrd, err := protoCRDFromWorkloadmetaCRD(crd)
+		if err != nil {
+			return nil, err
+		}
+
+		return &pb.WorkloadmetaEvent{
+			Type: protoEventType,
+			Crd:  protoCrd,
 		}, nil
 	}
 
@@ -136,6 +160,18 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 
 	protoResolvedAllocatedResources := toProtoResolvedAllocatedResources(container.ResolvedAllocatedResources)
 
+	var ownerEntityID *pb.WorkloadmetaEntityId
+	if container.Owner != nil {
+		kind, err := toProtoKind(container.Owner.Kind)
+		if err != nil {
+			return nil, err
+		}
+		ownerEntityID = &pb.WorkloadmetaEntityId{
+			Kind: kind,
+			Id:   container.Owner.ID,
+		}
+	}
+
 	return &pb.Container{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromContainer(container),
@@ -150,6 +186,8 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		CollectorTags:              container.CollectorTags,
 		CgroupPath:                 container.CgroupPath,
 		ResolvedAllocatedResources: protoResolvedAllocatedResources,
+		Resources:                  toProtoContainerResources(container.Resources),
+		Owner:                      ownerEntityID,
 	}, nil
 }
 
@@ -201,6 +239,10 @@ func toProtoKind(kind workloadmeta.Kind) (pb.WorkloadmetaKind, error) {
 		return pb.WorkloadmetaKind_KUBERNETES_POD, nil
 	case workloadmeta.KindECSTask:
 		return pb.WorkloadmetaKind_ECS_TASK, nil
+	case workloadmeta.KindProcess:
+		return pb.WorkloadmetaKind_PROCESS, nil
+	case workloadmeta.KindCRD:
+		return pb.WorkloadmetaKind_CRD, nil
 	}
 
 	return pb.WorkloadmetaKind_CONTAINER, fmt.Errorf("unknown kind: %s", kind)
@@ -216,7 +258,6 @@ func toProtoEntityMetaFromContainer(container *workloadmeta.Container) *pb.Entit
 }
 
 func toProtoImage(image *workloadmeta.ContainerImage) *pb.ContainerImage {
-
 	return &pb.ContainerImage{
 		Id:         image.ID,
 		RawName:    image.RawName,
@@ -294,6 +335,22 @@ func toProtoResolvedAllocatedResources(resources []workloadmeta.ContainerAllocat
 	}
 
 	return protoResolvedAllocatedResources
+}
+
+func toProtoContainerResources(resources workloadmeta.ContainerResources) *pb.ContainerResources {
+	if resources.CPURequest == nil &&
+		resources.CPULimit == nil &&
+		resources.MemoryRequest == nil &&
+		resources.MemoryLimit == nil {
+		return nil
+	}
+
+	return &pb.ContainerResources{
+		CpuRequest:    resources.CPURequest,
+		CpuLimit:      resources.CPULimit,
+		MemoryRequest: resources.MemoryRequest,
+		MemoryLimit:   resources.MemoryLimit,
+	}
 }
 
 func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerStatus, error) {
@@ -476,6 +533,147 @@ func toProtoLaunchType(launchType workloadmeta.ECSLaunchType) (pb.ECSLaunchType,
 	return pb.ECSLaunchType_EC2, fmt.Errorf("unknown launch type: %s", launchType)
 }
 
+func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Process, error) {
+	protoEntityID, err := toProtoEntityID(&process.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	var protoOwner *pb.WorkloadmetaEntityId
+	if process.Owner != nil {
+		protoOwner, err = toProtoEntityID(process.Owner)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pb.Process{
+		EntityId:       protoEntityID,
+		Pid:            process.Pid,
+		Nspid:          process.NsPid,
+		Ppid:           process.Ppid,
+		Name:           process.Name,
+		Cwd:            process.Cwd,
+		Exe:            process.Exe,
+		Comm:           process.Comm,
+		Cmdline:        process.Cmdline,
+		Uids:           process.Uids,
+		Gids:           process.Gids,
+		ContainerId:    process.ContainerID,
+		CreationTime:   process.CreationTime.Unix(),
+		Language:       toProtoLanguage(process.Language),
+		Owner:          protoOwner,
+		Service:        toProtoService(process.Service),
+		InjectionState: pb.InjectionState(process.InjectionState),
+	}, nil
+}
+
+func toProtoEntityMetaFromCrd(crd *workloadmeta.CRD) *pb.EntityMeta {
+	if crd == nil {
+		return nil
+	}
+
+	return &pb.EntityMeta{
+		Name:        crd.EntityMeta.Name,
+		Namespace:   crd.EntityMeta.Namespace,
+		Annotations: crd.EntityMeta.Annotations,
+		Labels:      crd.EntityMeta.Labels,
+	}
+}
+
+func protoCRDFromWorkloadmetaCRD(crd *workloadmeta.CRD) (*pb.Crd, error) {
+	protoEntityID, err := toProtoEntityID(&crd.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.Crd{
+		EnityId:    protoEntityID,
+		EntityMeta: toProtoEntityMetaFromCrd(crd),
+		Group:      crd.Group,
+		Kind:       crd.Kind,
+		Version:    crd.Version,
+	}, nil
+}
+
+func toProtoEntityID(entityID *workloadmeta.EntityID) (*pb.WorkloadmetaEntityId, error) {
+	if entityID == nil {
+		return nil, nil
+	}
+
+	protoKind, err := toProtoKind(entityID.Kind)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.WorkloadmetaEntityId{
+		Kind: protoKind,
+		Id:   entityID.ID,
+	}, nil
+}
+
+func toProtoLanguage(language *languagemodels.Language) *pb.Language {
+	if language == nil {
+		return nil
+	}
+
+	return &pb.Language{
+		Name:    string(language.Name),
+		Version: language.Version,
+	}
+}
+
+func toProtoTracerMetadata(tracerMetadata tracermetadata.TracerMetadata) *pb.TracerMetadata {
+	return &pb.TracerMetadata{
+		RuntimeId:   tracerMetadata.RuntimeID,
+		ServiceName: tracerMetadata.ServiceName,
+	}
+}
+
+func toProtoUST(ust workloadmeta.UST) *pb.UST {
+	if ust.Service == "" && ust.Env == "" && ust.Version == "" {
+		return nil
+	}
+
+	return &pb.UST{
+		Service: ust.Service,
+		Env:     ust.Env,
+		Version: ust.Version,
+	}
+}
+
+func toProtoService(service *workloadmeta.Service) *pb.Service {
+	if service == nil {
+		return nil
+	}
+
+	var protoTracerMetadata []*pb.TracerMetadata
+	for _, tracerMeta := range service.TracerMetadata {
+		protoTracerMetadata = append(protoTracerMetadata, toProtoTracerMetadata(tracerMeta))
+	}
+
+	var tcpPorts []int32
+	for _, port := range service.TCPPorts {
+		tcpPorts = append(tcpPorts, int32(port))
+	}
+
+	var udpPorts []int32
+	for _, port := range service.UDPPorts {
+		udpPorts = append(udpPorts, int32(port))
+	}
+
+	return &pb.Service{
+		GeneratedName:            service.GeneratedName,
+		GeneratedNameSource:      service.GeneratedNameSource,
+		AdditionalGeneratedNames: service.AdditionalGeneratedNames,
+		TracerMetadata:           protoTracerMetadata,
+		TcpPorts:                 tcpPorts,
+		UdpPorts:                 udpPorts,
+		ApmInstrumentation:       service.APMInstrumentation,
+		Ust:                      toProtoUST(service.UST),
+	}
+}
+
 // Conversions from protobuf to Workloadmeta types
 
 // WorkloadmetaFilterFromProtoFilter converts the given protobuf filter into a workloadmeta.Filter
@@ -554,9 +752,27 @@ func WorkloadmetaEventFromProtoEvent(protoEvent *pb.WorkloadmetaEvent) (workload
 			Type:   eventType,
 			Entity: ecsTask,
 		}, nil
+	} else if protoEvent.Process != nil {
+		process, err := toWorkloadmetaProcess(protoEvent.Process)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: process,
+		}, nil
+	} else if protoEvent.Crd != nil {
+		crd, err := toWorkloadmetaCrd(protoEvent.Crd)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: crd,
+		}, nil
 	}
 
-	return workloadmeta.Event{}, fmt.Errorf("unknown entity")
+	return workloadmeta.Event{}, errors.New("unknown entity")
 }
 
 func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error) {
@@ -567,6 +783,10 @@ func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error
 		return workloadmeta.KindKubernetesPod, nil
 	case pb.WorkloadmetaKind_ECS_TASK:
 		return workloadmeta.KindECSTask, nil
+	case pb.WorkloadmetaKind_PROCESS:
+		return workloadmeta.KindProcess, nil
+	case pb.WorkloadmetaKind_CRD:
+		return workloadmeta.KindCRD, nil
 	}
 
 	return workloadmeta.KindContainer, fmt.Errorf("unknown kind: %s", protoKind)
@@ -623,6 +843,15 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 
 	resources := toWorkloadmetaResolvedAllocatedResources(protoContainer.ResolvedAllocatedResources)
 
+	var owner *workloadmeta.EntityID
+	if protoContainer.Owner != nil {
+		ownerEntityID, err := toWorkloadmetaEntityID(protoContainer.Owner)
+		if err != nil {
+			return nil, err
+		}
+		owner = &ownerEntityID
+	}
+
 	return &workloadmeta.Container{
 		EntityID:                   entityID,
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
@@ -637,6 +866,8 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		CollectorTags:              protoContainer.CollectorTags,
 		CgroupPath:                 protoContainer.CgroupPath,
 		ResolvedAllocatedResources: resources,
+		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
+		Owner:                      owner,
 	}, nil
 }
 
@@ -658,6 +889,19 @@ func toWorkloadmetaResolvedAllocatedResources(protoResolvedAllocatedResources []
 	}
 
 	return resources
+}
+
+func toWorkloadmetaContainerResources(protoResources *pb.ContainerResources) workloadmeta.ContainerResources {
+	if protoResources == nil {
+		return workloadmeta.ContainerResources{}
+	}
+
+	return workloadmeta.ContainerResources{
+		CPURequest:    protoResources.CpuRequest,
+		CPULimit:      protoResources.CpuLimit,
+		MemoryRequest: protoResources.MemoryRequest,
+		MemoryLimit:   protoResources.MemoryLimit,
+	}
 }
 
 func toWorkloadmetaEntityID(protoEntityID *pb.WorkloadmetaEntityId) (workloadmeta.EntityID, error) {
@@ -877,4 +1121,122 @@ func toECSLaunchType(protoLaunchType pb.ECSLaunchType) (workloadmeta.ECSLaunchTy
 	}
 
 	return workloadmeta.ECSLaunchTypeEC2, fmt.Errorf("unknown launch type: %s", protoLaunchType)
+}
+
+func toWorkloadmetaProcess(protoProcess *pb.Process) (*workloadmeta.Process, error) {
+	entityID, err := toWorkloadmetaEntityID(protoProcess.EntityId)
+	if err != nil {
+		return nil, err
+	}
+
+	var owner *workloadmeta.EntityID
+	if protoProcess.Owner != nil {
+		ownerEntityID, err := toWorkloadmetaEntityID(protoProcess.Owner)
+		if err != nil {
+			return nil, err
+		}
+		owner = &ownerEntityID
+	}
+
+	var creationTime time.Time
+	if protoProcess.CreationTime != emptyTimestampUnix {
+		creationTime = time.Unix(protoProcess.CreationTime, 0)
+	}
+
+	return &workloadmeta.Process{
+		EntityID:       entityID,
+		Pid:            protoProcess.Pid,
+		NsPid:          protoProcess.Nspid,
+		Ppid:           protoProcess.Ppid,
+		Name:           protoProcess.Name,
+		Cwd:            protoProcess.Cwd,
+		Exe:            protoProcess.Exe,
+		Comm:           protoProcess.Comm,
+		Cmdline:        protoProcess.Cmdline,
+		Uids:           protoProcess.Uids,
+		Gids:           protoProcess.Gids,
+		ContainerID:    protoProcess.ContainerId,
+		CreationTime:   creationTime,
+		Language:       toWorkloadmetaLanguage(protoProcess.Language),
+		Owner:          owner,
+		Service:        toWorkloadmetaService(protoProcess.Service),
+		InjectionState: workloadmeta.InjectionState(protoProcess.InjectionState),
+	}, nil
+}
+
+func toWorkloadmetaCrd(protoCrd *pb.Crd) (*workloadmeta.CRD, error) {
+	entityID, err := toWorkloadmetaEntityID(protoCrd.EnityId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &workloadmeta.CRD{
+		EntityID:   entityID,
+		EntityMeta: toWorkloadmetaEntityMeta(protoCrd.EntityMeta),
+		Group:      protoCrd.Group,
+		Kind:       protoCrd.Kind,
+		Version:    protoCrd.Version,
+	}, nil
+}
+
+func toWorkloadmetaLanguage(protoLanguage *pb.Language) *languagemodels.Language {
+	if protoLanguage == nil {
+		return nil
+	}
+
+	return &languagemodels.Language{
+		Name:    languagemodels.LanguageName(protoLanguage.Name),
+		Version: protoLanguage.Version,
+	}
+}
+
+func toWorkloadmetaTracerMetadata(protoTracerMetadata *pb.TracerMetadata) tracermetadata.TracerMetadata {
+	return tracermetadata.TracerMetadata{
+		RuntimeID:   protoTracerMetadata.RuntimeId,
+		ServiceName: protoTracerMetadata.ServiceName,
+	}
+}
+
+func toWorkloadmetaUST(protoUST *pb.UST) workloadmeta.UST {
+	if protoUST == nil {
+		return workloadmeta.UST{}
+	}
+
+	return workloadmeta.UST{
+		Service: protoUST.Service,
+		Env:     protoUST.Env,
+		Version: protoUST.Version,
+	}
+}
+
+func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
+	if protoService == nil {
+		return nil
+	}
+
+	var tracerMetadata []tracermetadata.TracerMetadata
+	for _, protoTracerMeta := range protoService.TracerMetadata {
+		tracerMetadata = append(tracerMetadata, toWorkloadmetaTracerMetadata(protoTracerMeta))
+	}
+
+	var tcpPorts []uint16
+	for _, port := range protoService.TcpPorts {
+		tcpPorts = append(tcpPorts, uint16(port))
+	}
+
+	var udpPorts []uint16
+	for _, port := range protoService.UdpPorts {
+		udpPorts = append(udpPorts, uint16(port))
+	}
+
+	return &workloadmeta.Service{
+		GeneratedName:            protoService.GeneratedName,
+		GeneratedNameSource:      protoService.GeneratedNameSource,
+		AdditionalGeneratedNames: protoService.AdditionalGeneratedNames,
+		TracerMetadata:           tracerMetadata,
+		TCPPorts:                 tcpPorts,
+		UDPPorts:                 udpPorts,
+		APMInstrumentation:       protoService.ApmInstrumentation,
+		UST:                      toWorkloadmetaUST(protoService.Ust),
+	}
 }

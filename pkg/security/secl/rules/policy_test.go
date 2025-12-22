@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -164,7 +165,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 
 	t.Run("override", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule"]
+		rule := rs.GetRuleByID("test_rule")
 		if rule == nil {
 			t.Fatal("failed to find test_rule in ruleset")
 		}
@@ -181,14 +182,14 @@ func TestRuleMerge(t *testing.T) {
 	})
 
 	t.Run("enabled-disabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_foo"]
+		rule := rs.GetRuleByID("test_rule_foo")
 		if rule == nil {
 			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 
 	t.Run("disabled-enabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_bar"]
+		rule := rs.GetRuleByID("test_rule_bar")
 		if rule == nil {
 			t.Fatal("expected test_rule_bar to be loaded")
 		}
@@ -297,7 +298,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
+	rule := rs.GetRuleByID("test_rule")
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -305,7 +306,6 @@ func TestActionSetVariable(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
@@ -324,12 +324,6 @@ func TestActionSetVariable(t *testing.T) {
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
-
-	scopedVariables := rs.scopedVariables["process"].(*eval.ScopedVariables)
-
-	assert.Equal(t, scopedVariables.Len(), 1)
-	event.ProcessCacheEntry.Release()
-	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
 func TestActionSetVariableTTL(t *testing.T) {
@@ -414,9 +408,13 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				Releasable:  &model.Releasable{},
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -453,7 +451,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, stringArrayScopedVar)
 	assert.True(t, ok)
-	value, _ = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
@@ -463,7 +461,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, intArrayScopedVar)
 	assert.True(t, ok)
-	value, _ = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
@@ -473,7 +471,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, intVarScopedVar)
 	assert.True(t, ok)
-	value, isSet := intVarScopedVar.GetValue(ctx)
+	value, isSet := intVarScopedVar.GetValue(ctx, false)
 	assert.True(t, isSet)
 	assert.NotNil(t, value)
 	assert.Equal(t, 456, value)
@@ -489,15 +487,15 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 
-	value, _ = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotContains(t, value, "foo")
 	assert.Len(t, value, 0)
 
-	value, _ = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 
-	value, isSet = intVarScopedVar.GetValue(ctx)
+	value, isSet = intVarScopedVar.GetValue(ctx, false)
 	assert.False(t, isSet)
 	assert.Equal(t, 0, value)
 }
@@ -597,16 +595,15 @@ func TestActionSetVariableSize(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
 	ctx := eval.NewContext(event)
 
-	_, set = stringArrayScopedVar.GetValue(ctx)
+	_, set = stringArrayScopedVar.GetValue(ctx, false)
 	assert.False(t, set)
 
-	_, set = intArrayScopedVar.GetValue(ctx)
+	_, set = intArrayScopedVar.GetValue(ctx, false)
 	assert.False(t, set)
 
 	if !rs.Evaluate(event) {
@@ -628,14 +625,14 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Len(t, value, 1)
 	assert.True(t, set)
 
-	value, set = stringArrayScopedVar.GetValue(ctx)
+	value, set = stringArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
 	assert.Len(t, value, 1)
 	assert.True(t, set)
 
-	value, set = intArrayScopedVar.GetValue(ctx)
+	value, set = intArrayScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
@@ -696,9 +693,165 @@ func TestActionSetEmptyScope(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set := stringArrayScopedVar.GetValue(ctx)
+	value, set := stringArrayScopedVar.GetValue(ctx, false)
 	assert.Nil(t, value)
 	assert.False(t, set)
+}
+
+func TestVariableFieldConflictProtection(t *testing.T) {
+	// Test that variables cannot have the same name as existing fields
+
+	t.Run("conflict-with-scoped-field", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "pid", // Conflicts with process.pid
+						Value: 12345,
+						Scope: "process",
+					},
+				}},
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err == nil {
+			t.Error("expected policy to fail to load due to process.pid conflict")
+		} else {
+			t.Logf("Expected error: %v", err)
+		}
+	})
+
+	t.Run("no-conflict-different-scope", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "custom_data", // No conflict, custom name
+						Value: "test_value",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
+
+	t.Run("variable-priority-over-field-when-no-conflict", func(t *testing.T) {
+		// This test shows that when a variable exists, it takes priority
+		// But this can only happen if the variable doesn't conflict with a field
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "set_custom_var",
+					Expression: `open.file.path == "/tmp/test1"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:  "my_custom_value",
+							Value: "from_variable",
+						},
+					}},
+				},
+				{
+					ID: "use_custom_var",
+					// Use the variable - it should work since no field named "my_custom_value" exists
+					Expression: `open.file.path == "/tmp/test2" && "${my_custom_value}" == "from_variable"`,
+				},
+			},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
+
+	t.Run("field-reference-with-percent-syntax", func(t *testing.T) {
+		// With the new syntax, fields must be referenced with %{field} not ${variable}
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_field_reference_syntax",
+				// Using %{process.pid} to reference a field
+				Expression: `open.file.path == "/tmp/test" && %{process.pid} > 0`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully with %%{field} syntax, got: %v", err)
+		}
+	})
+
+	t.Run("variable-syntax-without-variable-should-fail", func(t *testing.T) {
+		// Using ${variable} in a string without creating the variable should now fail (no fallback to field)
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_variable_syntax_for_field",
+				// Using ${my_nonexistent_var} in a string without creating a variable
+				// Should fail because there's no fallback to fields anymore
+				Expression: `open.file.path == "/tmp/test" && "value:${my_nonexistent_var}" != ""`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err == nil {
+			t.Error("expected policy to fail to load (no variable named 'my_nonexistent_var')")
+		} else {
+			t.Logf("Expected error: %v", err)
+		}
+	})
+
+	t.Run("field-reference-in-string-works", func(t *testing.T) {
+		// Using %{field} in a string should work
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_field_reference_in_string",
+				// Using %{process.pid} to reference a field in a string
+				Expression: `open.file.path == "/tmp/test" && "pid:%{process.pid}" != ""`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully with %%{field} in string, got: %v", err)
+		}
+	})
+
+	t.Run("array-index-with-field-no-conflict", func(t *testing.T) {
+		// Test that array index access on fields works and doesn't create conflicts
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "first_hash",
+						Field: "open.file.hashes[0]", // Array index access
+						Scope: "container",
+					},
+				}},
+			}, {
+				ID: "use_var_and_field",
+				// Both the variable and the base field can coexist
+				Expression: `open.file.path == "/tmp/test2" && ` +
+					`"${container.first_hash}" != "" && ` +
+					`open.file.hashes[0] != ""`, // Direct field access also works
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
@@ -794,7 +947,6 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -892,7 +1044,6 @@ func TestActionSetVariableInherited(t *testing.T) {
 			},
 		},
 	}
-	event.ProcessCacheEntry.Retain()
 	event.SetFieldValue("open.file.path", "/tmp/guess")
 
 	ctx := eval.NewContext(event)
@@ -902,7 +1053,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 	assert.NotNil(t, stringScopedVar)
 	assert.True(t, ok)
 
-	value, set := stringScopedVar.GetValue(ctx)
+	value, set := stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	// TODO(lebauce): should be 123. default_value are not properly handled
 	assert.Equal(t, 0, value)
@@ -912,7 +1063,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set = stringScopedVar.GetValue(ctx)
+	value, set = stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Equal(t, 456, value)
 	assert.True(t, set)
@@ -929,7 +1080,6 @@ func TestActionSetVariableInherited(t *testing.T) {
 			Ancestor: event.ProcessCacheEntry,
 		},
 	}
-	event2.ProcessCacheEntry.Retain()
 	event2.SetFieldValue("open.file.path", "/tmp/guess2")
 
 	ctx = eval.NewContext(event2)
@@ -937,7 +1087,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	value, set = stringScopedVar.GetValue(ctx)
+	value, set = stringScopedVar.GetValue(ctx, false)
 	assert.NotNil(t, value)
 	assert.Equal(t, 1000, value)
 	assert.True(t, set)
@@ -962,7 +1112,6 @@ func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *
 	if ancestor != nil {
 		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
 	}
-	event.ProcessCacheEntry.Retain()
 	event.SetFieldValue("open.file.path", path)
 	return event
 }
@@ -1077,7 +1226,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	ctx := eval.NewContext(event)
 
 	// test correlation key initial value
-	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "", correlationKeyValue)
 	assert.False(t, set)
@@ -1086,12 +1235,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "first_"))
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
@@ -1100,7 +1249,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
 	ctx = eval.NewContext(event2)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
@@ -1109,12 +1258,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 
 	// jump to the third rule, check:
@@ -1123,7 +1272,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
 	ctx = eval.NewContext(event3)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
@@ -1132,12 +1281,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "third_"))
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 
 	correlationKeyFromThirdRule := correlationKeyValue.(string)
@@ -1146,7 +1295,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
 	ctx = eval.NewContext(event4)
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
 	assert.True(t, set)
@@ -1155,12 +1304,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
 	assert.True(t, set)
 
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx, false)
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
@@ -1176,7 +1325,6 @@ func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *m
 			},
 		},
 	}
-	event.ProcessCacheEntry.Retain()
 	if ancestor != nil {
 		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
 	}
@@ -1347,13 +1495,13 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_first", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "first", correlationKeyValue.(string))
 	assert.True(t, set)
@@ -1363,23 +1511,23 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
-	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
 	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.Equal(t, []string{"first"}, parentCorrelationKeysValue.([]string))
 
 	if !rs.Evaluate(event3) {
@@ -1387,23 +1535,23 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
 	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 
 	// check the correlation key of the PID from the cgroup_write
-	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "third", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
 }
 
@@ -1527,7 +1675,6 @@ func TestActionSetVariableExpression(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -1558,7 +1705,6 @@ func TestActionSetVariableExpression(t *testing.T) {
 	event2 := model.NewFakeEvent()
 	event2.Type = uint32(model.ConnectEventType)
 	processCacheEntry = &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event2.ProcessCacheEntry = processCacheEntry
 	connectIP := net.IPNet{
 		IP:   net.IPv4(192, 168, 1, 1),
@@ -1626,8 +1772,8 @@ func TestRuleErrorLoading(t *testing.T) {
 	assert.Len(t, err.Errors, 1)
 	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
 
-	assert.Contains(t, rs.rules, "testA")
-	assert.NotContains(t, rs.rules, "testB")
+	assert.Contains(t, rs.ListRuleIDs(), "testA")
+	assert.NotContains(t, rs.ListRuleIDs(), "testB")
 }
 
 func TestRuleAgentConstraint(t *testing.T) {
@@ -1766,15 +1912,50 @@ func TestRuleAgentConstraint(t *testing.T) {
 	for _, exp := range expected {
 		t.Run(exp.ruleID, func(t *testing.T) {
 			if exp.expectedLoad {
-				assert.Contains(t, rs.rules, exp.ruleID)
+				assert.Contains(t, rs.ListRuleIDs(), exp.ruleID)
 			} else {
-				assert.NotContains(t, rs.rules, exp.ruleID)
+				assert.NotContains(t, rs.ListRuleIDs(), exp.ruleID)
 			}
 		})
 	}
 }
 
-func TestActionSetVariableInvalid(t *testing.T) {
+func TestActionHashField(t *testing.T) {
+	entries := []struct {
+		name        string
+		expr        string
+		field       string
+		errExpected bool
+	}{
+		{"valid", `open.file.path == "/tmp/test"`, "open.file", false},
+		{"wrong field", `open.file.path == "/tmp/test"`, "open.file.path", true},
+		{"incompatible field", `open.file.path == "/tmp/test"`, "chmod.file", true},
+		{"wrong and incompatible", `open.file.path == "/tmp/test"`, "chmod.file.path", true},
+		{"common field", `open.file.path == "/tmp/test"`, "process.file", false},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: entry.expr,
+					Actions: []*ActionDefinition{{
+						Hash: &HashDefinition{
+							Field: entry.field,
+						},
+					}},
+				}},
+			}
+
+			if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); (err != nil) != entry.errExpected {
+				t.Errorf("expected error: %v, got: %v", entry.errExpected, err)
+			}
+		})
+	}
+}
+
+func TestActionSetVariableValidation(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
 		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
@@ -1962,6 +2143,604 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			t.Log(err)
 		}
 	})
+
+	t.Run("incompatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "exec.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "process.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   "exec.file.path",
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   `"ssh_$${builtins.uuid4}_$${process.pid}"`,
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to fail to load: %s", err)
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-field-cardinality", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: "",                      // string
+							Field:        "connect.addr.hostname", // array of strings
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "value and field cardinality mismatch for variable 'connection_hostname': field 'connect.addr.hostname' is an array, but append is not set for variable 'connection_hostname' with value ''")
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "test_rule_no_array",
+					Expression: `open.file.path == "/tmp/foo"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "file_path",
+								DefaultValue: "",               // string
+								Field:        "open.file.path", // string
+								Scope:        "process",
+							},
+						},
+					},
+				},
+				{
+					ID:         "test_rule_array",
+					Expression: `connect.addr.hostname in ["hello.world"]`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "connection_hostname",
+								DefaultValue: []string{"hello.universe"}, // array of strings
+								Field:        "connect.addr.hostname",    // array of strings
+								Scope:        "process",
+							},
+						},
+					},
+				},
+			},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality-append-1", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: []string{"hello.universe"}, // array of strings
+							Field:        "process.comm",             // string
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality-append-2", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: "hello.universe",        // string
+							Field:        "connect.addr.hostname", // array of strings
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-field-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_id_pid",
+							DefaultValue: "",            // string
+							Field:        "process.pid", // int
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "test_rule_string_var",
+					Expression: `open.file.path == "/tmp/foo"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "file_path",
+								DefaultValue: "",               // string
+								Field:        "open.file.path", // string
+								Scope:        "process",
+							},
+						},
+					},
+				},
+				{
+					ID:         "test_rule_int_var",
+					Expression: `connect.addr.hostname in ["hello.world"]`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "connection_pid",
+								DefaultValue: 1,             // int
+								Field:        "process.pid", // int
+								Scope:        "process",
+							},
+						},
+					},
+				},
+			},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types-append-1", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_pid",
+							DefaultValue: 1,             // int
+							Field:        "process.pid", // int
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types-append-2", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_pid",
+							DefaultValue: []int{1},      // int array
+							Field:        "process.pid", // int
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("array-field-without-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.hashes is an array field without append: true")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("array-field-with-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "open.file.hashes",
+						Scope:  "container",
+						Append: true,
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with append: true, got: %v", err)
+		}
+	})
+
+	t.Run("array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with array index access, got: %v", err)
+		}
+	})
+
+	t.Run("non-array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.path[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.path is not an array")
+		} else {
+			t.Log(err)
+		}
+	})
+}
+
+func TestActionSetVariableArrayIndex(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:  "first_hash",
+					Field: "open.file.hashes[0]",
+					Scope: "container",
+				},
+			}, {
+				Set: &SetDefinition{
+					Name:  "second_hash",
+					Field: "open.file.hashes[1]",
+					Scope: "container",
+				},
+			}},
+		}, {
+			ID: "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && ` +
+				`"${container.first_hash}" != "" && ` +
+				`"${container.second_hash}" != ""`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	rule := rs.GetRuleByID("test_rule")
+	if rule == nil {
+		t.Fatal("failed to find test_rule")
+	}
+
+	rule2 := rs.GetRuleByID("test_rule2")
+	if rule2 == nil {
+		t.Fatal("failed to find test_rule2")
+	}
+}
+
+func TestArrayIndexAccessInExpressions(t *testing.T) {
+	// Test that array index access works in rule expressions, not just in set actions
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_init",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "test_array",
+							Value: []string{"first", "second", "third"},
+						},
+					},
+				},
+			},
+			{
+				ID: "test_array_index_in_expression",
+				// Use array index access directly in the expression
+				Expression: `open.file.path == "/tmp/check" && "${test_array}[0]" == "first"`,
+			},
+			{
+				ID: "test_field_array_index_in_expression",
+				// Test with actual field arrays - this should work for any array field
+				Expression: `open.file.name == "test" && open.file.hashes[0] =~ "^sha256:.*"`,
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	rule := rs.GetRuleByID("test_init")
+	if rule == nil {
+		t.Fatal("failed to find test_init")
+	}
+
+	rule2 := rs.GetRuleByID("test_array_index_in_expression")
+	if rule2 == nil {
+		t.Fatal("failed to find test_array_index_in_expression")
+	}
+
+	rule3 := rs.GetRuleByID("test_field_array_index_in_expression")
+	if rule3 == nil {
+		t.Fatal("failed to find test_field_array_index_in_expression")
+	}
+}
+
+func TestVariableVsFieldReferenceSyntax(t *testing.T) {
+	// Comprehensive test demonstrating the difference between ${variable} and %{field}
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "setup_variables",
+				Expression: `open.file.path == "/tmp/setup"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "my_var",
+							Value: "variable_value",
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:  "my_count",
+							Value: 42,
+							Scope: "container",
+						},
+					},
+				},
+			},
+			{
+				ID: "use_variable_syntax",
+				// ${xxx} is for variables only
+				Expression: `open.file.path == "/tmp/test1" && "${my_var}" == "variable_value"`,
+			},
+			{
+				ID: "use_field_reference_syntax",
+				// %{xxx} is for fields only
+				Expression: `open.file.path == "/tmp/test2" && %{process.pid} > 0`,
+			},
+			{
+				ID: "mix_both_in_string",
+				// Can mix variables and fields in the same string
+				Expression: `open.file.path == "/tmp/test3" && "var:${my_var} pid:%{process.pid}" != ""`,
+			},
+			{
+				ID: "field_reference_with_array_index",
+				// Field references support array index access
+				Expression: `open.file.name == "test" && "%{open.file.hashes[0]}" =~ "^sha256:.*"`,
+			},
+			{
+				ID: "scoped_variable_reference",
+				// Scoped variables work with ${scope.name}
+				Expression: `open.file.path == "/tmp/test4" && ${container.my_count} == 42`,
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Errorf("expected all rules to load successfully, got: %v", err)
+	}
+
+	// Verify all rules loaded
+	expectedRules := []string{
+		"setup_variables",
+		"use_variable_syntax",
+		"use_field_reference_syntax",
+		"mix_both_in_string",
+		"field_reference_with_array_index",
+		"scoped_variable_reference",
+	}
+
+	for _, ruleID := range expectedRules {
+		if rule := rs.GetRuleByID(ruleID); rule == nil {
+			t.Errorf("rule %s should have been loaded", ruleID)
+		}
+	}
 }
 
 func TestActionSetVariableLength(t *testing.T) {
@@ -2028,9 +2807,13 @@ func TestActionSetVariableLength(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				Releasable:  &model.Releasable{},
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -2064,7 +2847,7 @@ func TestActionSetVariableLength(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
-		policyType   PolicyType
+		policyType   InternalPolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -2088,7 +2871,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)})
 			},
 		},
 		{
@@ -2104,7 +2887,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)})
 			},
 		},
 		{
@@ -2121,12 +2904,10 @@ rules:
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules:  map[string][]*PolicyRule{},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2144,7 +2925,7 @@ broken
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+				return assert.ErrorContains(t, err, (&ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`yaml: unmarshal error`)}).Error())
 			},
 		},
 		{
@@ -2162,28 +2943,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "",
-								Disabled:   true,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "",
+							Disabled:   true,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2203,28 +2981,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "open.file.path == \"/etc/gshadow\"",
-								Combine:    OverridePolicy,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "open.file.path == \"/etc/gshadow\"",
+							Combine:    OverridePolicy,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2234,9 +3009,9 @@ broken
 			r := strings.NewReader(tt.args.fileContent)
 
 			info := &PolicyInfo{
-				Name:   tt.args.name,
-				Source: tt.args.source,
-				Type:   tt.args.policyType,
+				Name:         tt.args.name,
+				Source:       tt.args.source,
+				InternalType: tt.args.policyType,
 			}
 
 			got, err := LoadPolicy(info, r, tt.args.macroFilters, tt.args.ruleFilters)

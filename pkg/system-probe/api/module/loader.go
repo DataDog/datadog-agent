@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +62,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Factory, deps FactoryDependencies) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Factory, rcclient rcclient.Component, deps FactoryDependencies) error {
 	var enabledModulesFactories []*Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -71,7 +72,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 		enabledModulesFactories = append(enabledModulesFactories, factory)
 	}
 
-	if err := preRegister(cfg, enabledModulesFactories); err != nil {
+	if err := preRegister(cfg, rcclient, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 

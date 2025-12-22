@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
+// Package windowsevent provides Windows event log tailers
 package windowsevent
 
 import (
@@ -18,6 +18,7 @@ import (
 	"github.com/cenkalti/backoff"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -39,26 +40,48 @@ type Config struct {
 	ProcessRawMessage bool
 }
 
+// registrySaverWithInitialBookmark wraps a registry and returns a provided bookmark XML on Load.
+// This allows the tailer to pass the bookmark string parameter to the subscription.
+// Save() updates the internal bookmark state so that subsequent Load() calls return the updated value.
+type registrySaverWithInitialBookmark struct {
+	registry        auditor.Registry
+	identifier      string
+	currentBookmark string
+}
+
+func (s *registrySaverWithInitialBookmark) Save(bookmarkXML string) error {
+	s.registry.SetOffset(s.identifier, bookmarkXML)
+	// Update internal bookmark so subsequent Load() calls return the updated value
+	s.currentBookmark = bookmarkXML
+	return nil
+}
+
+func (s *registrySaverWithInitialBookmark) Load() (string, error) {
+	// Return the current bookmark
+	return s.currentBookmark, nil
+}
+
 // Tailer collects logs from Windows Event Log using a pull subscription
 type Tailer struct {
 	evtapi     evtapi.API
 	source     *sources.LogSource
 	config     *Config
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	outputChan chan *message.Message
 
 	cancelTail context.CancelFunc
 	doneTail   chan struct{}
 	done       chan struct{}
 
-	sub                 evtsubscribe.PullSubscription
-	bookmark            evtbookmark.Bookmark
-	systemRenderContext evtapi.EventRenderContextHandle
-	registry            auditor.Registry
+	sub                    evtsubscribe.PullSubscription
+	bookmark               evtbookmark.Bookmark
+	systemRenderContext    evtapi.EventRenderContextHandle
+	registry               auditor.Registry
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry) *Tailer {
+func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry, publisherMetadataCache publishermetadatacache.Component) *Tailer {
 	if evtapi == nil {
 		evtapi = winevtapi.New()
 	}
@@ -68,12 +91,13 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 	}
 
 	return &Tailer{
-		evtapi:     evtapi,
-		source:     source,
-		config:     config,
-		decoder:    decoder.NewNoopDecoder(),
-		outputChan: outputChan,
-		registry:   registry,
+		evtapi:                 evtapi,
+		source:                 source,
+		config:                 config,
+		decoder:                decoder.NewNoopDecoder(),
+		outputChan:             outputChan,
+		registry:               registry,
+		publisherMetadataCache: publisherMetadataCache,
 	}
 }
 
@@ -124,7 +148,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 
-	for decodedMessage := range t.decoder.OutputChan {
+	for decodedMessage := range t.decoder.OutputChan() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient
@@ -158,35 +182,33 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		evtsubscribe.WithEventBatchCount(10),
 	}
 
-	t.bookmark = nil
-	if bookmark != "" {
-		// load bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi),
-			evtbookmark.FromXML(bookmark))
-		if err != nil {
-			log.Errorf("error loading bookmark, tailer will start at new events: %v", err)
-			t.bookmark = nil
-		} else {
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
-		}
+	// Create bookmark saver that returns the provided bookmark XML
+	bookmarkSaver := &registrySaverWithInitialBookmark{
+		registry:        t.registry,
+		identifier:      t.Identifier(),
+		currentBookmark: bookmark,
 	}
-	if t.bookmark == nil {
-		// new bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
-		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
-			return
-		}
-	}
+	opts = append(opts, evtsubscribe.WithBookmarkSaver(bookmarkSaver))
 
-	// subscription
+	// Always use "now" mode - if bookmark exists it will be loaded via the saver,
+	// otherwise FromLatestEvent will create one
+	opts = append(opts, evtsubscribe.WithStartMode("now"))
+
+	// Create subscription - bookmark initialization will happen in Start()
 	t.sub = evtsubscribe.NewPullSubscription(
 		t.config.ChannelPath,
 		t.config.Query,
 		opts...,
 	)
+
+	// Create an initial empty bookmark for updating as events are processed
+	// This will be set to the loaded/created bookmark after subscription starts
+	t.bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		t.logErrorAndSetStatus(fmt.Errorf("failed to create bookmark: %w", err))
+		return
+	}
+
 	// subscription will be started in the eventLoop
 
 	// render context for system values
@@ -298,13 +320,12 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	if err == nil {
 		msg.Origin.Identifier = t.Identifier()
 		msg.Origin.Offset = offset
-		t.sub.SetBookmark(t.bookmark)
 	} else {
 		log.Warnf("Failed to render bookmark: %v for event %s", err, xml)
 	}
 
 	t.source.RecordBytes(int64(len(msg.GetContent())))
-	t.decoder.InputChan <- msg
+	t.decoder.InputChan() <- msg
 }
 
 // enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.
@@ -312,22 +333,16 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		return fmt.Errorf("Error rendering event values: %v", err)
+		return fmt.Errorf("error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("Failed to get provider name: %v", err)
+		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
-	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
-	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
-	}
-	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
-
-	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
+	windowsevent.AddRenderedInfoToMap(m, t.publisherMetadataCache, providerName, event)
 
 	return nil
 }

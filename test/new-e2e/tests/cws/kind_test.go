@@ -6,31 +6,30 @@
 package cws
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 const (
 	k8sHostnamePrefix = "cws-e2e-kind-node"
 	osPlatform        = "ubuntu"
 	osArch            = "x86_64"
-	osVersion         = "ubuntu-22-04"
+	osVersion         = "22-04"
 )
 
 // Depending on the pulumi version used to run these tests, the following values may not be properly merged with the default values defined in the test-infra-definitions repository.
@@ -65,26 +64,25 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	platformJSON := map[string]map[string]map[string]string{}
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
-	ami := platformJSON[osPlatform][osArch][osVersion]
-	require.NotEmpty(t, ami, "No image found for %s %s %s", osPlatform, osArch, osVersion)
-	osDesc := platforms.BuildOSDescriptor(osPlatform, osArch, osVersion)
+	osDesc, err := platforms.BuildOSDescriptor(fmt.Sprintf("%s/%s/%s", osPlatform, osArch, osVersion))
+	if err != nil {
+		t.Fatalf("failed to build os descriptor: %v", err)
+	}
 
 	ddHostname := fmt.Sprintf("%s-%s", k8sHostnamePrefix, uuid.NewString()[:4])
 	values := fmt.Sprintf(valuesFmt, ddHostname)
 	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
-	e2e.Run[environments.Kubernetes](t, &kindSuite{ddHostname: ddHostname},
+	e2e.Run(t, &kindSuite{ddHostname: ddHostname},
 		e2e.WithProvisioner(
-			awskubernetes.KindProvisioner(
-				awskubernetes.WithEC2VMOptions(
-					ec2.WithAMI(ami, osDesc, osDesc.Architecture),
-				),
-				awskubernetes.WithoutFakeIntake(),
-				awskubernetes.WithAgentOptions(
-					kubernetesagentparams.WithHelmValues(values),
+			awskubernetes.Provisioner(
+				awskubernetes.WithRunOptions(
+					scenkind.WithVMOptions(
+						ec2.WithOS(osDesc),
+					),
+					scenkind.WithoutFakeIntake(),
+					scenkind.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+					),
 				),
 			),
 		),
@@ -112,7 +110,7 @@ func (s *kindSuite) Test00RulesetLoadedDefaultFile() {
 
 func (s *kindSuite) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, s, "remote-config", "default.policy")
+		testRulesetLoaded(c, s, "remote-config", "threat-detection.policy")
 	}, 1*time.Minute, 5*time.Second)
 }
 

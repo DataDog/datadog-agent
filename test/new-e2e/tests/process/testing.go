@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -17,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 //go:embed config/process_check.yaml
@@ -30,9 +29,6 @@ var processDiscoveryCheckConfigStr string
 
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
-
-//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
-var processCheckInCoreAgentWLMProcessCollectorConfigStr string
 
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
@@ -183,6 +179,17 @@ func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.Proc
 	}
 }
 
+// assertContainerStates asserts that the matched containers have the expected states
+func assertContainerStates(t require.TestingT, payloads []*aggregator.ProcessPayload, expected map[string]agentmodel.ContainerState) {
+	for name, state := range expected {
+		containers := collectContainersByName(payloads, name)
+		assert.NotEmptyf(t, containers, "%s container not found in payloads: %+v", name, payloads)
+		for _, container := range containers {
+			assert.Equalf(t, state, container.State, "%s container has unexpected state", name)
+		}
+	}
+}
+
 // requireProcessNotCollected asserts that the given process is NOT collected by the process check
 func requireProcessNotCollected(t require.TestingT, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
@@ -213,7 +220,8 @@ func findProcess(
 	return found, populated
 }
 
-func filterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+// FilterProcessPayloadsByName returns processes which match the given process name
+func FilterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
 	var procs []*agentmodel.Process
 	for _, payload := range payloads {
 		procs = append(procs, filterProcesses(processName, payload.Processes)...)
@@ -235,7 +243,7 @@ func filterProcesses(name string, processes []*agentmodel.Process) []*agentmodel
 // matchProcess returns whether the given process matches the given name in the Args or Exe
 func matchProcess(process *agentmodel.Process, name string) bool {
 	return len(process.Command.Args) > 0 &&
-		(process.Command.Args[0] == name || process.Command.Exe == name)
+		(process.Command.Args[0] == name || process.Command.Exe == name || process.Command.Comm == name)
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -335,13 +343,38 @@ func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPa
 // findContainer returns whether the container with the given name exists in the given list of
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
-	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
-	containerNameTag := fmt.Sprintf(":%s", name)
 	for _, container := range containers {
-		for _, tag := range container.Tags {
-			if strings.HasSuffix(tag, containerNameTag) {
-				return true
-			}
+		if matchContainerName(container, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectContainersByName(payloads []*aggregator.ProcessPayload, name string) []*agentmodel.Container {
+	var matched []*agentmodel.Container
+	for _, payload := range payloads {
+		matched = append(matched, filterContainersByName(name, payload.Containers)...)
+	}
+	return matched
+}
+
+func filterContainersByName(name string, containers []*agentmodel.Container) []*agentmodel.Container {
+	var matched []*agentmodel.Container
+	for _, container := range containers {
+		if matchContainerName(container, name) {
+			matched = append(matched, container)
+		}
+	}
+	return matched
+}
+
+func matchContainerName(container *agentmodel.Container, name string) bool {
+	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
+	containerNameTag := ":" + name
+	for _, tag := range container.Tags {
+		if strings.HasSuffix(tag, containerNameTag) {
+			return true
 		}
 	}
 	return false
@@ -364,6 +397,14 @@ func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool
 	assertManualContainerCheck(t, check, expectedContainers...)
 }
 
+// assertManualRTProcessCheck asserts that the realtime manual check output contains at least one process stat
+func assertManualRTProcessCheck(t require.TestingT, check string) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
+}
+
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
 func assertManualContainerCheck(t require.TestingT, check string, expectedContainers ...string) {
 	var checkOutput struct {
@@ -379,15 +420,24 @@ func assertManualContainerCheck(t require.TestingT, check string, expectedContai
 	}
 }
 
+// assertAbsentManualContainerCheck asserts that the given container is not collected from a manual container check
+func assertAbsentManualContainerCheck(t require.TestingT, check string, unexpectedContainers ...string) {
+	var checkOutput struct {
+		Containers []*agentmodel.Container `json:"containers"`
+	}
+
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	for _, container := range unexpectedContainers {
+		assert.Falsef(t, findContainer(container, checkOutput.Containers),
+			"%s container found in %+v", container, checkOutput.Containers)
+	}
+}
+
 // assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
 // the output of the manual process_discovery check
-func assertManualProcessDiscoveryCheck(t *testing.T, check string, process string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
+func assertManualProcessDiscoveryCheck(t require.TestingT, check string, process string) {
 	var checkOutput struct {
 		ProcessDiscoveries []*agentmodel.ProcessDiscovery `json:"processDiscoveries"`
 	}

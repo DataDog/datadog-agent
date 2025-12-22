@@ -5,6 +5,7 @@
 
 //go:build kubelet || docker
 
+// Package tailers provides tailers for API logs
 package tailers
 
 import (

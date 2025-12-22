@@ -16,7 +16,7 @@ import (
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )

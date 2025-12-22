@@ -12,6 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+// NetworkPathCollectorMetricPrefix is a metric prefix for network path collector
+const NetworkPathCollectorMetricPrefix = "datadog.network_path.collector."
+
 // PathtestMetadata contains metadata used to annotate the result of a traceroute.
 // This data is not used by the traceroute itself.
 type PathtestMetadata struct {
@@ -32,9 +35,9 @@ type Pathtest struct {
 // GetHash returns the hash of the Pathtest
 func (p Pathtest) GetHash() uint64 {
 	h := fnv.New64()
-	h.Write([]byte(p.Hostname))                  //nolint:errcheck
-	binary.Write(h, binary.LittleEndian, p.Port) //nolint:errcheck
-	h.Write([]byte(p.Protocol))                  //nolint:errcheck
-	h.Write([]byte(p.SourceContainerID))         //nolint:errcheck
+	_, _ = h.Write([]byte(p.Hostname))
+	_ = binary.Write(h, binary.LittleEndian, p.Port)
+	_, _ = h.Write([]byte(p.Protocol))
+	_, _ = h.Write([]byte(p.SourceContainerID))
 	return h.Sum64()
 }

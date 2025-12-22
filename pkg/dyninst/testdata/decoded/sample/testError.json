@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testError",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,17 +23,17 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 66
+            "lineNumber": 101
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 44
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -52,13 +52,25 @@
             "arguments": {
               "e": {
                 "type": "error",
-                "notCapturedReason": "unimplemented"
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "blah"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{s: blah}"
   }
 ]

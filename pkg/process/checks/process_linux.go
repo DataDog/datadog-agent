@@ -9,8 +9,8 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -50,46 +50,38 @@ var serviceNameSourceMap = map[string]model.ServiceNameSource{
 	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
 }
 
-// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
-// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-func (p *ProcessCheck) useWLMCollection() bool {
-	return p.config.GetBool("process_config.process_collection.use_wlm")
+// WLMProcessCollectionEnabled returns whether to use the workloadmeta process collector depending on the platform
+// Currently, only enabled on linux.
+func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
+	return true
 }
 
-// processesByPID returns the processes by pid from different sources depending on the configuration (process probe or workloadmeta)
-// workload meta process collection is only available on linux and TODO: will eventually be the only source for linux process collection
+// processesByPID returns the processes by pid from workloadmeta.
 func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
-	if p.useWLMProcessCollection {
-		wlmProcList := p.wmeta.ListProcesses()
-		pids := make([]int32, len(wlmProcList))
-		for i, wlmProc := range wlmProcList {
-			pids[i] = wlmProc.Pid
-		}
-
-		statsForProcess, err := p.probe.StatsForPIDs(pids, p.clock.Now())
-		if err != nil {
-			return nil, err
-		}
-
-		// map to common process type used by other versions of the check
-		procs := make(map[int32]*procutil.Process, len(wlmProcList))
-		for _, wlmProc := range wlmProcList {
-			stats, exists := statsForProcess[wlmProc.Pid]
-			// we need to check if the stats exist because there can be a lag between when a process is stored into WLM and when we query for its stats
-			// we also want to verify that the stats are from the same collected process and not just the same PID coincidence by checking the start time
-			// ex. a process is stopped but still exists in WLM, so the stats don't exist, and we shouldn't report it anymore,
-			// additionally a new process with the same pid could spin up in between wlm collection and stat collection
-			if !exists || (stats.CreateTime != wlmProc.CreationTime.UnixMilli()) {
-				log.Debugf("stats do not exist for dead process %v - skipping", wlmProc.Pid)
-				continue
-			}
-			procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, stats)
-		}
-		return procs, nil
+	wlmProcList := p.wmeta.ListProcesses()
+	pids := make([]int32, len(wlmProcList))
+	for i, wlmProc := range wlmProcList {
+		pids[i] = wlmProc.Pid
 	}
-	procs, err := p.probe.ProcessesByPID(p.clock.Now(), true)
+
+	statsForProcess, err := p.probe.StatsForPIDs(pids, p.clock.Now())
 	if err != nil {
 		return nil, err
+	}
+
+	// map to common process type used by other versions of the check
+	procs := make(map[int32]*procutil.Process, len(wlmProcList))
+	for _, wlmProc := range wlmProcList {
+		stats, exists := statsForProcess[wlmProc.Pid]
+		// we need to check if the stats exist because there can be a lag between when a process is stored into WLM and when we query for its stats
+		// we also want to verify that the stats are from the same collected process and not just the same PID coincidence by checking the start time
+		// ex. a process is stopped but still exists in WLM, so the stats don't exist, and we shouldn't report it anymore,
+		// additionally a new process with the same pid could spin up in between wlm collection and stat collection
+		if !exists || (stats.CreateTime != wlmProc.CreationTime.UnixMilli()) {
+			log.Debugf("stats do not exist for dead process %v - skipping", wlmProc.Pid)
+			continue
+		}
+		procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, stats)
 	}
 	return procs, nil
 }
@@ -97,50 +89,71 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 // mapWLMProcToProc maps the workloadmeta process entity to an intermediate representation used in the process check
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
 	var service *procutil.Service
-	var ports []uint16
+	var tcpPorts, udpPorts []uint16
+	portsCollected := false
 	if wlmProc.Service != nil {
 		service = &procutil.Service{
 			GeneratedName:            wlmProc.Service.GeneratedName,
 			GeneratedNameSource:      wlmProc.Service.GeneratedNameSource,
 			AdditionalGeneratedNames: wlmProc.Service.AdditionalGeneratedNames,
 			TracerMetadata:           wlmProc.Service.TracerMetadata,
-			DDService:                wlmProc.Service.DDService,
+			DDService:                wlmProc.Service.UST.Service,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
+			LogFiles:                 wlmProc.Service.LogFiles,
 		}
-		ports = wlmProc.Service.Ports
+		tcpPorts = wlmProc.Service.TCPPorts
+		udpPorts = wlmProc.Service.UDPPorts
+		portsCollected = true
 	}
 	return &procutil.Process{
-		Pid:      wlmProc.Pid,
-		Ppid:     wlmProc.Ppid,
-		NsPid:    wlmProc.NsPid,
-		Name:     wlmProc.Name,
-		Cwd:      wlmProc.Cwd,
-		Exe:      wlmProc.Exe,
-		Comm:     wlmProc.Comm,
-		Cmdline:  wlmProc.Cmdline,
-		Uids:     wlmProc.Uids,
-		Gids:     wlmProc.Gids,
-		Stats:    stats,
-		Ports:    ports,
-		Language: wlmProc.Language,
-		Service:  service,
+		Pid:            wlmProc.Pid,
+		Ppid:           wlmProc.Ppid,
+		NsPid:          wlmProc.NsPid,
+		Name:           wlmProc.Name,
+		Cwd:            wlmProc.Cwd,
+		Exe:            wlmProc.Exe,
+		Comm:           wlmProc.Comm,
+		Cmdline:        wlmProc.Cmdline,
+		Uids:           wlmProc.Uids,
+		Gids:           wlmProc.Gids,
+		Stats:          stats,
+		PortsCollected: portsCollected,
+		TCPPorts:       tcpPorts,
+		UDPPorts:       udpPorts,
+		Language:       wlmProc.Language,
+		Service:        service,
+		InjectionState: procutil.InjectionState(wlmProc.InjectionState),
 	}
 }
 
-// formatPorts converts a list of uin16 ports to a int32 PortInfo
-// TODO: because the service discovery response does not distinguish between tcp and udp currently, we currently send everything as TCP
-func formatPorts(ports []uint16) *model.PortInfo {
-	// if ports were not collected, we want to semantically indicate that no data was collected instead of
-	// returning no open ports
-	if ports == nil {
+// formatPorts converts separate TCP and UDP uint16 port lists to a int32 PortInfo
+func formatPorts(portsCollected bool, tcpPorts, udpPorts []uint16) *model.PortInfo {
+	// we want to semantically distinguish between the following cases:
+	// - ports not being collected (by setting the PortInfo to nil)
+	// - ports being collected, but no open ports for this process (a PortInfo with empty/nil ports)
+	if !portsCollected {
 		return nil
 	}
-	newPorts := make([]int32, len(ports))
-	for i, port := range ports {
-		newPorts[i] = int32(port)
+
+	var newTCPPorts []int32
+	if tcpPorts != nil {
+		newTCPPorts = make([]int32, len(tcpPorts))
+		for i, port := range tcpPorts {
+			newTCPPorts[i] = int32(port)
+		}
 	}
+
+	var newUDPPorts []int32
+	if udpPorts != nil {
+		newUDPPorts = make([]int32, len(udpPorts))
+		for i, port := range udpPorts {
+			newUDPPorts[i] = int32(port)
+		}
+	}
+
 	return &model.PortInfo{
-		Tcp: newPorts,
+		Tcp: newTCPPorts,
+		Udp: newUDPPorts,
 	}
 }
 
@@ -163,17 +176,15 @@ func serviceNameSource(source string) model.ServiceNameSource {
 	return model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN
 }
 
-// apmInstrumentation maps the apm instrumentation value to the agent payload type
-func apmInstrumentation(instrumentation string) bool {
-	// the instrumentation only has 2 states we need to worry about: "provided" and "none"
-	// TODO: `injected` is not used or planned to be used in the future, so it should be removed
-	switch instrumentation {
-	case string(apm.Provided):
-		return true
-	case string(apm.None):
-		return false
+// formatInjectionState converts the internal injection state to the agent payload enum
+func formatInjectionState(state procutil.InjectionState) model.InjectionState {
+	switch state {
+	case procutil.InjectionInjected:
+		return model.InjectionState_INJECTION_INJECTED
+	case procutil.InjectionNotInjected:
+		return model.InjectionState_INJECTION_NOT_INJECTED
 	default:
-		return false
+		return model.InjectionState_INJECTION_UNKNOWN
 	}
 }
 
@@ -220,11 +231,23 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		})
 	}
 
+	var resources []*model.Resource
+	for _, logPath := range service.LogFiles {
+		resources = append(resources, &model.Resource{
+			Resource: &model.Resource_Logs{
+				Logs: &model.LogResource{
+					Path: logPath,
+				},
+			},
+		})
+	}
+
 	return &model.ServiceDiscovery{
 		GeneratedServiceName:     generatedServiceName,
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
-		ApmInstrumentation:       apmInstrumentation(service.APMInstrumentation),
+		ApmInstrumentation:       service.APMInstrumentation,
+		Resources:                resources,
 	}
 }

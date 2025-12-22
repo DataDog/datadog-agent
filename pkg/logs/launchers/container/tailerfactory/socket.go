@@ -5,6 +5,8 @@
 
 //go:build docker
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 // This file handles creating docker tailers which access the container runtime
@@ -13,9 +15,10 @@ package tailerfactory
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"

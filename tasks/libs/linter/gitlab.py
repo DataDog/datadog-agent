@@ -310,7 +310,6 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
         'new-e2e-package-signing-amazonlinux-a6-x86_64',
         'new-e2e-package-signing-debian-a7-x86_64',
         'new-e2e-package-signing-suse-a7-x86_64',
-        'new-e2e_windows_powershell_module_test',
         'new-e2e-cleanup-on-failure',
         'trigger-flakes-finder',
         'trigger-fips-e2e',

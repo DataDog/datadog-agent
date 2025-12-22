@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testMapStringToSlice",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,17 +23,17 @@
           {
             "function": "main.executeMapFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 138
+            "lineNumber": 150
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 43
+            "lineNumber": 48
           },
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -101,6 +101,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "map[foo: [one, two], bar: [three, four]]"
   }
 ]

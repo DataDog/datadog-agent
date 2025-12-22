@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// TODO: MMap accessed sections. Requires threading through original file along the elf.File object
-
 // Module data offsets
 const (
 	ModuledataMinPCOffset       = 160
@@ -80,14 +78,14 @@ type TextSect struct {
 }
 
 // ParseModuleData parses module data from a Go object file
-func ParseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
-	return parseModuleData(mef)
+func ParseModuleData(obj File) (*ModuleData, error) {
+	return parseModuleData(obj)
 }
 
 // GoDebugSections represents the go debug sections.
 type GoDebugSections struct {
-	PcLnTab *MMappedData
-	GoFunc  *MMappedData
+	PcLnTab SectionData
+	GoFunc  SectionData
 }
 
 // Close closes the go debug sections
@@ -96,27 +94,28 @@ func (m *GoDebugSections) Close() error {
 }
 
 // GoDebugSections returns the go debug sections
-func (m *ModuleData) GoDebugSections(mef *MMappingElfFile) (*GoDebugSections, error) {
-	pclntabSection := mef.Elf.Section(".gopclntab")
+func (m *ModuleData) GoDebugSections(mef File) (*GoDebugSections, error) {
+	pclntabSection := mef.Section(".gopclntab")
 	if pclntabSection == nil {
-		return nil, fmt.Errorf("no pclntab section")
+		return nil, errors.New("no pclntab section")
 	}
 
-	pclntab, err := mef.MMap(pclntabSection, 0, pclntabSection.Size)
+	pclntab, err := mef.SectionDataRange(pclntabSection, 0, pclntabSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pclntab: %w", err)
 	}
 
-	var gofunc *MMappedData
+	var gofunc SectionData
 	if m.GoFunc != 0 && m.GcData != 0 {
-		rodataSection := mef.Elf.Section(".rodata")
+		rodataSection := mef.Section(".rodata")
 		if rodataSection.Addr > m.GoFunc || m.GcData > rodataSection.Addr+rodataSection.Size {
-			return nil, fmt.Errorf("gofunc outside rodata section")
+			return nil, errors.New("gofunc outside rodata section")
 		}
 		offset := m.GoFunc - rodataSection.Addr
 		size := m.GcData - m.GoFunc
-		gofunc, err = mef.MMap(rodataSection, offset, size)
+		gofunc, err = mef.SectionDataRange(rodataSection, offset, size)
 		if err != nil {
+			_ = pclntab.Close()
 			return nil, fmt.Errorf("failed to load gofunc: %w", err)
 		}
 	}
@@ -127,38 +126,38 @@ func (m *ModuleData) GoDebugSections(mef *MMappingElfFile) (*GoDebugSections, er
 	}, nil
 }
 
-func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
-	pclntabSection := mef.Elf.Section(".gopclntab")
+func parseModuleData(obj SectionLoader) (*ModuleData, error) {
+	pclntabSection := obj.Section(".gopclntab")
 	if pclntabSection == nil {
-		return nil, fmt.Errorf("no pclntab section")
+		return nil, errors.New("no pclntab section")
 	}
 
-	noptrdataSection := mef.Elf.Section(".noptrdata")
+	noptrdataSection := obj.Section(".noptrdata")
 	if noptrdataSection == nil {
-		return nil, fmt.Errorf("no noptrdata section")
+		return nil, errors.New("no noptrdata section")
 	}
 
-	rodataSection := mef.Elf.Section(".rodata")
+	rodataSection := obj.Section(".rodata")
 	if rodataSection == nil {
-		return nil, fmt.Errorf("no rodata section")
+		return nil, errors.New("no rodata section")
 	}
 
-	textSection := mef.Elf.Section(".text")
+	textSection := obj.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("no text section")
+		return nil, errors.New("no text section")
 	}
 
-	noptrdataData, err := mef.MMap(noptrdataSection, 0, noptrdataSection.Size)
+	noptrdataSectionData, err := obj.SectionDataRange(noptrdataSection, 0, noptrdataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load noptrdata: %w", err)
 	}
-	defer noptrdataData.Close()
+	defer noptrdataSectionData.Close()
 
-	rodataData, err := mef.MMap(rodataSection, 0, rodataSection.Size)
+	rodataSectionData, err := obj.SectionDataRange(rodataSection, 0, rodataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rodata: %w", err)
 	}
-	defer rodataData.Close()
+	defer rodataSectionData.Close()
 
 	textRange := [2]uint64{textSection.Addr, textSection.Addr + textSection.Size}
 	rodataRange := [2]uint64{rodataSection.Addr, rodataSection.Addr + rodataSection.Size}
@@ -167,26 +166,34 @@ func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
 	addrBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(addrBytes, pclntabSection.Addr)
 
-	offsets := findAll(noptrdataData.Data, addrBytes)
+	noptrdataData := noptrdataSectionData.Data()
+	rodataData := rodataSectionData.Data()
+	offsets := findAll(noptrdataData, addrBytes)
 	for _, offset := range offsets {
 		// Try to parse moduledata at this offset
-		moduleData, err := tryParseModuleDataAt(noptrdataData.Data, rodataData.Data, offset,
-			textRange, rodataRange, noptrdataSection, rodataSection, textSection)
+		moduleData, err := tryParseModuleDataAt(
+			noptrdataData, rodataData, offset, textRange, rodataRange,
+			noptrdataSection, rodataSection, textSection,
+		)
 		if err == nil {
 			return moduleData, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no valid moduledata found")
+	return nil, errors.New("no valid moduledata found")
 }
 
-func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
-	textRange, rodataRange [2]uint64, noptrdataSection, rodataSection, textSection *safeelf.Section) (*ModuleData, error) {
+func tryParseModuleDataAt(
+	noptrdataData, rodataData []byte,
+	offset int,
+	textRange, rodataRange [2]uint64,
+	noptrdataSection, rodataSection, textSection *safeelf.SectionHeader,
+) (*ModuleData, error) {
 
 	// Parse types range
 	typesStart := offset + ModuledataTypesOffset
 	if typesStart+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("types data out of bounds")
+		return nil, errors.New("types data out of bounds")
 	}
 	types := binary.LittleEndian.Uint64(noptrdataData[typesStart:])
 	etypes := binary.LittleEndian.Uint64(noptrdataData[typesStart+8:])
@@ -194,29 +201,29 @@ func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
 	// Parse text range
 	textStart := offset + ModuledataTextOffset
 	if textStart+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("text data out of bounds")
+		return nil, errors.New("text data out of bounds")
 	}
 	text := binary.LittleEndian.Uint64(noptrdataData[textStart:])
 	etext := binary.LittleEndian.Uint64(noptrdataData[textStart+8:])
 
 	// Validate ranges
 	if types > etypes || types < rodataRange[0] || etypes > rodataRange[1] {
-		return nil, fmt.Errorf("invalid types range")
+		return nil, errors.New("invalid types range")
 	}
 	if text > etext || text < textRange[0] || etext > textRange[1] {
-		return nil, fmt.Errorf("invalid text range")
+		return nil, errors.New("invalid text range")
 	}
 
 	// Parse textsect map
 	textsectMapOffset := offset + ModuledataTextsectMapOffset
 	if textsectMapOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("textsect map data out of bounds")
+		return nil, errors.New("textsect map data out of bounds")
 	}
 	textsectMapPtr := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset:])
 	textsectMapLen := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset+8:])
 
 	if textsectMapPtr < rodataSection.Addr {
-		return nil, fmt.Errorf("textsect map pointer out of range")
+		return nil, errors.New("textsect map pointer out of range")
 	}
 
 	textsectSize := uint64(unsafe.Sizeof(TextSect{}))
@@ -224,7 +231,7 @@ func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
 	textsectMapDataLen := int(textsectMapLen * textsectSize)
 
 	if textsectMapDataOffset < 0 || textsectMapDataOffset+textsectMapDataLen > len(rodataData) {
-		return nil, fmt.Errorf("textsect map data out of bounds")
+		return nil, errors.New("textsect map data out of bounds")
 	}
 
 	textsectMapData := rodataData[textsectMapDataOffset : textsectMapDataOffset+textsectMapDataLen]
@@ -243,7 +250,7 @@ func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
 	// Parse BSS range
 	bssOffset := offset + ModuledataBssOffset
 	if bssOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("bss data out of bounds")
+		return nil, errors.New("bss data out of bounds")
 	}
 	bss := binary.LittleEndian.Uint64(noptrdataData[bssOffset:])
 	ebss := binary.LittleEndian.Uint64(noptrdataData[bssOffset+8:])
@@ -251,21 +258,21 @@ func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
 	// Parse gofunc offset
 	gofuncOffset := offset + ModuledataGofuncOffset
 	if gofuncOffset+8 > len(noptrdataData) {
-		return nil, fmt.Errorf("gofunc data out of bounds")
+		return nil, errors.New("gofunc data out of bounds")
 	}
 	gofunc := binary.LittleEndian.Uint64(noptrdataData[gofuncOffset:])
 
 	// Parse gcdata offset
 	gcdataOffset := offset + ModuledataGcdataOffset
 	if gcdataOffset+8 > len(noptrdataData) {
-		return nil, fmt.Errorf("gcdata data out of bounds")
+		return nil, errors.New("gcdata data out of bounds")
 	}
 	gcdata := binary.LittleEndian.Uint64(noptrdataData[gcdataOffset:])
 
 	// Parse min/max PC
 	minPCOffset := offset + ModuledataMinPCOffset
 	if minPCOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("minPC data out of bounds")
+		return nil, errors.New("minPC data out of bounds")
 	}
 	minPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset:])
 	maxPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset+8:])

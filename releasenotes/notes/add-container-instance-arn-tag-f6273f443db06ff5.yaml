@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add `container_instance_arn` as a host tag when running on ECS EC2.

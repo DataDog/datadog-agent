@@ -50,11 +50,13 @@ type KubeServiceListener struct {
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
 	entity          string
+	metadata        *workloadfilter.KubeService
 	tags            []string
 	hosts           map[string]string
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -248,23 +250,18 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 
 func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity: apiserver.EntityForService(ksvc),
+		entity:    apiserver.EntityForService(ksvc),
+		namespace: ksvc.Namespace,
 	}
 
-	svc.metricsExcluded = filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations, workloadfilter.ServiceADAnnotationsMetrics}, {workloadfilter.LegacyServiceMetrics}},
-	)
-
-	svc.globalExcluded = filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}, {workloadfilter.LegacyServiceGlobal}},
-	)
+	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metricsExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
+	svc.globalExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
 
 	// Service tags
 	svc.tags = []string{
-		fmt.Sprintf("kube_service:%s", ksvc.Name),
-		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
+		"kube_service:" + ksvc.Name,
+		"kube_namespace:" + ksvc.Namespace,
 	}
 
 	// Standard tags from the service's labels
@@ -333,7 +330,7 @@ func (s *KubeServiceService) GetServiceID() string {
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() []string {
 	// Only the entity for now, to match on annotation
-	return []string{s.entity}
+	return []string{s.entity, string(types.CelServiceIdentifier)}
 }
 
 // GetHosts returns the pod hosts
@@ -385,10 +382,25 @@ func (s *KubeServiceService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
-// FilterTemplates does nothing.
-func (s *KubeServiceService) FilterTemplates(map[string]integration.Config) {
+// FilterTemplates filters the given configs based on the service's CEL selector.
+func (s *KubeServiceService) FilterTemplates(configs map[string]integration.Config) {
+	filterTemplatesMatched(s, configs)
+}
+
+// GetFilterableEntity returns the filterable entity of the service
+func (s *KubeServiceService) GetFilterableEntity() workloadfilter.Filterable {
+	return s.metadata
+}
+
+// GetImageName does nothing
+func (s *KubeServiceService) GetImageName() string {
+	return ""
 }

@@ -87,9 +87,14 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		Source:          tpl.Source,
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
+		ImageName:       svc.GetImageName(),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
+
+	if namespace, err := svc.GetExtraConfig("namespace"); err == nil {
+		resolvedConfig.PodNamespace = namespace
+	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
@@ -622,7 +627,7 @@ func getEnvvar(envVar string, svc listeners.Service) (string, error) {
 		if svc != nil {
 			return "", fmt.Errorf("envvar name is missing, skipping service %s", svc.GetServiceID())
 		}
-		return "", fmt.Errorf("envvar name is missing")
+		return "", errors.New("envvar name is missing")
 	}
 
 	if !allowEnvVar(envVar) {

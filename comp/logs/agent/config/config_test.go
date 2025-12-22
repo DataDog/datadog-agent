@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -169,6 +170,59 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.config.SetWithoutSource("logs_config.tagger_warmup_duration", 5)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigCount() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultLinesCount, config.Count, "Expected count to be set to default lines count")
+
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "byte_checksum")
+
+	config, err = GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultBytesCount, config.Count, "Expected count to be set to default bytes count")
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnStrategyDisabled() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "invalid_strategy") // Invalid: unknown strategy
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", -1)                                // Invalid: negative value
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -658,15 +712,15 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        GzipCompressionKind,
-		CompressionLevel:       GzipCompressionLevel,
+		CompressionKind:        ZstdCompressionKind,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
-		Origin:                 "lambda-extension",
+		Origin:                 "serverless",
 		Protocol:               "test-proto",
 		isReliable:             true,
 	}
@@ -1076,4 +1130,52 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
+	suite.config.SetWithoutSource("api_key", "123")
+
+	// Test with 0.1 seconds (100ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.1)
+
+	logsConfig := NewLogsConfigKeys("logs_config.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(100*time.Millisecond, endpoints.BatchWait, "BatchWait should be 100ms")
+
+	// Test with 0.5 seconds (500ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 500ms")
+
+	// Test with 1.5 seconds
+	suite.config.SetWithoutSource("logs_config.batch_wait", 1.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(1500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 1.5 seconds")
+
+	// Test with integer value for backwards compatibility
+	suite.config.SetWithoutSource("logs_config.batch_wait", 5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(5*time.Second, endpoints.BatchWait, "BatchWait should be 5 seconds (integer value)")
+
+	// Test with value below minimum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.05) // 50ms, below 100ms minimum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
+
+	// Test with value above maximum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 15) // Above 10 second maximum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
 }

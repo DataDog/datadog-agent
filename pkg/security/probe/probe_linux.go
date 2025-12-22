@@ -28,7 +28,10 @@ const (
 func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p := newProbe(config, opts)
+	p, err := newProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	acc, err := NewAgentContainerContext()
 	if err != nil {
@@ -81,6 +84,11 @@ func IsCgroupSysCtlNotSupported(kv *kernel.Version, cgroup2MountPath string) boo
 // IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
 func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
+}
+
+// IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
+func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
+	return kv.HasBPFForEachMapElemHelper()
 }
 
 // NewAgentContainerContext returns the agent container context

@@ -6,13 +6,11 @@
 package setup
 
 import (
-	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows/registry"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -29,10 +27,11 @@ var (
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
-	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
-	defaultEventMonitorAddress    = "localhost:3335"
+	// defaultSystemProbeLogFilePath is the default system probe log file
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
@@ -40,11 +39,14 @@ var (
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func osinit() {
+	// The config dir is configurable on Windows, so fetch the path from the registry
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
@@ -54,14 +56,17 @@ func osinit() {
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
+		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 	}
 
-	// Process Agent
-	if _here, err := executable.Folder(); err == nil {
-		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
-		if _, err := os.Stat(agentFilePath); err == nil {
-			DefaultDDAgentBin = agentFilePath
-		}
+	// The install path is configurable on Windows, so fetch the path from the registry
+	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
+	// so this can lead to an incorrect result.
+	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	if err == nil {
+		InstallPath = pd
+		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")
 	}
 
 	// Fleet Automation

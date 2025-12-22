@@ -17,7 +17,7 @@ import (
 // newEmptyMockConf returns an empty config appropriate for running tests
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
-func newEmptyMockConf(_ *testing.T) pkgconfigmodel.Config {
+func newEmptyMockConf(_ *testing.T) pkgconfigmodel.BuildableConfig {
 	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
@@ -25,7 +25,7 @@ func newEmptyMockConf(_ *testing.T) pkgconfigmodel.Config {
 
 // newTestConf generates and returns a new configuration that has been setup
 // by running the schema constructing code InitConfig found in setup/config.go
-func newTestConf(t *testing.T) pkgconfigmodel.Config {
+func newTestConf(t *testing.T) pkgconfigmodel.BuildableConfig {
 	conf := newEmptyMockConf(t)
 	InitConfig(conf)
 	conf.SetConfigFile("")

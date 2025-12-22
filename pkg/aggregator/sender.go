@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -138,7 +138,7 @@ func (s *checkSender) SetCheckService(service string) {
 // FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
 func (s *checkSender) FinalizeCheckServiceTag() {
 	if s.service != "" {
-		s.checkTags = append(s.checkTags, fmt.Sprintf("service:%s", s.service))
+		s.checkTags = append(s.checkTags, "service:"+s.service)
 	}
 }
 
@@ -313,9 +313,10 @@ func (s *checkSender) Distribution(metric string, value float64, hostname string
 // GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
 // Gauge time series measure a simple value over time.
 // Unlike Gauge(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+// The timestamp is in seconds since epoch (accepts fractional seconds)
 func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
-		return fmt.Errorf("invalid timestamp")
+		return errors.New("invalid timestamp")
 	}
 	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeWithTimestampType, false, false, timestamp)
 	return nil
@@ -324,9 +325,10 @@ func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname 
 // CountWithTimestamp reports a new count value to the intake with the given timestamp.
 // Count time series measure how many times something happened in some time period.
 // Unlike Count(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+// The timestamp is in seconds since epoch (accepts fractional seconds)
 func (s *checkSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
-		return fmt.Errorf("invalid timestamp")
+		return errors.New("invalid timestamp")
 	}
 	s.sendMetricSample(metric, value, hostname, tags, metrics.CountWithTimestampType, false, false, timestamp)
 	return nil
@@ -415,7 +417,7 @@ func (sp *checkSenderPool) getSender(id checkid.ID) (sender.Sender, error) {
 	if sender, ok := sp.senders[id]; ok {
 		return sender, nil
 	}
-	return nil, fmt.Errorf("Sender not found")
+	return nil, errors.New("Sender not found")
 }
 
 func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {

@@ -121,11 +121,22 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {
-		// Check if it's owned by a Deployment, otherwise ReplicaSet is direct owner
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
-		if deploymentName != "" {
-			ownerRef.Kind = kubernetes.DeploymentKind
-			ownerRef.Name = deploymentName
+		// Check if Argo Rollout based on Label
+		if pod.Labels != nil && pod.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+			// Note: Argo Rollouts use the same naming convention as Deployments
+			rolloutName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
+			if rolloutName != "" {
+				ownerRef.Kind = kubernetes.RolloutKind
+				ownerRef.Name = rolloutName
+				ownerRef.APIVersion = kubernetes.RolloutAPIVersion
+			}
+		} else {
+			// Check if it's owned by a Deployment, otherwise ReplicaSet is direct owner
+			deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
+			if deploymentName != "" {
+				ownerRef.Kind = kubernetes.DeploymentKind
+				ownerRef.Name = deploymentName
+			}
 		}
 	}
 

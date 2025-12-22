@@ -12,11 +12,14 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
@@ -39,7 +42,7 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
 
 	// used by some serveless environments to force flush all metrics.
 	shouldForceFlushAllOnForceFlushToSerializer bool
@@ -48,23 +51,25 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
+func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	secrets := secretsnoop.NewComponent().Comp
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, secrets, endpoints, forwarderTimeout)
 	if err != nil {
 		return nil, err
 	}
 	h, _ := hostname.Get(context.Background())
 	config := pkgconfigsetup.Datadog()
-	config.SetWithoutSource("serializer_compressor_kind", "none")
+	config.Set("serializer_compressor_kind", "none", model.SourceAgentRuntime)
 	serializer := serializer.NewSerializer(forwarder, nil, selector.FromConfig(config), pkgconfigsetup.Datadog(), logger, h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	tagFilterList := loadTagFilterList()
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore, tagFilterList)
 
 	demux := &ServerlessDemultiplexer{
 		log:                         logger,
@@ -74,7 +79,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 		serializer:                  serializer,
 		metricSamplePool:            metricSamplePool,
 		flushLock:                   &sync.Mutex{},
-		hostTagProvider:             NewHostTagProvider(),
+		hostTagProvider:             hosttags.NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 
 		shouldForceFlushAllOnForceFlushToSerializer: shouldForceFlushAllOnForceFlushToSerializer,
@@ -181,9 +186,10 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// SetTimeSamplersFilterList is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
-	d.statsdWorker.filterListChan <- filterList
+// SetSamplersFilterList is not supported in the Serverless Agent implementation.
+// Serverless does not run checks, so we don't need to set any filter list on checks here.
+func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+	d.statsdWorker.filterListChan <- histoFilterList
 }
 
 // Serializer returns the shared serializer

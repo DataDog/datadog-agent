@@ -1,3 +1,8 @@
+trap {
+    Write-Host "trap: $($_.InvocationInfo.Line.Trim()) - $_" -ForegroundColor Yellow
+    continue
+}
+
 <#
 .SYNOPSIS
 Copies files from C:\mnt into C:\buildroot\datadog-agent and sets the current directory to the buildroot.
@@ -134,7 +139,7 @@ function Expand-ModCache() {
 function Install-Deps() {
     Write-Host "Installing python requirements"
     pip3.exe install dda
-    dda self dep sync -f legacy-tasks
+    dda self dep sync -f legacy-build
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install python requirements"
         exit 1

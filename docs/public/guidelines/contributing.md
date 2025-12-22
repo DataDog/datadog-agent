@@ -18,14 +18,15 @@ In order to ease/speed up our review, here are some items you can check/improve 
 
 /// tab | Contributor Checklist
 - [X] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
+- [X] Sign your commits.
 - [X] Write tests for the code you wrote.
 - [X] Preferably make sure that all tests pass locally.
-- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
+- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.  Commit titles should be prefixed with general area of pull request's change. You can use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for the PR title.
 - [X] Use [Reno](#reno) to create a release note.
-- [X] Open your PR against the `main` branch.
+- [X] Open your PR as a Draft against the `main` branch.
 - [X] Sign the Contributor Licence Agreement.
-- [X] Sign your commits.
 - [X] Provide adequate QA/testing plan information.
+- [X] When the tests all pass, change your PR from "Draft" to "Ready for review".
 ///
 
 /// tab | Reviewer Checklist
@@ -39,14 +40,16 @@ In order to ease/speed up our review, here are some items you can check/improve 
 Adding GitHub labels is only possible for contributors with write access.
 ///
 
-Your pull request must pass all CI tests before we will merge it. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
+**If your PR changes behavior, you must create or update any relevant tests.**
+
+**Your pull request must pass all CI tests before we will merge it**. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
 
 ### Merge protection
 
 We have safety measures to protect our repository. As an external contributor, you are required to:
 
 1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
-2. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+1. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from GitHub](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 
@@ -78,8 +81,6 @@ Including new features
 This feature does this and that. Some tests are excluded on x86 because of ...
 ```
 
-If your commit is only shipping documentation changes or example files, and is a complete no-op for the test suite, please add **[skip ci]** in the commit message body to skip the build and give that slot to someone else who does need it.
-
 ### Pull request workflow
 
 The goals ordered by priority are:
@@ -88,6 +89,18 @@ The goals ordered by priority are:
 - On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why.
 
 You must open the PR when the code is reviewable or you must set the PR as draft if you want to share code before it's ready for actual reviews.
+
+#### Write a good PR description
+
+Reviewers and future maintainers only see the PR description, not your individual commit history, so the description should incorporate everything that they will need. The merge commit may include PR descriptions from multiple PRs, so the description should tie back to the changed code in some way. For example `run mdformat on iot-agent team docs` rather than just `mdformat the docs`.
+
+- A description of what is changed.
+- A reason why the change is made. Pointing to an issue is usually a good reason.
+- When testing had to include work not covered by test suites, a description of how you validated your change.
+- Any relevant benchmarks.
+- Additional notes that make code understanding easier.
+- If this is part of a chain of PRs, point to the predecessors.
+- If there are drawbacks or tradeoffs to consider, raise them here.
 
 #### Before the first PR review
 
@@ -167,7 +180,9 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
         collection, `kube_service` tagging) is not implemented
     ```
 
-- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to 1. know if they're affected and 2. handle the change gracefully on their end.
+- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to:
+    1. know if they're affected, and
+    1. handle the change gracefully on their end.
 
     example:
     ```yaml

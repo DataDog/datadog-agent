@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,7 @@ type probeYaml struct {
 }
 
 // MustGetProbeDefinitions calls GetProbeDefinitions and checks for an error.
-func MustGetProbeDefinitions(t *testing.T, name string) []ir.ProbeDefinition {
+func MustGetProbeDefinitions(t testing.TB, name string) []ir.ProbeDefinition {
 	probes, err := GetProbeDefinitions(name)
 	require.NoError(t, err)
 	return probes
@@ -72,4 +74,25 @@ func getProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
 		probes = append(probes, probe)
 	}
 	return probes, nil
+}
+
+// IssueTagPrefix is the prefix of the issue tag.
+const IssueTagPrefix = "issue:"
+
+// GetIssueTag returns the issue tag for a probe definition.
+func GetIssueTag(p ir.ProbeDefinition) (string, bool) {
+	tags := p.GetTags()
+	index := slices.IndexFunc(tags, func(tag string) bool {
+		return strings.HasPrefix(tag, IssueTagPrefix)
+	})
+	if index == -1 {
+		return "", false
+	}
+	return tags[index][len(IssueTagPrefix):], true
+}
+
+// HasIssueTag returns true if the probe definition has an issue tag.
+func HasIssueTag(p ir.ProbeDefinition) bool {
+	_, ok := GetIssueTag(p)
+	return ok
 }

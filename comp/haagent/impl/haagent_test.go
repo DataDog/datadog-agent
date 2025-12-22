@@ -13,14 +13,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,7 +60,7 @@ func Test_Enabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.WarnLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
 			assert.Nil(t, err)
 			log.SetupLogger(l, "warn")
 
@@ -215,10 +213,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				"ha_agent.enabled": true,
 				"config_id":        testConfigID,
 			}
-			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: agentConfigs}),
-			))
+			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
 
 			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewHostnameService(), newHaAgentConfigs(agentConfigComponent))
 

@@ -9,7 +9,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -46,7 +46,7 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 			series:        []loadstore.EntityValue{},
 			averageMetric: 0.0,
 			lastTimestamp: time.Time{},
-			err:           fmt.Errorf("Missing usage metrics"),
+			err:           errors.New("Missing usage metrics"),
 		},
 		{
 			name: "Series with valid values (non-stale)",
@@ -104,7 +104,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        utilizationResult{},
-			err:         fmt.Errorf("No pods found"),
+			err:         errors.New("No pods found"),
 		},
 		{
 			name: "Pods with empty query results",
@@ -132,7 +132,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue fetching metrics data"),
+			err:         errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -172,7 +172,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue calculating pod utilization"),
+			err:         errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Single pod and container",
@@ -471,7 +471,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        utilizationResult{},
-			err:         fmt.Errorf("No pods found"),
+			err:         errors.New("No pods found"),
 		},
 		{
 			name: "Pods with empty query results",
@@ -499,7 +499,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue fetching metrics data"),
+			err:         errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -539,7 +539,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue calculating pod utilization"),
+			err:         errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Single pod and container",
@@ -919,7 +919,7 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
-			err:                 fmt.Errorf("Issue fetching metrics data"),
+			err:                 errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -960,7 +960,7 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
-			err:                 fmt.Errorf("Issue calculating pod utilization"),
+			err:                 errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Scale down expected",
@@ -1533,75 +1533,144 @@ func TestRecommend(t *testing.T) {
 	}
 }
 
-func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
+func TestCalculateHorizontalRecommendations(t *testing.T) {
 	testTime := time.Now()
 	deploymentName := "deploymentName"
 	ns := "default"
 
-	// Setup podwatcher
-	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newFakeWLMPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
-
-	expectedOwner := workload.NamespacedPodOwner{
-		Namespace: ns,
-		Kind:      kubernetes.DeploymentKind,
-		Name:      deploymentName,
-	}
-	pods := pw.GetPodsForOwner(expectedOwner)
-	assert.Len(t, pods, 1)
-
-	// Setup loadstore
-	lStore := loadstore.GetWorkloadMetricStore(context.TODO())
-	entities := make(map[*loadstore.Entity]*loadstore.EntityValue)
-	entity := newEntity("container.cpu.usage", ns, deploymentName, "pod1", "container-name1")
-	entities[entity] = newEntityValue(testTime.Unix()-30, 2.4e8)
-	lStore.SetEntitiesValues(entities)
-	entities[entity] = newEntityValue(testTime.Unix()-15, 2.45e8)
-	lStore.SetEntitiesValues(entities)
-	queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
-	assert.Len(t, queryResult.Results, 1)
-
-	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
-		TargetRef: autoscalingv2.CrossVersionObjectReference{
-			Kind:       "Deployment",
-			Name:       deploymentName,
-			APIVersion: "apps/v1",
-		},
-		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
-		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
-			{
-				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
-				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
-					Name: "cpu",
-					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
-						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
-						Utilization: pointer.Ptr(int32(80)),
-					},
-				},
+	cpuObjective := datadoghqcommon.DatadogPodAutoscalerObjective{
+		Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+		PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+			Name: "cpu",
+			Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+				Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+				Utilization: pointer.Ptr(int32(80)),
 			},
 		},
 	}
-	dpa := &datadoghq.DatadogPodAutoscaler{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DatadogPodAutoscaler",
-			APIVersion: "datadoghq.com/v1alpha2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: ns,
-		},
-		Spec: dpaSpec,
-		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
-			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{},
+	customQueryObjective := datadoghqcommon.DatadogPodAutoscalerObjective{
+		Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+		CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+			Request: datadoghqcommon.DatadogPodAutoscalerTimeseriesFormulaRequest{
+				Formula: "query1",
+				Queries: []datadoghqcommon.DatadogPodAutoscalerTimeseriesQuery{{
+					Source: datadoghqcommon.DatadogPodAutoscalerMetricsDataSourceMetrics,
+					Name:   "a",
+					Metrics: &datadoghqcommon.DatadogPodAutoscalerMetricsTimeseriesQuery{
+						Query: "foo",
+					},
+				}},
+			},
 		},
 	}
-	dpai := model.NewPodAutoscalerInternal(dpa)
+	testCases := map[string]struct {
+		dpaSpec          datadoghq.DatadogPodAutoscalerSpec
+		expectError      bool
+		expectedReplicas int32
+	}{
+		"Scale up expected": {
+			dpaSpec: datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					Name:       deploymentName,
+					APIVersion: "apps/v1",
+				},
+				Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					cpuObjective,
+				},
+			},
+			expectError:      false,
+			expectedReplicas: 2,
+		},
+		"custom query objective with no fallback returns error": {
+			dpaSpec: datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					Name:       deploymentName,
+					APIVersion: "apps/v1",
+				},
+				Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					customQueryObjective,
+				},
+			},
+			expectError: true,
+		},
+		"custom query objective with fallback": {
+			dpaSpec: datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					Name:       deploymentName,
+					APIVersion: "apps/v1",
+				},
+				Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					customQueryObjective,
+				},
+				Fallback: &datadoghq.DatadogFallbackPolicy{
+					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{cpuObjective},
+					},
+				},
+			},
+			expectError:      false,
+			expectedReplicas: 2,
+		},
+	}
 
-	r := newReplicaCalculator(clock.RealClock{}, pw)
-	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
-	assert.NoError(t, err)
-	assert.Equal(t, int32(2), res.Replicas)
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup podwatcher
+			pw := workload.NewPodWatcher(nil, nil)
+			pw.HandleEvent(newFakeWLMPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
 
-	// cleanup
-	resetWorkloadMetricStore()
+			expectedOwner := workload.NamespacedPodOwner{
+				Namespace: ns,
+				Kind:      kubernetes.DeploymentKind,
+				Name:      deploymentName,
+			}
+			pods := pw.GetPodsForOwner(expectedOwner)
+			assert.Len(t, pods, 1)
+
+			// Setup loadstore
+			lStore := loadstore.GetWorkloadMetricStore(context.TODO())
+			entities := make(map[*loadstore.Entity]*loadstore.EntityValue)
+			entity := newEntity("container.cpu.usage", ns, deploymentName, "pod1", "container-name1")
+			entities[entity] = newEntityValue(testTime.Unix()-30, 2.4e8)
+			lStore.SetEntitiesValues(entities)
+			entities[entity] = newEntityValue(testTime.Unix()-15, 2.45e8)
+			lStore.SetEntitiesValues(entities)
+			queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
+			defer resetWorkloadMetricStore()
+			assert.Len(t, queryResult.Results, 1)
+
+			dpaSpec := tc.dpaSpec
+			dpa := &datadoghq.DatadogPodAutoscaler{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DatadogPodAutoscaler",
+					APIVersion: "datadoghq.com/v1alpha2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      deploymentName,
+					Namespace: ns,
+				},
+				Spec: dpaSpec,
+				Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+					Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{},
+				},
+			}
+			dpai := model.NewPodAutoscalerInternal(dpa)
+
+			r := newReplicaCalculator(clock.RealClock{}, pw)
+			res, err := r.calculateHorizontalRecommendations(dpai, lStore)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, res)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedReplicas, res.Replicas)
+			}
+		})
+	}
 }

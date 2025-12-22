@@ -32,19 +32,20 @@ const (
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
-	Name            string
-	SourcePkgPrefix string
-	SourcePkg       string
-	TargetPkg       string
-	BuildTags       []string
-	Fields          map[string]*StructField // Fields only contains fields that are exposed in SECL
-	//GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
-	AllFields  map[string]*StructField
-	Iterators  map[string]*StructField
-	EventTypes map[string]*EventTypeMetadata
-	FileFields []FileField
-	Mock       bool
-	Getters    []string
+	Name                string
+	SourcePkgPrefix     string
+	SourcePkg           string
+	TargetPkg           string
+	BuildTags           []string
+	Fields              map[string]*StructField // Fields only contains fields that are exposed in SECL
+	AllFields           map[string]*StructField
+	AllStructFields     interface{} // used for event deep copy generation
+	Iterators           map[string]*StructField
+	EventTypes          map[string]*EventTypeMetadata
+	FileFields          []FileField
+	Mock                bool
+	Getters             []string
+	FieldsOrderByChecks []string
 }
 
 // FileField represents a file field used for `{Get,Validate}FileField` generation
@@ -71,7 +72,7 @@ type StructField struct {
 	Iterator         *StructField
 	Weight           int64
 	CommentText      string
-	OpOverrides      string
+	OpOverrides      []string
 	Check            string
 	SetHandler       string
 	Alias            string

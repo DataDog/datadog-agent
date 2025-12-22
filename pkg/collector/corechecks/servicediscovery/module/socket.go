@@ -14,14 +14,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
 )
 
 const (
 	socketPrefix = "socket:["
-	// readlinkBufferSize is an arbitrary maximum size for log files (and
-	// sockets, but those look like "socket:[165614651]" and are much smaller)
+	// readlinkBufferSize is an arbitrary maximum size for the targets of the
+	// symlinks in /proc/PID/fd/ for:
+	// - log files
+	// - sockets, for example "socket:[165614651]"
+	// - tracer memfd files, for example "/memfd:datadog-tracer-info-0e057fe5 (deleted)"
 	readlinkBufferSize = 1024
 )
 
@@ -49,8 +53,9 @@ type fdPath struct {
 }
 
 type openFilesInfo struct {
-	sockets []uint64
-	logs    []fdPath
+	sockets       []uint64
+	logs          []fdPath
+	tracerMemfdFd string // fd number of tracer memfd file if found (e.g., "5")
 }
 
 // getOpenFilesInfo gets a list of socket inode numbers opened by a process
@@ -91,6 +96,11 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 
 		if isLogFile(path) {
 			openFiles.logs = append(openFiles.logs, fdPath{fd: fd, path: path})
+			continue
+		}
+
+		if openFiles.tracerMemfdFd == "" && tracermetadata.IsTracerMemfdPath(path) {
+			openFiles.tracerMemfdFd = fd
 			continue
 		}
 

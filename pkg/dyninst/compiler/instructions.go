@@ -134,9 +134,16 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ProcessGoHmapOp:
+		bytes := make([]byte, 0, 12)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.BucketsType.GetID()))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.BucketType.GetByteSize())
+		bytes = append(bytes, op.FlagsOffset)
+		bytes = append(bytes, op.BOffset)
+		bytes = append(bytes, op.BucketsOffset)
+		bytes = append(bytes, op.OldBucketsOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoHmap,
-			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.BucketsArray.GetID())),
+			bytes:  bytes,
 		}
 
 	case ProcessGoSwissMapOp:

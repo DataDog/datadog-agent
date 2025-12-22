@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEmptySlice",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,7 +23,7 @@
           {
             "function": "main.executeSliceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 88
+            "lineNumber": 96
           },
           {
             "function": "main.main",
@@ -33,7 +33,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -59,6 +59,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[]"
   }
 ]

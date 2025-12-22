@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testBigStruct",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,12 +18,12 @@
           {
             "function": "main.testBigStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 110
+            "lineNumber": 238
           },
           {
             "function": "main.main",
@@ -33,7 +33,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -70,7 +70,12 @@
                   },
                   "writer": {
                     "type": "io.Writer",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "io.discard",
+                        "fields": {}
+                      }
+                    }
                   }
                 }
               }
@@ -79,6 +84,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}"
   }
 ]

@@ -27,7 +27,7 @@ type rebalanceTestClcRunnerClient struct {
 	testStats map[string]types.CLCRunnersStats
 }
 
-func (d *rebalanceTestClcRunnerClient) GetVersion(_ip string) (version.Version, error) {
+func (d *rebalanceTestClcRunnerClient) GetVersion(string) (version.Version, error) {
 	return version.Version{}, nil
 }
 
@@ -41,7 +41,7 @@ func (d *rebalanceTestClcRunnerClient) GetRunnerStats(ip string) (types.CLCRunne
 	return types.CLCRunnersStats{}, nil
 }
 
-func (d *rebalanceTestClcRunnerClient) GetRunnerWorkers(_ip string) (types.Workers, error) {
+func (d *rebalanceTestClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
 	// Return default worker count
 	return types.Workers{Count: pkgconfigsetup.DefaultNumWorkers}, nil
 }
@@ -1441,7 +1441,7 @@ func TestRebalance(t *testing.T) {
 func TestMoveCheck(t *testing.T) {
 	type checkInfo struct {
 		config integration.Config
-		id     checkid.ID
+		id     checkid.ID //nolint:unused
 		node   string
 	}
 
@@ -1565,7 +1565,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 		testStats: make(map[string]types.CLCRunnersStats),
 	}
 	testDispatcher.clcRunnersClient = mockClient
-	testDispatcher.advancedDispatching = true // Enable advanced dispatching for utilization tests
+	testDispatcher.advancedDispatching.Store(true) // Enable advanced dispatching for utilization tests
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")

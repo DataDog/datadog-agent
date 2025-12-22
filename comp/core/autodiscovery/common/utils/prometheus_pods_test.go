@@ -514,7 +514,24 @@ func TestConfigsForPod(t *testing.T) {
 					},
 				},
 			},
-			expectError: true, // No container matches port in annotation
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:9999/metrics"}`)},
+					Provider:      names.PrometheusPods,
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
+				},
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:9999/metrics"}`)},
+					Provider:      names.PrometheusPods,
+					Source:        "prometheus_pods:containerd://cont-id-2",
+					ADIdentifiers: []string{"containerd://cont-id-2"},
+				},
+			},
 		},
 		{
 			name:    "invalid port in annotation",
@@ -724,7 +741,7 @@ func newMockWorkloadMeta(t *testing.T) workloadmetamock.Mock {
 		t,
 		fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		),
 	)

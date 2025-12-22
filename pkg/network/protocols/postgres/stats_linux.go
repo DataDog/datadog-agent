@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+)
+
+var (
+	requestStatPool = ddsync.NewDefaultTypedPool[RequestStat]()
 )
 
 // Key is an identifier for a group of Postgres transactions
@@ -81,5 +86,10 @@ func (r *RequestStat) Close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
 }

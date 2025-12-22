@@ -46,10 +46,10 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	}
 
 	for {
-		line, err := cw.Buffer.ReadString('\n')
+		line, err := cw.Buffer.ReadBytes('\n')
 		if err == io.EOF {
 			// If EOF, push the line back to buffer and wait for more data
-			cw.Buffer.WriteString(line)
+			cw.Buffer.Write(line)
 			break
 		}
 		if err != nil {
@@ -61,7 +61,7 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 			continue
 		}
 
-		cw.sendPayload([]byte(line[:len(line)-1]))
+		cw.sendPayload(line[:len(line)-1])
 	}
 	return n, nil
 }

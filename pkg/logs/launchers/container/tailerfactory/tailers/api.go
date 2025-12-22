@@ -5,7 +5,7 @@
 
 //go:build kubelet
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
@@ -23,6 +23,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
+// APITailer is a tailer for kubelet API logs
 type APITailer struct {
 	kubeUtil      kubelet.KubeUtilInterface
 	ContainerName string

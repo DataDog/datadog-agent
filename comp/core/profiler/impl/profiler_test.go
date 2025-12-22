@@ -15,17 +15,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -68,16 +69,17 @@ type reqs struct {
 	Comp profilerdef.Component
 }
 
-func getProfiler(t testing.TB, overrideConfig map[string]interface{}, overrideSysProbe map[string]interface{}) profiler {
+func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
 	deps := fxutil.Test[reqs](
 		t,
-		core.MockBundle(),
-		fx.Replace(configcomponent.MockParams{
-			Overrides: overrideConfig,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMock(t)
 		}),
 		fx.Replace(sysprobeconfigimpl.MockParams{
 			Overrides: overrideSysProbe,
 		}),
+		sysprobeconfigimpl.MockModule(),
 		settingsimpl.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
@@ -122,7 +124,7 @@ func TestProfileSetting(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			fb := helpers.NewFlareBuilderMockWithArgs(t, true, types.FlareArgs{})
-			profiler := getProfiler(t, map[string]interface{}{}, map[string]interface{}{})
+			profiler := getProfiler(t, map[string]interface{}{})
 			profiler.settingsComponent.SetRuntimeSetting("runtime_block_profile_rate", s.oldVal, model.SourceDefault)
 
 			deferFunc := profiler.setProfilerSetting("runtime_block_profile_rate", s.newVal, fb)
@@ -274,6 +276,7 @@ func TestTimeout(t *testing.T) {
 		t.Run(s.name, func(t *testing.T) {
 			cfg := createGenericConfig(t)
 			cfg.SetWithoutSource("flare.profile_overhead_runtime", baseTimeout)
+
 			fArgs := types.FlareArgs{
 				ProfileDuration: s.profileDuration,
 			}
@@ -281,7 +284,7 @@ func TestTimeout(t *testing.T) {
 				cfg.SetWithoutSource(k, v)
 			}
 			fb := helpers.NewFlareBuilderMockWithArgs(t, true, fArgs)
-			profiler := getProfiler(t, cfg.AllSettings(), s.extraSysCfgs)
+			profiler := getProfiler(t, s.extraSysCfgs)
 
 			timeout := profiler.timeout(fb)
 

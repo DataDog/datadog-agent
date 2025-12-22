@@ -7,6 +7,7 @@
 package launchgui
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -19,6 +20,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -42,6 +44,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -54,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func launchGui(config config.Component, _ *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	guiPort := config.GetString("GUI_port")
 	if guiPort == "-1" {
-		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
+		return errors.New("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
 	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.

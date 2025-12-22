@@ -7,8 +7,8 @@
 package command
 
 import (
-	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -56,7 +56,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Installer at your service.",
 		Long: `
 Datadog Installer installs datadog-packages based on your commands.`,
@@ -101,6 +101,22 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		subcommands := sf(&globalParams)
 		for _, cmd := range subcommands {
 			agentCmd.AddCommand(cmd)
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		// Run the default command when no subcommands are provided
+		// Intended as shortcut for running the executable as the install script.
+		// default: setup --flavor default
+		// TODO: Specific to Windows for now, as Linux needs more testing/validation of
+		//       the additional migration cases, and the main setup entrypoint is
+		//       currently `install.sh` not the `installer` binary.
+		agentCmd.RunE = func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				cmd.SetArgs([]string{"setup", "--flavor", "default"})
+				return cmd.Execute()
+			}
+			return nil
 		}
 	}
 

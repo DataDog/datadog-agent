@@ -35,12 +35,14 @@ const (
 	// Metadata v3 and v4 API paths. They're the same.
 	taskMetadataPath         = "/task"
 	taskMetadataWithTagsPath = "/taskWithTags"
+	containerStatsPath       = "/task/stats"
 )
 
 // Client is an interface for ECS metadata v3 and v4 API clients.
 type Client interface {
 	GetTask(ctx context.Context) (*Task, error)
 	GetContainer(ctx context.Context) (*Container, error)
+	GetContainerStats(ctx context.Context, id string) (*ContainerStatsV4, error)
 	GetTaskWithTags(ctx context.Context) (*Task, error)
 }
 
@@ -90,6 +92,20 @@ func (c *client) GetContainer(ctx context.Context) (*Container, error) {
 		return nil, err
 	}
 	return &ct, nil
+}
+
+// GetContainerStats returns stastics for a container.
+func (c *client) GetContainerStats(ctx context.Context, id string) (*ContainerStatsV4, error) {
+	var stats map[string]*ContainerStatsV4
+	if err := c.get(ctx, containerStatsPath, &stats); err != nil {
+		return nil, err
+	}
+
+	if s, ok := stats[id]; ok && s != nil {
+		return s, nil
+	}
+
+	return nil, fmt.Errorf("Failed to retrieve container stats for id: %s", id)
 }
 
 // GetTask returns the current task.

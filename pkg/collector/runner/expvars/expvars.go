@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// Top-level expvar (the convention for them is that they are lowercase)
+	// runnerExpvarKey - the top-level key for the runner expvars
 	runnerExpvarKey = "runner"
 
 	// Nested keys
@@ -256,4 +256,9 @@ func GetErrorsCount() int64 {
 		return 0
 	}
 	return count.(*expvar.Int).Value()
+}
+
+// GetRunner returns the runner expvar Map
+func GetRunner() *expvar.Map {
+	return expvar.Get(runnerExpvarKey).(*expvar.Map)
 }

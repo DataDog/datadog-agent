@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.PointerChainArg",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.PointerChainArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 111
+            "lineNumber": 113
           },
           {
             "function": "main.main",
@@ -28,7 +28,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -54,6 +54,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "ptr: {pointer: not captured at 0x[addr]}"
   }
 ]

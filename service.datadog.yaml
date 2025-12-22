@@ -90,6 +90,12 @@ extensions:
           # Create and push to this branch to test changes with conductor if needed without merging to main
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
+        - name: "stable-nightly-build"
+          branch: "7.73.x"
+          schedule: "30 2 * * *"
+          build_only: true
+          options:
+            disable_bia: true
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml

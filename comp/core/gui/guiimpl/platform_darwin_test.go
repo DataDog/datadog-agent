@@ -24,8 +24,8 @@ const expectedBody = `<!DOCTYPE html>
     <link rel="stylesheet" href="view/css/stylesheet.css">
     <script src="view/js/polyfills.js"> </script>
     <script src="view/js/jquery-3.5.1.min.js"> </script>
-    <script src="view/js/codemirror.js"> </script>
-    <script src="view/js/yaml.js"> </script>
+    <script src="view/js/codemirror.min.js"> </script>
+    <script src="view/js/yaml.min.js"> </script>
     <script src="view/js/javascript.js"> </script>
     <script src="view/js/purify.min.js"> </script>
 </head>

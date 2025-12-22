@@ -8,9 +8,11 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -182,6 +185,14 @@ type server struct {
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
+	// Counter for absolute metric types
+	tlmMetricTypes            telemetry.Counter
+	tlmMetricTypeGauge        telemetry.SimpleCounter
+	tlmMetricTypeCounter      telemetry.SimpleCounter
+	tlmMetricTypeDistribution telemetry.SimpleCounter
+	tlmMetricTypeHistogram    telemetry.SimpleCounter
+	tlmMetricTypeSet          telemetry.SimpleCounter
+	tlmMetricTypeTiming       telemetry.SimpleCounter
 }
 
 func initTelemetry() {
@@ -198,7 +209,8 @@ func initTelemetry() {
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
-	if deps.Config.GetBool("use_dogstatsd") {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
@@ -340,6 +352,20 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		"Filter list size",
 	)
 
+	// Initialize the metric type counters. These metrics are not
+	// per-context but absolute.
+	s.tlmMetricTypes = telemetrycomp.NewCounter("dogstatsd", "metric_type_count",
+		[]string{"metric_type"}, "Count of metrics processed by dogstatsd by type")
+	// Cache counter/tag instances to avoid interior hashmap lookups. If
+	// SimpleCounter ever uses relaxed atomics this will also be improved
+	// over a simple Inc("tag") on ARM, as Inc implies a mutex cycle.
+	s.tlmMetricTypeGauge = s.tlmMetricTypes.WithValues("gauge")
+	s.tlmMetricTypeCounter = s.tlmMetricTypes.WithValues("counter")
+	s.tlmMetricTypeDistribution = s.tlmMetricTypes.WithValues("distribution")
+	s.tlmMetricTypeHistogram = s.tlmMetricTypes.WithValues("histogram")
+	s.tlmMetricTypeSet = s.tlmMetricTypes.WithValues("set")
+	s.tlmMetricTypeTiming = s.tlmMetricTypes.WithValues("timing")
+
 	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
 	s.packetsTelemetry = packets.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_channel_latency_buckets"), telemetrycomp)
 
@@ -428,7 +454,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+		return errors.New("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s.packetsIn = packetsChannel
@@ -443,7 +469,7 @@ func (s *server) start(context.Context) error {
 	forwardHost := s.config.GetString("statsd_forward_host")
 	forwardPort := s.config.GetInt("statsd_forward_port")
 	if forwardHost != "" && forwardPort != 0 {
-		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
+		forwardAddress := net.JoinHostPort(forwardHost, strconv.Itoa(forwardPort))
 		con, err := net.Dial("udp", forwardAddress)
 		if err != nil {
 			s.log.Warnf("Could not connect to statsd forward host : %s", err)
@@ -528,16 +554,17 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := s.createHistogramsFilterList(metricNames)
+	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
 		worker.FilterListUpdate <- matcher
 	}
 
 	// send the histogram filterlist used right before flushing to the serializer
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
-	s.demultiplexer.SetTimeSamplersFilterList(&histoFilterList)
+	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+
+	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
 }
 
 // create a list based on all `metricNames` but only containing metric names
@@ -604,10 +631,16 @@ func (s *server) handleMessages() {
 	}
 
 	// init the metric names filterlist
+	filterlist := s.config.GetStringSlice("metric_filterlist")
+	filterlistPrefix := s.config.GetBool("metric_filterlist_match_prefix")
+	if len(filterlist) == 0 {
+		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
+		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
+	}
 
 	s.localFilterListConfig = localFilterListConfig{
-		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
-		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
+		metricNames: filterlist,
+		matchPrefix: filterlistPrefix,
 	}
 	s.restoreFilterListFromLocalConfig()
 }
@@ -848,6 +881,21 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
 		return metricSamples, err
+	}
+
+	switch sample.metricType {
+	case gaugeType:
+		s.tlmMetricTypeGauge.Inc()
+	case countType:
+		s.tlmMetricTypeCounter.Inc()
+	case distributionType:
+		s.tlmMetricTypeDistribution.Inc()
+	case histogramType:
+		s.tlmMetricTypeHistogram.Inc()
+	case setType:
+		s.tlmMetricTypeSet.Inc()
+	case timingType:
+		s.tlmMetricTypeTiming.Inc()
 	}
 
 	if s.mapper != nil {

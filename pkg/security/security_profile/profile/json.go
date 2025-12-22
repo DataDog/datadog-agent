@@ -19,8 +19,8 @@ import (
 
 // EncodeJSON encodes an activity dump in the ProtoJSON format
 func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	pad := profileToSecDumpProto(p)
 	defer pad.ReturnToVTPool()
@@ -40,8 +40,8 @@ func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
 
 // DecodeJSON decodes JSON to an activity dump
 func (p *Profile) DecodeJSON(reader io.Reader) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	raw, err := io.ReadAll(reader)
 	if err != nil {

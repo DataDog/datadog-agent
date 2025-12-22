@@ -7,221 +7,47 @@
 package catalog
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// LegacyContainerMetricsProgram creates a program for filtering container metrics
-func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerMetricsProgram"
-	var initErrors []error
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ContainerType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// LegacyContainerLogsProgram creates a program for filtering container logs
-func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerLogsProgram"
-	var initErrors []error
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_logs"), workloadfilter.ContainerType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_logs"), workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// LegacyContainerACExcludeProgram creates a program for excluding containers via legacy `AC` filters
-func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerACExcludeProgram"
-	var initErrors []error
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("ac_exclude"), workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// LegacyContainerACIncludeProgram creates a program for including containers via legacy `AC` filters
-func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerACIncludeProgram"
-	var initErrors []error
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("ac_include"), workloadfilter.ContainerType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// LegacyContainerGlobalProgram creates a program for filtering container globally
-func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerGlobalProgram"
-	var initErrors []error
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include"), workloadfilter.ContainerType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude"), workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// LegacyContainerSBOMProgram creates a program for filtering container SBOMs
-func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "LegacyContainerSBOMProgram"
-	var initErrors []error
-
-	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
-		return program.CELProgram{
-			Name: programName,
-		}
-	}
-
-	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
-	if config.GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
-	}
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), workloadfilter.ContainerType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// createContainerADAnnotationsProgram creates a program for filtering
-// container annotations based on the annotation key.
-func createContainerADAnnotationsProgram(programName, annotationKey string, logger log.Component) program.CELProgram {
-	var initErrors []error
-
-	// Use 'in' operator to safely check if annotation exists before accessing it
-	excludeFilter := fmt.Sprintf(`
-		(("ad.datadoghq.com/" + container.name + ".%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] in ["1", "t", "T", "true", "TRUE", "True"]) ||
-		(("ad.datadoghq.com/%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/%s"] in ["1", "t", "T", "true", "TRUE", "True"])
-	`, annotationKey, annotationKey, annotationKey, annotationKey)
-
-	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ContainerType)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error creating CEL filtering program for %s: %v", programName, err)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// ContainerADAnnotationsProgram creates a program for filtering container annotations
-func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsProgram", "exclude", logger)
-}
-
-// ContainerADAnnotationsMetricsProgram creates a program for filtering container annotations for metrics
-func ContainerADAnnotationsMetricsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsMetricsProgram", "metrics_exclude", logger)
-}
-
-// ContainerADAnnotationsLogsProgram creates a program for filtering container annotations for logs
-func ContainerADAnnotationsLogsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsLogsProgram", "logs_exclude", logger)
-}
-
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) program.CELProgram {
-	programName := "ContainerPausedProgram"
-	var initErrors []error
-	var excludeList []string
-	if config.GetBool("exclude_pause_container") {
-		excludeList = containers.GetPauseContainerExcludeList()
-	}
+func ContainerPausedProgram(_ *FilterConfig, logger log.Component) program.FilterProgram {
+	return createLegacyContainerProgram(string(workloadfilter.ContainerPaused), nil, containers.GetPauseContainerExcludeList(), logger)
+}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
-	}
+// ContainerCELMetricsProgram creates a program for filtering container metrics via CEL rules
+func ContainerCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ContainerType)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELMetrics), rule, workloadfilter.ContainerType, logger)
+}
 
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
+// ContainerCELLogsProgram creates a program for filtering container logs via CEL rules
+func ContainerCELLogsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductLogs, workloadfilter.ContainerType)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELLogs), rule, workloadfilter.ContainerType, logger)
+}
+
+// ContainerCELSBOMProgram creates a program for filtering container SBOMs via CEL rules
+func ContainerCELSBOMProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductSBOM, workloadfilter.ContainerType)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELSBOM), rule, workloadfilter.ContainerType, logger)
+}
+
+// ContainerCELGlobalProgram creates a program for filtering containers globally via CEL rules
+func ContainerCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ContainerType)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELGlobal), rule, workloadfilter.ContainerType, logger)
+}
+
+// ContainerLegacyRuntimeSecurityProgram creates a program for filtering containers for runtime security
+func ContainerLegacyRuntimeSecurityProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyRuntimeSecurity), filterConfig.ContainerRuntimeSecurityInclude, filterConfig.ContainerRuntimeSecurityExclude, logger)
+}
+
+// ContainerLegacyComplianceProgram creates a program for filtering containers for compliance
+func ContainerLegacyComplianceProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyCompliance), filterConfig.ContainerComplianceInclude, filterConfig.ContainerComplianceExclude, logger)
 }

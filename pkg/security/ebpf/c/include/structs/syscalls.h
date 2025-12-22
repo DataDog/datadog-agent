@@ -106,6 +106,10 @@ struct syscall_cache_t {
             struct mount *parent;
             struct dentry *mountpoint_dentry;
             u32 bind_src_mount_id;
+            u64 mount_id_unique;
+            u64 parent_mount_id_unique;
+            u64 bind_src_mount_id_unique;
+
             // populated from collected
             const char *fstype;
             struct path_key_t root_key;
@@ -113,6 +117,7 @@ struct syscall_cache_t {
             dev_t device;
             int clone_mnt_ctr;
             int source;
+            u64 ns_inum;
         } mount;
 
         struct {
@@ -143,11 +148,13 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
+            u32 is_through_symlink;
         } exec;
 
         struct {
             u32 is_thread;
             u32 is_kthread;
+            u32 parent_pid;
         } fork;
 
         struct {
@@ -269,6 +276,16 @@ struct syscall_cache_t {
             u32 truncated;
             struct sock_fprog *fprog;
         } setsockopt;
+        struct {
+            int option;
+            u32 name_size_to_send;
+            u32 name_truncated;
+            char name[MAX_PRCTL_NAME_LEN];
+        } prctl;
+
+        struct {
+            char suffix[TRACER_MEMFD_SUFFIX_LEN];
+        } tracer_memfd_create;
     };
 };
 

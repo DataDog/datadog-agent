@@ -8,26 +8,29 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	validSubdomainSymbols       = "_-."
 	validPathSymbols            = "/_-+"
-	validPathQueryStringSymbols = "/_-+@?&=.:\""
+	validPathQueryStringSymbols = "/_-+@?&=.:\"[]"
 )
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
@@ -127,7 +130,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
-		return nil, fmt.Errorf("EVPProxy: no subdomain specified")
+		return nil, errors.New("EVPProxy: no subdomain specified")
 	}
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EVPProxy: invalid subdomain: %s", subdomain)
@@ -141,7 +144,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 
 	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
-		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
+		return nil, errors.New("EVPProxy: ApplicationKey needed but not set")
 	}
 
 	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
@@ -150,7 +153,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set standard headers
 	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
+	req.Header.Set("Via", "trace-agent "+t.conf.AgentVersion)
 
 	// Copy allowed headers from the input request
 	for _, header := range EvpProxyAllowedHeaders {
@@ -175,6 +178,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
+	}
+	if t.conf.ErrorTrackingStandalone {
+		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")
 	}
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
@@ -254,7 +260,12 @@ func isValidPath(s string) bool {
 }
 
 func isValidQueryString(s string) bool {
-	for _, c := range s {
+	decoded, err := url.QueryUnescape(s)
+	if err != nil {
+		log.Debugf("failed to unescape query string: %v", err)
+		return false
+	}
+	for _, c := range decoded {
 		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathQueryStringSymbols, c) {
 			return false
 		}

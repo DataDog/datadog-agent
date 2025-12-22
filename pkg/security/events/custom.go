@@ -29,6 +29,11 @@ const (
 	// HeartbeatRuleDesc is the rule description for the heartbeat events
 	HeartbeatRuleDesc = "Heartbeat"
 
+	// RemediationStatusRuleID is the rule ID for the remediation_status events
+	RemediationStatusRuleID = "remediation_status"
+	// RemediationStatusRuleDesc is the rule description for the remediation_status events
+	RemediationStatusRuleDesc = "Remediation status"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
@@ -68,6 +73,16 @@ const (
 	SysCtlSnapshotRuleID = "sysctl_snapshot"
 	// SysCtlSnapshotRuleDesc is the description of the sysctl snapshot rule
 	SysCtlSnapshotRuleDesc = "A new sysctl snapshot was generated"
+
+	// RawPacketActionRuleID is the rule ID for raw packet action events
+	RawPacketActionRuleID = "rawpacket_action"
+	// RawPacketActionRuleDesc is the rule description for raw packet action events
+	RawPacketActionRuleDesc = "RawPacket Action"
+
+	// FailedDNSRuleID is the rule ID for an event about a DNS packet that failed to get decoded
+	FailedDNSRuleID = "failed_dns"
+	// FailedDNSRuleDesc is the rule description for raw packet action events
+	FailedDNSRuleDesc = "Failed DNS"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -111,6 +126,14 @@ func AllCustomRuleIDs() []string {
 		BrokenProcessLineageErrorRuleID,
 		InternalCoreDumpRuleID,
 		SysCtlSnapshotRuleID,
+		FailedDNSRuleID,
+		RemediationStatusRuleID,
+	}
+}
+
+func AllSecInfoRuleIDs() []string {
+	return []string{
+		RemediationStatusRuleID,
 	}
 }
 

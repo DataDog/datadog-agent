@@ -10,17 +10,19 @@ package containerd
 import (
 	"testing"
 
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/containerd/containerd"
 	containerdcontainers "github.com/containerd/containerd/containers"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestIgnoreContainer(t *testing.T) {
-	pauseFilter, err := containers.GetPauseContainerFilter()
-	assert.NoError(t, err)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	containerID := "123"
 
@@ -75,7 +77,7 @@ func TestIgnoreContainer(t *testing.T) {
 
 			containerdCollector := collector{
 				containerdClient:       &client,
-				filterPausedContainers: pauseFilter,
+				filterPausedContainers: mockFilterStore.GetContainerPausedFilters(),
 			}
 
 			ignored, err := containerdCollector.ignoreContainer("default", test.container)

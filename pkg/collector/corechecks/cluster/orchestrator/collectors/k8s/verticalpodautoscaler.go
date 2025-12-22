@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -40,7 +41,7 @@ type VerticalPodAutoscalerCollector struct {
 // NewVerticalPodAutoscalerCollector creates a new collector for the Kubernetes
 // VerticalPodAutoscaler resource.
 func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *VerticalPodAutoscalerCollector {
-	resourceType := getResourceType(vpaName, vpaVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.VpaName, utilTypes.VpaVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -51,10 +52,10 @@ func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *Ver
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 vpaName,
+			Name:                                 utilTypes.VpaName,
 			Kind:                                 kubernetes.VerticalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sVerticalPodAutoscaler,
-			Version:                              vpaVersion,
+			Version:                              utilTypes.VpaVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

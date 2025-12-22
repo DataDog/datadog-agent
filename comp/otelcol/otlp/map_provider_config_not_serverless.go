@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build otlp && !serverless
-// +build otlp,!serverless
 
 package otlp
 
@@ -14,6 +13,9 @@ package otlp
 const defaultTracesConfig string = `
 receivers:
   otlp:
+
+processors:
+  infraattributes:
 
 exporters:
   otlp:
@@ -30,20 +32,23 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [infraattributes]
       exporters: [otlp]
 `
 
+// TODO(OTAGENT-636): make sending_queue batch configurable
 // defaultMetricsConfig is the metrics OTLP pipeline configuration.
 const defaultMetricsConfig string = `
 receivers:
   otlp:
 
 processors:
-  batch:
-    timeout: 10s
+  infraattributes:
 
 exporters:
   serializer:
+    sending_queue:
+      batch:
 
 service:
   telemetry:
@@ -52,22 +57,23 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [infraattributes]
       exporters: [serializer]
 `
 
+// TODO(OTAGENT-636): make sending_queue batch configurable
 // defaultLogsConfig is the logs OTLP pipeline configuration.
 const defaultLogsConfig string = `
 receivers:
   otlp:
 
 processors:
-  batch:
-    timeout: 10s
   infraattributes:
 
 exporters:
   logsagent:
+    sending_queue:
+      batch:
 
 service:
   telemetry:
@@ -76,6 +82,6 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [logsagent]
 `

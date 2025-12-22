@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -43,7 +43,7 @@ func TestK8SUserSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-k8s-user-session-exec")
 		if err != nil {
 			t.Fatal(err)
@@ -71,8 +71,8 @@ func TestK8SUserSession(t *testing.T) {
 
 			test.validateUserSessionSchema(t, event)
 
-			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
-			assert.Equal(t, usersession.UserSessionTypes["k8s"], event.ProcessContext.UserSession.SessionType)
+			assert.NotEqual(t, 0, event.ProcessContext.UserSession.K8SSessionID)
+			assert.Equal(t, int(model.UserSessionTypes["k8s"]), event.ProcessContext.UserSession.SessionType)
 			assert.Equal(t, "qwerty.azerty@datadoghq.com", event.ProcessContext.UserSession.K8SUsername)
 			assert.Equal(t, "azerty.qwerty@datadoghq.com", event.ProcessContext.UserSession.K8SUID)
 			assert.Equal(t, []string{
@@ -91,6 +91,9 @@ func TestK8SUserSession(t *testing.T) {
 					"XYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ",
 				},
 			}, event.ProcessContext.UserSession.K8SExtra)
+			// Check that user session data is well set
+			assert.Equal(t, event.ProcessContext.UserSession.Identity, event.ProcessContext.UserSession.K8SUsername)
+			assert.Equal(t, event.ProcessContext.UserSession.ID, strconv.FormatUint(uint64(event.ProcessContext.UserSession.K8SSessionID), 16))
 		})
 	})
 }

@@ -212,3 +212,115 @@ function Get-PipeSecurity($pipename) {
 function GetServiceSDDL($serviceName) {
     Write-Output ((sc.exe sdshow $serviceName) -join "").Trim()
 }
+
+# Function to check if a file or directory is world-writable
+# World-writable means accessible by Everyone (S-1-1-0), Users (S-1-5-32-545), or Authenticated Users (S-1-5-11) groups
+function Test-IsWorldWritable($path) {
+    try {
+        $acl = Get-Acl -Path $path -ErrorAction Stop
+
+        # Check each access rule
+        foreach ($rule in $acl.Access) {
+            # Only check Allow rules
+            if ($rule.AccessControlType -ne "Allow") {
+                continue
+            }
+
+            # Get the SID for the identity
+            $sid = ""
+            try {
+                if ($rule.IdentityReference -is [System.Security.Principal.SecurityIdentifier]) {
+                    $sid = $rule.IdentityReference.Value
+                } else {
+                    $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+                }
+            } catch {
+                # If we can't translate, skip this rule
+                continue
+            }
+
+            # Check if this is Everyone, Users, or Authenticated Users group
+            if ($sid -eq "S-1-1-0" -or $sid -eq "S-1-5-32-545" -or $sid -eq "S-1-5-11") {
+                # Check if the rule grants write permissions
+                $writeRights = @()
+
+                # For file system rights
+                if ($rule.FileSystemRights) {
+                    $rights = [int]$rule.FileSystemRights
+                    # Check for various write permissions
+                    # FILE_WRITE_DATA (0x2), FILE_APPEND_DATA (0x4), FILE_WRITE_ATTRIBUTES (0x100), FILE_WRITE_EA (0x10)
+                    # DELETE (0x10000), WRITE_DAC (0x40000), WRITE_OWNER (0x80000)
+                    # FileWrite (0x116), FileModify (0x301BF), FileFullControl (0x1F01FF)
+                    if (($rights -band 0x2) -or      # FILE_WRITE_DATA
+                        ($rights -band 0x4) -or      # FILE_APPEND_DATA
+                        ($rights -band 0x10) -or     # FILE_WRITE_EA
+                        ($rights -band 0x100) -or    # FILE_WRITE_ATTRIBUTES
+                        ($rights -band 0x10000) -or  # DELETE
+                        ($rights -band 0x40000) -or  # WRITE_DAC
+                        ($rights -band 0x80000)) {   # WRITE_OWNER
+                        return $true
+                    }
+                }
+            }
+        }
+
+        return $false
+    } catch {
+        # If we can't read the ACL, assume it's not world-writable
+        return $false
+    }
+}
+
+# Function to check a file or directory for world-writable files
+# If input is a file, checks only that file
+# If input is a directory, recursively checks all files and subdirectories
+function Find-WorldWritableFiles($rootPath) {
+    $worldWritableFiles = @()
+
+    try {
+        # Check if the path exists
+        if (-not (Test-Path -Path $rootPath)) {
+            return $worldWritableFiles
+        }
+
+        # Get the item to determine if it's a file or directory
+        $item = Get-Item -Path $rootPath -Force -ErrorAction Stop
+
+        if ($item.PSIsContainer) {
+            # It's a directory - check the directory itself and all contents
+            if (Test-IsWorldWritable -path $rootPath) {
+                $worldWritableFiles += $rootPath
+            }
+
+            # Recursively check all files and subdirectories
+            Get-ChildItem -Path $rootPath -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                if (Test-IsWorldWritable -path $_.FullName) {
+                    $worldWritableFiles += $_.FullName
+                }
+            }
+        } else {
+            # It's a file - check only this file
+            if (Test-IsWorldWritable -path $rootPath) {
+                $worldWritableFiles += $rootPath
+            }
+        }
+    } catch {
+        # If we can't access the path, return what we have so far
+    }
+
+    return $worldWritableFiles
+}
+
+# Function to check multiple files or directories and return results as a list
+function Find-WorldWritableFilesInPaths($paths) {
+    $results = @()
+
+    foreach ($path in $paths) {
+        if (Test-Path -Path $path) {
+            $worldWritableFiles = Find-WorldWritableFiles -rootPath $path
+            $results += $worldWritableFiles
+        }
+    }
+
+    return $results
+}

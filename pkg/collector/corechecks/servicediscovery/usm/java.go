@@ -32,7 +32,11 @@ func isNameFlag(arg string) bool {
 func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success bool) {
 	// Look for dd.service
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
-		metadata.DDService = strings.TrimPrefix(args[index], "-Ddd.service=")
+		serviceName := strings.TrimPrefix(args[index], "-Ddd.service=")
+		if serviceName != "" {
+			metadata.SetNames(serviceName, CommandLine)
+			return metadata, true
+		}
 	}
 	prevArgIsFlag := false
 

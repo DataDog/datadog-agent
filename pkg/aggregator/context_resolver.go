@@ -100,10 +100,20 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger.EnrichTags) // tags here are not sorted and can contain duplicates
+func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64, filterList *TagMatcher) ckey.ContextKey {
+	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
+
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
+
+	if metricSampleContext.GetMetricType() == metrics.DistributionType {
+		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
+			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
+			// metric.
+			cr.taggerBuffer.RetainFunc(tagMatcher)
+			cr.metricBuffer.RetainFunc(tagMatcher)
+		}
+	}
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
@@ -231,8 +241,8 @@ func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id 
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp int64) ckey.ContextKey {
-	contextKey := cr.resolver.trackContext(metricSampleContext, currentTimestamp)
+func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp int64, filterList *TagMatcher) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext, currentTimestamp, filterList)
 	return contextKey
 }
 
@@ -299,8 +309,8 @@ func (cr *countBasedContextResolver) updateMetrics(countsByMTypeGauge telemetry.
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	contextKey := cr.resolver.trackContext(metricSampleContext, cr.expireCount)
+func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, filterList *TagMatcher) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext, cr.expireCount, filterList)
 	return contextKey
 }
 

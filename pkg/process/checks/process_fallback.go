@@ -9,20 +9,18 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
-// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-func (p *ProcessCheck) useWLMCollection() bool {
-	log.Info("process_config.process_collection.use_wlm is not supported for non-linux platforms")
+// WLMProcessCollectionEnabled returns whether to use the workloadmeta process collector depending on the platform
+// Currently, only enabled on linux.
+func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 	return false
 }
 
 // processesByPID returns the processes by pid from the process probe for non-linux platforms
-// because the workload meta process collection is only available on linux
 func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 	procs, err := p.probe.ProcessesByPID(p.clock.Now(), true)
 	if err != nil {
@@ -32,7 +30,7 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 }
 
 // formatPorts is a stub for non-linux platforms
-func formatPorts(_ []uint16) *model.PortInfo {
+func formatPorts(_ bool, _, _ []uint16) *model.PortInfo {
 	return nil
 }
 
@@ -44,4 +42,9 @@ func formatLanguage(_ *languagemodels.Language) model.Language {
 // formatServiceDiscovery is a stub for non-linux platforms
 func formatServiceDiscovery(_ *procutil.Service) *model.ServiceDiscovery {
 	return nil
+}
+
+// formatInjectionState is a stub for non-linux platforms
+func formatInjectionState(_ procutil.InjectionState) model.InjectionState {
+	return model.InjectionState_INJECTION_UNKNOWN
 }

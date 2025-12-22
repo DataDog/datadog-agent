@@ -18,8 +18,10 @@ import (
 	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	agentConfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	evtreporter "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
@@ -123,6 +125,7 @@ func newCheck(api evtapi.API, sender *mocksender.MockSender, instanceConfig []by
 	initConfig := []byte(`legacy_mode: false`)
 	check := new(Check)
 	check.evtapi = api
+	check.publisherMetadataCache = publishermetadatacache.New(api)
 
 	// Have to call BuildID() separately here so we can register our mock sender with the aggregator
 	// for the ID for the check we're about to make so when the check calls GetSender()
@@ -139,7 +142,7 @@ func TestGetEventsTestSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			if tiName == "Fake" {
 				t.Skip("Fake API does not implement EvtRenderValues")
 			}
@@ -230,9 +233,180 @@ start: oldest
 	s.assertCountEvents(check, s.numEvents)
 }
 
+// Test that initial bookmark is created and persisted to prevent amnesia bug
+func (s *GetEventsTestSuite) TestInitialBookmarkPersistence() {
+	// First, generate some events to have a "most recent" event
+	initialEvents := uint(5)
+	err := s.ti.GenerateEvents(s.eventSource, initialEvents)
+	require.NoError(s.T(), err)
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+`,
+		s.channelPath))
+
+	check, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+
+	// Starting from latest, should collect 0 events
+	s.assertNoEvents(check)
+
+	// Get the persistent cache key
+	cacheKey := check.bookmarkPersistentCacheKey()
+
+	// Verify bookmark was created and persisted
+	bookmarkXML, err := persistentcache.Read(cacheKey)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), bookmarkXML, "Initial bookmark should be persisted")
+
+	// Stop the check without processing any events
+	check.Cancel()
+
+	// Generate more events while check is stopped
+	missedEvents := uint(3)
+	err = s.ti.GenerateEvents(s.eventSource, missedEvents)
+	require.NoError(s.T(), err)
+
+	// Create new check instance (simulating restart)
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
+
+	// Should collect only the missed events (not starting from "latest" again)
+	s.assertCountEvents(check2, missedEvents)
+	s.assertNoEvents(check2)
+}
+
+// Test initial bookmark creation with empty event log
+func (s *GetEventsTestSuite) TestInitialBookmarkWithEmptyLog() {
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+`,
+		s.channelPath))
+
+	check, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	// No events in log yet
+	s.assertNoEvents(check)
+
+	// Get the persistent cache key
+	cacheKey := check.bookmarkPersistentCacheKey()
+
+	// Verify bookmark was created and persisted
+	bookmarkXML, err := persistentcache.Read(cacheKey)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), bookmarkXML, "Initial bookmark should be persisted even for empty log")
+
+	check.Cancel()
+
+	// Generate events after bookmark creation
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// create new check, should resume from bookmark
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
+
+	// Should collect all events since bookmark was at the beginning
+	s.assertCountEvents(check, s.numEvents)
+}
+
+// Test that "oldest" mode reads all existing events
+func (s *GetEventsTestSuite) TestOldestModeReadsAllEvents() {
+	// Generate events before creating check
+	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: oldest
+`,
+		s.channelPath))
+
+	check, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	// Should collect all pre-existing events
+	s.assertCountEvents(check, s.numEvents)
+
+	// Cancel check to ensure bookmark is created
+	check.Cancel()
+
+	// Get the persistent cache key
+	cacheKey := check.bookmarkPersistentCacheKey()
+
+	// Verify bookmark was created and persisted
+	bookmarkXML, err := persistentcache.Read(cacheKey)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), bookmarkXML)
+
+	// create new check
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
+
+	// Should resume from bookmark and read 0 events
+	s.assertNoEvents(check2)
+}
+
+// Test initial bookmark with multi-channel queries
+func (s *GetEventsTestSuite) TestInitialBookmarkMultiChannel() {
+	// Generate events in both System and Application logs
+	err := s.ti.GenerateEvents(s.eventSource, 3)
+	require.NoError(s.T(), err)
+
+	// Multi-channel query
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+query: |
+  <QueryList>
+    <Query Id="0">
+      <Select Path="%s">*</Select>
+      <Select Path="System">*[System[Level=1 or Level=2]]</Select>
+    </Query>
+  </QueryList>
+start: now
+`,
+		s.channelPath, s.channelPath))
+
+	check, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+
+	// Starting from latest, should collect 0 events
+	s.assertNoEvents(check)
+
+	// Get the persistent cache key
+	cacheKey := check.bookmarkPersistentCacheKey()
+
+	// Verify bookmark was created and persisted
+	bookmarkXML, err := persistentcache.Read(cacheKey)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), bookmarkXML, "Multi-channel initial bookmark should be persisted")
+
+	// Stop without processing events
+	check.Cancel()
+
+	// Generate more events
+	err = s.ti.GenerateEvents(s.eventSource, 2)
+	require.NoError(s.T(), err)
+
+	// Create new check (simulating restart)
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
+
+	// Should collect only the new events
+	s.assertCountEvents(check2, 2)
+}
+
 // Test that check's fallback interpret_messages option works
 func (s *GetEventsTestSuite) TestGetEventsWithMissingProvider() {
-
 	source := "source-does-not-exist"
 	// Per MSDN: If source is not found then Application log is used
 	// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
@@ -478,7 +652,7 @@ start: now
 				s.channelPath))
 
 			if len(tc.confPriority) > 0 {
-				instanceConfig = append(instanceConfig, []byte(fmt.Sprintf("event_priority: %s", tc.confPriority))...)
+				instanceConfig = append(instanceConfig, []byte("event_priority: "+tc.confPriority)...)
 			}
 
 			check, err := s.newCheck(instanceConfig)

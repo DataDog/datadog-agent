@@ -87,9 +87,16 @@ var (
 )
 
 // Detect returns the ServiceType from the provided process information.
-func Detect(ports []uint16) ServiceType {
-	// start with ports
-	for _, v := range ports {
+func Detect(tcpPorts, udpPorts []uint16) ServiceType {
+	for _, v := range tcpPorts {
+		if st, ok := portMap[v]; ok {
+			return st
+		}
+	}
+
+	// Check UDP ports too for everything to preserve existing behavior, this
+	// code will go away in the near future.
+	for _, v := range udpPorts {
 		if st, ok := portMap[v]; ok {
 			return st
 		}

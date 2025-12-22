@@ -24,6 +24,7 @@ type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)
 	GetAllConfigs() []integration.Config
+	GetUnresolvedConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)

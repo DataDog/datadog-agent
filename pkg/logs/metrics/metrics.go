@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package metrics provides telemetry metrics for the logs agent
 package metrics
 
 import (
@@ -48,9 +48,9 @@ var (
 		[]string{"source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
-	// TlmRetryCountis the total number of times we have retried payloads that failed to send
+	// TlmRetryCount is the total number of times we have retried payloads that failed to send
 	TlmRetryCount = telemetry.NewCounter("logs", "retry_count",
-		nil, "Total number of retried paylaods")
+		nil, "Total number of retried payloads")
 	// RetryTimeSpent is the total time spent retrying payloads that failed to send
 	RetryTimeSpent = expvar.Int{}
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
@@ -70,11 +70,10 @@ var (
 		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// DestinationExpVars a map of sender utilization metrics for each http destination
 	DestinationExpVars = expvar.Map{}
-	// TODO: Add LogsCollected for the total number of collected logs.
-	//nolint:revive // TODO(AML) Fix revive linter
-	DestinationHttpRespByStatusAndUrl = expvar.Map{}
-	//nolint:revive // TODO(AML) Fix revive linter
-	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+	// DestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	DestinationHTTPRespByStatusAndURL = expvar.Map{}
+	// TlmDestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	TlmDestinationHTTPRespByStatusAndURL = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
 	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
 	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
@@ -101,6 +100,25 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// TlmLogLineSizes is a distribution of post-framer log line sizes
+	TlmLogLineSizes = telemetry.NewHistogram("logs", "log_line_sizes",
+		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+
+	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
+	TlmRotationsNix = telemetry.NewCounter("logs", "rotations_nix",
+		[]string{"rotation_type"}, "Count of file rotations detected on *nix platforms, tagged by rotation_type (new_file or truncated)")
+
+	// TlmRotationSizeMismatch counts disagreements between cache-growth and offset-unread rotation detectors.
+	// The `detector` tag indicates which heuristic detected a potential rotation (not which claimed all was fine):
+	// - detector:cache = cache observed growth but offset indicates all data was read (likely missed rotation)
+	// - detector:offset = offset indicates unread data but cache saw no growth (likely false-positive rotation)
+	TlmRotationSizeMismatch = telemetry.NewCounter("logs", "rotation_size_mismatch",
+		[]string{"detector"}, "Count of disagreements between cache-growth and offset-unread rotation detectors")
+
+	// TlmRotationSizeDifferences records the absolute file size difference whenever the file size changes between checks
+	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
+		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
 )
 
 func init() {

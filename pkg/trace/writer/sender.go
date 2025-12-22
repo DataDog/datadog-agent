@@ -419,7 +419,7 @@ func (s *sender) do(req *http.Request) error {
 
 // isRetriable reports whether the give HTTP status code should be retried.
 func isRetriable(code int) bool {
-	if code == http.StatusRequestTimeout {
+	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
 		return true
 	}
 	// 5xx errors can be retried

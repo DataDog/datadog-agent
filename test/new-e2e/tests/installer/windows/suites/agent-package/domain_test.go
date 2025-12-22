@@ -6,18 +6,18 @@
 package agenttests
 
 import (
-	"fmt"
 	"os"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
-
-	"testing"
 )
 
 const (
@@ -32,13 +32,15 @@ type testAgentUpgradeOnDCSuite struct {
 
 // TestAgentUpgradesOnDC tests the usage of the Datadog installer to upgrade the Datadog Agent package on a Domain Controller.
 func TestAgentUpgradesOnDC(t *testing.T) {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-2075.
+	flake.Mark(t)
 	e2e.Run(t, &testAgentUpgradeOnDCSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithActiveDirectoryOptions(
+				winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),
-				),
+				)),
 			),
 		),
 	)
@@ -52,8 +54,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -89,8 +91,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -116,6 +118,7 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService("datadogagent").
 		WithIdentity(identity)
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 type testUpgradeWithMissingPasswordSuite struct {
@@ -138,10 +141,10 @@ func TestUpgradeWithMissingPassword(t *testing.T) {
 	e2e.Run(t, s,
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithActiveDirectoryOptions(
+				winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),
-				),
+				)),
 			),
 		),
 	)
@@ -157,8 +160,8 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD=" + TestPassword),
 	}
 	s.Require().NoError(s.Installer().Install(options...))
 	s.Require().Host(s.Env().RemoteHost).
@@ -247,4 +250,44 @@ func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(versi
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
+}
+
+type testAgentUpgradesAfterDCPromotionSuite struct {
+	testAgentUpgradeSuite
+}
+
+// TestAgentUpgradesAfterDCPromotion tests that the agent can be upgraded after a domain controller promotion.
+//
+// This converts all accounts from local accounts to domain accounts, i.e. hostname\username -> domain\username,
+// so we test that our username code handles this change appropriately.
+func TestAgentUpgradesAfterDCPromotion(t *testing.T) {
+	e2e.Run(t, &testAgentUpgradesAfterDCPromotionSuite{},
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
+}
+
+func (s *testAgentUpgradesAfterDCPromotionSuite) TestUpgradeAfterDCPromotion() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	// Install AD and promote host to domain controller
+	s.UpdateEnv(
+		winawshost.ProvisionerNoAgentNoFakeIntake(
+			winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(
+				activedirectory.WithDomainController(TestDomain, TestPassword),
+				activedirectory.WithDomainUser(TestUser, TestPassword),
+			)),
+		),
+	)
+
+	// start experiment
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }

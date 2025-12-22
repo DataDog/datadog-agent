@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,6 +23,30 @@ import (
 var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
+
+// executePythonScript executes a Python script with the given arguments
+func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
+	pythonPath := filepath.Join(installPath, "embedded/bin/python")
+	scriptPath := filepath.Join(installPath, "python-scripts", scriptName)
+
+	if _, err := os.Stat(pythonPath); err != nil {
+		return fmt.Errorf("python not found at %s: %w", pythonPath, err)
+	}
+	if err := os.RemoveAll(filepath.Join(installPath, "python-scripts/__pycache__")); err != nil {
+		return fmt.Errorf("failed to remove __pycache__ at %s: %w", filepath.Join(installPath, "python-scripts/__pycache__"), err)
+	}
+
+	pythonCmd := append([]string{"-B", scriptPath}, args...)
+	cmd := telemetry.CommandContext(ctx, pythonPath, pythonCmd...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run %s: %w", scriptName, err)
+	}
+
+	return nil
+}
 
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
@@ -42,15 +65,7 @@ func SaveCustomIntegrations(ctx context.Context, installPath string) (err error)
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/pre.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in pre.py: %w", err)
-		}
-	}
-	return nil
+	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
@@ -70,22 +85,14 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in post.py: %w", err)
-		}
-	}
-	return nil
+	return executePythonScript(ctx, installPath, "post.py", installPath, storagePath)
 }
 
 // getAllIntegrations retrieves all integration paths installed by the package
 // It walks through the installPath and collects paths that match the './embedded/lib/python*/site-packages/datadog_*' pattern.
 func getAllIntegrations(installPath string) ([]string, error) {
 	allIntegrations := make([]string, 0)
-	err := filepath.Walk(installPath, func(path string, _ os.FileInfo, err error) error {
+	err := filepath.WalkDir(installPath, func(path string, _ os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -173,18 +180,18 @@ func RemoveCompiledFiles(installPath string) error {
 		}
 	}
 	// Remove files in {installPath}/bin/agent/dist
-	err = filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil
 			}
 			return err
 		}
-		if info.IsDir() && info.Name() == "__pycache__" {
+		if d.IsDir() && d.Name() == "__pycache__" {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
@@ -195,18 +202,18 @@ func RemoveCompiledFiles(installPath string) error {
 		return fmt.Errorf("failed to remove compiled files: %w", err)
 	}
 	// Remove files in {installPath}/python-scripts
-	err = filepath.Walk(filepath.Join(installPath, "python-scripts"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(filepath.Join(installPath, "python-scripts"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil
 			}
 			return err
 		}
-		if info.IsDir() && info.Name() == "__pycache__" {
+		if d.IsDir() && d.Name() == "__pycache__" {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}

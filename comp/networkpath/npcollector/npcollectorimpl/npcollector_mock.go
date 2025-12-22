@@ -8,9 +8,11 @@
 package npcollectorimpl
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"iter"
+
 	"go.uber.org/fx"
 
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +25,7 @@ func MockModule() fxutil.Module {
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleConns(_ []*model.Connection, _ map[string]*model.DNSEntry) {
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
 	panic("implement me")
 }
 

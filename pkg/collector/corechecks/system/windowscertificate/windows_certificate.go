@@ -11,6 +11,7 @@ package windowscertificate
 import (
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -73,6 +74,11 @@ const (
 	certChainPolicyIgnoreCaRevUnknownFlag            = 0x00000400
 	certChainPolicyIgnoreRootRevUnknownFlag          = 0x00000800
 	certChainPolicyIgnoreAllRevUnknownFlags          = certChainPolicyIgnoreEndRevUnknownFlag | certChainPolicyIgnoreCtlSignerRevUnknownFlag | certChainPolicyIgnoreCaRevUnknownFlag | certChainPolicyIgnoreRootRevUnknownFlag
+
+	// CERT_HASH_PROP_ID is the property ID for the SHA-1 hash of the CRL
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcrlcontextproperty
+	certHashPropID = 3
 )
 
 type certChainValidation struct {
@@ -104,12 +110,14 @@ type WinCertChk struct {
 type crlInfoCopy struct {
 	Issuer     string
 	NextUpdate time.Time
+	Thumbprint string
 }
 
 type certInfo struct {
 	Certificate      *x509.Certificate
 	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
+	Thumbprint       string
 }
 
 // Factory creates a new check factory
@@ -167,7 +175,7 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 				log.Errorf("configuration error: %s (%v)", err, err.Value())
 			}
 		}
-		return fmt.Errorf("configuration validation failed")
+		return errors.New("configuration validation failed")
 	}
 
 	config := Config{
@@ -237,6 +245,9 @@ func (w *WinCertChk) Run() error {
 		tags := getSubjectTags(cert.Certificate)
 		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
 		tags = append(tags, serverTag)
+		tags = append(tags, "certificate_thumbprint:"+cert.Thumbprint)
+		// Need to use hex format for serial numbers as they are typically displayed in hex format in the UI
+		tags = append(tags, "certificate_serial_number:"+cert.Certificate.SerialNumber.Text(16))
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
 
 		if daysRemaining <= 0 {
@@ -244,7 +255,7 @@ func (w *WinCertChk) Run() error {
 				servicecheck.ServiceCheckCritical,
 				"",
 				tags,
-				fmt.Sprintf("Certificate has expired. Certificate expiration date is %s", expirationDate))
+				"Certificate has expired. Certificate expiration date is "+expirationDate)
 		} else if daysRemaining < float64(w.config.DaysCritical) {
 			sender.ServiceCheck("windows_certificate.cert_expiration",
 				servicecheck.ServiceCheckCritical,
@@ -272,10 +283,10 @@ func (w *WinCertChk) Run() error {
 			if cert.TrustStatusError != 0 {
 				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
-				message := fmt.Sprintf("Certificate Validation failed. The certificates in the certificate chain have the following errors: %s", strings.Join(trustStatusErrors, ", "))
+				message := "Certificate Validation failed. The certificates in the certificate chain have the following errors: " + strings.Join(trustStatusErrors, ", ")
 				if cert.ChainPolicyError != 0 {
 					chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
-					message = fmt.Sprintf("%s, %s", message, chainPolicyError)
+					message = message + ", " + chainPolicyError
 				}
 				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
@@ -316,6 +327,7 @@ func (w *WinCertChk) Run() error {
 		crlTags := getCrlIssuerTags(crlIssuer)
 		crlTags = append(crlTags, "certificate_store:"+w.config.CertificateStore)
 		crlTags = append(crlTags, serverTag)
+		crlTags = append(crlTags, "crl_thumbprint:"+crl.Thumbprint)
 		sender.Gauge("windows_certificate.crl_days_remaining", crlDaysRemaining, "", crlTags)
 
 		if crlDaysRemaining <= 0 {
@@ -323,7 +335,7 @@ func (w *WinCertChk) Run() error {
 				servicecheck.ServiceCheckCritical,
 				"",
 				crlTags,
-				fmt.Sprintf("CRL has expired. CRL expiration date is %s", crlExpirationDate))
+				"CRL has expired. CRL expiration date is "+crlExpirationDate)
 		} else if crlDaysRemaining < float64(w.config.CrlDaysWarning) {
 			sender.ServiceCheck("windows_certificate.crl_expiration",
 				servicecheck.ServiceCheckWarning,
@@ -529,10 +541,17 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 			}
 		}
 
+		certThumbprint, err := getCertThumbprint(certContext)
+		if err != nil {
+			log.Errorf("Error getting certificate thumbprint: %v", err)
+			continue
+		}
+
 		certificates = append(certificates, certInfo{
 			Certificate:      cert,
 			TrustStatusError: trustStatusError,
 			ChainPolicyError: chainPolicyError,
+			Thumbprint:       certThumbprint,
 		})
 	}
 
@@ -590,10 +609,17 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
+			certThumbprint, err := getCertThumbprint(certContext)
+			if err != nil {
+				log.Errorf("Error getting certificate thumbprint: %v", err)
+				continue
+			}
+
 			certificates = append(certificates, certInfo{
 				Certificate:      cert,
 				TrustStatusError: trustStatusError,
 				ChainPolicyError: chainPolicyError,
+				Thumbprint:       certThumbprint,
 			})
 		}
 	}
@@ -645,9 +671,17 @@ func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
 			log.Errorf("Error converting CRL issuer to string: %v", err)
 			continue
 		}
+
+		crlThumbprint, err := getCrlThumbprint(crlContext)
+		if err != nil {
+			log.Errorf("Error getting CRL thumbprint: %v", err)
+			continue
+		}
+
 		crl := crlInfoCopy{
 			Issuer:     issuerStr,
 			NextUpdate: time.Unix(0, pCrlInfo.NextUpdate.Nanoseconds()),
+			Thumbprint: crlThumbprint,
 		}
 
 		crlInfo = append(crlInfo, crl)

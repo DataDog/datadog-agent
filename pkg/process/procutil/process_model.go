@@ -9,8 +9,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/gopsutil/cpu"
+
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
+)
+
+// InjectionState represents the APM injection state of a process
+type InjectionState int
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
 )
 
 // Process holds all relevant metadata and metrics for a process
@@ -30,10 +43,13 @@ type Process struct {
 
 	// ports are stored on the process because they may/should be collected by default in the future
 	// however, currently this data is collected by service discovery collection
-	Ports []uint16
+	PortsCollected bool
+	TCPPorts       []uint16
+	UDPPorts       []uint16
 
-	Stats   *Stats
-	Service *Service
+	Stats          *Stats
+	Service        *Service
+	InjectionState InjectionState // APM auto-injector detection status
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -55,13 +71,14 @@ func (p *Process) GetCmdline() []string {
 func (p *Process) DeepCopy() *Process {
 	//nolint:revive // TODO(PROC) Fix revive linter
 	copy := &Process{
-		Pid:      p.Pid,
-		Ppid:     p.Ppid,
-		NsPid:    p.NsPid,
-		Name:     p.Name,
-		Cwd:      p.Cwd,
-		Exe:      p.Exe,
-		Username: p.Username,
+		Pid:            p.Pid,
+		Ppid:           p.Ppid,
+		NsPid:          p.NsPid,
+		Name:           p.Name,
+		Cwd:            p.Cwd,
+		Exe:            p.Exe,
+		Username:       p.Username,
+		PortsCollected: p.PortsCollected,
 	}
 	copy.Cmdline = make([]string, len(p.Cmdline))
 	for i := range p.Cmdline {
@@ -74,6 +91,14 @@ func (p *Process) DeepCopy() *Process {
 	copy.Gids = make([]int32, len(p.Gids))
 	for i := range p.Gids {
 		copy.Gids[i] = p.Gids[i]
+	}
+	copy.TCPPorts = make([]uint16, len(p.TCPPorts))
+	for i := range p.TCPPorts {
+		copy.TCPPorts[i] = p.TCPPorts[i]
+	}
+	copy.UDPPorts = make([]uint16, len(p.UDPPorts))
+	for i := range p.UDPPorts {
+		copy.UDPPorts[i] = p.UDPPorts[i]
 	}
 	if p.Stats != nil {
 		copy.Stats = p.Stats.DeepCopy()
@@ -125,7 +150,10 @@ type Service struct {
 	DDService string
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
+
+	// LogFiles contains paths to log files associated with this service
+	LogFiles []string
 }
 
 // DeepCopy creates a deep copy of Stats

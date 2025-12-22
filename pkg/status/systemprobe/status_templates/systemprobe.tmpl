@@ -78,6 +78,108 @@
   {{- else }}
     Status: Running
   {{- end }}
+
+  {{- with .event_monitor.cws }}
+
+  CWS (runtime security)
+  ======================
+
+    Endpoints
+    =========
+
+    {{ if .DirectSenderStatus }}
+    {{- range $endpoint := .DirectSenderStatus.Endpoints }}
+    {{ $endpoint }}
+    {{- end }}
+    {{- end }}
+
+    Self Tests
+    ==========
+
+      Last execution: {{ .SelfTests.LastTimestamp }}
+      {{ if .SelfTests.Success }}
+      Succeeded:
+        {{- range $test := .SelfTests.Success }}
+        - {{ $test }}
+        {{- end }}
+      {{- else }}
+      Succeeded: none
+      {{- end }}
+      {{ if .SelfTests.Fails }}
+      Failed:
+        {{- range $test := .SelfTests.Fails }}
+        - {{ $test }}
+        {{- end }}
+      {{- else }}
+      Failed: none
+      {{- end }}
+
+    Policies
+    ========
+      {{ range $policy := .PoliciesStatus }}
+        {{ $policy.Name }}:
+          source: {{ $policy.Source }}
+          rules:
+            {{- range $status := $policy.Status }}
+              - {{ $status.ID }}: {{ $status.Status }}{{- if $status.Error }} ({{- $status.Error }}){{- end }}
+            {{- end }}
+      {{ end }}
+
+
+    SECL Variables
+    ==============
+
+    Global variables:
+    {{ range $variable := .GlobalVariables }}
+      - {{ $variable.Name }}: {{ $variable.Value }}
+    {{- end }}
+    {{- if not .GlobalVariables }}
+        No variable found
+    {{- end }}
+
+    Scoped variables:
+    {{ range $scope, $vars := .ScopedVariables }}
+      {{ $scope }}:
+      {{ range $key, $variables := $vars.KeyValues }}
+        {{ $key }}:
+        {{- range $variable := $variables.Variables }}
+          - {{ $variable.Name }}: {{ $variable.Value }}
+        {{- end }}
+      {{ end }}
+    {{- end }}
+    {{- if not .ScopedVariables }}
+        No variable found
+    {{- end }}
+
+    {{- with .Environment }}
+
+    Environment
+    ===========
+      {{- if .Warnings }}
+      Warnings:
+        {{- range $warning := .Warnings }}
+        - {{ $warning }}
+        {{- end }}
+      {{- end }}
+      Kernel lockdown: {{ .KernelLockdown }}
+      Use eBPF mmapable maps: {{ .UseMmapableMaps }}
+      Use eBPF ring buffer: {{ .UseRingBuffer }}
+      Use fentry: {{ .UseFentry }}
+      {{ if .Constants }}
+      Available constant fetchers
+      ===========================
+        {{ range $fetcher := .Constants.Fetchers }}
+        {{ $fetcher }}
+        {{- end }}
+
+      Constants
+      =========
+        {{ range $constant := .Constants.Values }}
+        {{ $constant.ID }} = {{ $constant.Value }} (from {{ $constant.Source }})
+        {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 {{- if .process }}
 

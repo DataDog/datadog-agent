@@ -20,11 +20,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -37,10 +39,8 @@ import (
 )
 
 const (
-	// gcInterval is the interval at which the GC will run
-	gcInterval = 1 * time.Hour
-	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 30 * time.Second
+	// disableClientIDCheck is the magic string to disable the client ID check.
+	disableClientIDCheck = "disable-client-id-check"
 )
 
 var (
@@ -69,7 +69,7 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, version string) error
+	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -93,11 +93,9 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
-}
-
-type convertedExperimentConfigAction struct {
-	ActionType string                `json:"action_type"`
-	Files      []installerConfigFile `json:"files"`
+	clientID        string
+	refreshInterval time.Duration
+	gcInterval      time.Duration
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -107,7 +105,7 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 }
 
 // NewDaemon returns a new daemon.
-func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
 	installerBin, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
@@ -115,6 +113,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	installerBin, err = filepath.EvalSymlinks(installerBin)
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
+	}
+	if runtime.GOOS != "windows" {
+		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
@@ -124,6 +125,10 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
+	}
+	configID := config.GetString("config_id")
+	if configID == "" {
+		configID = "empty"
 	}
 	env := &env.Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
@@ -141,14 +146,18 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
+		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env, taskDB), nil
+	refreshInterval := config.GetDuration("installer.refresh_interval")
+	gcInterval := config.GetDuration("installer.gc_interval")
+	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
+		clientID:        rc.client.GetClientID(),
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
@@ -158,6 +167,8 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		configsOverride: make(map[string]installerConfig),
 		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
+		refreshInterval: refreshInterval,
+		gcInterval:      gcInterval,
 	}
 	i.refreshState(context.Background())
 	return i
@@ -168,22 +179,16 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	states, err := d.installer(d.env).States(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var configStates map[string]repository.State
-	configStates, err = d.installer(d.env).ConfigStates(ctx)
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make(map[string]PackageState)
-	for pkg := range states {
+	for pkg := range configAndPackageStates.States {
 		res[pkg] = PackageState{
-			Version: states[pkg],
-			Config:  configStates[pkg],
+			Version: configAndPackageStates.States[pkg],
+			Config:  configAndPackageStates.ConfigStates[pkg],
 		}
 	}
 	return res, nil
@@ -257,6 +262,19 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	return catalogPackage, nil
 }
 
+func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+
+	config, ok := configs[version]
+	if !ok {
+		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
+	}
+	return config, nil
+}
+
 // SetCatalog sets the catalog.
 func (d *daemonImpl) SetCatalog(c catalog) {
 	d.m.Lock()
@@ -281,10 +299,21 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
+	// If FIPS is enabled, don't start the daemon
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status, exiting: %v", err)
+		return nil
+	}
+	if fipsEnabled {
+		log.Info("FIPS mode is enabled, fleet daemon will not start")
+		return nil
+	}
+
 	go func() {
-		gcTicker := time.NewTicker(gcInterval)
+		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
-		refreshStateTicker := time.NewTicker(refreshStateInterval)
+		refreshStateTicker := time.NewTicker(d.refreshInterval)
 		defer refreshStateTicker.Stop()
 		for {
 			select {
@@ -318,12 +347,24 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	// Always close the remote config client as it was initialized in NewDaemon; avoid unknown side effects in the RC client
+	d.rc.Close()
+
+	// If remote updates are disabled, we don't need to stop the updater daemon background goroutine as it was never started, we return early
 	if !d.env.RemoteUpdates {
-		// If remote updates are disabled, we don't need to stop the daemon as it was never started
-		return nil
+		return d.taskDB.Close()
 	}
 
-	d.rc.Close()
+	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status: %v", err)
+	}
+	if fipsEnabled {
+		return d.taskDB.Close()
+	}
+
+	// Stop the background goroutine
 	close(d.stopChan)
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
@@ -439,60 +480,24 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version, []experimentConfigAction{
-		{ActionType: "write", ConfigID: version},
-	})
+	return d.startConfigExperiment(ctx, pkg, operations)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []experimentConfigAction) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	configs := d.configs
-	if len(d.configsOverride) > 0 {
-		configs = d.configsOverride
-	}
-
-	serializedConfigs := make([][]byte, 0, len(configActions))
-	for i, configAction := range configActions {
-		var convertedAction convertedExperimentConfigAction
-
-		// When ConfigID is set, we look at the config version
-		if configAction.ConfigID != "" {
-			config, ok := configs[configAction.ConfigID]
-			if !ok {
-				return fmt.Errorf("config version %s not found in available configs", configAction.ConfigID)
-			}
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      config.Files,
-			}
-		} else {
-			// When ConfigID is not set, we only look at the path
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      []installerConfigFile{{Path: configAction.Path}},
-			}
-		}
-
-		serializedConfig, err := json.Marshal(convertedAction)
-		if err != nil {
-			return fmt.Errorf("failed to serialize config action %d: %w", i, err)
-		}
-		serializedConfigs = append(serializedConfigs, serializedConfig)
-	}
-
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, []string{})
+	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started config experiment version %s for package %s", version, pkg)
+	log.Infof("Daemon: Successfully started config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
 	return nil
 }
 
@@ -647,14 +652,20 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
-
-		// Single config case
-		if len(params.Actions) == 0 {
-			return d.startConfigExperiment(ctx, request.Package, params.Version, []experimentConfigAction{
-				{ActionType: "write", ConfigID: params.Version},
+		c, err := d.getConfig(params.Version)
+		if err != nil {
+			return fmt.Errorf("could not get config: %w", err)
+		}
+		var ops config.Operations
+		ops.DeploymentID = c.ID
+		for _, operation := range c.FileOperations {
+			ops.FileOperations = append(ops.FileOperations, config.FileOperation{
+				FileOperationType: config.FileOperationType(operation.FileOperationType),
+				FilePath:          operation.FilePath,
+				Patch:             operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, params.Version, params.Actions)
+		return d.startConfigExperiment(ctx, request.Package, ops)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
@@ -689,11 +700,11 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
-
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+	clientIDEqual := d.clientID == request.ExpectedState.ClientID || request.ExpectedState.ClientID == disableClientIDCheck
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
 		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v, client id: %s",
+			request.ID, request.ExpectedState, s, c, d.clientID,
 		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
@@ -748,15 +759,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			log.Errorf("could not set task state: %v", err)
 		}
 	}
-	state, err := d.installer(d.env).States(ctx)
+
+	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
-		log.Errorf("could not get installer state: %v", err)
-		return
-	}
-	configState, err := d.installer(d.env).ConfigStates(ctx)
-	if err != nil {
-		log.Errorf("could not get installer config state: %v", err)
+		log.Errorf("could not get installer config and package states: %v", err)
 		return
 	}
 	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
@@ -767,14 +774,22 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
 	}
+	runningVersions := map[string]string{
+		"datadog-agent": version.AgentPackageVersion,
+	}
+	runningConfigVersions := map[string]string{
+		"datadog-agent": d.env.ConfigID,
+	}
 	var packages []*pbgo.PackageState
-	for pkg, s := range state {
+	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configState[pkg].Stable,
-			ExperimentConfigVersion: configState[pkg].Experiment,
+			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
+			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
+			RunningVersion:          runningVersions[pkg],
+			RunningConfigVersion:    runningConfigVersions[pkg],
 		}
 
 		requestState, ok := tasksState[pkg]

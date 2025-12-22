@@ -57,17 +57,22 @@ const (
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
-	clearCacheOnClose bool
-	maxCacheSize      int
+	clearCacheOnClose   bool
+	maxCacheSize        int
+	computeDependencies bool
+	simplifyBomRefs     bool
 }
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config           collectorConfig
-	cacheInitialized sync.Once
-	persistentCache  CacheWithCleaner
-	marshaler        cyclonedx.Marshaler
-	wmeta            option.Option[workloadmeta.Component]
+	config collectorConfig
+
+	cacheInitialized   sync.Once
+	persistentCache    CacheWithCleaner
+	persistentCacheErr error
+
+	marshaler cyclonedx.Marshaler
+	wmeta     option.Option[workloadmeta.Component]
 
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
@@ -100,6 +105,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
+		FileChecksumJar:   true,
 		WalkerOption: walker.Option{
 			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
@@ -130,6 +136,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 		}
+		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
 			option.WalkerOption.SkipDirs,
@@ -150,16 +157,14 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/containerd/**",
 			"/var/lib/containers/**",
 			"/var/lib/docker/**",
+			"/var/lib/kubelet/pods/**",
+			"/var/lib/kubelet/plugins/**/globalmount/**",
 			"/var/lib/libvirt/**",
 			"/var/lib/snapd/**",
 			"/var/log/**",
 			"/var/run/**",
 			"/var/tmp/**",
 		)
-	}
-
-	if slices.Contains(opts.Analyzers, LanguagesAnalyzers) {
-		option.FileChecksum = true
 	}
 
 	return option
@@ -216,8 +221,10 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
-			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
+			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
+			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
+			simplifyBomRefs:     cfg.GetBool("sbom.simplify_bom_refs"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
@@ -232,7 +239,8 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 func NewCollectorForCLI() *Collector {
 	return &Collector{
 		config: collectorConfig{
-			maxCacheSize: math.MaxInt,
+			maxCacheSize:        math.MaxInt,
+			computeDependencies: true,
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 
@@ -283,20 +291,15 @@ func (c *Collector) CleanCache() error {
 // GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
 // only once to avoid blocking the CLI with the `flock` file system.
 func (c *Collector) GetCache() (CacheWithCleaner, error) {
-	var err error
 	c.cacheInitialized.Do(func() {
-		c.persistentCache, err = NewCustomBoltCache(
+		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
 			c.wmeta,
 			defaultCacheDir(),
 			c.config.maxCacheSize,
 		)
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return c.persistentCache, nil
+	return c.persistentCache, c.persistentCacheErr
 }
 
 type artifactWithType struct {
@@ -314,8 +317,8 @@ func (fa *artifactWithType) Clean(ref artifact.Reference) error {
 	return fa.inner.Clean(ref)
 }
 
-// ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+// ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
@@ -333,7 +336,12 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		wrapper.forceType = artifact.TypeFilesystem
 	}
 
-	trivyReport, err := c.scan(ctx, wrapper, applier.NewApplier(cache))
+	return c.scan(ctx, wrapper, applier.NewApplier(cache))
+}
+
+// ScanFilesystem scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -345,7 +353,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	return c.buildReport(trivyReport, hash), nil
+	return c.buildReport(trivyReport, hash)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
@@ -365,7 +373,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, error) {
 	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
@@ -373,11 +381,10 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return &Report{
-		Report:    trivyReport,
-		id:        id,
-		marshaler: c.marshaler,
-	}
+	return newReport(id, trivyReport, c.marshaler, reportOptions{
+		dependencies:    c.config.computeDependencies,
+		simplifyBomRefs: c.config.simplifyBomRefs,
+	})
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {

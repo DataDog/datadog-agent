@@ -41,7 +41,7 @@ func TestBasicTest(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "arg scrubbing", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "arg scrubbing", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		inputargs := []string{
 			"/create",
 			"/u", "execuser",

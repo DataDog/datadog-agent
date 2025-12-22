@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -49,6 +50,7 @@ func TestPodHandlers_ExtractResource(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -82,6 +84,7 @@ func TestPodHandlers_ResourceList(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -150,6 +153,7 @@ func TestPodHandlers_BuildMessageBody(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -188,6 +192,7 @@ func TestPodHandlers_BeforeMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -220,6 +225,7 @@ func TestPodHandlers_AfterMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -282,6 +288,7 @@ func TestPodHandlers_ScrubBeforeMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -318,6 +325,7 @@ func TestPodProcessor_Process(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
+			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -369,6 +377,7 @@ func TestPodProcessor_Process(t *testing.T) {
 	assert.Equal(t, int32(1), manifestMsg.GroupId)
 	assert.Equal(t, "test-host", manifestMsg.HostName)
 	assert.Len(t, manifestMsg.Manifests, 2)
+	assert.Equal(t, manifestMsg.OriginCollector, model.OriginCollector_datadogAgent)
 
 	// Validate manifest details
 	manifest1 := manifestMsg.Manifests[0]
@@ -376,6 +385,7 @@ func TestPodProcessor_Process(t *testing.T) {
 	assert.Equal(t, int32(1), manifest1.Type) // K8sPod
 	assert.Equal(t, "v1", manifest1.Version)
 	assert.Equal(t, "json", manifest1.ContentType)
+	assert.Equal(t, "test-node", manifest1.NodeName)
 
 	// Parse the actual manifest content
 	var actualManifestPod corev1.Pod

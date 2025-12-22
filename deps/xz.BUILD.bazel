@@ -1,0 +1,155 @@
+"""Agent specific BUILD file for xz-utils / liblzma."""
+
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+alias(
+    name = "xz",
+    actual = "@xz//:liblzma",
+)
+
+VERSION = "5.4.2"
+
+# Warning: starting from 5.5.2, the license switches to BSD-0
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:0BSD"],
+    license_text = "COPYING.0BSD",
+    copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = selects.with_or({
+        "@//:linux_arm64": "config.lzma-linux-arm64.h",
+        "@//:linux_x86_64": "config.lzma-linux-x86_64.h",
+        "@//:macos_arm64": "config.lzma-osx-arm64.h",
+        "@//:macos_x86_64": "config.lzma-osx-x86_64.h",
+        "@platforms//os:windows": "config.lzma-windows.h",
+    }),
+    out = "config.h",
+)
+
+_MAIN_HEADER = ["src/liblzma/api/lzma.h"]
+
+_API_HEADERS = glob([
+    "src/liblzma/api/lzma/*.h",
+])
+
+cc_library(
+    name = "liblzma",
+    srcs = [
+        "src/common/tuklib_cpucores.c",
+        "src/common/tuklib_physmem.c",
+        "src/common/tuklib_exit.c",
+        "src/common/tuklib_progname.c",
+        ":copy_config_h",
+    ] + glob(
+        [
+            "src/**/*.h",
+            "src/liblzma/**/*.c",
+        ],
+        exclude = [
+            "src/liblzma/check/crc*_small.c",
+            "src/liblzma/**/*_tablegen.c",
+        ],
+    ),
+    hdrs = _MAIN_HEADER + _API_HEADERS,
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-std=c99", "-O2"],
+    }),
+    defines = select({
+        "@platforms//os:windows": ["LZMA_API_STATIC"],
+        "//conditions:default": [],
+    }),
+    local_defines = [
+        "TUKLIB_SYMBOL_PREFIX=lzma_",
+        "TUKLIB_GETTEXT=0",
+        "HAVE_CONFIG_H",
+    ],
+    linkopts = select({
+        "@platforms//os:android": [],
+        "//conditions:default": ["-lpthread"],
+    }),
+    linkstatic = select({
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
+    strip_include_prefix = "src/liblzma/api",  # Allows public header without the path and without COPTS -I or includes = []
+    visibility = ["//visibility:public"],
+    includes = [
+        ".",
+        "src/common",
+        "src/liblzma/common",
+        "src/liblzma/check",
+        "src/liblzma/lzma",
+        "src/liblzma/lz",
+        "src/liblzma/simple",
+        "src/liblzma/delta",
+        "src/liblzma/rangecoder",
+    ]
+)
+
+cc_shared_library(
+    name = "lzma",
+    deps = [":liblzma"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":lzma",
+    libname = "liblzma",
+    version = VERSION,
+)
+
+pkg_files(
+    name = "main_header",
+    srcs = _MAIN_HEADER,
+    prefix = "include",
+)
+
+pkg_files(
+    name = "api_headers",
+    srcs = _API_HEADERS,
+    prefix = "include/lzma",
+)
+
+expand_template(
+    name = "gen_pkgconfig",
+    template = "@@//deps/xz:liblzma.pc.in",
+    out = "liblzma.pc",
+    substitutions = {
+        "{{VERSION}}": VERSION,
+    },
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "pkgconfig",
+    srcs = [":gen_pkgconfig"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":main_header",
+        ":api_headers",
+        ":lib_files",
+        ":pkgconfig",
+    ],
+)

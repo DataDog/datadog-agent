@@ -21,7 +21,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
@@ -188,30 +188,39 @@ def _get_team_labels():
 def assign_team_label(_, pr_id=-1):
     """
     Assigns the github team label name if teams can
-    be deduced from the changed files
+    be deduced from the changed files.
+    Removes the team/triage label if it exists.
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-
-    labels = gh.get_pr_labels(pr_id)
-
-    # Skip if necessary
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
-
-    if any(label.startswith('team/') for label in labels):
-        print('This PR already has a team label, skipping')
-        return
-
-    # Find team
+    # Fetch the team first, and early return if no team is found
     teams = _get_teams(gh.get_pr_files(pr_id))
     if teams == []:
         print('No team found')
         return
 
+    # Check for 'team/' labels
+    labels = gh.get_pr_labels(pr_id)
+    has_team = False
+    for label in labels:
+        if label.startswith('team/'):
+            if label != 'team/triage':
+                has_team = True
+            else:
+                _remove_pr_label(gh, pr_id, 'team/triage')
+
+    if has_team:
+        return
     _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _remove_pr_label(gh, pr_id, label):
+    """
+    Remove a label from a pull request
+    """
+    pr = gh.get_pr(pr_id)
+    pr.remove_from_labels(label)
 
 
 def _assign_pr_team_labels(gh, pr_id, teams):
@@ -307,7 +316,8 @@ def pr_commenter(
     _,
     title: str,
     body: str = '',
-    pr_id: int | None = None,
+    body_file: str = '',
+    pr_id: int = 0,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -329,6 +339,15 @@ def pr_commenter(
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
+    assert not body_file or not body, "Use either body or body_file, not both"
+
+    if body_file:
+        with open(body_file) as f:
+            body = f.read()
+
+    if force_delete:
+        delete = True
+
     if not body and not delete:
         return
 
@@ -336,7 +355,7 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id is None:
+    if pr_id == 0:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
         if len(prs) == 0 and not fail_on_pr_missing:
@@ -601,7 +620,9 @@ query {
 
 
 @task
-def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
+def check_permissions(
+    _, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = DEFAULT_SLACK_CHANNEL
+):
     """
     Check the permissions on a given repository or team.
       - list contributing teams on the repository or subteams
@@ -617,7 +638,7 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
         gh = GithubAPI()
         root = gh.get_team(name)
         depth = None
-        admins = root.get_members(role='maintainer')
+        admins = list(root.get_members(role='maintainer'))
     else:
         gh = GithubAPI(f"datadog/{name}")
         root = gh._repository

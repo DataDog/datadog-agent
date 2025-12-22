@@ -8,6 +8,7 @@ package nodetreemodel
 
 import (
 	"bytes"
+	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
@@ -19,12 +20,13 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
-	"github.com/stretchr/testify/assert"
 )
 
-func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.Config, model.Config) {
+func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
 	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	ntmConf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))            // nolint: forbidigo // legit use case
 
@@ -59,7 +61,7 @@ func TestCompareGetInt(t *testing.T) {
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
 
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("port")
+		cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 	})
 	assert.Equal(t, 345, viperConf.GetInt("port"))
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
@@ -72,7 +74,7 @@ func TestCompareIsSet(t *testing.T) {
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("port")
+		cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 	})
 	assert.Equal(t, true, viperConf.IsSet("port"))
 	assert.Equal(t, true, ntmConf.IsSet("port"))
@@ -88,7 +90,7 @@ func TestCompareIsSet(t *testing.T) {
 
 	t.Setenv("TEST_PORT", "789")
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.BindEnv("port", "TEST_PORT")
+		cfg.BindEnv("port", "TEST_PORT") //nolint:forbidigo // testing behavior
 	})
 	assert.Equal(t, 789, viperConf.GetInt("port"))
 	assert.Equal(t, 789, ntmConf.GetInt("port"))
@@ -97,7 +99,7 @@ func TestCompareIsSet(t *testing.T) {
 
 	t.Setenv("TEST_PORT", "")
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.BindEnv("port", "TEST_PORT")
+		cfg.BindEnv("port", "TEST_PORT") //nolint:forbidigo // testing behavior
 	})
 	assert.Equal(t, 0, viperConf.GetInt("port"))
 	assert.Equal(t, 0, ntmConf.GetInt("port"))
@@ -139,9 +141,9 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 	t.Run("With BindEnv", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.BindEnv("port", "TEST_PORT")
-			cfg.BindEnv("host", "TEST_HOST")
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("port", "TEST_PORT")           //nolint:forbidigo // testing behavior
+			cfg.BindEnv("host", "TEST_HOST")           //nolint:forbidigo // testing behavior
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
 		})
 
 		viperEnvVars := viperConf.GetEnvVars()
@@ -169,7 +171,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	t.Run("With EnvPrefix", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
-			cfg.BindEnv("port") // No explicit name — will use prefix
+			cfg.BindEnv("port") //nolint:forbidigo // testing behavior // No explicit name — will use prefix
 		})
 
 		expected := "MYAPP_PORT"
@@ -181,7 +183,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	t.Run("With EnvKeyReplacer", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("log.level")
+			cfg.BindEnv("log.level") //nolint:forbidigo // testing behavior
 		})
 
 		expected := "DD_LOG_LEVEL" // Default prefix is "DD" for viper and ntm when initializing the config
@@ -194,7 +196,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("db.connection.url")
+			cfg.BindEnv("db.connection.url") //nolint:forbidigo // testing behavior
 		})
 
 		expected := "MYAPP_DB_CONNECTION_URL"
@@ -205,9 +207,9 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
+			cfg.SetKnown("PORT") //nolint:forbidigo // testing behavior
 			cfg.SetDefault("HOST", "localhost")
-			cfg.BindEnv("log_level")
+			cfg.BindEnv("log_level") //nolint:forbidigo // testing behavior
 		})
 
 		viperEnvVars := viperConf.GetEnvVars()
@@ -222,11 +224,37 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 }
 
+func TestCompareAllSettings(t *testing.T) {
+	t.Setenv("TEST_API_KEY", "12345")
+
+	dataYaml := `timeout: 60`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.SetDefault("timeout", 30)
+		cfg.SetDefault("host", "localhost")
+		cfg.SetKnown("port")                   //nolint:forbidigo // testing behavior
+		cfg.BindEnv("api_key", "TEST_API_KEY") //nolint:forbidigo // testing behavior
+		cfg.BindEnv("log_level")               //nolint:forbidigo // testing behavior
+		cfg.BindEnvAndSetDefault("logs_config.enabled", false)
+	})
+
+	// AllSettings does not include 'known' nor 'bindenv (undefined)'
+	expect := map[string]interface{}{
+		"timeout": 60,          // file
+		"host":    "localhost", // default
+		"api_key": "12345",     // env var (defined)
+		"logs_config": map[string]interface{}{
+			"enabled": false,
+		},
+	}
+	assert.Equal(t, expect, viperConf.AllSettings())
+	assert.Equal(t, expect, ntmConf.AllSettings())
+}
+
 func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes SetKnown keys", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
-			cfg.SetKnown("host")
+			cfg.SetKnown("PORT") //nolint:forbidigo // testing behavior
+			cfg.SetKnown("host") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"port", "host"}
@@ -248,7 +276,17 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes environment bindings", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
+		})
+
+		wantKeys := []string{"log", "log.level"}
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
+	t.Run("Includes env var even if undefined", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"log", "log.level"}
@@ -259,9 +297,9 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Combined known/default/env", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
+			cfg.SetKnown("PORT") //nolint:forbidigo // testing behavior
 			cfg.SetDefault("TIMEOUT", 30)
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"port", "timeout", "log", "log.level"}
@@ -276,7 +314,7 @@ customKey1: 8080
 customKey2: unused
 `
 		viperConf, ntmConf := constructBothConfigs(yamlData, true, func(cfg model.Setup) {
-			cfg.SetKnown("port") // unrelated known key
+			cfg.SetKnown("port") //nolint:forbidigo // testing behavior // unrelated known key
 		})
 
 		// Expected to not include customKey if it’s unknown
@@ -293,7 +331,7 @@ customKey2: unused
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
 		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -314,9 +352,9 @@ log:
   level: info
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
-			cfg.SetKnown("host")
-			cfg.SetKnown("log.level")
+			cfg.SetKnown("port")      //nolint:forbidigo // testing behavior
+			cfg.SetKnown("host")      //nolint:forbidigo // testing behavior
+			cfg.SetKnown("log.level") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"port", "host", "log.level"}
@@ -341,9 +379,9 @@ log:
 
 		dataYaml := `port: 8080`
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 			cfg.SetDefault("HOST", "localhost")
-			cfg.BindEnv("api_key", "TEST_API_KEY")
+			cfg.BindEnv("api_key", "TEST_API_KEY") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"port", "host", "api_key"}
@@ -360,8 +398,8 @@ customKey2: unused
 `
 
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
-			cfg.SetKnown("host")
+			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
+			cfg.SetKnown("host") //nolint:forbidigo // testing behavior
 		})
 
 		wantKeys := []string{"port", "host", "customkey1", "customkey2"}
@@ -374,7 +412,7 @@ customKey2: unused
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
 		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -394,9 +432,9 @@ apm_config:
 	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "https://example.com/endpoint/")
 
 	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-		cfg.SetKnown("apm_config.telemetry.dd_url")
-		cfg.SetKnown("database_monitoring.samples.dd_url")
-		cfg.SetKnown("runtime_security_config.endpoints.dd_url")
+		cfg.SetKnown("apm_config.telemetry.dd_url")              //nolint:forbidigo // testing behavior
+		cfg.SetKnown("database_monitoring.samples.dd_url")       //nolint:forbidigo // testing behavior
+		cfg.SetKnown("runtime_security_config.endpoints.dd_url") //nolint:forbidigo // testing behavior
 		cfg.SetDefault("apm_config.telemetry.dd_url", "")
 		cfg.SetDefault("database_monitoring.samples.dd_url", "")
 		cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
@@ -420,6 +458,201 @@ apm_config:
 	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 
+}
+
+func TestCompareEmptyConfigSection(t *testing.T) {
+	// Create a config yaml file that only declares sections but no individual settings
+	dataYaml := `
+apm_config:
+  telemetry:
+database_monitoring:
+  samples:
+logs_config:
+  auto_multi_line:
+runtime_security_config:
+  endpoints:
+unknown_section:
+  info:
+`
+	// apm_config.telemetry        - declared "known" (silences warnings, not added to schema, not very useful to do)
+	// database_monitoring.samples - defines a default
+	// logs_config.auto_multi_line - bind an env var and assign a value to that env var
+	// runtime_security_config.endpoints - bind an env var but leave that env var undefined
+	// unknown_section.info        - undefined, neither default nor env var, only shows up in the config.yaml
+	// additional_endpoints        - defines a default, does not appear in the file
+
+	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES", "100")
+
+	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		cfg.SetKnown("apm_config.telemetry.dd_url") //nolint:forbidigo // test behavior for compatibility
+		cfg.SetDefault("database_monitoring.samples.dd_url", "")
+		cfg.BindEnv("runtime_security_config.endpoints.dd_url", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")                           //nolint:forbidigo // test behavior for compatibility
+		cfg.BindEnv("logs_config.auto_multi_line.tokenizer_max_input_bytes", "DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES") //nolint:forbidigo // test behavior for compatibility
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	// NOTE: AllKeysLowercased does not match between the implementations.
+	expectedKeys := []string{
+		"additional_endpoints",
+		"apm_config.telemetry",
+		//"apm_config.telemetry.dd_url", (missing)
+		"database_monitoring.samples",
+		//"database_monitoring.samples.dd_url", (missing)
+		"logs_config.auto_multi_line",
+		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
+		"runtime_security_config.endpoints",
+		"runtime_security_config.endpoints.dd_url",
+		"unknown_section.info",
+	}
+	expectedKeys2 := []string{
+		"additional_endpoints",
+		"apm_config.telemetry",
+		"apm_config.telemetry.dd_url",
+		//"database_monitoring.samples", (missing)
+		"database_monitoring.samples.dd_url",
+		"logs_config.auto_multi_line",
+		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
+		"runtime_security_config.endpoints",
+		"runtime_security_config.endpoints.dd_url",
+		"unknown_section.info",
+	}
+	assert.Equal(t, expectedKeys, viperConf.AllKeysLowercased())
+	assert.Equal(t, expectedKeys2, ntmConf.AllKeysLowercased())
+
+	// AllSettings does not match either.
+	// - viper doesn't split "auto_multi_line.tokenizer_max_input_bytes" because it comes from an env var
+	expectedSettings := map[string]interface{}{
+		"additional_endpoints": map[string][]string{},
+		"database_monitoring": map[string]interface{}{
+			"samples": map[string]interface{}{
+				"dd_url": "",
+			},
+		},
+		"logs_config": map[string]interface{}{
+			"auto_multi_line.tokenizer_max_input_bytes": "100",
+		},
+	}
+	expectedSettings2 := map[string]interface{}{
+		"additional_endpoints": map[string][]string{},
+		"apm_config": map[string]interface{}{
+			"telemetry": nil,
+		},
+		"runtime_security_config": map[string]interface{}{
+			"endpoints": nil,
+		},
+		"database_monitoring": map[string]interface{}{
+			"samples": map[string]interface{}{
+				"dd_url": "",
+			},
+		},
+		"logs_config": map[string]interface{}{
+			"auto_multi_line": map[string]interface{}{
+				"tokenizer_max_input_bytes": "100",
+			},
+		},
+		"unknown_section": map[string]interface{}{
+			"info": nil,
+		},
+	}
+	assert.Equal(t, expectedSettings, viperConf.AllSettings())
+	assert.Equal(t, expectedSettings2, ntmConf.AllSettings())
+
+	////////////
+	// tests for IsConfigured
+
+	// not configured because known does not define a setting
+	assert.False(t, viperConf.IsConfigured("apm_config.telemetry"))
+	assert.False(t, ntmConf.IsConfigured("apm_config.telemetry"))
+
+	// not configured by the file nor env var
+	assert.False(t, viperConf.IsConfigured("apm_config.telemetry.enabled"))
+	assert.False(t, ntmConf.IsConfigured("apm_config.telemetry.enabled"))
+
+	// not configured, because only default is defined
+	assert.False(t, viperConf.IsConfigured("database_monitoring.samples"))
+	assert.False(t, ntmConf.IsConfigured("database_monitoring.samples"))
+
+	// not configured, an env var is bound but that env var is undefined
+	assert.False(t, viperConf.IsConfigured("runtime_security_config.endpoints"))
+	assert.False(t, ntmConf.IsConfigured("runtime_security_config.endpoints"))
+
+	// yes configured, because an env var is defined that contains this setting
+	assert.True(t, viperConf.IsConfigured("logs_config.auto_multi_line"))
+	assert.True(t, ntmConf.IsConfigured("logs_config.auto_multi_line"))
+
+	// not configured, unknown section
+	assert.False(t, viperConf.IsConfigured("unknown_section.info"))
+	assert.False(t, ntmConf.IsConfigured("unknown_section.info"))
+
+	// not configured, because only default is defined
+	assert.False(t, viperConf.IsConfigured("additional_endpoints"))
+	assert.False(t, ntmConf.IsConfigured("aditional_endpoints"))
+
+	////////////
+	// tests for IsSet
+
+	// False, apm_config.telemetry.dd_url is known, but that does not define it in
+	// the schema. This node is not set.
+	// IsSet gives inconsistent results
+	assert.False(t, viperConf.IsSet("apm_config.telemetry"))
+	assert.True(t, ntmConf.IsSet("apm_config.telemetry"))
+
+	// not set because this setting is not defined
+	assert.False(t, viperConf.IsSet("apm_config.telemetry.enabled"))
+	assert.False(t, ntmConf.IsSet("apm_config.telemetry.enabled"))
+
+	// this has a default value so it IsSet
+	assert.True(t, viperConf.IsSet("database_monitoring.samples"))
+	assert.True(t, ntmConf.IsSet("database_monitoring.samples"))
+
+	// IsSet gives inconsistent results
+	assert.False(t, viperConf.IsSet("runtime_security_config.endpoints"))
+	assert.True(t, ntmConf.IsSet("runtime_security_config.endpoints"))
+
+	// Viper arguably should return true here, but Viper doesn't
+	// connect bound env vars to their parent settings. This bug in viper
+	// is a good reason to encourage callers to switch to IsConfigured
+	assert.False(t, viperConf.IsSet("logs_config.auto_multi_line"))
+	assert.True(t, ntmConf.IsSet("logs_config.auto_multi_line"))
+
+	// Unclear what the correct behavior here should be since this setting is unknown.
+	assert.False(t, viperConf.IsSet("unknown_section.info"))
+	assert.True(t, ntmConf.IsSet("unknown_section.info"))
+
+	// IsSet gives inconsistent results
+	assert.True(t, viperConf.IsSet("additional_endpoints"))
+	assert.False(t, ntmConf.IsSet("aditional_endpoints"))
+
+	////////////
+	// tests for HasSection
+
+	// HasSection true for an empty section
+	assert.True(t, viperConf.HasSection("apm_config.telemetry"))
+	assert.True(t, ntmConf.HasSection("apm_config.telemetry"))
+
+	// False because this setting isn't defined at all
+	assert.False(t, viperConf.HasSection("apm_config.telemetry.enabled"))
+	assert.False(t, ntmConf.HasSection("apm_config.telemetry.enabled"))
+
+	// HasSection true for an empty section
+	assert.True(t, viperConf.HasSection("database_monitoring.samples"))
+	assert.True(t, ntmConf.HasSection("database_monitoring.samples"))
+
+	// HasSection true for an empty section
+	assert.True(t, viperConf.HasSection("runtime_security_config.endpoints"))
+	assert.True(t, ntmConf.HasSection("runtime_security_config.endpoints"))
+
+	// HasSection true because the section has data
+	assert.True(t, viperConf.HasSection("logs_config.auto_multi_line"))
+	assert.True(t, ntmConf.HasSection("logs_config.auto_multi_line"))
+
+	// HasSection true for an empty section, even though it is unknown
+	assert.True(t, viperConf.HasSection("unknown_section.info"))
+	assert.True(t, ntmConf.HasSection("unknown_section.info"))
+
+	// False because this is not defined (aside from default)
+	assert.False(t, viperConf.HasSection("additional_endpoints"))
+	assert.False(t, ntmConf.HasSection("aditional_endpoints"))
 }
 
 func TestCompareConflictDataType(t *testing.T) {
@@ -470,8 +703,8 @@ func TestReadConfigReset(t *testing.T) {
 	overrideYAML := `host: localhost`
 
 	viperConf, ntmConf := constructBothConfigs(initialYAML, true, func(cfg model.Setup) {
-		cfg.SetKnown("port")
-		cfg.SetKnown("host")
+		cfg.SetKnown("port") //nolint:forbidigo // testing behavior
+		cfg.SetKnown("host") //nolint:forbidigo // testing behavior
 	})
 
 	assert.Equal(t, 1234, viperConf.GetInt("port"))
@@ -545,4 +778,102 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	// "host" should now be available
 	assert.Equal(t, "localhost", viperConf.GetString("host"))
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestCompareEnvVarsSubfields(t *testing.T) {
+	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
+		data, _ := json.Marshal(map[string]string{"a": "apple"})
+		t.Setenv("TEST_MY_FEATURE_INFO_TARGETS", string(data))
+
+		configData := `
+my_feature:
+  info:
+    enabled: true
+`
+		viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS") //nolint: forbidigo // testing behavior
+		})
+
+		fields := viperConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+
+		fields = ntmConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+	})
+}
+
+func TestInvalidFileData(t *testing.T) {
+	configData := `
+fruit:
+  apple:
+  banana:
+  cherry:
+  donut:
+    dozen: 12
+`
+
+	t.Setenv("DD_FRUIT_CHERRY_SEED_NUM", "5")
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		// default wins over invalid file
+		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
+
+		// file only (missing default)
+		cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
+
+		// env wins over file
+		cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	})
+
+	expectAppleMap := map[string]interface{}{
+		"core": map[string]interface{}{
+			"seeds": 2,
+		},
+	}
+
+	assert.Equal(t, expectAppleMap, viperConf.Get("fruit.apple"))
+	assert.Equal(t, nil, viperConf.Get("fruit.banana"))
+	assert.Equal(t, 2, viperConf.GetInt("fruit.apple.core.seeds"))
+	assert.Equal(t, "", viperConf.GetString("fruit.banana.peel.color"))
+	assert.Equal(t, 5, viperConf.GetInt("fruit.cherry.seed.num"))
+	assert.Equal(t, 12, viperConf.GetInt("fruit.donut.dozen"))
+
+	assert.Equal(t, expectAppleMap, ntmConf.Get("fruit.apple"))
+	assert.Equal(t, nil, ntmConf.Get("fruit.banana"))
+	assert.Equal(t, 2, ntmConf.GetInt("fruit.apple.core.seeds"))
+	assert.Equal(t, "", ntmConf.GetString("fruit.banana.peel.color"))
+	assert.Equal(t, 5, ntmConf.GetInt("fruit.cherry.seed.num"))
+	assert.Equal(t, 12, ntmConf.GetInt("fruit.donut.dozen"))
+}
+
+func TestCompareConfigUsesDotSeparatedFields(t *testing.T) {
+	configData := `
+my_feature.info.enabled: true
+second_feature:
+  info.enabled: true
+additional_endpoints:
+  https://url1.com:
+    - my_api_key
+`
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+		cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+		cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+		cfg.BindEnvAndSetDefault("second_feature.info.enabled", false)
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.info.enabled"))
+	assert.Equal(t, true, ntmConf.Get("my_feature.info.enabled"))
+
+	assert.Equal(t, true, viperConf.Get("second_feature.info.enabled"))
+	assert.Equal(t, true, ntmConf.Get("second_feature.info.enabled"))
+
+	expectEndpoints := map[string][]string{
+		"https://url1.com": {"my_api_key"},
+	}
+	assert.Equal(t, expectEndpoints, viperConf.GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, expectEndpoints, ntmConf.GetStringMapStringSlice("additional_endpoints"))
 }

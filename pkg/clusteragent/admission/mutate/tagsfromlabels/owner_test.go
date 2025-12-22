@@ -17,10 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -28,7 +26,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 	ownerInfo := dummyInfo()
 	kubeObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
 	owner := newOwner(kubeObj)
-	config := fxutil.Test[config.Component](t, core.MockBundle())
+	config := config.NewMock(t)
 	ownerCacheTTL := ownerCacheTTL(config)
 
 	// Cache hit

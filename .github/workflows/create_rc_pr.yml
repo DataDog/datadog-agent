@@ -3,9 +3,9 @@ name: Create RC PR
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 14 * * 2,4' # Run on Tuesday and Thursday at 14:00 UTC
-    - cron: '0 8 * * 2,4' # Same as above but at 08:00 UTC, to warn agent-integrations team about releasing
-    - cron: '0 9 * * 1' # Run Agent 6 workflow on Monday at 09:00 UTC
+    - cron: "0 14 * * 2,4" # Run on Tuesday and Thursday at 14:00 UTC
+    - cron: "0 8 * * 2,4" # Same as above but at 08:00 UTC, to warn agent-integrations team about releasing
+    - cron: "0 9 * * 1" # Run Agent 6 workflow on Monday at 09:00 UTC
 
 env:
   IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
@@ -37,15 +37,18 @@ jobs:
       - name: Check previous agent 6 RC status
         if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
         env:
-          DD_SITE: 'datadoghq.com'
+          DD_SITE: "datadoghq.com"
           DD_API_KEY: ${{ secrets.DD_API_KEY }}
           DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dda inv -- -e release.check-previous-agent6-rc
 
       - name: Determine the release active branches
         id: branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
             echo "value=[\"6.53.x\"]" >> $GITHUB_OUTPUT
@@ -72,10 +75,17 @@ jobs:
         value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
       fail-fast: false
     steps:
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.create-rc-pr.create-pr
+
       - name: Checkout the main branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: true
+          token: ${{ steps.octo-sts.outputs.token }}
 
       - name: Install dda
         uses: ./.github/actions/install-dda
@@ -87,20 +97,20 @@ jobs:
         env:
           ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
           ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           MATRIX: ${{ matrix.value }}
           WARNING: ${{ needs.find_release_branches.outputs.warning }}
         run: |
-          if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+          if ! dda inv -- -e release.check-for-changes -r "$MATRIX" $WARNING; then
+            echo "CHANGES=true" >> $GITHUB_OUTPUT
           else
-            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+            echo "CHANGES=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Check if agent 6 is in qualification phase
         if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
         env:
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
           is_qualification=$(dda inv -- -e release.is-qualification -r 6.53.x --output)
           echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
@@ -108,17 +118,11 @@ jobs:
             dda inv -- -e release.alert-ci-on-call -r 6.53.x
           fi
 
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/datadog-agent
-          policy: self.create-rc-pr.create-pr
-
       - name: Create RC PR
-        if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false') }}
+        if: ${{ needs.find_release_branches.outputs.warning == '' && (steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false')) }}
         env:
           MATRIX: ${{ matrix.value }}
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then

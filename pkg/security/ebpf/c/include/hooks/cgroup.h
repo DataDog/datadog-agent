@@ -176,7 +176,6 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     return 0;
 }
 
-
 TAIL_CALL_FNC(dr_cgroup_write_callback, ctx_t *ctx) {
     return dr_cgroup_write_callback(ctx);
 }

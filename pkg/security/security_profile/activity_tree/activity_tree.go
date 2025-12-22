@@ -331,11 +331,11 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
 		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
-			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+			return false, errors.New("untraced event: IMDS response without credentials")
 		}
 		// ignore IMDS requests without URLs
 		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
-			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+			return false, errors.New("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil
@@ -394,7 +394,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
-
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.ExecEventType:
@@ -413,6 +413,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+	case model.CapabilitiesEventType:
+		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -955,4 +957,38 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 		}
 	})
 	return syscalls
+}
+
+// ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
+type ImageProcessKey struct {
+	ImageName string
+	ImageTag  string
+	Filepath  string
+}
+
+// EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
+// and returns the total number of nodes evicted
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+	totalEvicted := 0
+
+	// Iterate through all process nodes and evict unused nodes
+	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
+		node := at.ProcessNodes[i]
+		if node == nil {
+			continue
+		}
+
+		// Evict unused nodes
+		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		totalEvicted += evicted
+
+		// If the process node itself has no image tags left after eviction, remove it entirely
+		if len(node.Seen) == 0 {
+			// Remove the node
+			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	return totalEvicted
 }

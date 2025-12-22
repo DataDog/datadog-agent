@@ -45,10 +45,15 @@ func (l *StaticConfigListener) createServices() {
 		"container_image",
 		"container_lifecycle",
 		"sbom",
+		"gpu",
 	} {
 		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
 		}
+	}
+
+	if enabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.kubelet_config_check.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_kubelet_config_orchestrator"}
 	}
 
 	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
@@ -120,6 +125,11 @@ func (s *StaticConfigService) HasFilter(_ filter.Scope) bool {
 // GetExtraConfig is not supported
 func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
+}
+
+// GetImageName does nothing
+func (s *StaticConfigService) GetImageName() string {
+	return ""
 }
 
 // FilterTemplates does nothing.

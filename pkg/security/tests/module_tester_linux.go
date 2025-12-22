@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	retry "github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,9 +76,10 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
-  socket: /tmp/test-event-monitor.sock
   custom_sensitive_words:
     - "*custom*"
+  custom_sensitive_regexps:
+    - "gh-[a-zA-Z0-9]+"
   network:
     enabled: true
     flow_monitor:
@@ -105,12 +107,15 @@ event_monitoring_config:
   {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
-
   span_tracking:
     enabled: true
+  capabilities_monitoring:
+    enabled: {{ .CapabilitiesMonitoringEnabled }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  socket: /tmp/runtime-security.sock
+  cmd_socket: /tmp/runtime-security-cmd.sock
   internal_monitoring:
     enabled: true
 {{ if gt .EventServerRetention 0 }}
@@ -123,7 +128,6 @@ runtime_security_config:
     enabled: true
     rate_limiter:
       enabled: {{ .OnDemandRateLimiterEnabled}}
-  socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
     host:
@@ -146,6 +150,7 @@ runtime_security_config:
     {{if .ActivityDumpLoadControllerTimeout }}
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
+    trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     auto_suppression:
@@ -166,6 +171,7 @@ runtime_security_config:
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     auto_suppression:
       enabled: {{ .EnableAutoSuppression }}
       event_types: {{range .AutoSuppressionEventTypes}}
@@ -245,6 +251,7 @@ type testModule struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
+	grpcServer    *grpcutils.Server
 }
 
 //nolint:deadcode,unused
@@ -359,7 +366,13 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -478,7 +491,13 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		scrubber, err := utils.NewScrubber(nil, nil)
+		if err != nil {
+			tb.Errorf("failed to create scrubber: %v", err)
+			return
+		}
+
+		eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -533,7 +552,13 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -587,6 +612,12 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
+func (tm *testModule) sendStats() {
+	// send twice to collect stats from both buffers
+	tm.eventMonitor.SendStats()
+	tm.eventMonitor.SendStats()
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
@@ -620,7 +651,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var proFile *os.File
 	if withProfile {
 		var err error
-		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
+		proFile, err = os.CreateTemp("/tmp", "cpu-profile-"+t.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -676,6 +707,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.opts.staticOpts = opts.staticOpts
+		testMod.statsdClient.Flush()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -693,6 +725,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.statsdClient.Flush()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -718,7 +751,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -736,6 +769,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
+		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
 	}
 
 	emopts := eventmonitor.Opts{
@@ -750,6 +784,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			EBPFLessEnabled:          ebpfLessEnabled,
 			DNSPort:                  opts.staticOpts.dnsPort,
 		},
+	}
+
+	// fake the security agent
+	if err := testMod.grpcServer.Start(); err != nil {
+		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
 
 	if opts.staticOpts.tagger != nil {
@@ -816,9 +855,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.ruleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.ruleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)
@@ -1017,6 +1056,8 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 		tm.msgSender.flush()
 	}
 
+	tm.grpcServer.Stop()
+
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
 	}
@@ -1035,9 +1076,9 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := log.LogLevelFromString(logLevelStr)
-	if !found {
-		return fmt.Errorf("invalid log level '%s'", logLevel)
+	logLevel, err := log.ValidateLogLevel(logLevelStr)
+	if err != nil {
+		return err
 	}
 
 	if !logInitilialized {
@@ -1052,18 +1093,16 @@ func initLogger() error {
 
 func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
-
 		var err error
 
-		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, logLevel)
 		if err != nil {
 			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := log.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.ValidateLogLevel(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1151,6 +1190,71 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 
 	if skipCheck(kv) {
 		tb.Skipf("kernel version not supported: %s", why)
+	}
+}
+
+type dockerInfo struct {
+	once sync.Once
+	err  error
+	Path string
+	Info map[string]string
+}
+
+var docker dockerInfo
+
+func checkDockerCompatibility(tb testing.TB, why string, skipCheck func(docker *dockerInfo) bool) {
+	tb.Helper()
+
+	docker.once.Do(func() {
+		docker.Info = make(map[string]string)
+
+		path, err := whichNonFatal("docker")
+		if err != nil {
+			docker.err = err
+			return
+		}
+		docker.Path = path
+
+		cmd := exec.Command(path, "info")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		err = cmd.Start()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		scanner := bufio.NewScanner(stdout)
+		scanner.Split(bufio.ScanLines)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			before, after, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+
+			before, after = strings.TrimSpace(before), strings.TrimSpace(after)
+			switch before {
+			case "Storage Driver":
+				docker.Info[before] = after
+				tb.Logf("%s: %s", before, after)
+			}
+		}
+
+		docker.err = cmd.Wait()
+	})
+
+	if docker.err != nil {
+		tb.Errorf("failed to get docker info: %s", docker.err)
+		return
+	}
+
+	if skipCheck(&docker) {
+		tb.Skipf("docker installation not supported: %s", why)
 	}
 }
 
@@ -1295,12 +1399,24 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, errors.New("ContainerID not found on activity dump list")
+		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
 	}
 	return dump, nil
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	// before starting the docker, we need to make sure the traced cgroup map is not filled with
+	// entries waiting to be evicted
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, nil, errors.New("not supported")
+	}
+	managers := p.GetProfileManager()
+	if managers == nil {
+		return nil, nil, errors.New("No manager")
+	}
+	managers.SyncTracedCgroups()
+
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
 		return nil, nil, err
@@ -1321,6 +1437,59 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {
+	systemd, err := newSystemdCmdWrapper(serviceName, reloadCmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, err = systemd.start()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
+	var dump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		dumps, err := tm.ListActivityDumps()
+		if err != nil {
+			return err
+		}
+
+		// Look for a dump with matching cgroup ID
+		for _, d := range dumps {
+			if string(d.CGroupID) == systemd.cgroupID {
+				dump = d
+				return nil
+			}
+		}
+		return errors.New("CGroupID not found on activity dump list")
+	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+		_, _ = systemd.stop()
+		return nil, nil, err
+	}
+
+	return systemd, dump, nil
+}
+
+func isSystemdAvailable() bool {
+	// Check if systemd is available and we have the necessary permissions
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return false
+	}
+
+	// Check if we can access systemd and it's in a usable state
+	// Accept both "running" and "degraded" states as valid for testing
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		state := strings.TrimSpace(string(output))
+		return state == "running" || state == "degraded"
+	}
+	return true
 }
 
 //nolint:deadcode,unused
@@ -1410,7 +1579,7 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
 	var files []string
 	for i := 0; i < numberOfFiles; i++ {
-		files = append(files, filepath.Join(directory, "ad-test-create-"+fmt.Sprintf("%d", i)))
+		files = append(files, filepath.Join(directory, "ad-test-create-"+strconv.Itoa(i)))
 	}
 	args := []string{"sleep", "2", ";", "open"}
 	args = append(args, files...)
@@ -1583,9 +1752,6 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if err != nil {
 		return err
 	}
-	if len(dumps) == 0 {
-		return nil
-	}
 	for _, dump := range dumps {
 		_ = tm.StopActivityDump(dump.Name)
 	}
@@ -1596,6 +1762,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if len(dumps) != 0 {
 		return errors.New("Didn't manage to stop all activity dumps")
 	}
+
+	// CRITICAL: Blacklist all currently traced cgroups BEFORE clearing
+	// This prevents them from being re-traced by kernel events
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if ok {
+		if managers := p.GetProfileManager(); managers != nil {
+			// First call evictTracedCgroup for all active dumps to blacklist them
+			managers.EvictAllTracedCgroups()
+			// Then clear everything
+			managers.ClearTracedCgroups()
+		}
+	}
+
 	return nil
 }
 
@@ -1822,18 +2001,26 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
 
 				if ppid == myPid {
 					// Found a zombie process with our PID as its parent
-					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+					if err != nil {
+						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+					}
+					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 

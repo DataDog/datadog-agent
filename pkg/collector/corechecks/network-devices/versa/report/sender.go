@@ -7,6 +7,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -148,11 +149,11 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
 	for _, slaMetricsResponse := range slaMetrics {
 		var tags = []string{
-			fmt.Sprintf("local_site:%s", slaMetricsResponse.LocalSite),
-			fmt.Sprintf("remote_site:%s", slaMetricsResponse.RemoteSite),
-			fmt.Sprintf("local_access_circuit:%s", slaMetricsResponse.LocalAccessCircuit),
-			fmt.Sprintf("remote_access_circuit:%s", slaMetricsResponse.RemoteAccessCircuit),
-			fmt.Sprintf("forwarding_class:%s", slaMetricsResponse.ForwardingClass),
+			"local_site:" + slaMetricsResponse.LocalSite,
+			"remote_site:" + slaMetricsResponse.RemoteSite,
+			"local_access_circuit:" + slaMetricsResponse.LocalAccessCircuit,
+			"remote_access_circuit:" + slaMetricsResponse.RemoteAccessCircuit,
+			"forwarding_class:" + slaMetricsResponse.ForwardingClass,
 		}
 		if deviceIP, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
@@ -185,6 +186,27 @@ func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics
 		s.Gauge(versaMetricPrefix+"link.volume_rx", linkMetric.VolumeRx, "", tags)
 		s.Gauge(versaMetricPrefix+"link.bandwidth_tx", linkMetric.BandwidthTx, "", tags)
 		s.Gauge(versaMetricPrefix+"link.bandwidth_rx", linkMetric.BandwidthRx, "", tags)
+	}
+}
+
+// SendSiteMetrics sends site metrics retrieved from Versa Analytics
+func (s *Sender) SendSiteMetrics(siteMetrics []client.SiteMetrics, deviceNameToIDMap map[string]string) {
+	for _, siteMetric := range siteMetrics {
+		var tags = []string{
+			"site:" + siteMetric.Site,
+			"address:" + siteMetric.Address,
+			"latitude:" + siteMetric.Latitude,
+			"longitude:" + siteMetric.Longitude,
+			"location_source:" + siteMetric.LocationSource,
+		}
+		if deviceIP, ok := deviceNameToIDMap[siteMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"site.volume_tx", siteMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"site.volume_rx", siteMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"site.bandwidth_tx", siteMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"site.bandwidth_rx", siteMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"site.availability", siteMetric.Availability, "", tags)
 	}
 }
 
@@ -258,6 +280,91 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 	}
 }
 
+// SendPathQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
+func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
+	for _, qosMetric := range qosMetrics {
+		var tags = []string{
+			"local_site:" + qosMetric.LocalSiteName,
+			"remote_site:" + qosMetric.RemoteSiteName,
+		}
+		if deviceIP, ok := deviceNameToIDMap[qosMetric.LocalSiteName]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		// Send byte-based metrics
+		s.Gauge(versaMetricPrefix+"qos.best_effort_tx", qosMetric.BestEffortTx, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.best_effort_tx_drop", qosMetric.BestEffortTxDrop, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.expedited_forward_tx", qosMetric.ExpeditedForwardTx, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.expedited_forward_drop", qosMetric.ExpeditedForwardDrop, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.assured_forward_tx", qosMetric.AssuredForwardTx, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.assured_forward_drop", qosMetric.AssuredForwardDrop, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.network_control_tx", qosMetric.NetworkControlTx, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.network_control_drop", qosMetric.NetworkControlDrop, "", tags)
+
+		// Send bandwidth metrics (bps)
+		s.Gauge(versaMetricPrefix+"qos.best_effort_bandwidth", qosMetric.BestEffortBandwidth, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.expedited_forward_bw", qosMetric.ExpeditedForwardBW, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.assured_forward_bw", qosMetric.AssuredForwardBW, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.network_control_bw", qosMetric.NetworkControlBW, "", tags)
+
+		// Send aggregate metrics
+		s.Gauge(versaMetricPrefix+"qos.volume_tx", qosMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.total_drop", qosMetric.TotalDrop, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.percent_drop", qosMetric.PercentDrop, "", tags)
+		s.Gauge(versaMetricPrefix+"qos.bandwidth", qosMetric.Bandwidth, "", tags)
+	}
+}
+
+// SendDIAMetrics sends DIA (Direct Internet Access) metrics retrieved from Versa Analytics
+func (s *Sender) SendDIAMetrics(diaMetrics []client.DIAMetrics, deviceNameToIDMap map[string]string) {
+	for _, diaMetric := range diaMetrics {
+		var tags = []string{
+			"site:" + diaMetric.Site,
+			"access_circuit:" + diaMetric.AccessCircuit,
+			"ip:" + diaMetric.IP,
+		}
+		if deviceIP, ok := deviceNameToIDMap[diaMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		// Send volume metrics
+		s.Gauge(versaMetricPrefix+"dia.volume_tx", diaMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"dia.volume_rx", diaMetric.VolumeRx, "", tags)
+
+		// Send bandwidth metrics
+		s.Gauge(versaMetricPrefix+"dia.bandwidth_tx", diaMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"dia.bandwidth_rx", diaMetric.BandwidthRx, "", tags)
+	}
+}
+
+// SendAnalyticsInterfaceMetrics sends analytics interface metrics retrieved from Versa Analytics
+func (s *Sender) SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics []client.AnalyticsInterfaceMetrics, deviceNameToIDMap map[string]string) {
+	for _, ifaceMetric := range analyticsInterfaceMetrics {
+		var tags = []string{
+			"site:" + ifaceMetric.Site,
+			"access_circuit:" + ifaceMetric.AccessCkt,
+			"interface:" + ifaceMetric.Interface,
+		}
+		if deviceIP, ok := deviceNameToIDMap[ifaceMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		// Send bandwidth utilization metrics
+		s.Gauge(versaMetricPrefix+"interface.rx_util", ifaceMetric.RxUtil, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.tx_util", ifaceMetric.TxUtil, "", tags)
+
+		// Send volume metrics
+		s.Gauge(versaMetricPrefix+"interface.volume_rx", ifaceMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.volume_tx", ifaceMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.volume", ifaceMetric.Volume, "", tags)
+
+		// Send bandwidth metrics
+		s.Gauge(versaMetricPrefix+"interface.bandwidth_rx", ifaceMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.bandwidth_tx", ifaceMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.bandwidth", ifaceMetric.Bandwidth, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {
@@ -268,6 +375,7 @@ func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]clie
 				"interface:" + metric.Interface,
 				"vrf:" + metric.VRF,
 				"host_inf:" + metric.HostInf,
+				fmt.Sprintf("dd.internal.resource:ndm_interface:%s:%s:versa_interface-%s", s.namespace, deviceIP, metric.Interface),
 			}
 
 			tags := append(deviceTags, interfaceTags...)
@@ -411,7 +519,8 @@ func (s *Sender) SendInterfaceStatus(interfaces []client.Interface, deviceNameTo
 		interfaceTags := []string{
 			"interface:" + iface.Name,
 			"tenant:" + iface.TenantName,
-			"device_name:" + iface.DeviceName,
+			"admin_status:" + iface.IfAdminStatus,
+			"oper_status:" + iface.IfOperStatus,
 		}
 
 		tags := append(deviceTags, interfaceTags...)
@@ -588,7 +697,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 // parseMetricValue parses a string metric value to float64
 func parseMetricValue(value string) (float64, error) {
 	if value == "" {
-		return 0, fmt.Errorf("empty metric value")
+		return 0, errors.New("empty metric value")
 	}
 	return strconv.ParseFloat(value, 64)
 }

@@ -60,7 +60,6 @@ def send_size(
     flavor: str,
     package_os: str,
     package_path: str,
-    major_version: str,
     git_ref: str,
     bucket_branch: str,
     arch: str,
@@ -70,7 +69,7 @@ def send_size(
     For a provided package path, os and flavor, retrieves size information on the package and its included
     Agent binaries, prints them, and sends them to Datadog.
 
-    The --major-version, --git-ref, --bucket-branch, and --arch parameters are used to add tags to the metrics.
+    The --git-ref, --bucket-branch, and --arch parameters are used to add tags to the metrics.
 
     Needs the DD_API_KEY environment variable to be set. Needs native utilities for the given os
     to be present (du in all cases, dpkg for debian, rpm2cpio and cpio for centos/suse).
@@ -96,7 +95,6 @@ def send_size(
         flavor=flavor,
         package_os=package_os,
         package_path=package_path,
-        major_version=major_version,
         git_ref=git_ref,
         bucket_branch=bucket_branch,
         arch=arch,
@@ -134,6 +132,7 @@ def diff(
     base_pipeline: str | None = None,
     target_ref: str | None = None,
     target_pipeline: str | None = None,
+    sort_by_size: bool = True,
 ):
     """
     Diff the content of the given package.
@@ -155,7 +154,7 @@ def diff(
     target_extract_dir = os.path.join(tmpdir, "target")
     download(ctx, target_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=target_extract_dir)
 
-    _diff(base_extract_dir, target_extract_dir)
+    _diff(base_extract_dir, target_extract_dir, sort_by_size=sort_by_size)
 
 
 @task(

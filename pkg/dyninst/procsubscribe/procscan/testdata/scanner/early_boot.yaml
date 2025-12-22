@@ -1,0 +1,120 @@
+# Test early-boot edge case: current_time < startDelay.
+# The watermark computation should clamp to 0 so we scan from boot, and we
+# should still discover processes that started early once they age past the
+# startDelay window.
+- !initialize
+  current_time: 50
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 10
+  tracer_metadata: {language: "go", service: "early-service"}
+- !create-process
+  pid: 1002
+  start_time: 49
+  tracer_metadata: {language: "go", service: "early-service"}
+- !scan {}
+- !advance-time {to: 51}
+- !create-process
+  pid: 1003
+  start_time: 51
+  tracer_metadata: {language: "go", service: "a-bit-later"}
+- !scan {}
+- !advance-time {to: 102}
+- !create-process
+  pid: 1004
+  start_time: 101
+  tracer_metadata: {language: "go", service: "a-bit-after-that"}
+- !scan {}
+- !advance-time {to: 150}
+- !scan {}
+- !advance-time {to: 151}
+- !scan {}
+- !advance-time {to: 202}
+- !create-process
+  pid: 1005
+  start_time: 201
+  tracer_metadata: {language: "go", service: "even-later"}
+- !scan {}
+---
+command: !initialize
+  current_time: 50
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 10
+  tracer_metadata: {language: "go", service: "early-service"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 49
+  tracer_metadata: {language: "go", service: "early-service"}
+---
+command: !scan {}
+state:
+  current_time: 50
+  last_scan: 50
+  process_delays: [100]
+  processes_in_procfs: [1001, 1002]
+---
+command: !advance-time {to: 51}
+---
+command: !create-process
+  pid: 1003
+  start_time: 51
+  tracer_metadata: {language: "go", service: "a-bit-later"}
+---
+command: !scan {}
+state:
+  current_time: 51
+  last_scan: 51
+  processes_in_procfs: [1001, 1002, 1003]
+---
+command: !advance-time {to: 102}
+---
+command: !create-process
+  pid: 1004
+  start_time: 101
+  tracer_metadata: {language: "go", service: "a-bit-after-that"}
+---
+command: !scan {}
+state:
+  current_time: 102
+  last_scan: 102
+  processes_in_procfs: [1001, 1002, 1003, 1004]
+---
+command: !advance-time {to: 150}
+---
+command: !scan {}
+new: [1001, 1002]
+state:
+  current_time: 150
+  last_scan: 150
+  live: [1001, 1002]
+  processes_in_procfs: [1001, 1002, 1003, 1004]
+---
+command: !advance-time {to: 151}
+---
+command: !scan {}
+new: [1003]
+state:
+  current_time: 151
+  last_scan: 151
+  live: [1001, 1002, 1003]
+  processes_in_procfs: [1001, 1002, 1003, 1004]
+---
+command: !advance-time {to: 202}
+---
+command: !create-process
+  pid: 1005
+  start_time: 201
+  tracer_metadata: {language: "go", service: "even-later"}
+---
+command: !scan {}
+new: [1004]
+state:
+  current_time: 202
+  last_scan: 202
+  live: [1001, 1002, 1003, 1004]
+  processes_in_procfs: [1001, 1002, 1003, 1004, 1005]

@@ -27,6 +27,7 @@ import (
 )
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
+// reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
 func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	cgroupMode := cgroups.Mode()
 	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
@@ -40,15 +41,16 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 		return fmt.Errorf("failed to configure systemd device allow for cgroup %s: %w", cgroupPath, err)
 	}
 
-	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroupMode == cgroups.Legacy {
+		log.Debugf("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
+		log.Debugf("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
+		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s of PID %d: %w", cgroupPath, pid, err)
 	}
 
 	return nil
@@ -59,7 +61,7 @@ const (
 	systemdTransientConfigPath = "run/systemd/transient"
 	cgroupv1DeviceAllowFile    = "devices.allow"
 	cgroupv1DeviceControlDir   = "sys/fs/cgroup/devices"
-	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
+	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n" // Allow access to the NVIDIA character devices
 	nvidiaDeviceMajor          = 195
 	cgroupFsPath               = "/sys/fs/cgroup"
 )
@@ -199,27 +201,34 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 	return "/" + hostCgroupPath, nil
 }
 
-// insertAfterSection finds a section header (e.g. [Scope]) in the lines of a
-// SystemD configuration file and inserts the new line after it
-func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string, error) {
-	// Find the section header line
-	sectionIndex := -1
+// insertDeviceAllowLine adds the DeviceAllow line to the lines of a
+// SystemD configuration file, in the specified section. It will add it at the end
+// of all other DeviceAllow lines in the section so that it is not overridden.
+func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]string, error) {
+	candidateLineIndex := -1
+	foundSectionHeader := false
 	for i, line := range lines {
-		if strings.TrimSpace(line) == sectionHeader {
-			sectionIndex = i
+		line = strings.TrimSpace(line)
+		if line == sectionHeader {
+			foundSectionHeader = true
+			candidateLineIndex = i + 1
+		} else if foundSectionHeader && strings.HasPrefix(line, "DeviceAllow=") {
+			candidateLineIndex = i + 1
+		} else if foundSectionHeader && strings.HasPrefix(line, "[") {
+			// Another section header, stop searching
 			break
 		}
 	}
 
-	if sectionIndex == -1 {
+	if candidateLineIndex == -1 {
 		return nil, fmt.Errorf("failed to find section header %s", sectionHeader)
 	}
 
-	// Insert the new line after the section header
+	// Insert the new line in the detected position
 	newLines := make([]string, len(lines)+1)
-	copy(newLines, lines[:sectionIndex+1])
-	newLines[sectionIndex+1] = newLine
-	copy(newLines[sectionIndex+2:], lines[sectionIndex+1:])
+	copy(newLines, lines[:candidateLineIndex])
+	newLines[candidateLineIndex] = newLine
+	copy(newLines[candidateLineIndex+1:], lines[candidateLineIndex:])
 
 	return newLines, nil
 }
@@ -260,7 +269,7 @@ func configureSystemDAllow(rootfs, containerID string) error {
 	lines := strings.Split(string(content), "\n")
 
 	// Insert the nvidiaSystemdDeviceAllow line after [Scope]
-	newLines, err := insertAfterSection(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	newLines, err := insertDeviceAllowLine(lines, "[Scope]", nvidiaSystemdDeviceAllow)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
 	}

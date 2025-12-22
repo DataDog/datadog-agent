@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 type powerShellCommandBuilder struct {
@@ -239,4 +239,19 @@ func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string
 // Compile joins all the saved command into one valid PowerShell script command.
 func (ps *powerShellCommandBuilder) Compile() string {
 	return strings.Join(ps.cmds, ";")
+}
+
+// EnableTestSigning creates a command that enables TestSigning
+func (ps *powerShellCommandBuilder) EnableTestSigning() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+$result = bcdedit.exe | findstr "testsigning" | findstr "Yes"
+if ($result -eq $null) {
+	bcdedit.exe /set testsigning on
+	Restart-Computer -Force
+}
+else {
+	Write-Host "TestSigning is already enabled"
+}
+`)
+	return ps
 }

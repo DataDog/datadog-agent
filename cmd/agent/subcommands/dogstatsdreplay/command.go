@@ -8,6 +8,7 @@ package dogstatsdreplay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -27,6 +28,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -64,6 +66,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -93,7 +96,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())},
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -121,7 +124,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 
 	s := pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
-		return fmt.Errorf("Dogstatsd UNIX socket disabled")
+		return errors.New("Dogstatsd UNIX socket disabled")
 	}
 
 	addr, err := net.ResolveUnixAddr("unixgram", s)
@@ -149,12 +152,12 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	defer conn.Close()
 
 	// let's read state before proceeding
-	pidmap, state, err := reader.ReadState()
+	taggerState, err := reader.ReadState()
 	if err != nil {
 		fmt.Printf("Unable to load state from file, tag enrichment will be unavailable for this capture: %v\n", err)
 	}
 
-	resp, err := cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{State: state, PidMap: pidmap})
+	resp, err := cli.DogstatsdSetTaggerState(ctx, taggerState)
 	if err != nil {
 		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
 	} else if !resp.GetLoaded() {

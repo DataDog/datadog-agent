@@ -9,11 +9,15 @@
 package containers
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -27,6 +31,7 @@ var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	dockerInspectTimeout       = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -63,13 +68,34 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
-	// We can't use container.EnvVars as it doesn't contain the environment variables
-	// added by the container runtime. We need to get them from the main PID environment.
+	// We can't use container.EnvVars as it doesn't contain the environment
+	// variables added by the container runtime, we only get those defined by
+	// the container image, and those can be overridden by the container
+	// runtime. We need to get them from the main PID environment.
 	envVar, err := kernel.GetProcessEnvVariable(container.PID, kernel.ProcFSRoot(), nvidiaVisibleDevicesEnvVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s for container %s: %w", nvidiaVisibleDevicesEnvVar, container.ID, err)
+	if err == nil {
+		return strings.TrimSpace(envVar), nil
 	}
-	return strings.TrimSpace(envVar), nil
+
+	// If we have an error (e.g, the agent does not have permissions to inspect
+	// the process environment variables) fall back to the container runtime
+	// data
+	if container.Resources.GPURequest == nil {
+		return "", nil // no GPUs requested, so no visible devices
+	}
+
+	if *container.Resources.GPURequest == workloadmeta.RequestAllGPUs {
+		return "all", nil
+	}
+
+	// return 0,1,...numGpus-1 as the assumed visible devices variable,
+	// that's how Docker assigns devices to containers, there's no exclusive
+	// allocation.
+	visibleDevices := make([]string, int(*container.Resources.GPURequest))
+	for i := 0; i < int(*container.Resources.GPURequest); i++ {
+		visibleDevices[i] = strconv.Itoa(i)
+	}
+	return strings.Join(visibleDevices, ","), nil
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
@@ -121,6 +147,15 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 		filteredDevices = append(filteredDevices, matchingDevice)
 	}
 
+	// K8s can return the devices in a random order. However, NVIDIA will see them exposed
+	// based on their actual device index in the system. Ensure that order is respected.
+	slices.SortFunc(filteredDevices, func(a, b ddnvml.Device) int {
+		aInfo := a.GetDeviceInfo()
+		bInfo := b.GetDeviceInfo()
+
+		return cmp.Compare(aInfo.Index, bInfo.Index)
+	})
+
 	return filteredDevices, multiErr
 }
 
@@ -138,7 +173,7 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
 		_, isMigDevice := device.(*ddnvml.MIGDevice)
 		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
-			return nil, fmt.Errorf("MIG devices are not supported for GKE device plugin")
+			return nil, errors.New("MIG devices are not supported for GKE device plugin")
 		}
 	}
 
@@ -179,4 +214,24 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	}
 
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
+}
+
+// IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
+func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
+	currentPID := os.Getpid()
+	runningContainer, err := wmeta.GetContainerForProcess(strconv.Itoa(currentPID))
+	if err != nil {
+		return false // errors might happen if the process is not running in a container, or if the process is not accounted for by workloadmeta
+	}
+
+	// If the container is the same as the running container, it is a Datadog container
+	if runningContainer.EntityID == container.EntityID {
+		return true
+	}
+
+	// However, we might have multiple containers as part of the same pod (e.g., agent and system-probe)
+	// In this case, we need to check if the container is part of the same pod as the running container
+	// Compare the struct as a value, not as a pointer, because the pointers might be different if they're created
+	// in different places
+	return runningContainer.Owner != nil && container.Owner != nil && *runningContainer.Owner == *container.Owner
 }

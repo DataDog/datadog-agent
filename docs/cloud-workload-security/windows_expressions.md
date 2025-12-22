@@ -64,17 +64,17 @@ List of the available variables:
 
 | Property | Definition |
 | -------- | ------------- |
-| [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
-| [`container.id`](#container-id-doc) | ID of the container |
-| [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
-| [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
@@ -89,7 +89,9 @@ List of the available variables:
 | [`process.ancestors.user`](#common-process-user-doc) | User name |
 | [`process.ancestors.user_sid`](#common-process-user_sid-doc) | Sid of the user of the process |
 | [`process.cmdline`](#common-process-cmdline-doc) | Command line of the process |
-| [`process.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
@@ -99,7 +101,9 @@ List of the available variables:
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.cmdline`](#common-process-cmdline-doc) | Command line of the process |
-| [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
@@ -195,7 +199,9 @@ A process was executed or forked
 | Property | Definition |
 | -------- | ------------- |
 | [`exec.cmdline`](#common-process-cmdline-doc) | Command line of the process |
-| [`exec.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
@@ -218,7 +224,9 @@ A process was terminated
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
-| [`exit.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
@@ -333,13 +341,13 @@ exec.cmdline =~ "* -F * http*"
 
 Matches any process that has the "-F" argument anywhere before an argument starting with "http".
 
-### `*.container.id` {#common-process-container-id-doc}
-Type: string
+### `*.created_at` {#common-containercontext-created_at-doc}
+Type: int
 
-Definition: Container ID
+Definition: Timestamp of the creation of the container
 
-`*.container.id` has 5 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent`
+`*.created_at` has 5 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
 
 
 ### `*.created_at` {#common-process-created_at-doc}
@@ -403,6 +411,15 @@ Definition: File's extension
 
 `*.extension` has 5 possible prefixes:
 `create.file` `delete.file` `rename.file` `rename.file.destination` `write.file`
+
+
+### `*.id` {#common-containercontext-id-doc}
+Type: string
+
+Definition: ID of the container
+
+`*.id` has 5 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
 
 
 ### `*.key_name` {#common-registryevent-key_name-doc}
@@ -531,6 +548,15 @@ Definition: Registry's value name
 `set` `set_key_value`
 
 
+### `*.tags` {#common-containercontext-tags-doc}
+Type: string
+
+Definition: Tags of the container
+
+`*.tags` has 5 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
+
+
 ### `*.user` {#common-process-user-doc}
 Type: string
 
@@ -600,27 +626,6 @@ Definition: Username of the permission change author
 
 
 
-### `container.created_at` {#container-created_at-doc}
-Type: int
-
-Definition: Timestamp of the creation of the container
-
-
-
-### `container.id` {#container-id-doc}
-Type: string
-
-Definition: ID of the container
-
-
-
-### `container.tags` {#container-tags-doc}
-Type: string
-
-Definition: Tags of the container
-
-
-
 ### `event.hostname` {#event-hostname-doc}
 Type: string
 
@@ -653,6 +658,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.source` {#event-source-doc}
+Type: string
+
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
 
 
 
@@ -1002,6 +1014,24 @@ Linkage types.
 | `STATIC` | all |
 | `DYNAMIC` | all |
 
+### `Network Protocol Types` {#network-protocol-types}
+Types of specific network protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ICMP_ECHO_REQUEST` | all |
+| `ICMP_ECHO_REPLY` | all |
+| `ICMP_ROUTER_SOLICITATION` | all |
+| `ICMP_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_NEIGHBOR_ADVERTISEMENT` | all |
+| `ICMP_V6_ECHO_REQUEST` | all |
+| `ICMP_V6_ECHO_REPLY` | all |
+| `ICMP_V6_ROUTER_SOLICITATION` | all |
+| `ICMP_V6_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_V6_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_V6_NEIGHBOR_ADVERTISEMENT` | all |
+
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.
 
@@ -1009,6 +1039,24 @@ Network directions are the supported directions of network packets.
 | ---- |---------------|
 | `INGRESS` | all |
 | `EGRESS` | all |
+
+### `SSHAuthMethod` {#sshauthmethod}
+SSH authentication methods.
+
+| Name | Architectures |
+| ---- |---------------|
+| `password` | all |
+| `public_key` | all |
+| `unknown` | all |
+
+### `UserSessionTypes` {#usersessiontypes}
+UserSessionTypes are the supported user session types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `unknown` | all |
+| `k8s` | all |
+| `ssh` | all |
 
 
 

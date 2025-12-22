@@ -16,6 +16,7 @@
   - !reference [.upload_sbom_artifacts]
 
 .agent_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -30,12 +31,10 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 .agent_build_x86:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
@@ -44,8 +43,8 @@
     DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_build_arm64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   needs:
     ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
@@ -54,29 +53,46 @@
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
     DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
-.agent_7_build:
+.agent_base_flavor:
   variables:
     FLAVOR: base
 
-.agent_fips_build:
+.agent_fips_flavor:
   variables:
     FLAVOR: fips
 
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
-  extends: [.agent_build_common, .agent_build_x86, .agent_7_build]
+  extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
 
 # build Agent 7 binaries for arm64
 datadog-agent-7-arm64:
-  extends: [.agent_build_common, .agent_build_arm64, .agent_7_build]
+  extends: [.agent_build_common, .agent_build_arm64, .agent_base_flavor]
 
 # build Agent 7 binaries for x86_64 with FIPS
 datadog-agent-7-x64-fips:
-  extends: [.agent_build_common, .agent_build_x86, .agent_fips_build]
+  extends: [.agent_build_common, .agent_build_x86, .agent_fips_flavor]
 
 # build Agent 7 binaries for arm64 with FIPS
 datadog-agent-7-arm64-fips:
-  extends: [.agent_build_common, .agent_build_arm64, .agent_fips_build]
+  extends: [.agent_build_common, .agent_build_arm64, .agent_fips_flavor]
+
+# Common to IoT, DDOT and dogstatsd
+.toolchain-common-x64:
+  tags: ["arch:amd64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+
+.toolchain-common-arm64:
+  tags: ["arch:arm64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+
+# ----- IoT -----
 
 .iot-agent-common:
   extends: .agent_build_common
@@ -91,25 +107,15 @@ datadog-agent-7-arm64-fips:
     - !reference [.upload_sbom_artifacts]
 
 iot-agent-x64:
-  extends: .iot-agent-common
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  variables:
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+  extends: [.iot-agent-common, .toolchain-common-x64]
 
 iot-agent-arm64:
-  extends: .iot-agent-common
-  tags: ["arch:arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  variables:
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+  extends: [.iot-agent-common, .toolchain-common-arm64]
 
 iot-agent-armhf:
   extends: .iot-agent-common
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
   variables:
     # On armv7, dpkg is built as a 32bits application, which means
@@ -117,7 +123,10 @@ iot-agent-armhf:
     # if we use too many compression threads or a too agressive level
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
+# ----- Dogstatsd -----
+
 .dogstatsd_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -139,26 +148,17 @@ iot-agent-armhf:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 dogstatsd-x64:
-  extends: .dogstatsd_build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
-  variables:
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+  extends: [.dogstatsd_build_common, .toolchain-common-x64]
 
 dogstatsd-arm64:
-  extends: .dogstatsd_build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
-  variables:
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+  extends: [.dogstatsd_build_common, .toolchain-common-arm64]
+
+# ----- DDOT -----
 
 .otel_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -169,7 +169,7 @@ dogstatsd-arm64:
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project ddot
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project ddot --flavor "$FLAVOR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -180,21 +180,15 @@ dogstatsd-arm64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 datadog-otel-agent-x64:
-  extends: .otel_build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
-  variables:
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+  extends: [.otel_build_common, .toolchain-common-x64, .agent_base_flavor]
 
 datadog-otel-agent-arm64:
-  extends: .otel_build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
-  variables:
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+  extends: [.otel_build_common, .toolchain-common-arm64, .agent_base_flavor]
+
+datadog-otel-agent-x64-fips:
+  extends: [.otel_build_common, .toolchain-common-x64, .agent_fips_flavor]
+
+datadog-otel-agent-arm64-fips:
+  extends: [.otel_build_common, .toolchain-common-arm64, .agent_fips_flavor]

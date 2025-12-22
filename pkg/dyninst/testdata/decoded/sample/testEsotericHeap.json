@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEsotericHeap",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.testEsotericHeap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
-            "lineNumber": 47
+            "lineNumber": 49
           },
           {
             "function": "main.executeEsoteric",
@@ -28,12 +28,12 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 41
+            "lineNumber": 46
           },
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -67,11 +67,22 @@
                       },
                       "val": {
                         "type": "interface {}",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "int",
+                            "value": "42"
+                          }
+                        }
                       },
                       "work": {
                         "type": "main.something",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "*main.somethingImpl",
+                            "address": "[addr]",
+                            "fields": {}
+                          }
+                        }
                       },
                       "foo": {
                         "type": "func()",
@@ -79,56 +90,8 @@
                       }
                     }
                   },
-                  "mu": {
-                    "type": "sync.Mutex",
-                    "fields": {
-                      "mu": {
-                        "type": "internal/sync.Mutex",
-                        "fields": {
-                          "state": {
-                            "type": "int32",
-                            "value": "0"
-                          },
-                          "sema": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "once": {
-                    "type": "sync.Once",
-                    "fields": {
-                      "done": {
-                        "type": "sync/atomic.Uint32",
-                        "fields": {
-                          "v": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      },
-                      "m": {
-                        "type": "sync.Mutex",
-                        "fields": {
-                          "mu": {
-                            "type": "internal/sync.Mutex",
-                            "fields": {
-                              "state": {
-                                "type": "int32",
-                                "value": "0"
-                              },
-                              "sema": {
-                                "type": "uint32",
-                                "value": "0"
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
+                  "mu": "[sync.Mutex (different in different versions)]",
+                  "once": "[sync.Once (different in different versions)]",
                   "wg": {
                     "type": "sync.WaitGroup",
                     "fields": {
@@ -167,6 +130,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "{esotericStack: {_valid: 77, c: {chan}, val: 42, work: {pointer: not captured at 0x[addr]}, foo: {func}}, mu: {mutex internals}, once: {done: {v: 0}, m: {mutex internals}}, wg: {noCopy: {}, state: {v: 0}, sema: 0}, a: {v: 0}}"
   }
 ]

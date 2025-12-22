@@ -5,43 +5,41 @@
 
 package log
 
-import "github.com/cihub/seelog"
+import (
+	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
+)
 
 // LogLevel is the type of log levels
 //
 //nolint:revive // keeping the original type name from seelog
-type LogLevel seelog.LogLevel
+type LogLevel = types.LogLevel
 
 // Log levels
 const (
-	TraceLvl    LogLevel = seelog.TraceLvl
-	DebugLvl    LogLevel = seelog.DebugLvl
-	InfoLvl     LogLevel = seelog.InfoLvl
-	WarnLvl     LogLevel = seelog.WarnLvl
-	ErrorLvl    LogLevel = seelog.ErrorLvl
-	CriticalLvl LogLevel = seelog.CriticalLvl
-	Off         LogLevel = seelog.Off
+	TraceLvl    LogLevel = types.TraceLvl
+	DebugLvl    LogLevel = types.DebugLvl
+	InfoLvl     LogLevel = types.InfoLvl
+	WarnLvl     LogLevel = types.WarnLvl
+	ErrorLvl    LogLevel = types.ErrorLvl
+	CriticalLvl LogLevel = types.CriticalLvl
+	Off         LogLevel = types.Off
 )
 
 // Log level string representations
 const (
-	TraceStr    = seelog.TraceStr
-	DebugStr    = seelog.DebugStr
-	InfoStr     = seelog.InfoStr
-	WarnStr     = seelog.WarnStr
-	ErrorStr    = seelog.ErrorStr
-	CriticalStr = seelog.CriticalStr
-	OffStr      = seelog.OffStr
+	TraceStr    = types.TraceStr
+	DebugStr    = types.DebugStr
+	InfoStr     = types.InfoStr
+	WarnStr     = types.WarnStr
+	ErrorStr    = types.ErrorStr
+	CriticalStr = types.CriticalStr
+	OffStr      = types.OffStr
 )
 
-func (level LogLevel) String() string {
-	return seelog.LogLevel(level).String()
-}
-
-// LogLevelFromString returns a LogLevel from a string
-//
-//nolint:revive // keeping the original function name from seelog
-func LogLevelFromString(levelStr string) (LogLevel, bool) {
+// logLevelFromString returns a LogLevel from a string
+func logLevelFromString(levelStr string) (LogLevel, bool) {
 	level, ok := seelog.LogLevelFromString(levelStr)
 	return LogLevel(level), ok
 }

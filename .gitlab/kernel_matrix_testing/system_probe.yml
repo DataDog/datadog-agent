@@ -2,28 +2,32 @@
 upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - pull_test_dockers_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
     TEST_COMPONENT: system-probe
 
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - pull_test_dockers_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
     TEST_COMPONENT: system-probe
 
 # --- Docker test images
 .pull_test_dockers:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
@@ -54,8 +58,8 @@ pull_test_dockers_arm64:
 # -- BTF
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -89,23 +93,27 @@ pull_test_dockers_arm64:
 upload_minimized_btfs_sysprobe_x64:
   extends:
     - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_x64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - generate_minimized_btfs_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
     TEST_COMPONENT: system-probe
 
 upload_minimized_btfs_sysprobe_arm64:
   extends:
     - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_arm64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - generate_minimized_btfs_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
     TEST_COMPONENT: system-probe
 
 kmt_setup_env_sysprobe_arm64:
@@ -113,7 +121,7 @@ kmt_setup_env_sysprobe_arm64:
     - .kmt_setup_env
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
     INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
@@ -125,7 +133,7 @@ kmt_setup_env_sysprobe_x64:
     - .kmt_setup_env
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "r5d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
@@ -170,22 +178,28 @@ kmt_setup_env_sysprobe_x64:
 upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - prepare_sysprobe_ebpf_functional_tests_x64
+    - tests_ebpf_x64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
 
 upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  needs:
+    - !reference [.kmt_setup_needs]
+    - prepare_sysprobe_ebpf_functional_tests_arm64
+    - tests_ebpf_arm64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
 
 .kmt_run_sysprobe_tests:
   extends: .kmt_run_tests
@@ -198,8 +212,8 @@ upload_sysprobe_tests_arm64:
 kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - kmt_setup_env_sysprobe_x64
     - upload_dependencies_sysprobe_x64
@@ -239,8 +253,8 @@ kmt_run_sysprobe_tests_x64:
 kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   needs:
     - kmt_setup_env_sysprobe_arm64
     - upload_dependencies_sysprobe_arm64
@@ -292,7 +306,7 @@ kmt_sysprobe_cleanup_arm64:
     - upload_dependencies_sysprobe_arm64
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
 
 kmt_sysprobe_cleanup_x64:
   when: always
@@ -306,8 +320,7 @@ kmt_sysprobe_cleanup_x64:
     - upload_dependencies_sysprobe_x64
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
-
+    INSTANCE_TYPE: "r5d.metal"
 
 kmt_sysprobe_cleanup_arm64_manual:
   extends:
@@ -315,7 +328,7 @@ kmt_sysprobe_cleanup_arm64_manual:
     - .kmt_cleanup_manual
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
 
 kmt_sysprobe_cleanup_x64_manual:
   extends:
@@ -323,4 +336,4 @@ kmt_sysprobe_cleanup_x64_manual:
     - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "r5d.metal"

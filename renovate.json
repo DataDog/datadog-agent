@@ -99,7 +99,7 @@
     ],
     "customDatasources": {
       "linux-images": {
-        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-linux/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
         ]

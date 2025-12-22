@@ -24,12 +24,13 @@ func TestGPMCollectorSupportDetection(t *testing.T) {
 	mockLib := &mockGpmNvml{}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 0},
+		uuid:       "test-uuid-1",
 	}
 
 	mocklib := testutil.GetBasicNvmlMock()
 	safenvml.WithMockNVML(t, mocklib)
 
-	collector, err := newGPMCollector(mockDevice)
+	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 	assert.Equal(t, 0, mockLib.freedSamples, "all allocated samples should be freed (none allocated in this case)")
@@ -42,11 +43,12 @@ func TestGPMCollectorSampleAllocFailure(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-2",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
 
-	collector, err := newGPMCollector(mockDevice)
+	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to allocate GPM sample")
@@ -73,10 +75,11 @@ func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-3",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
-	collector, err := newGPMCollector(mockDevice)
+	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 }
@@ -104,11 +107,12 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-4",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
 
-	collector, err := newGPMCollector(mockDevice)
+	collector, err := newGPMCollector(mockDevice, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, collector)
 	gpmCol := collector.(*gpmCollector)
@@ -166,6 +170,12 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 
 	mockLib := &mockGpmNvml{
 		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			// Check that we got metrics passed in the correct order.
+			// Sample 1 needs to be the older sample, and sample 2 the newer one.
+			sample1 := metrics.Sample1.(*gpmSample)
+			sample2 := metrics.Sample2.(*gpmSample)
+			assert.Greater(t, sample2.getIndex, sample1.getIndex)
+
 			for i := range metrics.Metrics[:metrics.NumMetrics] {
 				if metrics.Metrics[i].MetricId == 2 {
 					metrics.Metrics[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
@@ -177,20 +187,23 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 			return nvml.SUCCESS
 		},
 	}
+
+	getIndex := 0
 	mockDevice := &mockGpmDevice{
-		gpmSupport:       nvml.GpmSupport{IsSupportedDevice: 1},
-		GpmSampleGetFunc: func(_ nvml.GpmSample) error { return nil },
+		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		GpmSampleGetFunc: func(sample nvml.GpmSample) error {
+			sample.(*gpmSample).getIndex = getIndex
+			getIndex++
+			return nil
+		},
+		uuid: "test-uuid-5",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
 
-	collector, err := newGPMCollector(mockDevice)
+	collector, err := newGPMCollector(mockDevice, nil)
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
-
-	// Pre-fill samples so calculateGpmMetrics works
-	gpmCol.samples = [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}}
-	gpmCol.nextSampleToCollect = 0
 
 	result, err := gpmCol.Collect()
 	assert.NoError(t, err)
@@ -247,7 +260,8 @@ func (m *mockGpmNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) nvml.Return
 
 type gpmSample struct {
 	nvml.GpmSample
-	id int
+	id       int
+	getIndex int
 }
 
 type mockGpmDevice struct {
@@ -255,6 +269,12 @@ type mockGpmDevice struct {
 
 	gpmSupport       nvml.GpmSupport
 	GpmSampleGetFunc func(sample nvml.GpmSample) error
+	uuid             string
+}
+
+// GetDeviceInfo implements safenvml.Device interface
+func (m *mockGpmDevice) GetDeviceInfo() *safenvml.DeviceInfo {
+	return &safenvml.DeviceInfo{UUID: m.uuid}
 }
 
 func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {

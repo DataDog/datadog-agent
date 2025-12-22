@@ -13,13 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -34,7 +36,7 @@ func TestLinuxTestSuite(t *testing.T) {
 	}
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)
@@ -58,11 +60,11 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(processAgentRefreshStr),
 				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
-			),
+			)),
 		),
 	)
 
@@ -90,11 +92,11 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(coreAgentRefreshStr),
 				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
-			),
+			)),
 		),
 	)
 
@@ -132,11 +134,11 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(config),
 				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
-			),
+			)),
 		),
 	)
 
@@ -173,7 +175,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
@@ -194,7 +196,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process_discovery"}, false)
@@ -213,7 +215,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)))))
 
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -237,40 +239,7 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 
 func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
-	}, 1*time.Minute, 5*time.Second)
-
-	// Verify that the process agent is not running
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
-		assert.Contains(c, status, "The Process Agent is not running")
-	}, 1*time.Minute, 5*time.Second)
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress")
-
-	// check that the process agent is not collected as it should not be running
-	requireProcessNotCollected(t, payloads, "process-agent")
-}
-
-func (s *linuxTestSuite) TestProcessChecksWLM() {
-	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentWLMProcessCollectorConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
@@ -303,7 +272,7 @@ func (s *linuxTestSuite) TestProcessChecksWLM() {
 
 func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
@@ -327,7 +296,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 
 func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "connections"}, false)
@@ -350,23 +319,49 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
-	assertManualProcessCheck(s.T(), check, false, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
+
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
+		assertManualProcessCheck(c, check, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
+
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")
+		assertManualRTProcessCheck(c, check)
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
-
-	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+		assertManualProcessDiscoveryCheck(c, check, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+	// https://datadoghq.atlassian.net/browse/CXP-2594
+	flake.Mark(s.T())
+
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(
 		agentparams.WithAgentConfig(processCheckConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr)))))
 
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
-
-	assertManualProcessCheck(s.T(), check, true, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, true, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }

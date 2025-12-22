@@ -17,8 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
@@ -187,11 +188,12 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 	return fxutil.OneShot(f,
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.ConfFilePath),
-			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForOneShot("INSTALLER", "off", true),
 		}),
 		core.Bundle(),
+		hostnameimpl.Module(),
+		secretsfx.Module(),
 		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)

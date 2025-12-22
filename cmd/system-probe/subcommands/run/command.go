@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -38,27 +40,28 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -68,7 +71,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -85,6 +87,8 @@ type cliParams struct {
 	pidfilePath string
 }
 
+const configSyncTimeout = 10 * time.Second
+
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -96,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("")),
+				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
 				// Force FX to load Datadog configuration before System Probe config.
 				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
@@ -104,9 +108,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
 				}),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-				fx.Supply(option.None[secrets.Component]()),
+				secretsnoopfx.Module(),
 				statsd.Module(),
 				config.Module(),
 				telemetryimpl.Module(),
@@ -127,10 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				ipcfx.ModuleReadWrite(),
 				// Provide tagger module
-				remoteTaggerFx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
+				remoteTaggerFx.Module(tagger.NewRemoteParams()),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -153,9 +154,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				remotehostnameimpl.Module(),
+				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
+				localtraceroute.Module(),
 			)
 		},
 	}
@@ -290,9 +295,9 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 			return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))
 		}),
-		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-		fx.Supply(option.None[secrets.Component]()),
+		secretsnoopfx.Module(),
 		rcclientimpl.Module(),
 		config.Module(),
 		telemetryimpl.Module(),
@@ -312,10 +317,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		ipcfx.ModuleReadWrite(),
 		// Provide tagger module
-		remoteTaggerFx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
@@ -336,9 +338,10 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
+		localtraceroute.Module(),
 	)
 }
 
@@ -348,7 +351,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -404,7 +407,7 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, telemetry, deps); err != nil {
+	if err = api.StartServer(cfg, settings, telemetry, rcclient, deps); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

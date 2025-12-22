@@ -14,13 +14,27 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
-from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
+from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
+from tasks.static_quality_gates.experimental_gates import (
+    measure_image_local as _measure_image_local,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    measure_package_local as _measure_package_local,
+)
+from tasks.static_quality_gates.gates import (
+    GateMetricHandler,
+    QualityGateFactory,
+    StaticQualityGate,
+    StaticQualityGateError,
+    byte_to_string,
+)
+from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
+WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
@@ -36,35 +50,36 @@ body_error_footer_pattern = """<details>
 |----|---|--------|
 """
 
-footer_error_debug_advice = """
-To understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates]({}) manual gitlab job to compare what this PR introduced for a specific gate.
-Usage:
-- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages
-Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
-"""
 
+def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
+    """
+    Check if a gate failure should be non-blocking because on-disk size delta is 0 or negative.
 
-def get_debug_job_url():
-    commit_sha = os.environ.get("CI_COMMIT_SHA")
-    if not commit_sha:
-        return ""
-    try:
-        repo = get_gitlab_repo("DataDog/datadog-agent")
-        pipeline_list = repo.pipelines.list(sha=commit_sha)
-        if not len(pipeline_list):
-            raise Exit(code=1, message="The current commit has no pipeline attached.")
-        current_pipeline = pipeline_list[0]
-        debug_job = next(
-            job for job in current_pipeline.jobs.list(iterator=True) if job.name == "debug_static_quality_gates"
-        )
-    except StopIteration:
-        print("Job debug_static_quality_gates wasn't found in the current pipeline!")
-        return ""
-    except Exception as e:
-        print(f"Failed to fetch debug_static_quality_gates url!\n{traceback.format_exc()}\n{str(e)}")
-        return ""
+    A failure is considered non-blocking if the on-disk size hasn't increased from the ancestor,
+    meaning the issue existed before this PR and wasn't introduced by the current changes.
 
-    return f"{debug_job._attrs['web_url']}"
+    Note: Only on-disk size is checked because it's the primary metric for package size impact.
+
+    Args:
+        gate_name: The name of the quality gate to check
+        metric_handler: The metric handler containing relative size metrics
+
+    Returns:
+        True if on-disk size delta is effectively <= 0 (bypass eligible), False otherwise
+    """
+    gate_metrics = metric_handler.metrics.get(gate_name, {})
+    disk_delta = gate_metrics.get("relative_on_disk_size")
+
+    # If we don't have delta data (e.g., no ancestor report), can't bypass
+    if disk_delta is None:
+        return False
+
+    # Threshold: values smaller than 2 KiB are treated as 0
+    # Small variations due to build non-determinism should not block PRs
+    delta_threshold_bytes = 2 * 1024  # 2 KiB
+
+    # Bypass if on-disk size hasn't meaningfully increased from ancestor
+    return disk_delta <= delta_threshold_bytes
 
 
 def display_pr_comment(
@@ -83,11 +98,15 @@ def display_pr_comment(
     ancestor_info = (
         f"Comparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
     )
-    body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
+    dashboard_link = (
+        "[📊 Static Quality Gates Dashboard](https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates)\n"
+    )
+    body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
-    with_error = False
+    with_blocking_error = False
+    with_non_blocking_error = False
     with_info = False
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
@@ -114,18 +133,28 @@ def display_pr_comment(
             body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             with_info = True
         else:
-            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
+            # Check if this is a blocking or non-blocking failure
+            is_blocking = gate.get("blocking", True)
+            status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
+            body_error += f"|{status_char}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
-            body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
-            with_error = True
-    if with_error:
-        debug_info_footer = footer_error_debug_advice.format(get_debug_job_url())
-        body_error_footer += f"\n</details>\n\nStatic quality gates prevent the PR to merge! {debug_info_footer}\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+            blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
+            body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
+            if is_blocking:
+                with_blocking_error = True
+            else:
+                with_non_blocking_error = True
+
+    if with_blocking_error:
+        body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        final_error_body = body_error + body_error_footer
+    elif with_non_blocking_error:
+        body_error_footer += "\n</details>\n\nNote: Some gates exceeded limits but are non-blocking because the size hasn't increased from the ancestor commit.\n"
         final_error_body = body_error + body_error_footer
     else:
         final_error_body = ""
     body_info += "\n</details>\n"
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{final_error_body}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -152,77 +181,154 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
+def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
-    Parse and executes static quality gates
+    Parse and executes static quality gates using composition pattern
     :param ctx: Invoke context
     :param config_path: Static quality gates configuration file path
-    :return:
+    :return: List of quality gates
     """
-    with open(config_path) as file:
-        config = yaml.safe_load(file)
-
-    gate_list = list(config.keys())
-    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
-    print(f"{config_path} correctly parsed !")
+    final_state = "success"
+    gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
-    newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
-    final_state = "success"
-    gate_states = []
+    gate_list = QualityGateFactory.create_gates_from_config(config_path)
+
+    # python 3.11< does not allow to use \n in f-strings
+    delimiter = '\n'
+    print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))
+    print(color_message(f"Gates to run: {delimiter.join(gate.config.gate_name for gate in gate_list)}", "cyan"))
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
-        gate_inputs = config[gate]
-        gate_inputs["ctx"] = ctx
-        gate_inputs["metricHandler"] = metric_handler
-        gate_inputs["nightly"] = nightly_run
+        result = None
         try:
-            gate_mod = getattr(quality_gates_mod, gate)
-            gate_mod.entrypoint(**gate_inputs)
-            print(f"Gate {gate} succeeded !")
-            gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
-        except AssertionError as e:
-            print(f"Gate {gate} failed ! (AssertionError)")
+            result = gate.execute_gate(ctx)
+            if not result.success:
+                violation_messages = []
+                for violation in result.violations:
+                    current_mb = violation.current_size / (1024 * 1024)
+                    max_mb = violation.max_size / (1024 * 1024)
+                    excess_mb = violation.excess_bytes / (1024 * 1024)
+                    if excess_mb < 1:
+                        excess_kb = violation.excess_bytes / 1024
+                        excess_str = f"{excess_kb:.1f} KB"
+                    else:
+                        excess_str = f"{excess_mb:.1f} MB"
+                    violation_messages.append(
+                        f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                        f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+                    )
+                error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+                print(color_message(error_message, "red"))
+                raise StaticQualityGateError(error_message)
+            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
+        except StaticQualityGateError as e:
             final_state = "failure"
-            gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
+            gate_states.append(
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StaticQualityGateFailed",
+                    "message": str(e),
+                    "blocking": True,  # May be updated to False if delta=0 after relative size calculation
+                }
+            )
         except InfraError as e:
-            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
-            traceback.print_exception(e)
+            print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
+            for line in traceback.format_exception(e):
+                print(color_message(line, "red"))
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
-            print(f"Gate {gate} failed ! (StackTrace)")
             final_state = "failure"
             gate_states.append(
-                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StackTrace",
+                    "message": traceback.format_exc(),
+                    "blocking": True,  # StackTrace errors are always blocking
+                }
             )
+        finally:
+            metric_handler.register_gate_tags(
+                gate.config.gate_name,
+                gate_name=gate.config.gate_name,
+                arch=gate.config.arch,
+                os=gate.config.os,
+                pipeline_id=os.environ["CI_PIPELINE_ID"],
+                ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
+                ci_commit_sha=os.environ["CI_COMMIT_SHA"],
+            )
+            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+
+            # Only register current sizes if gate executed successfully and we have a result
+            if result is not None:
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+                )
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+                )
+
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    _print_quality_gates_report(gate_states)
+    # Calculate relative sizes (delta from ancestor) before sending metrics
+    # This is done for all branches to include delta metrics in Datadog
+    ancestor = get_common_ancestor(ctx, "HEAD")
+    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
 
+    # Post-process gate failures: mark as non-blocking if delta <= 0
+    # This means the size issue existed before this PR and wasn't introduced by current changes
+    for gate_state in gate_states:
+        if gate_state["state"] is False and gate_state.get("blocking", True):
+            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+            if gate_state["error_type"] == "StaticQualityGateFailed":
+                if should_bypass_failure(gate_state["name"], metric_handler):
+                    gate_state["blocking"] = False
+                    print(
+                        color_message(
+                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                            "orange",
+                        )
+                    )
+
+    # Reporting part
+    # Send metrics to Datadog (now includes delta metrics)
+    # and then print the summary table in the job's log
     metric_handler.send_metrics_to_datadog()
+
+    # Print summary table directly with composition-based gates and metric handler
+    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
+
+    # Then print the traditional report for any failures
+    if final_state != "success":
+        _print_quality_gates_report(gate_states)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
+        # Determine if there are blocking failures (non-blocking failures have delta=0)
+        has_blocking_failures = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
-            ancestor = get_common_ancestor(ctx, "HEAD")
-            metric_handler.generate_relative_size(
-                ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json"
-            )
-            display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
+            # Pass True for final_state if there are no blocking failures
+            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
-        if final_state != "success" and not nightly_run:
+        # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)
+        if has_blocking_failures and not nightly_run:
             metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics
     metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
+
+    return gate_list
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
@@ -285,7 +391,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
             yaml.dump(file_content, f)
         ctx.run(f"git add {GATE_CONFIG_PATH}")
         print("Creating signed commits using Github API")
-        tree = create_tree(ctx, f"origin/{current_branch.name}")
+        tree = create_tree(ctx, current_branch.name)
         github.commit_and_push_signed(branch_name, commit_message, tree)
     else:
         print("Creating commits using your local git configuration, please make sure to sign them")
@@ -305,7 +411,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         current_branch.name,
         branch_name,
         milestone_version,
-        ["team/agent-build", "qa/skip-qa", "changelog/no-changelog"],
+        ["team/agent-build", "qa/no-code-change", "changelog/no-changelog"],
     )
 
 
@@ -327,48 +433,6 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     github = GithubAPI()
     pr_url = update_quality_gates_threshold(self, metric_handler, github)
     notify_threshold_update(pr_url)
-
-
-@task
-def debug_specific_quality_gate(ctx, gate_name):
-    """
-    Executes a single static quality gate to compare it to its ancestor and run debug on it
-
-    :param ctx: Invoke context
-    :param gate_name: Static quality gates to debug
-    :return:
-    """
-    if not gate_name:
-        raise Exit(
-            code=0,
-            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
-        )
-    nightly_run = False
-    branch = os.environ["CI_COMMIT_BRANCH"]
-
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
-
-    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
-    gate_inputs = {"ctx": ctx, "nightly": nightly_run}
-    try:
-        gate_module = getattr(quality_gates_module, gate_name)
-    except AttributeError as e:
-        raise Exit(
-            code=0,
-            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
-        ) from e
-
-    # As it is a debug job we do not want the job to actually fail on failures.
-    try:
-        gate_module.debug_entrypoint(**gate_inputs)
-    except NotImplementedError:
-        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
-    except Exception as e:
-        print(
-            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
-        )
 
 
 @task()
@@ -429,3 +493,82 @@ def exception_threshold_bump(ctx, pipeline_id):
                 )
             )
             raise Exit(code=1)
+
+
+@task
+def measure_package_local(
+    ctx,
+    package_path,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    debug=False,
+):
+    """
+    Run the in-place package measurer locally for testing and development.
+
+    This task allows you to test the measurement functionality on local packages
+    without requiring a full CI environment.
+
+    Args:
+        package_path: Path to the package file to measure
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
+    """
+    return _measure_package_local(
+        ctx=ctx,
+        package_path=package_path,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        debug=debug,
+    )
+
+
+@task
+def measure_image_local(
+    ctx,
+    image_ref,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    include_layer_analysis=True,
+    debug=False,
+):
+    """
+    Run the in-place Docker image measurer locally for testing and development.
+
+    This task allows you to test the Docker image measurement functionality on local images
+    without requiring a full CI environment.
+
+    Args:
+        image_ref: Docker image reference (tag, digest, or image ID)
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_image_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        include_layer_analysis: Whether to analyze individual layers (default: true)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
+    """
+    return _measure_image_local(
+        ctx=ctx,
+        image_ref=image_ref,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        include_layer_analysis=include_layer_analysis,
+        debug=debug,
+    )

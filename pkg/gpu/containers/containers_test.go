@@ -8,12 +8,15 @@
 package containers
 
 import (
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -178,6 +181,98 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.Len(t, filteredDevices, len(devices))
 		for i, device := range devices {
 			assert.Equal(t, device, filteredDevices[i])
+		}
+	})
+
+	t.Run("KubernetesDevicesOrderIsCorrect", func(t *testing.T) {
+		// Get test devices with different indices
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+
+		// Test with resources in reverse order (highest index first)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-sorting",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[4], // Device index 4
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[1], // Device index 1
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[3], // Device index 3
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[0], // Device index 0
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // Device index 2
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 5)
+
+		// Verify devices are sorted by index (0, 1, 2, 3, 4)
+		for i, device := range filteredDevices {
+			expectedIndex := i
+			actualIndex := device.GetDeviceInfo().Index
+			assert.Equal(t, expectedIndex, actualIndex, "Device at position %d should have index %d, got %d", i, expectedIndex, actualIndex)
+		}
+	})
+
+	t.Run("KubernetesDevicesSortedByIndexWithMixedResourceTypes", func(t *testing.T) {
+		// Get test devices with different indices
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+
+		// Test with mixed resource types (GKE and NVIDIA device plugin formats)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-mixed-sorting",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia3", // GKE format - device index 3
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[0], // NVIDIA device plugin format - device index 0
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia1", // GKE format - device index 1
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[4], // NVIDIA device plugin format - device index 4
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia2", // GKE format - device index 2
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 5)
+
+		// Verify devices are sorted by index (0, 1, 2, 3, 4)
+		for i, device := range filteredDevices {
+			expectedIndex := i
+			actualIndex := device.GetDeviceInfo().Index
+			assert.Equal(t, expectedIndex, actualIndex, "Device at position %d should have index %d, got %d", i, expectedIndex, actualIndex)
 		}
 	})
 }
@@ -417,4 +512,167 @@ func TestMatchContainerDevicesWithErrors(t *testing.T) {
 		assert.Equal(t, devices[2], filteredDevices[1])
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
+}
+
+func TestIsDatadogAgentContainer(t *testing.T) {
+	currentPID := os.Getpid()
+	currentPIDStr := strconv.Itoa(currentPID)
+
+	// Helper function to create a container
+	makeContainer := func(id string, podID string) *workloadmeta.Container {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   id,
+			},
+		}
+		if podID != "" {
+			container.Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podID,
+			}
+		}
+		return container
+	}
+
+	// Helper function to set up a process
+	setupProcess := func(wmetaMock workloadmetamock.Mock, pidStr string, pid int32, containerOwnerID string) {
+		var owner *workloadmeta.EntityID
+		if containerOwnerID != "" {
+			owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   containerOwnerID,
+			}
+		}
+		wmetaMock.Set(&workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   pidStr,
+			},
+			Pid:   pid,
+			Owner: owner,
+		})
+	}
+
+	tests := []struct {
+		name             string
+		setup            func(wmetaMock workloadmetamock.Mock)
+		container        *workloadmeta.Container
+		expectedResult   bool
+		expectedErrorMsg string
+	}{
+		{
+			name: "ProcessNotFound",
+			setup: func(_ workloadmetamock.Mock) {
+				// No process set up
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ProcessHasNoOwner",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), "")
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerEntityIDMatches",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				containerID := "test-container"
+				wmetaMock.Set(makeContainer(containerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), containerID)
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: true,
+		},
+		{
+			name: "SamePodDifferentContainers",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "test-pod"),
+			expectedResult: true,
+		},
+		{
+			name: "DifferentPods",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningPodID := "running-pod"
+				otherPodID := "other-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, runningPodID))
+				wmetaMock.Set(makeContainer(otherContainerID, otherPodID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "other-pod"),
+			expectedResult: false,
+		},
+		{
+			name: "RunningContainerOwnerNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				podID := "test-pod"
+				wmetaMock.Set(makeContainer(runningContainerID, ""))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "test-pod"),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerOwnerNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "BothOwnersNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, ""))
+				wmetaMock.Set(makeContainer(otherContainerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerEntityIDDifferentButSamePod",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "agent-container"
+				otherContainerID := "system-probe-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("system-probe-container", "test-pod"),
+			expectedResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmetaMock := testutil.GetWorkloadMetaMock(t)
+			tt.setup(wmetaMock)
+			result := IsDatadogAgentContainer(wmetaMock, tt.container)
+			assert.Equal(t, tt.expectedResult, result, tt.expectedErrorMsg)
+		})
+	}
 }

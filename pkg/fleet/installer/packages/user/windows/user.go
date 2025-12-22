@@ -21,6 +21,9 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // ErrPrivateDataNotFound is returned when LSARetrievePrivateData returns STATUS_OBJECT_NAME_NOT_FOUND
@@ -106,7 +109,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 	// allowed this for convenience during MSI major upgrades, but it can cause issues
 	// when the upgrade must create a new service but doesn't have the password.
 	// Remote updates fully uninstall the previous version, so we need the password.
-	return fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided")
+	return installerErrors.Wrap(
+		installerErrors.ErrPasswordNotProvided,
+		errors.New("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided"),
+	)
 }
 
 // usernameHasExpectedFormat returns an error if the username is not in the expected format domain\\username
@@ -130,6 +136,11 @@ func agentPasswordPrivateDataKey() string {
 func getAgentUserPasswordFromLSA() (string, error) {
 	key := agentPasswordPrivateDataKey()
 	return retrievePrivateData(key)
+}
+
+// GetAgentUserPasswordFromLSA returns the Agent user password stored by the MSI in LSA.
+func GetAgentUserPasswordFromLSA() (string, error) {
+	return getAgentUserPasswordFromLSA()
 }
 
 func retrievePrivateData(key string) (string, error) {
@@ -331,6 +342,28 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
+// GetAgentUserFromService returns the fully qualified username for the Agent service user
+//
+// The service configuration stores the service account name in custom formats,
+// e.g. LocalSystem or .\username, which are not supported by the Windows security subsystem.
+// So this function resolves the fully qualified username by:
+//   - service username -> SID
+//   - SID -> fully qualified username
+func GetAgentUserFromService() (string, error) {
+	sid, errService := winutil.GetServiceUserSID("datadogagent")
+	if errService != nil {
+		return "", fmt.Errorf("cannot get service user SID: %w", errService)
+	}
+
+	// convert the SID to a username to get the full name
+	username, domain, _, err := sid.LookupAccount("")
+	if err != nil {
+		return "", fmt.Errorf("cannot lookup account name for SID %s: %w", sid.String(), err)
+	}
+
+	return fmt.Sprintf("%s\\%s", domain, username), nil
+}
+
 func lookupSID(name string) (*windows.SID, string, error) {
 	sid, domain, _, err := windows.LookupSID("", name)
 	if err != nil {
@@ -352,7 +385,7 @@ var validateProcessContext = func() error {
 	}
 
 	if !user.User.Sid.IsWellKnown(windows.WinLocalSystemSid) {
-		return fmt.Errorf("process is not running as LocalSystem")
+		return errors.New("process is not running as LocalSystem")
 	}
 
 	return nil

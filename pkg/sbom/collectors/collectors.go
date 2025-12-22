@@ -11,9 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -90,16 +88,4 @@ func GetHostScanner() Collector {
 // GetProcfsScanner returns the fargate scanner
 func GetProcfsScanner() Collector {
 	return Collectors[ProcfsCollector]
-}
-
-// NewSBOMContainerFilter returns a new include/exclude filter for containers
-func NewSBOMContainerFilter() (*containers.Filter, error) {
-	includeList := pkgconfigsetup.Datadog().GetStringSlice("sbom.container_image.container_include")
-	excludeList := pkgconfigsetup.Datadog().GetStringSlice("sbom.container_image.container_exclude")
-
-	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
-	}
-
-	return containers.NewFilter(containers.GlobalFilter, includeList, excludeList)
 }
