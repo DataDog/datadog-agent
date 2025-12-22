@@ -57,7 +57,7 @@ const (
 	AnnotationAppliedTarget = "internal.apm.datadoghq.com/applied-target"
 	// AnnotationInjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
-	AnnotationInjectionError = "apm.datadoghq.com/injection-error"
+	AnnotationInjectionError = "internal.apm.datadoghq.com/injection-error"
 	// AnnotationInjectorCanonicalVersion is set with the actual version of the injector as opposed to a resolved digest.
 	// Example value: 0.52.0
 	AnnotationInjectorCanonicalVersion = "internal.apm.datadoghq.com/injector-canonical-version"
