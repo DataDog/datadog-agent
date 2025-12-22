@@ -103,7 +103,7 @@ func parseCPUSingleRange(spec string) (int, error) {
 func parseCPUMultipleRange(spec string) ([]uint, error) {
 	var cpus []uint
 	cpuStr := strings.Trim(spec, "\n")
-	for _, r := range strings.Split(cpuStr, ",") {
+	for r := range strings.SplitSeq(cpuStr, ",") {
 		parts := strings.SplitN(r, "-", 2)
 		low, err := strconv.ParseUint(parts[0], 10, 32)
 		if err != nil {

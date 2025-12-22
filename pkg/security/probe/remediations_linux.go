@@ -146,9 +146,9 @@ func getTagsFromRule(rule *rules.Rule) RuleTags {
 
 	for _, tag := range rule.Tags {
 		// Extract key:value from "key:value"
-		if idx := strings.Index(tag, ":"); idx != -1 {
-			key := tag[:idx]
-			value := tag[idx+1:]
+		if before, after, ok := strings.Cut(tag, ":"); ok {
+			key := before
+			value := after
 			ruleTags[key] = value
 		}
 	}

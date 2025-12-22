@@ -33,7 +33,7 @@ func findPIDUnix(host *components.RemoteHost, processName string) ([]int, error)
 	}
 
 	pids := []int{}
-	for _, strPid := range strings.Split(out, "\n") {
+	for strPid := range strings.SplitSeq(out, "\n") {
 		strPid = strings.TrimSpace(strPid)
 		if strPid == "" {
 			continue

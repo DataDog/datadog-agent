@@ -357,8 +357,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	// Handle CPU millicores (e.g., "500m")
-	if strings.HasSuffix(quantityStr, "m") {
-		valueStr := strings.TrimSuffix(quantityStr, "m")
+	if before, ok := strings.CutSuffix(quantityStr, "m"); ok {
+		valueStr := before
 		if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 			return value
 		}
@@ -376,8 +376,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	for suffix, multiplier := range binarySuffixes {
-		if strings.HasSuffix(quantityStr, suffix) {
-			valueStr := strings.TrimSuffix(quantityStr, suffix)
+		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
+			valueStr := before
 			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 				return value * multiplier
 			}
@@ -396,8 +396,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	for suffix, multiplier := range decimalSuffixes {
-		if strings.HasSuffix(quantityStr, suffix) {
-			valueStr := strings.TrimSuffix(quantityStr, suffix)
+		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
+			valueStr := before
 			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 				return value * multiplier
 			}

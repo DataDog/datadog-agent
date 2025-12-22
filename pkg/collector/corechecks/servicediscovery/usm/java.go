@@ -86,9 +86,9 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 					// take the project name after the package 'org.apache.' while stripping off the remaining package
 					// and class name
 					arg = arg[len(javaApachePrefix):]
-					if idx := strings.Index(arg, "."); idx != -1 {
+					if before, _, ok := strings.Cut(arg, "."); ok {
 						success = true
-						metadata.SetNames(arg[:idx], source, additionalNames...)
+						metadata.SetNames(before, source, additionalNames...)
 						return
 					}
 				}

@@ -49,8 +49,8 @@ func discoverCgroupMountPoints(hostPrefix, procFsPath string) (map[string]string
 
 			if fsType == "cgroup" {
 				// Target can be comma-separate values like cpu,cpuacct
-				tsp := strings.Split(path.Base(cgroupPath), ",")
-				for _, target := range tsp {
+				tsp := strings.SplitSeq(path.Base(cgroupPath), ",")
+				for target := range tsp {
 					// In case multiple paths are mounted for a single controller, take the shortest one
 					previousPath := mountPointsv1[target]
 					if previousPath == "" || len(cgroupPath) < len(previousPath) {

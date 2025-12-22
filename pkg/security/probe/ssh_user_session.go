@@ -28,8 +28,8 @@ import (
 func getEnvVar(envp []string, key string) string {
 	prefix := key + "="
 	for _, env := range envp {
-		if strings.HasPrefix(env, prefix) {
-			return strings.TrimPrefix(env, prefix)
+		if after, ok := strings.CutPrefix(env, prefix); ok {
+			return after
 		}
 	}
 	return ""

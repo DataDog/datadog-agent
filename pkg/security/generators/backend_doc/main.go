@@ -75,8 +75,8 @@ func jsonTypeNamer(ty reflect.Type) string {
 	const selinuxPrefix = "selinux"
 
 	base := strings.TrimSuffix(ty.Name(), "Serializer")
-	if strings.HasPrefix(base, selinuxPrefix) {
-		return "SELinux" + strings.TrimPrefix(base, selinuxPrefix)
+	if after, ok := strings.CutPrefix(base, selinuxPrefix); ok {
+		return "SELinux" + after
 	}
 
 	return base

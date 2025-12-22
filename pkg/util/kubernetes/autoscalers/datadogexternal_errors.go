@@ -58,8 +58,8 @@ func NewAPIError(err error) *APIError {
 
 	// Try to process untyped errors from zorkian/go-datadog-api
 	errString := err.Error()
-	if strings.HasPrefix(errString, zorkianDatadogErrorMessagePrefix) {
-		err = errors.New(strings.ReplaceAll(strings.TrimPrefix(errString, zorkianDatadogErrorMessagePrefix), "\n", " "))
+	if after, ok := strings.CutPrefix(errString, zorkianDatadogErrorMessagePrefix); ok {
+		err = errors.New(strings.ReplaceAll(after, "\n", " "))
 		errorCode = DatadogAPIError
 	} else if matchesIdx := zorkianHTTPErrorRegexp.FindStringSubmatchIndex(errString); len(matchesIdx) == 4 {
 		httpStatus := errString[matchesIdx[2]:matchesIdx[3]]

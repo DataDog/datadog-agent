@@ -99,8 +99,8 @@ func (c *collector) Pull(_ context.Context) error {
 		log.Errorf("Error reading shared node agent tags file under '%s': %v", sharedNodeAgentTagsFile, err)
 	} else {
 		// TODO: handle json tags
-		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
-		for _, s := range sharedNodeTags {
+		sharedNodeTags := strings.SplitSeq(string(sharedNodeTagsBytes), ",")
+		for s := range sharedNodeTags {
 			containerTags.Add(s)
 		}
 	}

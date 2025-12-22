@@ -45,7 +45,7 @@ func updateContainerLanguage(cl languagemodels.ContainersLanguages, container la
 		cl[container] = make(languagemodels.LanguageSet)
 	}
 
-	for _, lang := range strings.Split(languages, ",") {
+	for lang := range strings.SplitSeq(languages, ",") {
 		cl[container][languagemodels.LanguageName(strings.TrimSpace(lang))] = struct{}{}
 	}
 }

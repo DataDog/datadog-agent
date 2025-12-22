@@ -166,8 +166,8 @@ func (or *multiFilesOIDResolver) updateFromFile(filePath string) error {
 		return err
 	}
 	defer fileReader.Close()
-	if strings.HasSuffix(filePath, ".gz") {
-		filePath = strings.TrimSuffix(filePath, ".gz")
+	if before, ok := strings.CutSuffix(filePath, ".gz"); ok {
+		filePath = before
 		uncompressor, err := gzip.NewReader(fileReader)
 		if err != nil {
 			return fmt.Errorf("unable to uncompress gzip file %s", filePath)

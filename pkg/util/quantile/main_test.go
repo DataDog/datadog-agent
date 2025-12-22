@@ -116,13 +116,13 @@ func eachParsedToken(t *testing.T, dsl string, bitSize uint, f func(Key, uint64)
 		return
 	}
 
-	for _, tok := range strings.Split(dsl, " ") {
-		i := strings.IndexByte(tok, ':')
-		if 0 > i {
+	for tok := range strings.SplitSeq(dsl, " ") {
+		before, after, ok := strings.Cut(tok, ":")
+		if !ok {
 			t.Fatal("bad incr tpl:", tok)
 		}
-		k := parseKey(t, tok[:i])
-		n := parseN(t, tok[i+1:])
+		k := parseKey(t, before)
+		n := parseN(t, after)
 
 		// make sure this value can be cast to our bitSize
 		if maxn := uint64(1)<<bitSize - 1; n > maxn {

@@ -143,7 +143,7 @@ func setSocketEnvs(ctx context.Context, envFile []byte) (res []byte, err error) 
 func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
 	// Build a map of the existing env vars
 	existingEnvs := map[string]bool{}
-	for _, line := range strings.Split(string(envFile), "\n") {
+	for line := range strings.SplitSeq(string(envFile), "\n") {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) < 2 {
 			continue

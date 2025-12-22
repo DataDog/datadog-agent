@@ -282,8 +282,8 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 			ddtags[datadogKey] = value.Str()
 		}
 		// Custom (datadog.container.tag namespace)
-		if strings.HasPrefix(key, customContainerTagPrefix) {
-			customKey := strings.TrimPrefix(key, customContainerTagPrefix)
+		if after, ok := strings.CutPrefix(key, customContainerTagPrefix); ok {
+			customKey := after
 			if customKey != "" && value.Str() != "" {
 				// Do not replace if set via semantic conventions mappings.
 				if _, found := ddtags[customKey]; !found {

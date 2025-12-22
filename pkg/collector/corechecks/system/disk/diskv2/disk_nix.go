@@ -326,8 +326,8 @@ func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "DEVNAME=") {
-			name := strings.TrimPrefix(line, "DEVNAME=")
+		if after, ok := strings.CutPrefix(line, "DEVNAME="); ok {
+			name := after
 			if name != "" {
 				return "/dev/" + name, nil
 			}
