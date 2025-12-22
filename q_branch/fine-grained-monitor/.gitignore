@@ -1,1 +1,4 @@
 target/
+
+# dev.py state directory
+.dev/
