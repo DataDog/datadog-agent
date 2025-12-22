@@ -91,7 +91,7 @@ extern const char *get_check_check_name;
 extern rtloader_pyobject_t *get_check_check;
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
-const char *check_id, const char *check_name, rtloader_pyobject_t **check);
+const char *check_id, const char *check_name, const char *provider, rtloader_pyobject_t **check);
 
 // get_check_deprecated MOCK
 
@@ -107,7 +107,7 @@ extern rtloader_pyobject_t *get_check_deprecated_check;
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
 const char *instance, const char *agent_config, const char *check_id, const char *check_name,
-rtloader_pyobject_t **check);
+const char *provider, rtloader_pyobject_t **check);
 
 void reset_loader_mock() {
 	get_class_calls = 0;

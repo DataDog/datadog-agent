@@ -292,6 +292,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
+                     const char *provider_str,
                      RtLoaderPyObject *&check)
 {
 
@@ -305,6 +306,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
+    PyObject *provider = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -398,6 +400,18 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
+    if (provider_str != NULL) {
+        provider = PyUnicode_FromString(provider_str);
+        if (provider == NULL) {
+            setError("error 'provider' can't be initialized: " + _fetchPythonError());
+            goto done;
+        }
+        if (PyDict_SetItemString(kwargs, "provider", provider) == -1) {
+            setError("error 'provider' key can't be set: " + _fetchPythonError());
+            goto done;
+        }
+    }
+
     // call `AgentCheck` constructor
     py_check = PyObject_Call(klass, args, kwargs);
     if (py_check == NULL) {
@@ -428,6 +442,7 @@ done:
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
+    Py_XDECREF(provider);
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);

@@ -323,13 +323,14 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
 	cCheckName := TrackedCString(c.ModuleName)
+	cProvider := TrackedCString(provider)
 	defer C.call_free(unsafe.Pointer(cInitConfig))
 	defer C.call_free(unsafe.Pointer(cInstance))
 	defer C.call_free(unsafe.Pointer(cCheckID))
-	defer C.call_free(unsafe.Pointer(cCheckName))
+	defer C.call_free(unsafe.Pointer(cProvider))
 
 	var check *C.rtloader_pyobject_t
-	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, cProvider, &check)
 	var rtLoaderError error
 	if res == 0 {
 		rtLoaderError = getRtLoaderError()
@@ -349,7 +350,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		cAgentConfig := TrackedCString(string(agentConfig))
 		defer C.call_free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
+		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, cProvider, &check)
 		if res == 0 {
 			rtLoaderDeprecatedCheckError := getRtLoaderError()
 			if strings.Contains(rtLoaderDeprecatedCheckError.Error(), skipInstanceErrorPattern) {
