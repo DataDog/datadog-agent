@@ -1096,10 +1096,18 @@
             if (!studyActive) return;
 
             const ctx = u.ctx;
-            const xScale = u.scales.x;
-            const yScale = u.scales.y;
+            // Use bbox for proper plot area bounds (canvas pixels)
+            const { left, top, width, height } = u.bbox;
+            const plotRight = left + width;
+            const plotBottom = top + height;
 
             const selectedIds = getSelectedContainerIds();
+
+            // Save context state and clip to plot area
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, width, height);
+            ctx.clip();
 
             selectedIds.forEach((id, idx) => {
                 const result = oscillationData[id];
@@ -1108,12 +1116,20 @@
                 const color = COLORS[idx % COLORS.length];
 
                 result.windows.forEach(w => {
-                    const x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
-                    const x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
-                    const y1 = u.valToPos(yScale.max, 'y', true);
-                    const y2 = u.valToPos(yScale.min, 'y', true);
+                    // Convert to canvas pixels (true) for drawing
+                    let x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
+                    let x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
 
-                    if (x2 < 0 || x1 > u.width) return;
+                    // Skip windows entirely outside plot area
+                    if (x2 < left || x1 > plotRight) return;
+
+                    // Clamp to plot area bounds
+                    x1 = Math.max(x1, left);
+                    x2 = Math.min(x2, plotRight);
+
+                    // Use plot area bounds for y (consistent regardless of auto-scale)
+                    const y1 = top;
+                    const y2 = plotBottom;
 
                     // Draw shaded region
                     ctx.fillStyle = color + '20';
@@ -1128,7 +1144,7 @@
 
                     for (let t = w.start_time_ms; t <= w.end_time_ms; t += periodMs) {
                         const x = u.valToPos(t / 1000, 'x', true);
-                        if (x >= 0 && x <= u.width) {
+                        if (x >= left && x <= plotRight) {
                             ctx.beginPath();
                             ctx.moveTo(x, y1);
                             ctx.lineTo(x, y2);
@@ -1138,6 +1154,9 @@
                     ctx.setLineDash([]);
                 });
             });
+
+            // Restore context state
+            ctx.restore();
         }
 
         // --- Actions ---
