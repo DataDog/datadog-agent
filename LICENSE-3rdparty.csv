@@ -2145,7 +2145,7 @@ core,github.com/vmihailenco/tagparser/v2,BSD-2-Clause,Copyright (c) 2019 The git
 core,github.com/vmihailenco/tagparser/v2/internal,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vmihailenco/tagparser/v2/internal/parser,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vultr/govultr/v2,MIT,Copyright (c) 2019 Vultr
-core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2024 William Poussier <william.poussier@gmail.com>
+core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2025 William Poussier <william.poussier@gmail.com>
 core,github.com/wk8/go-ordered-map/v2,Apache-2.0,Copyright 2023 Jean Rougé <wk8.github@gmail.com>
 core,github.com/x448/float16,MIT,Copyright (c) 2019 Montgomery Edwards⁴⁴⁸ and Faye Amacker
 core,github.com/xdg-go/pbkdf2,Apache-2.0,Copyright 2021 by David A. Golden. All rights reserved
