@@ -129,7 +129,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Short:   "Starts an experiment",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			secrets, err := cmd.Flags().GetStringToString("secrets")
+			secrets, err := cmd.Flags().GetStringToString("secret")
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	startConfigExperimentCmd.Flags().StringToString("secrets", nil, "Encrypted secrets as key=value pairs")
+	startConfigExperimentCmd.Flags().StringToString("secret", nil, "Encrypted secret as key=value pairs")
 	stopConfigExperimentCmd := &cobra.Command{
 		Use:     "stop-config-experiment package",
 		Aliases: []string{"stop-config"},

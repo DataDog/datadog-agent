@@ -1,6 +1,10 @@
 {{ boldText (printf "Datadog Agent installer v%s" (htmlSafe .Version)) }}
 {{ $config := index $.Packages.ConfigStates "datadog-agent" -}}
 Config ID: {{ if and $config.Stable (ne $config.Stable "empty") -}}{{ if $config.Experiment -}}{{ yellowText $config.Experiment }} (stable is {{ greenText $config.Stable }}){{- else -}}{{ greenText $config.Stable }}{{- end -}}{{- else  -}}empty{{- end }}
+{{- if .SecretsPubKey }}
+Secrets Public Key: {{ htmlSafe .SecretsPubKey }}
+{{- end }}
+
 
 Packages installed:
 {{- range $name, $version := .Packages.States }}

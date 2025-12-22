@@ -332,7 +332,7 @@ func (d *daemonImpl) decryptConfigSecrets(operations config.Operations, encrypte
 	// 5. If any SEC[key] is left, return an error. We don't care what's in the SEC[.*], it just shouldn't be left.
 	for _, operation := range operations.FileOperations {
 		if secRegex.MatchString(string(operation.Patch)) {
-			return config.Operations{}, fmt.Errorf("secrets are not fully decrypted, SEC[...] found in the config")
+			return config.Operations{}, errors.New("secrets are not fully decrypted, SEC[...] found in the config")
 		}
 	}
 

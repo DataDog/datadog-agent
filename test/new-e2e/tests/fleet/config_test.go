@@ -248,21 +248,18 @@ func (s *configSuite) TestConfigWithSecrets() {
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"api_key": "SEC[123:apikey]", "app_key": "SEC[123:appkey]"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[123:log_level]"}`)}},
 	}, map[string]string{
-		"apikey": "my-api-key",
-		"appkey": "my-app-key",
+		"log_level": "WARN",
 	})
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
-	require.Equal(s.T(), "my-api-key", config["api_key"])
-	require.Equal(s.T(), "my-app-key", config["app_key"])
+	require.Equal(s.T(), "WARN", config["log_level"])
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
 	config, err = s.Agent.Configuration()
 	require.NoError(s.T(), err)
-	require.Equal(s.T(), "my-api-key", config["api_key"])
-	require.Equal(s.T(), "my-app-key", config["app_key"])
+	require.Equal(s.T(), "WARN", config["log_level"])
 }

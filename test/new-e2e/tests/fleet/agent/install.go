@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
@@ -81,10 +82,19 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 			return fmt.Errorf("error reexecuting systemd: %w", err)
 		}
 	}
-	// reset failure from previous tests
-	_, err := a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
+	// reset failure from previous tests (try up to 3 times)
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
+		if err == nil {
+			break
+		}
+		if i < 2 { // Don't sleep after the last attempt
+			time.Sleep(time.Second)
+		}
+	}
 	if err != nil {
-		return fmt.Errorf("error resetting failed units: %w", err)
+		return fmt.Errorf("error resetting failed units after 3 attempts: %w", err)
 	}
 
 	env := map[string]string{

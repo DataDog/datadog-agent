@@ -24,6 +24,7 @@ import (
 type StatusResponse struct {
 	APIResponse
 	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
+	SecretsPubKey     string               `json:"secrets_pub_key"`
 }
 
 // startConfigExperimentRequest is the request to the start config experiment endpoint.
@@ -101,8 +102,10 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
+	rcState := l.daemon.GetRemoteConfigState()
 	response = StatusResponse{
-		RemoteConfigState: l.daemon.GetRemoteConfigState().Packages,
+		RemoteConfigState: rcState.Packages,
+		SecretsPubKey:     rcState.SecretsPubKey,
 	}
 }
 
