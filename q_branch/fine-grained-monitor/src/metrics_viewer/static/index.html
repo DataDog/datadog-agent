@@ -319,6 +319,84 @@
             font-size: 16px;
         }
 
+        /* REQ-MV-007: Per-container study icon */
+        .study-btn {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 11px;
+            color: #666;
+            margin-left: auto;
+            opacity: 0.6;
+            transition: opacity 0.15s, background 0.15s;
+        }
+        .study-btn:hover {
+            opacity: 1;
+            background: #e8f4ff;
+            border-color: #007bff;
+            color: #007bff;
+        }
+        .container-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .container-avg {
+            margin-left: auto;
+            margin-right: 8px;
+        }
+
+        /* REQ-MV-008: Study results panel */
+        .study-panel {
+            background: #f0f7ff;
+            border: 1px solid #b8daff;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .study-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .study-panel-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            padding: 0 4px;
+        }
+        .study-panel-close:hover { color: #333; }
+        .study-panel-container {
+            font-family: monospace;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .study-panel-stats {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .study-panel-stats div { margin: 2px 0; }
+        .study-panel-restore {
+            margin-top: 12px;
+            width: 100%;
+            padding: 6px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .study-panel-restore:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
         /* REQ-MV-008: Oscillation tooltip */
         .oscillation-tooltip {
             position: absolute;
@@ -385,12 +463,14 @@
                     </div>
                 </div>
 
-                <!-- REQ-MV-007: Oscillation study -->
-                <div class="sidebar-section">
+                <!-- REQ-MV-007, REQ-MV-008: Studies section (dynamic content) -->
+                <div class="sidebar-section" id="studiesSection">
                     <div class="sidebar-section-title">Studies</div>
-                    <button class="btn-info" id="oscillationBtn" onclick="toggleOscillation()" style="width: 100%;">
-                        Oscillation Study
-                    </button>
+                    <div id="studiesContent">
+                        <div style="color: #888; font-size: 12px;">
+                            Click the study icon on a container to analyze
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -419,14 +499,18 @@
         let metrics = [];
         let containers = [];
         let currentData = {};  // container -> [{time_ms, value}]
-        let oscillationData = {};  // container -> {windows: [...]}
-        let oscillationEnabled = false;
+        let oscillationData = {};  // single container study result
         let mainPlot = null;
         let overviewPlot = null;
         let originalXRange = null;
         let originalYRange = null;
         let selectedMetric = null;
         let fuse = null;  // Fuse.js instance for metric search
+
+        // REQ-MV-007: Study mode state
+        let studyActive = false;
+        let studyContainer = null;      // Container ID being studied
+        let previousSelection = [];     // Container IDs before study (for restoration)
 
         // Colors for traces
         const COLORS = [
@@ -550,12 +634,17 @@
                 const colorIdx = isSelected ? (selectedOrder[c.info.short_id] ?? i) : -1;
                 const color = colorIdx >= 0 ? COLORS[colorIdx % COLORS.length] : '#ddd';
 
+                // REQ-MV-007: Study icon - highlight if this container is being studied
+                const isStudied = studyActive && studyContainer === c.info.short_id;
+                const studyBtnStyle = isStudied ? 'background: #007bff; color: white; opacity: 1;' : '';
+
                 return `<label class="container-item">
                     <input type="checkbox" value="${c.info.short_id}"
                            ${isSelected ? 'checked' : ''} onchange="onContainerChange()">
                     <span class="container-color" style="background: ${color}"></span>
                     <span class="container-id">${c.info.short_id}</span>
                     <span class="container-avg">avg: ${avgStr}</span>
+                    <button class="study-btn" style="${studyBtnStyle}" onclick="event.preventDefault(); startStudy('${c.info.short_id}')" title="Run Oscillation Study">📊</button>
                 </label>`;
             }).join('');
         }
@@ -599,30 +688,14 @@
 
             renderChart(selected, preservedXRange);
 
-            if (oscillationEnabled) {
-                await loadOscillationData();
+            // REQ-MV-007: If study is active and user changes selection, exit study
+            if (studyActive) {
+                exitStudy(false);
             }
 
             const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
             document.getElementById('status').textContent =
                 `${selected.length} containers, ${totalPoints.toLocaleString()} points`;
-        }
-
-        // REQ-MV-007: Load oscillation study data
-        async function loadOscillationData() {
-            const selected = getSelectedContainerIds();
-
-            if (selected.length === 0) return;
-
-            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
-            const data = await res.json();
-
-            oscillationData = {};
-            data.results.forEach(r => { oscillationData[r.container] = r; });
-
-            if (mainPlot) {
-                mainPlot.redraw();
-            }
         }
 
         // --- Chart Rendering ---
@@ -1020,7 +1093,7 @@
 
         // REQ-MV-008: Draw oscillation overlay
         function drawOscillationOverlay(u) {
-            if (!oscillationEnabled) return;
+            if (!studyActive) return;
 
             const ctx = u.ctx;
             const xScale = u.scales.x;
@@ -1081,18 +1154,189 @@
             loadTimeseries();
         }
 
-        function toggleOscillation() {
-            oscillationEnabled = !oscillationEnabled;
-            const btn = document.getElementById('oscillationBtn');
-            btn.classList.toggle('btn-info', !oscillationEnabled);
-            btn.classList.toggle('btn-success', oscillationEnabled);
-
-            if (oscillationEnabled) {
-                loadOscillationData();
-            } else {
-                oscillationData = {};
-                if (mainPlot) mainPlot.redraw();
+        // REQ-MV-007: Start oscillation study on specific container
+        async function startStudy(containerId) {
+            // If already studying this container, exit instead
+            if (studyActive && studyContainer === containerId) {
+                exitStudy(false);
+                return;
             }
+
+            // REQ-MV-007: Capture current time range BEFORE any changes
+            let preservedXRange = null;
+            if (mainPlot && mainPlot.scales.x) {
+                preservedXRange = {
+                    min: mainPlot.scales.x.min,
+                    max: mainPlot.scales.x.max
+                };
+            }
+
+            // Save current selection for potential restoration
+            previousSelection = getSelectedContainerIds();
+
+            // Set study state
+            studyActive = true;
+            studyContainer = containerId;
+
+            // Deselect all, select only the study container
+            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
+            checkboxes.forEach(cb => { cb.checked = cb.value === containerId; });
+
+            // Re-render container list to show study icon highlight
+            renderContainerList();
+
+            // Load timeseries for single container (preserving time range)
+            await loadTimeseriesWithRange(preservedXRange);
+
+            // Fetch oscillation data for this container
+            await loadOscillationDataForContainer(containerId);
+
+            // Update studies panel
+            renderStudyPanel();
+        }
+
+        // REQ-MV-007, REQ-MV-008: Exit study mode
+        function exitStudy(restorePrevious) {
+            // REQ-MV-008: Capture current time range BEFORE any changes
+            let preservedXRange = null;
+            if (mainPlot && mainPlot.scales.x) {
+                preservedXRange = {
+                    min: mainPlot.scales.x.min,
+                    max: mainPlot.scales.x.max
+                };
+            }
+
+            // Clear study state
+            studyActive = false;
+            const wasStudyContainer = studyContainer;
+            studyContainer = null;
+            oscillationData = {};
+
+            if (restorePrevious && previousSelection.length > 0) {
+                // Restore previous container selection
+                const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
+                checkboxes.forEach(cb => { cb.checked = previousSelection.includes(cb.value); });
+            }
+            // If not restoring, keep current single-container selection
+
+            previousSelection = [];
+
+            // Re-render container list
+            renderContainerList();
+
+            // Reset studies panel to default state
+            renderStudyPanel();
+
+            // Reload timeseries with preserved time range
+            loadTimeseriesWithRange(preservedXRange);
+        }
+
+        // Helper to load timeseries while preserving a specific time range
+        async function loadTimeseriesWithRange(preservedRange) {
+            const selected = getSelectedContainerIds();
+
+            if (selected.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
+            const data = await res.json();
+
+            // Check for empty data
+            if (data.length === 0 || data.every(d => d.data.length === 0)) {
+                showNoDataState(selectedMetric);
+                return;
+            }
+
+            // Check for all-null data
+            const hasNonNullData = data.some(d => d.data.some(p => p.value != null));
+            if (!hasNonNullData) {
+                showNoDataState(selectedMetric);
+                return;
+            }
+
+            // Store data
+            currentData = {};
+            data.forEach(d => { currentData[d.container] = d.data; });
+
+            // Render chart with preserved range
+            renderChart(selected, preservedRange);
+
+            const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
+            document.getElementById('status').textContent =
+                `${selected.length} container${selected.length > 1 ? 's' : ''}, ${totalPoints.toLocaleString()} points`;
+        }
+
+        // Load oscillation data for a single container
+        async function loadOscillationDataForContainer(containerId) {
+            if (!selectedMetric) return;
+
+            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(selectedMetric)}&containers=${containerId}`);
+            const data = await res.json();
+
+            oscillationData = {};
+            if (data.results && data.results.length > 0) {
+                oscillationData[containerId] = data.results[0];
+            }
+
+            if (mainPlot) {
+                mainPlot.redraw();
+            }
+        }
+
+        // REQ-MV-008: Render the study results panel
+        function renderStudyPanel() {
+            const content = document.getElementById('studiesContent');
+
+            if (!studyActive) {
+                content.innerHTML = `
+                    <div style="color: #888; font-size: 12px;">
+                        Click the study icon on a container to analyze
+                    </div>`;
+                return;
+            }
+
+            const result = oscillationData[studyContainer];
+            const windowCount = result?.windows?.length || 0;
+
+            // Compute summary stats
+            let dominantPeriod = 'N/A';
+            let avgConfidence = 'N/A';
+
+            if (result && result.windows && result.windows.length > 0) {
+                // Find most common period
+                const periodCounts = {};
+                result.windows.forEach(w => {
+                    const p = Math.round(w.metrics.period);
+                    periodCounts[p] = (periodCounts[p] || 0) + 1;
+                });
+                const maxCount = Math.max(...Object.values(periodCounts));
+                dominantPeriod = Object.keys(periodCounts).find(p => periodCounts[p] === maxCount) + 's';
+
+                // Average confidence
+                const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
+                avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
+            }
+
+            const restoreBtn = previousSelection.length > 0
+                ? `<button class="study-panel-restore" onclick="exitStudy(true)">Restore previous view (${previousSelection.length} containers)</button>`
+                : '';
+
+            content.innerHTML = `
+                <div class="study-panel">
+                    <div class="study-panel-header">
+                        <span>Oscillation Study</span>
+                        <button class="study-panel-close" onclick="exitStudy(false)" title="Exit study">&times;</button>
+                    </div>
+                    <div class="study-panel-container">Container: ${studyContainer}</div>
+                    <div class="study-panel-stats">
+                        <div><strong>${windowCount}</strong> oscillation windows</div>
+                        <div>Dominant period: <strong>${dominantPeriod}</strong></div>
+                        <div>Avg confidence: <strong>${avgConfidence}</strong></div>
+                    </div>
+                    ${restoreBtn}
+                </div>`;
         }
 
         function resetZoom() {
