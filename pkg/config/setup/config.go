@@ -450,43 +450,42 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// snmp_listener config is still here for legacy reasons, prefer network_devices.autodiscovery
 	// type ListenerConfig in pkg/snmp/snmp.go
-	config.SetDefault("snmp_listener.discovery_interval", 0)
-	config.SetDefault("snmp_listener.allowed_failures", 0) // legacy flag
-	config.SetDefault("snmp_listener.discovery_allowed_failures", 0)
-	config.SetDefault("snmp_listener.collect_device_metadata", false)
-	config.SetDefault("snmp_listener.collect_topology", false)
-	config.SetDefault("snmp_listener.workers", 0)
-	config.SetDefault("snmp_listener.configs", nil) // Config in pkg/snmp/snmp.go
-	config.SetDefault("snmp_listener.loader", "")
-	config.SetDefault("snmp_listener.min_collection_interval", uint(0))
-	config.SetDefault("snmp_listener.namespace", "")
-	config.SetDefault("snmp_listener.use_device_id_as_hostname", false)
-	config.SetDefault("snmp_listener.ping.enabled", false)
-	config.SetDefault("snmp_listener.ping.count", 0)
-	config.SetDefault("snmp_listener.ping.interval", 0)
-	config.SetDefault("snmp_listener.ping.timeout", 0)
-	config.SetDefault("snmp_listener.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("snmp_listener.discovery_interval", 0)
+	config.BindEnvAndSetDefault("snmp_listener.allowed_failures", 0)
+	config.BindEnvAndSetDefault("snmp_listener.discovery_allowed_failures", 0)
+	config.BindEnvAndSetDefault("snmp_listener.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("snmp_listener.collect_topology", true)
+	config.BindEnvAndSetDefault("snmp_listener.workers", 0)
+	config.BindEnvAndSetDefault("snmp_listener.configs", map[string]interface{}{}) // struct Config in pkg/snpm/snpm.go
+	config.BindEnvAndSetDefault("snmp_listener.loader", "")
+	config.BindEnvAndSetDefault("snmp_listener.min_collection_interval", uint(0))
+	config.BindEnvAndSetDefault("snmp_listener.namespace", "")
+	config.BindEnvAndSetDefault("snmp_listener.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.enabled", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.count", 0)
+	config.BindEnvAndSetDefault("snmp_listener.ping.interval", 0)
+	config.BindEnvAndSetDefault("snmp_listener.ping.timeout", 0)
+	config.BindEnvAndSetDefault("snmp_listener.ping.linux.use_raw_socket", false)
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
-	// type ListenerConfig in pkg/snmp/snmp.go
-	config.SetDefault("network_devices.autodiscovery.discovery_interval", 0)
-	config.SetDefault("network_devices.autodiscovery.allowed_failures", 0) // legacy flag
-	config.SetDefault("network_devices.autodiscovery.discovery_allowed_failures", 0)
-	config.SetDefault("network_devices.autodiscovery.collect_device_metadata", false)
-	config.SetDefault("network_devices.autodiscovery.collect_topology", false)
-	config.SetDefault("network_devices.autodiscovery.workers", 0)
-	config.SetDefault("network_devices.autodiscovery.configs", nil) // Config in pkg/snpm/snpm.go
-	config.SetDefault("network_devices.autodiscovery.loader", "")
-	config.SetDefault("network_devices.autodiscovery.min_collection_interval", uint(0))
-	config.SetDefault("network_devices.autodiscovery.namespace", "")
-	config.SetDefault("network_devices.autodiscovery.use_device_id_as_hostname", false)
-	config.SetDefault("network_devices.autodiscovery.ping.enabled", false)
-	config.SetDefault("network_devices.autodiscovery.ping.count", 0)
-	config.SetDefault("network_devices.autodiscovery.ping.interval", 0)
-	config.SetDefault("network_devices.autodiscovery.ping.timeout", 0)
-	config.SetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
-	config.SetDefault("network_devices.autodiscovery.use_deduplication", false)
-	config.SetDefault("network_devices.autodiscovery.collect_vpn", false)
+	// snmp_listener config is still here for legacy reasons
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_interval", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.allowed_failures", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_allowed_failures", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_topology", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.workers", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.configs", map[string]interface{}{}) // struct Config in pkg/snmp/snmp.go
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.loader", "")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.min_collection_interval", uint(0))
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.namespace", "")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.count", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.interval", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 0)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
 
 	// type TrapsConfig in comp/snmptraps/config/config.go
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
@@ -494,18 +493,18 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
-	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
-	config.SetDefault("network_devices.snmp_traps.users", nil)                // []UserV3 in comp/snmptraps/config/config.go
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5)        // in seconds
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []interface{}{}) // []UserV3 in comp/snmptraps/config/config.go
 
 	// NetFlow
-	config.SetKnown("network_devices.netflow.listeners")                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.stop_timeout")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_buffer_size")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flush_interval")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	config.BindEnvAndSetDefault("network_devices.netflow.listeners", []interface{}{}) // []ListenerConfig in comp/netflow/config/config.go
+	config.BindEnvAndSetDefault("network_devices.netflow.stop_timeout", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_buffer_size", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flush_interval", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flow_context_ttl", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_port_rollup_threshold", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_rollup_tracker_refresh_interval", uint(0))
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
