@@ -97,6 +97,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
+	require.NotEmpty(s.T(), traces[0].IdxTracerPayloads, "IdxTracerPayloads are empty on trace: %v", traces[0])
 	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
 	assert.Equal(s.T(), env, tp.Env())
 	assert.Equal(s.T(), version, tp.AppVersion())
