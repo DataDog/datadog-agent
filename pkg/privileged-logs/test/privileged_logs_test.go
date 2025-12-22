@@ -93,11 +93,12 @@ func assertClientStatError(t *testing.T, filePath, expectedErrorMsg string) {
 	assert.Contains(t, err.Error(), expectedErrorMsg)
 }
 
-func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) {
+func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) error {
 	file, err := client.OpenPrivileged(socketPath, filePath)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), expectedErrorMsg)
+	return err
 }
 
 type PrivilegedLogsSuite struct {
@@ -167,7 +168,8 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_SymlinkToNonLogFile() {
 	})
 	require.NoError(s.T(), err)
 
-	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, symlinkPath, "non-log file not allowed")
+	err = assertOpenPrivilegedError(s.T(), s.handler.SocketPath, symlinkPath, "non-log file not allowed")
+	assert.Contains(s.T(), err.Error(), nonLogFile)
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_CaseInsensitiveLogExtension() {

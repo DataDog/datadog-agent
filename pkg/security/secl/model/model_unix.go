@@ -12,7 +12,6 @@
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -76,6 +75,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
@@ -191,8 +191,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 }
 
 // Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -381,10 +383,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
 
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -396,8 +402,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+		String:  pc.Comm,
+	}
 }
 
 // ParentScope returns the parent entity scope

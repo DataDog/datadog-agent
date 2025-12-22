@@ -26,7 +26,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -127,7 +127,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface

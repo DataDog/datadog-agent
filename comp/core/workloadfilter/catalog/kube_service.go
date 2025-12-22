@@ -14,14 +14,12 @@ import (
 
 // ServiceCELMetricsProgram creates a program for filtering services metrics via CEL rules
 func ServiceCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ServiceCELMetricsProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ServiceType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ServiceType, logger)
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.KubeServiceType)
+	return createCELExcludeProgram(string(workloadfilter.KubeServiceCELMetrics), rule, workloadfilter.KubeServiceType, logger)
 }
 
 // ServiceCELGlobalProgram creates a program for filtering services globally via CEL rules
 func ServiceCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ServiceCELGlobalProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ServiceType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ServiceType, logger)
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.KubeServiceType)
+	return createCELExcludeProgram(string(workloadfilter.KubeServiceCELGlobal), rule, workloadfilter.KubeServiceType, logger)
 }
