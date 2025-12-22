@@ -104,7 +104,7 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 			c.metricsByXidCode[evt.EventData] = &Metric{
 				Name:     "errors.xid.total",
 				Type:     metrics.CountType,
-				Priority: High,
+				Priority: Medium,
 				Tags: []string{
 					"type:" + strconv.Itoa(int(evt.EventData)),
 					"origin:" + xidOrigin,

@@ -132,7 +132,7 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 		}
 	}
 
-	return processMemoryUsage(device, usage, High), 0, err
+	return processMemoryUsage(device, usage, Medium), 0, err
 }
 
 func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
@@ -150,7 +150,7 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 		}
 	}
 
-	return processMemoryUsage(device, usage, Higher), 0, err
+	return processMemoryUsage(device, usage, High), 0, err
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
@@ -179,7 +179,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{
-					{Name: "memory.free", Value: float64(memInfo.Free), Priority: High, Type: metrics.GaugeType},
+					{Name: "memory.free", Value: float64(memInfo.Free), Priority: Medium, Type: metrics.GaugeType},
 					{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
 				}, 0, nil
 			},

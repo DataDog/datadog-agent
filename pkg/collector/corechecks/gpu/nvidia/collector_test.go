@@ -317,8 +317,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
 		allMetrics := map[CollectorName][]Metric{
 			sampling: {
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
 				{Name: "core.temp", Priority: Low}, // Zero priority (default)
 			},
 			stateless: {
@@ -328,7 +328,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 				{Name: "disk.usage", Priority: Low}, // Zero priority, unique metric
 			},
 			ebpf: {
-				{Name: "core.temp", Priority: High}, // Conflicts with CollectorA, higher priority beats zero
+				{Name: "core.temp", Priority: Medium}, // Conflicts with CollectorA, higher priority beats zero
 				{Name: "voltage", Priority: Low},
 				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
 			},
@@ -344,10 +344,10 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		for _, metric := range result {
 			switch metric.Name {
 			case "memory.usage":
-				require.Equal(t, High, metric.Priority)
+				require.Equal(t, Medium, metric.Priority)
 				memoryUsageCount++
 			case "core.temp":
-				require.Equal(t, High, metric.Priority)
+				require.Equal(t, Medium, metric.Priority)
 				coreTempCount++
 			case "power.draw":
 				require.Equal(t, Low, metric.Priority)
@@ -376,9 +376,9 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
 		allMetrics := map[CollectorName][]Metric{
 			sampling: {
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
 				{Name: "cpu.usage", Priority: Low},
 			},
 		}
@@ -386,9 +386,9 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		result := RemoveDuplicateMetrics(allMetrics)
 
 		expected := []Metric{
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
 			{Name: "cpu.usage", Priority: Low},
 		}
 
