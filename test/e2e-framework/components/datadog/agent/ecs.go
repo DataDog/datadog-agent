@@ -124,6 +124,14 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				Value: pulumi.StringPtr("/host/proc"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_LOG_LEVEL"),
+				Value: pulumi.StringPtr("debug"),
+			},
+			ecs.TaskDefinitionKeyValuePairArgs{
+				Name:  pulumi.StringPtr("DD_APM_LOG_FILE"),
+				Value: pulumi.StringPtr("stdout"),
+			},
+			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_SOCKET"),
 				Value: pulumi.StringPtr("/var/run/datadog/dsd.socket"),
 			},
