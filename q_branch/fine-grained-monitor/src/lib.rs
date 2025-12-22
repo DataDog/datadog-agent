@@ -29,4 +29,5 @@
 //! ```
 
 pub mod discovery;
+pub mod metrics_viewer;
 pub mod observer;
