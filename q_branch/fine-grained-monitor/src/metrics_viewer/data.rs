@@ -33,10 +33,8 @@ pub struct ContainerInfo {
 pub struct ContainerStats {
     pub info: ContainerInfo,
     pub sample_count: usize,
-    /// Average value, None if no non-null data points exist.
-    pub avg: Option<f64>,
-    /// Maximum value, None if no non-null data points exist.
-    pub max: Option<f64>,
+    pub avg: f64,
+    pub max: f64,
 }
 
 /// Metric metadata.
@@ -292,15 +290,8 @@ pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
             }
 
             let values: Vec<f64> = points.iter().map(|p| p.value).collect();
-            // Compute avg/max, returning None if no values exist
-            let (avg, max) = if values.is_empty() {
-                (None, None)
-            } else {
-                let sum: f64 = values.iter().sum();
-                let avg = sum / values.len() as f64;
-                let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                (Some(avg), Some(max))
-            };
+            let avg = values.iter().sum::<f64>() / values.len() as f64;
+            let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
             if let Some(info) = all_containers.get(&short_id) {
                 metric_stats.insert(
