@@ -458,5 +458,5 @@ func tryRemoveFile(filePath string) (err error) {
 }
 
 func reportInternalError(err error) {
-	fmt.Fprintf(os.Stderr, "log internal error: %s\n", err)
+	fmt.Fprintf(os.Stderr, "log: filewriter internal error: %v\n", err)
 }
