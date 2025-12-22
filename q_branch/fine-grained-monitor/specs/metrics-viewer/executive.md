@@ -7,7 +7,9 @@ throttling, memory pressure, and IO bottlenecks. The viewer loads parquet files
 containing fine-grained metrics and provides interactive charts with filtering,
 searching, and zooming. The Oscillation Study detects periodic patterns that
 often indicate throttling or resource contention, surfacing insights that would
-require tedious manual scanning to discover.
+require tedious manual scanning to discover. Studies are initiated per-container
+to ensure focused analysis and avoid visual noise from multiple overlapping
+oscillation patterns.
 
 ## Technical Summary
 
@@ -28,8 +30,8 @@ detection uses sliding-window autocorrelation (60-sample windows, 50% overlap).
 | **REQ-MV-004:** Search and Select Containers | ✅ Complete | Search box with debounce, Top N buttons |
 | **REQ-MV-005:** Zoom and Pan Through Time | ✅ Complete | Drag zoom, scroll wheel zoom, reset button |
 | **REQ-MV-006:** Navigate with Range Overview | ✅ Complete | Second uPlot instance as overview |
-| **REQ-MV-007:** Detect Periodic Oscillations | ✅ Complete | Study trait with oscillation implementation |
-| **REQ-MV-008:** Visualize Oscillation Patterns | ✅ Complete | Period markers, region shading via uPlot hooks |
+| **REQ-MV-007:** Detect Periodic Oscillations | ✅ Complete | Per-container study initiation via icon button |
+| **REQ-MV-008:** Visualize Oscillation Patterns | ✅ Complete | Results panel with restore selection option |
 | **REQ-MV-009:** Automatic Y-Axis Scaling | ✅ Complete | uPlot auto-ranges Y-axis to visible data |
 | **REQ-MV-010:** Graceful Empty Data Display | ✅ Complete | Y-axis minimum range, no-data detection |
 
