@@ -133,17 +133,31 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     }
 
     // The header name is new (literal key with literal value)
-    // Try to detect and remap :path to its static table index
+    // Try to detect and remap :path, :method, or :status to their static table indices
     if (index == 0) {
-        char b[2];
-        pktbuf_load_bytes_from_current_offset(pkt, b, 2);
+        char b[7];
+        pktbuf_load_bytes_from_current_offset(pkt, b, 7);
 
-        // Only detect :path to minimize instruction count
-        // Plain: ':p' (0x3a, 0x70) with str_len=5 -> :path
-        // Huffman: 0xb9, 0x58 with str_len=4 -> :path
-        if ((b[0] == 58 && b[1] == 112 && str_len == 5) ||
-            (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x58 && str_len == 4)) {
+        // Detect :path header (5 bytes)
+        // Plain: ':path' with str_len=5
+        // Huffman: 0xb9, 0x58, 0x86, 0xa8 with str_len=4
+        if ((b[0] == ':' && b[1] == 'p' && b[2] == 'a' && b[3] == 't' && b[4] == 'h' && str_len == 5) ||
+            (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x58 && b[2] == (char)0x86 && b[3] == (char)0xa8 && str_len == 4)) {
             index = 4; // :path maps to static table index 4
+        }
+        // Detect :method header (7 bytes)
+        // Plain: ':method' with str_len=7
+        // Huffman: 0xb9, 0x64, 0x65, 0x95, 0x40 with str_len=5
+        else if ((b[0] == ':' && b[1] == 'm' && b[2] == 'e' && b[3] == 't' && b[4] == 'h' && b[5] == 'o' && b[6] == 'd' && str_len == 7) ||
+                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x64 && b[2] == (char)0x65 && b[3] == (char)0x95 && b[4] == (char)0x40 && str_len == 5)) {
+            index = 2; // :method maps to static table index 2 (GET)
+        }
+        // Detect :status header (7 bytes)
+        // Plain: ':status' with str_len=7
+        // Huffman: 0xb9, 0x74, 0x97, 0x90 with str_len=4
+        else if ((b[0] == ':' && b[1] == 's' && b[2] == 't' && b[3] == 'a' && b[4] == 't' && b[5] == 'u' && b[6] == 's' && str_len == 7) ||
+                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x74 && b[2] == (char)0x97 && b[3] == (char)0x90 && str_len == 4)) {
+            index = 8; // :status maps to static table index 8 (200)
         }
 
         pktbuf_advance(pkt, str_len);
@@ -160,7 +174,7 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
             goto end;
         }
 
-        // The header was recognized as :path - read the value length to process it
+        // The header was recognized (:path, :method, or :status) - read the value length to process it
         str_len = 0;
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
