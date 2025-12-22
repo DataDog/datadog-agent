@@ -249,7 +249,7 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 	}
 
 	c.series = append(c.series, &metrics.Serie{
-		Name:           "datadog.otel.gateway.env.var",
+		Name:           "datadog.otel.gateway.configured",
 		Points:         []metrics.Point{{Value: gateWayEnvVar, Ts: float64(time.Now().Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		Host:           hostname,

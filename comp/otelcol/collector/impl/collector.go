@@ -167,7 +167,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		)
 		store.DDOTGWEnvValue = reqs.Telemetry.NewGauge(
 			"runtime",
-			"datadog_agent_ddot_gateway_env_var",
+			"datadog_agent_ddot_gateway_configured",
 			[]string{"version", "command", "host", "task_arn"},
 			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
 		)
@@ -203,7 +203,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	//reqs.Config.GetBool("otelcollector.gateway.mode")) -> Reading env variable "DD_OTELCOLLECTOR_GATEWAY_MODE"
 	addFactories(reqs, factories, otel.NewGatewayUsage(reqs.Config.GetBool("otelcollector.gateway.mode")), reqs.Params.BYOC)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
