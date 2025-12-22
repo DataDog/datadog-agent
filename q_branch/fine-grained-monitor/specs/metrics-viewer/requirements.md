@@ -53,9 +53,13 @@ THE SYSTEM SHALL show containers matching ALL applied filters
 WHEN user clears filters
 THE SYSTEM SHALL show all containers
 
+WHEN user applies or changes any filter
+THE SYSTEM SHALL preserve the current time range
+
 **Rationale:** Large clusters have hundreds of containers. Quick filtering by
 QoS class or namespace lets users focus on relevant workloads without scrolling
-through long lists.
+through long lists. Preserving the time window lets users compare different
+container subsets at the same point in time.
 
 ---
 
@@ -73,9 +77,14 @@ THE SYSTEM SHALL remove its timeseries from the chart
 WHEN user selects "Top N by average"
 THE SYSTEM SHALL select the N containers with highest average value
 
+WHEN user changes container selection (add, remove, or Top N)
+THE SYSTEM SHALL preserve the current time range
+
 **Rationale:** Users often know which container they want to investigate, or
 want to focus on the busiest containers. Search and quick-select accelerate
-this workflow.
+this workflow. Preserving the time window lets users compare different
+containers at the same moment—seeing how container A and B behaved during
+the same incident.
 
 ---
 
@@ -156,17 +165,16 @@ correlate oscillation timing with other events or container state changes.
 
 ---
 
-### REQ-MV-009: Rescale Y-Axis to Visible Data
+### REQ-MV-009: Automatic Y-Axis Scaling
 
-WHEN user clicks the rescale button
-THE SYSTEM SHALL adjust Y-axis bounds to fit the currently visible data range
+WHEN the visible time range changes (via zoom, pan, or reset)
+THE SYSTEM SHALL automatically adjust Y-axis bounds to fit the visible data
 
-WHEN user resets zoom to full time range
-THE SYSTEM SHALL restore Y-axis to original bounds
+WHEN displayed data changes (via metric, filter, or container selection)
+THE SYSTEM SHALL automatically adjust Y-axis bounds to fit the new data
 
-**Rationale:** When zoomed into a specific time region, the original Y scale
-may hide detail. A single click rescales to maximize chart space for the
-visible data, letting engineers see subtle variations that would otherwise
-be compressed.
+**Rationale:** Y-axis should always maximize use of chart space for whatever
+data is currently visible. This reveals subtle variations that would be
+compressed if the scale remained fixed to the original full-range bounds.
 
 ---

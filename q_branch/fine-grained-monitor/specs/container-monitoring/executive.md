@@ -127,6 +127,6 @@ Interactive metrics visualization via `scripts/metrics_viewer.rs`:
 - **WebGL rendering** via `scattergl` for smooth performance with 170K+ points
 - **Compact header bar** with container multi-select, quick-select buttons, and action controls
 - **Range slider** for time navigation, legend positioned above chart to avoid overlap
-- **Rescale Y-Axis button** adjusts Y scale to visible data without auto-rescale lag
+- **Automatic Y-axis scaling** adjusts Y scale to fit visible data
 - **Detailed timing output** shows each loading phase (metadata read, ZSTD decompress, struct building)
 - **Automatic browser launch** opens viewer in default browser after server starts
