@@ -216,17 +216,22 @@ Hover detection on oscillation markers and regions. Tooltip displays:
 
 Tooltip positioned near cursor, auto-repositions to stay within chart bounds.
 
-## REQ-MV-009: Rescale Y-Axis to Visible Data
+## REQ-MV-009: Automatic Y-Axis Scaling
 
 ### Implementation
 
-"Rescale Y" button computes min/max of visible data points and calls
-`uplot.setScale('y', {min, max})`. Button located in chart toolbar.
+uPlot configured with custom range function:
+```javascript
+y: { range: (u, min, max) => [0, max * 1.1] }
+```
+
+This automatically scales Y-axis to fit visible data (0 to max + 10% padding)
+whenever the visible time range or displayed data changes. No manual button
+required.
 
 ### Reset Behavior
 
-When user clicks reset (full time range), Y-axis restores to original
-data bounds computed on initial load.
+When user clicks reset (full time range), Y-axis auto-scales to fit all data.
 
 ## Data Flow Summary
 

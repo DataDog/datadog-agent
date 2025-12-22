@@ -357,8 +357,6 @@
             <div class="main-header">
                 <span class="status" id="status">Loading...</span>
                 <div class="chart-controls">
-                    <!-- REQ-MV-009: Rescale Y button -->
-                    <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
                     <button class="btn-warning" onclick="resetZoom()">Reset</button>
                 </div>
             </div>
@@ -789,34 +787,6 @@
             } else {
                 oscillationData = {};
                 if (mainPlot) mainPlot.redraw();
-            }
-        }
-
-        function rescaleY() {
-            if (!mainPlot) return;
-
-            const xRange = mainPlot.scales.x;
-            const selectedIds = getSelectedContainerIds();
-
-            let yMin = Infinity, yMax = -Infinity;
-
-            selectedIds.forEach(id => {
-                const data = currentData[id] || [];
-                data.forEach(p => {
-                    const t = p.time_ms / 1000;
-                    if (t >= xRange.min && t <= xRange.max) {
-                        if (p.value < yMin) yMin = p.value;
-                        if (p.value > yMax) yMax = p.value;
-                    }
-                });
-            });
-
-            if (yMin !== Infinity && yMax !== -Infinity) {
-                const padding = (yMax - yMin) * 0.05 || 1;
-                mainPlot.setScale('y', {
-                    min: Math.max(0, yMin - padding),
-                    max: yMax + padding
-                });
             }
         }
 
