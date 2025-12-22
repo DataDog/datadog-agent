@@ -108,7 +108,7 @@ func (m *mockRCClient) setBlocking(block bool) {
 func TestNewImageResolver(t *testing.T) {
 	t.Run("with_remote_config_client", func(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
-		mockConfig := imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, mockClient, 5, 1*time.Second)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), mockClient)
 		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*remoteConfigImageResolver)
@@ -116,7 +116,7 @@ func TestNewImageResolver(t *testing.T) {
 	})
 
 	t.Run("without_remote_config_client__typed_nil", func(t *testing.T) {
-		mockConfig := imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, (*mockRCClient)(nil), 5, 1*time.Second)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), (*mockRCClient)(nil))
 		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*noOpImageResolver)
@@ -124,7 +124,7 @@ func TestNewImageResolver(t *testing.T) {
 	})
 
 	t.Run("without_remote_config_client__untyped_nil", func(t *testing.T) {
-		mockConfig := imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, nil, 5, 1*time.Second)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), nil)
 		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*noOpImageResolver)
@@ -229,7 +229,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("image_resolver_multi_repo.json")
-	resolver := newRcImageResolver(imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, mockRCClient, 5, 1*time.Second))
+	resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockRCClient))
 
 	testCases := []struct {
 		name           string
@@ -414,7 +414,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
-	resolver := newRcImageResolver(imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, newMockRCClient("image_resolver_multi_repo.json"), 5, 1*time.Second))
+	resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), newMockRCClient("image_resolver_multi_repo.json")))
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
 		var wg sync.WaitGroup
@@ -495,7 +495,7 @@ func TestAsyncInitialization(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
 
-		resolver := newRcImageResolver(imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, mockClient, 2, 10*time.Millisecond))
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -506,7 +506,7 @@ func TestAsyncInitialization(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true)
 
-		resolver := newRcImageResolver(imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, mockClient, 2, 10*time.Millisecond))
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -530,7 +530,7 @@ func TestAsyncInitialization(t *testing.T) {
 		}
 		close(mockClient.configsReady)
 
-		resolver := newRcImageResolver(imageresolver.NewTestConfig("testsite", []string{"gcr.io/datadoghq"}, mockClient, 2, 10*time.Millisecond))
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 		time.Sleep(50 * time.Millisecond)
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")

@@ -41,14 +41,3 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		InitRetryDelay: 1 * time.Second,
 	}
 }
-
-// NewTestConfig creates a new Config for testing
-func NewTestConfig(site string, ddRegistries []string, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) Config {
-	return Config{
-		Site:           site,
-		DDRegistries:   newDatadoghqRegistries(ddRegistries),
-		RCClient:       rcClient,
-		MaxInitRetries: maxRetries,
-		InitRetryDelay: retryDelay,
-	}
-}
