@@ -51,52 +51,59 @@ type Setup struct {
 
 // NewSetup creates a new Setup structure with some default values.
 func NewSetup(ctx context.Context, env *env.Env, flavor string, flavorPath string, logOutput io.Writer) (*Setup, error) {
-	header := `Datadog Installer %s - https://www.datadoghq.com
+    header := `Datadog Installer %s - https://www.datadoghq.com
 Running the %s installation script (https://github.com/DataDog/datadog-agent/tree/%s/pkg/fleet/installer/setup/%s) - %s
 `
-	start := time.Now()
-	output := &Output{tty: logOutput}
-	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	installer, err := installer.NewInstaller(env)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create installer: %w", err)
-	}
-	var proxyNoProxy []string
-	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
-		proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
-			return r == ',' || r == ' '
-		}) // comma and space-separated list, consistent with viper and documentation
-	}
-	span, ctx := telemetry.StartSpanFromContext(ctx, "setup."+flavor)
-	s := &Setup{
-		configDir: paths.DatadogDataDir,
-		installer: installer,
-		start:     start,
-		flavor:    flavor,
-		Out:       output,
-		Env:       env,
-		Ctx:       ctx,
-		Span:      span,
-		Config: config.Config{
-			DatadogYAML: config.DatadogConfig{
-				APIKey:   env.APIKey,
-				Hostname: os.Getenv("DD_HOSTNAME"),
-				Site:     env.Site,
-				Proxy: config.DatadogConfigProxy{
-					HTTP:    os.Getenv("DD_PROXY_HTTP"),
-					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
-					NoProxy: proxyNoProxy,
-				},
-				Env:                os.Getenv("DD_ENV"),
-				InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
-			},
-			IntegrationConfigs: make(map[string]config.IntegrationConfig),
-		},
-		Packages: Packages{
-			install: make(map[string]packageWithVersion),
-		},
-	}
-	return s, nil
+    start := time.Now()
+    output := &Output{tty: logOutput}
+    output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
+    installer, err := installer.NewInstaller(env)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create installer: %w", err)
+    }
+    var proxyNoProxy []string
+    if os.Getenv("DD_PROXY_NO_PROXY") != "" {
+        proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
+            return r == ',' || r == ' '
+        }) // comma and space-separated list, consistent with viper and documentation
+    }
+    span, ctx := telemetry.StartSpanFromContext(ctx, "setup."+flavor)
+    s := &Setup{
+        configDir: paths.DatadogDataDir,
+        installer: installer,
+        start:     start,
+        flavor:    flavor,
+        Out:       output,
+        Env:       env,
+        Ctx:       ctx,
+        Span:      span,
+        Config: config.Config{
+            DatadogYAML: config.DatadogConfig{
+                APIKey:   env.APIKey,
+                Hostname: os.Getenv("DD_HOSTNAME"),
+                Site:     env.Site,
+                Proxy: config.DatadogConfigProxy{
+                    HTTP:    os.Getenv("DD_PROXY_HTTP"),
+                    HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
+                    NoProxy: proxyNoProxy,
+                },
+                Env:                os.Getenv("DD_ENV"),
+                InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
+            },
+            IntegrationConfigs: make(map[string]config.IntegrationConfig),
+        },
+        Packages: Packages{
+            install: make(map[string]packageWithVersion),
+        },
+    }
+
+    // NEW: map DD_LOGS_ENABLED env var into datadog.yaml
+    if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
+        logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
+        s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
+    }
+
+    return s, nil
 }
 
 // Run installs the packages and writes the configurations
