@@ -32,6 +32,7 @@ import (
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -87,6 +88,7 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
+	Observer           option.Option[observer.Component]
 }
 
 type provides struct {
@@ -125,6 +127,7 @@ type logAgent struct {
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
 	healthPlatform            option.Option[healthplatform.Component]
+	observerHandle            observer.Handle
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -144,6 +147,12 @@ func newLogsAgent(deps dependencies) provides {
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
+		// Initialize observer handle if observer component is available
+		var observerHandle observer.Handle
+		if obs, ok := deps.Observer.Get(); ok {
+			observerHandle = obs.GetHandle("logs")
+		}
+
 		logsAgent := &logAgent{
 			log:                deps.Log,
 			config:             deps.Config,
@@ -161,6 +170,7 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			healthPlatform:     deps.HealthPlatform,
+			observerHandle:     observerHandle,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
