@@ -69,7 +69,7 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
-
+	l.checkDockerSocketAccess()
 	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
 		// Workloadmeta not available - check if Docker socket has permission issues
