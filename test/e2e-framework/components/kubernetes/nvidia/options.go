@@ -44,6 +44,12 @@ type KindClusterOptions struct {
 
 	// cudaSanityCheckImage is a Docker image to use when performing sanity checks for validation of the GPU setup in containers
 	cudaSanityCheckImage string
+
+	// migStrategy is the MIG strategy for the GPU operator. Can be empty (disabled), "single", or "mixed"
+	migStrategy string
+
+	// migConfig is the MIG configuration profile to apply to nodes (e.g., "all-1g.5gb")
+	migConfig string
 }
 
 // KindClusterOption is a function that modifies a KindClusterOptions
@@ -90,6 +96,21 @@ func WithKindImage(image string) KindClusterOption {
 func WithCudaSanityCheckImage(image string) KindClusterOption {
 	return func(o *KindClusterOptions) {
 		o.cudaSanityCheckImage = image
+	}
+}
+
+// WithMIGStrategy sets the MIG strategy for the GPU operator. Can be "single" or "mixed".
+// When empty, MIG is disabled.
+func WithMIGStrategy(strategy string) KindClusterOption {
+	return func(o *KindClusterOptions) {
+		o.migStrategy = strategy
+	}
+}
+
+// WithMIGConfig sets the MIG configuration profile to apply to nodes (e.g., "all-1g.5gb").
+func WithMIGConfig(config string) KindClusterOption {
+	return func(o *KindClusterOptions) {
+		o.migConfig = config
 	}
 }
 
