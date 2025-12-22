@@ -50,6 +50,7 @@ pub async fn run_server(data: LoadedData, config: ServerConfig) -> anyhow::Resul
 
     let app = Router::new()
         .route("/", get(index_handler))
+        .route("/api/health", get(health_handler))
         .route("/api/metrics", get(metrics_handler))
         .route("/api/filters", get(filters_handler))
         .route("/api/containers", get(containers_handler))
@@ -85,6 +86,18 @@ pub async fn run_server(data: LoadedData, config: ServerConfig) -> anyhow::Resul
 /// REQ-MV-001: Display interactive timeseries chart.
 async fn index_handler() -> Html<&'static str> {
     Html(include_str!("static/index.html"))
+}
+
+/// GET /api/health - health check endpoint for dev tooling.
+async fn health_handler() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".to_string(),
+    })
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: String,
 }
 
 /// GET /api/metrics - list available metrics.
