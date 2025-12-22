@@ -22,13 +22,17 @@ type Provides struct {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
-	obs := &observerImpl{}
+	obs := &observerImpl{
+		analyses: []observerdef.Analysis{
+			&BadDetector{},
+		},
+	}
 	return Provides{Comp: obs}
 }
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	// Future: storage, analysis, sampling config, etc.
+	analyses []observerdef.Analysis
 }
 
 // GetHandle returns a lightweight handle for a named source.
@@ -49,5 +53,9 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
-	// Placeholder - sampling/storage logic goes here later
+	for _, analysis := range h.observer.analyses {
+		result := analysis.Analyze(msg)
+		// TODO: forward metrics and anomalies to appropriate destinations
+		_ = result
+	}
 }
