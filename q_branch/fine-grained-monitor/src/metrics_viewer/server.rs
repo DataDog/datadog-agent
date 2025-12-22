@@ -184,10 +184,14 @@ async fn containers_handler(
         .collect();
 
     // Sort by average value descending (for Top N selection)
+    // Containers with None avg sort to the end
     containers.sort_by(|a, b| {
-        b.avg
-            .partial_cmp(&a.avg)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        match (b.avg, a.avg) {
+            (Some(b_val), Some(a_val)) => b_val.partial_cmp(&a_val).unwrap_or(std::cmp::Ordering::Equal),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
     });
 
     Json(ContainersResponse { containers })
