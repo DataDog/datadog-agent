@@ -598,13 +598,10 @@ new-e2e-cws:
 
 
 new-e2e-sbom:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_sbom_or_e2e_changes]
     - !reference [.manual]
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent
   variables:
     TARGETS: ./tests/sbom
     TEAM: csm-threats-agent
