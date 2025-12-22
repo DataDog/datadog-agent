@@ -2533,6 +2533,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
 					},
 					StandardTags: []string{},
 				},
@@ -2561,6 +2563,85 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG device",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "MIG-432",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "MIG-432",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "MIG-432"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig",
+						"gpu_uuid:mig-432",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG parent",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_uuid:gpu-1234",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
 					},
 					StandardTags: []string{},
 				},
@@ -2922,6 +3003,7 @@ func TestHandleProcess(t *testing.T) {
 		gpuDevice         = "Tesla V100"
 		gpuDriverVersion  = "525.60.13"
 		gpuVirtMode       = "none"
+		gpuSlicingMode    = "none"
 	)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -3272,6 +3354,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
@@ -3312,6 +3396,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
