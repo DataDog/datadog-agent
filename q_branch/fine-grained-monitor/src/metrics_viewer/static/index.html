@@ -260,7 +260,53 @@
             background: #fafafa;
             border-radius: 4px;
             flex-shrink: 0;
+            position: relative;
         }
+
+        /* REQ-MV-006: Range selector overlay */
+        .range-overlay {
+            position: absolute;
+            top: 8px;
+            left: 0;
+            right: 0;
+            height: 60px;
+            pointer-events: none;
+        }
+        .range-dim {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.15);
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+        .range-dim.left { left: 0; }
+        .range-dim.right { right: 0; }
+        .range-selection {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background: transparent;
+            border: 2px solid #007bff;
+            border-radius: 3px;
+            box-sizing: border-box;
+            pointer-events: auto;
+            cursor: grab;
+        }
+        .range-selection:active { cursor: grabbing; }
+        .range-handle {
+            position: absolute;
+            top: 0;
+            width: 8px;
+            height: 100%;
+            background: #007bff;
+            cursor: ew-resize;
+            pointer-events: auto;
+            border-radius: 2px;
+        }
+        .range-handle:hover { background: #0056b3; }
+        .range-handle.left { left: -4px; }
+        .range-handle.right { right: -4px; }
         .charts-container .uplot {
             margin-left: 10px;
         }
@@ -487,11 +533,17 @@
             const selectedOrder = {};
             currentlySelected.forEach((id, idx) => { selectedOrder[id] = idx; });
 
+            // Check if any current selection matches new container list
+            // If none match (e.g., metric changed), auto-select first 5
+            const newContainerIds = containers.map(c => c.info.short_id);
+            const anyMatch = currentlySelected.some(id => newContainerIds.includes(id));
+            const useAutoSelect = currentlySelected.length === 0 || !anyMatch;
+
             list.innerHTML = containers.map((c, i) => {
-                // Preserve selection, or auto-select first 5 if nothing selected
-                const isSelected = currentlySelected.length > 0
-                    ? currentlySelected.includes(c.info.short_id)
-                    : i < 5;
+                // Preserve selection if it matches, otherwise auto-select first 5
+                const isSelected = useAutoSelect
+                    ? i < 5
+                    : currentlySelected.includes(c.info.short_id);
                 const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
 
                 // Color swatch matches chart color for selected containers
@@ -520,6 +572,16 @@
         }
 
         async function loadTimeseries() {
+            // REQ-MV-002, REQ-MV-003, REQ-MV-004: Capture current time range FIRST
+            // Must happen before getSelectedContainerIds() since container list may have changed
+            let preservedXRange = null;
+            if (mainPlot && mainPlot.scales.x) {
+                preservedXRange = {
+                    min: mainPlot.scales.x.min,
+                    max: mainPlot.scales.x.max
+                };
+            }
+
             const selected = getSelectedContainerIds();
 
             if (selected.length === 0) {
@@ -535,7 +597,7 @@
             currentData = {};
             data.forEach(d => { currentData[d.container] = d.data; });
 
-            renderChart(selected);
+            renderChart(selected, preservedXRange);
 
             if (oscillationEnabled) {
                 await loadOscillationData();
@@ -574,7 +636,7 @@
             overviewPlot = null;
         }
 
-        function renderChart(containerIds) {
+        function renderChart(containerIds, preservedXRange = null) {
             const chartDiv = document.getElementById('mainChart');
             const overviewDiv = document.getElementById('overviewChart');
             const legendDiv = document.getElementById('legend');
@@ -641,13 +703,25 @@
             originalXRange = [xMin, xMax];
             originalYRange = [0, yMax * 1.1];
 
+            // REQ-MV-002: Calculate initial X scale range (preserve zoom if available)
+            let initialXScale = { time: true };
+            if (preservedXRange && preservedXRange.min != null && preservedXRange.max != null) {
+                const clampedMin = Math.max(xMin, Math.min(preservedXRange.min, xMax));
+                const clampedMax = Math.min(xMax, Math.max(preservedXRange.max, xMin));
+                // Only apply preserved range if it's a meaningful zoom (less than 99% of full range)
+                if (clampedMax - clampedMin < (xMax - xMin) * 0.99) {
+                    initialXScale.min = clampedMin;
+                    initialXScale.max = clampedMax;
+                }
+            }
+
             // REQ-MV-005: uPlot options with zoom/pan
             const opts = {
                 width: chartDiv.clientWidth,
                 height: chartDiv.clientHeight,
                 series: uplotSeries,
                 scales: {
-                    x: { time: true },
+                    x: initialXScale,
                     y: { range: (u, min, max) => [0, max * 1.1] }
                 },
                 cursor: {
@@ -674,7 +748,7 @@
 
             mainPlot = new uPlot(opts, uplotData, chartDiv);
 
-            // REQ-MV-006: Overview chart
+            // REQ-MV-006: Overview chart (no cursor/drag - we use HTML overlay for interaction)
             const overviewOpts = {
                 width: overviewDiv.clientWidth,
                 height: 60,
@@ -683,40 +757,231 @@
                     x: { time: true },
                     y: { range: (u, min, max) => [0, max * 1.1] }
                 },
-                cursor: {
-                    drag: { x: true, y: false, setScale: false },
-                    sync: { key: 'overview' }
-                },
+                cursor: { show: false },
                 axes: [
                     { show: false },
                     { show: false }
                 ],
-                legend: { show: false },
-                hooks: {
-                    setSelect: [onOverviewSelect]
-                }
+                legend: { show: false }
             };
 
             overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
+
+            // REQ-MV-006: Add HTML overlay for range selection
+            createRangeOverlay(overviewDiv);
+
+            // REQ-MV-002: Sync overview after chart creation to reflect preserved zoom
+            // Use requestAnimationFrame to ensure uPlot has rendered with correct scale values
+            requestAnimationFrame(() => {
+                syncOverview(mainPlot);
+            });
+
         }
 
-        // REQ-MV-006: Sync overview selection with main chart
+        // REQ-MV-006: Range overlay state
+        let rangeOverlay = null;
+        let rangeDrag = {
+            active: false,
+            mode: null,  // 'pan', 'resize-left', 'resize-right', 'select'
+            startX: 0,
+            startLeft: 0,
+            startWidth: 0
+        };
+
+        function createRangeOverlay(overviewDiv) {
+            // Remove existing overlay if any
+            const existing = overviewDiv.querySelector('.range-overlay');
+            if (existing) existing.remove();
+
+            // Create overlay structure
+            const overlay = document.createElement('div');
+            overlay.className = 'range-overlay';
+            overlay.innerHTML = `
+                <div class="range-dim left"></div>
+                <div class="range-selection">
+                    <div class="range-handle left"></div>
+                    <div class="range-handle right"></div>
+                </div>
+                <div class="range-dim right"></div>
+            `;
+            overviewDiv.appendChild(overlay);
+            rangeOverlay = overlay;
+
+            // Get elements
+            const dimLeft = overlay.querySelector('.range-dim.left');
+            const dimRight = overlay.querySelector('.range-dim.right');
+            const selection = overlay.querySelector('.range-selection');
+            const handleLeft = overlay.querySelector('.range-handle.left');
+            const handleRight = overlay.querySelector('.range-handle.right');
+
+            // Get chart dimensions (account for uPlot padding)
+            const getChartBounds = () => {
+                if (!overviewPlot) return { left: 0, width: overviewDiv.clientWidth };
+                // uPlot bbox is in CSS pixels
+                const bbox = overviewPlot.bbox;
+                return {
+                    left: bbox.left / devicePixelRatio,
+                    width: bbox.width / devicePixelRatio
+                };
+            };
+
+            // Convert pixel position to time value
+            const posToVal = (px) => {
+                if (!overviewPlot) return 0;
+                const bounds = getChartBounds();
+                return overviewPlot.posToVal(px - bounds.left, 'x');
+            };
+
+            // Convert time value to pixel position
+            const valToPos = (val) => {
+                if (!overviewPlot) return 0;
+                const bounds = getChartBounds();
+                return overviewPlot.valToPos(val, 'x') + bounds.left;
+            };
+
+            // Update overlay positions from main chart scale
+            const updateOverlayFromScale = () => {
+                if (!mainPlot || !overviewPlot) return;
+                const xScale = mainPlot.scales.x;
+                const bounds = getChartBounds();
+
+                const left = valToPos(xScale.min);
+                const right = valToPos(xScale.max);
+                const width = right - left;
+
+                selection.style.left = left + 'px';
+                selection.style.width = width + 'px';
+                dimLeft.style.width = left + 'px';
+                dimRight.style.left = right + 'px';
+                dimRight.style.width = (bounds.left + bounds.width - right) + 'px';
+            };
+
+            // Initial position (full range = no selection visible)
+            updateOverlayFromScale();
+
+            // Handle left resize
+            handleLeft.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                const rect = selection.getBoundingClientRect();
+                rangeDrag = {
+                    active: true,
+                    mode: 'resize-left',
+                    startX: e.clientX,
+                    startLeft: selection.offsetLeft,
+                    startWidth: selection.offsetWidth
+                };
+            });
+
+            // Handle right resize
+            handleRight.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                rangeDrag = {
+                    active: true,
+                    mode: 'resize-right',
+                    startX: e.clientX,
+                    startLeft: selection.offsetLeft,
+                    startWidth: selection.offsetWidth
+                };
+            });
+
+            // Handle pan (drag middle of selection)
+            selection.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('range-handle')) return;
+                rangeDrag = {
+                    active: true,
+                    mode: 'pan',
+                    startX: e.clientX,
+                    startLeft: selection.offsetLeft,
+                    startWidth: selection.offsetWidth
+                };
+            });
+
+            // Handle click on dim areas (create new selection)
+            const onDimClick = (e) => {
+                const overlayRect = overlay.getBoundingClientRect();
+                rangeDrag = {
+                    active: true,
+                    mode: 'select',
+                    startX: e.clientX,
+                    startLeft: e.clientX - overlayRect.left,
+                    startWidth: 0
+                };
+            };
+            dimLeft.addEventListener('mousedown', onDimClick);
+            dimRight.addEventListener('mousedown', onDimClick);
+
+            // Mouse move handler
+            document.addEventListener('mousemove', (e) => {
+                if (!rangeDrag.active || !overviewPlot || !mainPlot) return;
+
+                const bounds = getChartBounds();
+                const overlayRect = overlay.getBoundingClientRect();
+                const delta = e.clientX - rangeDrag.startX;
+                const currentX = e.clientX - overlayRect.left;
+
+                let newLeft, newWidth, newRight;
+
+                switch (rangeDrag.mode) {
+                    case 'pan':
+                        newLeft = rangeDrag.startLeft + delta;
+                        newWidth = rangeDrag.startWidth;
+                        // Clamp to bounds
+                        newLeft = Math.max(bounds.left, Math.min(newLeft, bounds.left + bounds.width - newWidth));
+                        break;
+
+                    case 'resize-left':
+                        newLeft = rangeDrag.startLeft + delta;
+                        newRight = rangeDrag.startLeft + rangeDrag.startWidth;
+                        newLeft = Math.max(bounds.left, Math.min(newLeft, newRight - 20));
+                        newWidth = newRight - newLeft;
+                        break;
+
+                    case 'resize-right':
+                        newLeft = rangeDrag.startLeft;
+                        newWidth = rangeDrag.startWidth + delta;
+                        newWidth = Math.max(20, Math.min(newWidth, bounds.left + bounds.width - newLeft));
+                        break;
+
+                    case 'select':
+                        const x1 = Math.max(bounds.left, Math.min(rangeDrag.startLeft, currentX));
+                        const x2 = Math.min(bounds.left + bounds.width, Math.max(rangeDrag.startLeft, currentX));
+                        newLeft = x1;
+                        newWidth = x2 - x1;
+                        break;
+                }
+
+                // Update overlay visuals
+                selection.style.left = newLeft + 'px';
+                selection.style.width = newWidth + 'px';
+                dimLeft.style.width = newLeft + 'px';
+                dimRight.style.left = (newLeft + newWidth) + 'px';
+                dimRight.style.width = (bounds.left + bounds.width - newLeft - newWidth) + 'px';
+
+                // Update main chart scale
+                if (newWidth > 10) {
+                    const minVal = posToVal(newLeft);
+                    const maxVal = posToVal(newLeft + newWidth);
+                    mainPlot.setScale('x', { min: minVal, max: maxVal });
+                }
+            });
+
+            // Mouse up handler
+            document.addEventListener('mouseup', () => {
+                if (rangeDrag.active) {
+                    rangeDrag.active = false;
+                    rangeDrag.mode = null;
+                }
+            });
+
+            // Store update function for external sync
+            rangeOverlay.update = updateOverlayFromScale;
+        }
+
+        // REQ-MV-006: Sync range overlay with main chart zoom
         function syncOverview(u) {
-            if (!overviewPlot) return;
-            const xRange = u.scales.x;
-            if (xRange.min !== undefined && xRange.max !== undefined) {
-                const left = overviewPlot.valToPos(xRange.min, 'x');
-                const right = overviewPlot.valToPos(xRange.max, 'x');
-                overviewPlot.setSelect({ left, width: right - left, top: 0, height: 60 });
+            if (rangeOverlay && rangeOverlay.update) {
+                rangeOverlay.update();
             }
-        }
-
-        // REQ-MV-006: Handle overview selection
-        function onOverviewSelect(u) {
-            if (!mainPlot || !u.select.width) return;
-            const left = u.posToVal(u.select.left, 'x');
-            const right = u.posToVal(u.select.left + u.select.width, 'x');
-            mainPlot.setScale('x', { min: left, max: right });
         }
 
         // REQ-MV-008: Draw oscillation overlay
@@ -800,9 +1065,7 @@
             if (!mainPlot || !originalXRange) return;
             mainPlot.setScale('x', { min: originalXRange[0], max: originalXRange[1] });
             mainPlot.setScale('y', { min: originalYRange[0], max: originalYRange[1] });
-            if (overviewPlot) {
-                overviewPlot.setSelect({ left: 0, width: 0, top: 0, height: 0 });
-            }
+            // syncOverview will be called via setScale hook to update the overlay
         }
 
         // --- Event Listeners ---
@@ -835,6 +1098,10 @@
             if (overviewPlot) {
                 const overviewDiv = document.getElementById('overviewChart');
                 overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 60 });
+                // Update overlay after resize
+                if (rangeOverlay && rangeOverlay.update) {
+                    setTimeout(() => rangeOverlay.update(), 10);
+                }
             }
         });
 
