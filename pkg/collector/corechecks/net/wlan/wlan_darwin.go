@@ -488,7 +488,7 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 		// Cast interface{} back to concrete type for validation
 		schema, ok := c.ipcSchema.(*gojsonschema.Schema)
 		if !ok {
-			return wifiInfo{}, fmt.Errorf("invalid schema type")
+			return wifiInfo{}, errors.New("invalid schema type")
 		}
 		documentLoader := gojsonschema.NewStringLoader(responseLine)
 		result, err := schema.Validate(documentLoader)
