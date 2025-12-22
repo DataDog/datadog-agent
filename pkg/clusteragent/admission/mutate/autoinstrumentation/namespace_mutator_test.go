@@ -37,7 +37,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewTargetMutator(config, wmeta, imageResolver)
+	m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
 	require.NoError(t, err)
 	core := m.core
 

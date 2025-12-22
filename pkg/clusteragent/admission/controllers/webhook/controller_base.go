@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers/admissionregistration"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -188,6 +189,7 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
 	clientSet                kubernetes.Interface //nolint:structcheck
+	dynamicClient            dynamic.Interface    //nolint:structcheck
 	config                   Config
 	secretsLister            corelisters.SecretLister
 	secretsSynced            cache.InformerSynced //nolint:structcheck
