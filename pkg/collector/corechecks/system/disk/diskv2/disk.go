@@ -582,12 +582,15 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		deviceName = partition.Device
 	}
+	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
+	normalizedDeviceName := normalizeDeviceTag(deviceName)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(normalizedDeviceName)))
 	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, fmt.Sprintf("device:%s", normalizedDeviceName))
 	}
 	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(partition.Device)))
+	// Use original deviceName for regex matching in device_tag_re
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
 	if ok {
@@ -598,10 +601,12 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 
 func (c *Check) getDeviceNameTags(deviceName string) []string {
 	tags := []string{}
+	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
+	normalizedDeviceName := normalizeDeviceTag(deviceName)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(normalizedDeviceName)))
 	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, fmt.Sprintf("device:%s", normalizedDeviceName))
 	}
 	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(deviceName)))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
