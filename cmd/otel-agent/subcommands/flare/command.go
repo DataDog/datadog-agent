@@ -77,12 +77,12 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
 				flare.Module(flare.NewLocalParams(
-					"",    // distPath - not used for OTel Agent
-					"",    // pyChecksPath - not used for OTel Agent
-					"",    // logFilePath - not used for OTel Agent
-					"",    // jmxLogFilePath - not used for OTel Agent
-					"",    // dogstatsDLogFilePath - not used for OTel Agent
-					"",    // streamlogsLogFilePath - not used for OTel Agent
+					"", // distPath - not used for OTel Agent
+					"", // pyChecksPath - not used for OTel Agent
+					"", // logFilePath - not used for OTel Agent
+					"", // jmxLogFilePath - not used for OTel Agent
+					"", // dogstatsDLogFilePath - not used for OTel Agent
+					"", // streamlogsLogFilePath - not used for OTel Agent
 				)),
 				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
@@ -103,8 +103,8 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 
 func makeFlare(
 	flareComp flare.Component,
-	lc log.Component,
-	config config.Component,
+	_ log.Component,
+	_ config.Component,
 	cliParams *cliParams,
 ) error {
 	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
@@ -178,7 +178,7 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 		return "", fmt.Errorf("failed to create flare archive: %w", err)
 	}
 
-	fmt.Fprintln(color.Output, color.GreenString(fmt.Sprintf("Flare archive created: %s", filePath)))
+	fmt.Fprintln(color.Output, color.GreenString("Flare archive created: "+filePath))
 	return filePath, nil
 }
 
@@ -188,14 +188,10 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 
 	// Build URIs from configuration paths
 	uris := make([]string, len(params.ConfPaths))
-	for i, path := range params.ConfPaths {
-		uris[i] = path
-	}
+	copy(uris, params.ConfPaths)
 
 	// Add sets as YAML URIs
-	for _, set := range params.Sets {
-		uris = append(uris, set)
-	}
+	uris = append(uris, params.Sets...)
 
 	var customerConfig, runtimeConfig, envConfig string
 	var err error

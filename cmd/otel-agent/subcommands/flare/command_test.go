@@ -7,15 +7,18 @@ package flare
 
 import (
 	"archive/zip"
+	"context"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func newGlobalParamsTest(t *testing.T) *subcommands.GlobalParams {
@@ -86,12 +89,12 @@ func TestCreateOTelFlare(t *testing.T) {
 	defer zipReader.Close()
 
 	expectedFiles := map[string]bool{
-		"otel-response.json":        false,
-		"build-info.txt":            false,
-		"config/env-config.yaml":    false,
+		"otel-response.json":         false,
+		"build-info.txt":             false,
+		"config/env-config.yaml":     false,
 		"config/runtime-config.yaml": false,
-		"environment.json":          false,
-		"debug-sources.json":        false,
+		"environment.json":           false,
+		"debug-sources.json":         false,
 	}
 
 	for _, file := range zipReader.File {
@@ -157,7 +160,7 @@ func TestDiscoverDebugSources(t *testing.T) {
 	require.NoError(t, err)
 
 	// Discover debug sources
-	sources := discoverDebugSources(nil, []string{"file:" + configPath})
+	sources := discoverDebugSources(context.TODO(), []string{"file:" + configPath})
 
 	// Verify all three extensions are discovered
 	assert.Contains(t, sources, "health_check", "health_check should be discovered")
@@ -218,4 +221,16 @@ func TestExtractExtensionType(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestFlareCommand(t *testing.T) {
+	globalConfGetter := func() *subcommands.GlobalParams {
+		return newGlobalParamsTest(t)
+	}
+	fxutil.TestOneShotSubcommand(t,
+		[]*cobra.Command{MakeCommand(globalConfGetter)},
+		[]string{"flare", "--send"},
+		makeFlare,
+		func() {},
+	)
 }
