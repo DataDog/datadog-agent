@@ -72,7 +72,7 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
-	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "")
+	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "provider")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
@@ -91,7 +91,7 @@ excluded_interfaces:
     - lo0
 excluded_interface_re: "eth.*"
 `)
-	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	require.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -107,7 +107,7 @@ func TestNetworkCheckWithoutCoreLoader(t *testing.T) {
 
 	networkCheck := new(NetworkCheck)
 	mock := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
 }
 
@@ -121,7 +121,7 @@ func TestNetworkCheckNonDefaultFlavor(t *testing.T) {
 
 			networkCheck := new(NetworkCheck)
 			mock := mocksender.NewMockSender(networkCheck.ID())
-			err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+			err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
 		})
 	}
@@ -311,7 +311,7 @@ collect_connection_state: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -433,7 +433,7 @@ excluded_interfaces:
 	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -514,7 +514,7 @@ excluded_interface_re: "eth[0-9]"
 	cfg := configmock.New(t)
 	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

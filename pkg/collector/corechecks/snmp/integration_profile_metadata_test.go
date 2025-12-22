@@ -66,7 +66,7 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 

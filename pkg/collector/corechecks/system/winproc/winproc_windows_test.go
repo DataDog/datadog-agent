@@ -21,7 +21,7 @@ func TestWinprocCheckWindows(t *testing.T) {
 
 	winprocCheck := new(processChk)
 	mock := mocksender.NewMockSender(winprocCheck.ID())
-	winprocCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	winprocCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.proc.queue_length", 2.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.proc.count", 32.0, "", []string(nil)).Return().Times(1)

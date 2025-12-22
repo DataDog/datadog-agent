@@ -20,7 +20,7 @@ func TestFhCheckWindows(t *testing.T) {
 
 	fileHandleCheck := new(fhCheck)
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
-	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.fs.file_handles.in_use", 0.006848775103963421, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)

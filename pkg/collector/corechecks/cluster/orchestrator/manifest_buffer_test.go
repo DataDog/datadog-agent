@@ -222,7 +222,7 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 
 	// Configure the check properly to get ExtraTags set
 	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
-	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "")
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 
 	// Override the cluster name for the test
 	orchCheck.orchestratorConfig.KubeClusterName = "buffer-cluster"

@@ -51,7 +51,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	cpuInfo = CPUInfo
 	loadCheck := new(LoadCheck)
 	mock := mocksender.NewMockSender(loadCheck.ID())
-	loadCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	loadCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	var nbCPU float64
 	info, _ := cpuInfo()

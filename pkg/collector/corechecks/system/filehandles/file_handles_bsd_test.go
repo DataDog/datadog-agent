@@ -29,7 +29,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	mock := mocksender.NewMockSender("")
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

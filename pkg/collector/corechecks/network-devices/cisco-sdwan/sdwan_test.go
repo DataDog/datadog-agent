@@ -88,7 +88,7 @@ collect_bgp_neighbor_states: true
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	assert.Equal(t, 3*time.Minute, chk.Interval())
@@ -310,7 +310,7 @@ namespace: test
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	err = chk.Run()
@@ -371,7 +371,7 @@ collect_cloud_applications_metrics: false
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	err = chk.Run()

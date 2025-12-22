@@ -52,7 +52,7 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

@@ -145,7 +145,7 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	require.True(t, ok)
 	checkInternal.SetContainerProvider(mock_containers.NewMockContainerProvider(gomock.NewController(t)))
 
-	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "")
+	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
 	require.NoError(t, err)
 	t.Cleanup(func() { checkInstance.Cancel() })
 

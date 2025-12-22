@@ -59,7 +59,7 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	m.On("Commit").Return().Times(1)
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := cpuCheck.Run()
 
 	m.AssertExpectations(t)
@@ -70,7 +70,7 @@ func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "provider")
 
 	assert.NotNil(t, err)
 }
@@ -84,7 +84,7 @@ func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.True(t, strings.Contains(err.Error(), "cpu.Check: could not get number of CPU:"))
 }
@@ -102,7 +102,7 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, createPdhQueryError, err)
 }
@@ -140,7 +140,7 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	m.On("Commit").Return().Times(1)
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := cpuCheck.Run()
 
 	m.AssertExpectations(t)
@@ -157,7 +157,7 @@ func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "")
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
 	err := cpuCheck.Run()
 

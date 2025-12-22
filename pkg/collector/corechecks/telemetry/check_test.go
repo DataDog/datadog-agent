@@ -33,7 +33,7 @@ func TestCheck(t *testing.T) {
 	sm := mocksender.CreateDefaultDemultiplexer()
 
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
-	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "")
+	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
 	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)

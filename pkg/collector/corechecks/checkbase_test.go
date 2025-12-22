@@ -37,15 +37,17 @@ func TestCommonConfigure(t *testing.T) {
 	}
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
-	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(defaultsInstance), "test", "")
+	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(defaultsInstance), "test", "config-provider")
 	assert.NoError(t, err)
 	assert.Equal(t, defaults.DefaultCheckInterval, mycheck.Interval())
+	assert.Equal(t, "config-provider", mycheck.ConfigProvider())
 	mockSender.AssertNumberOfCalls(t, "DisableDefaultHostname", 0)
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err = mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(customInstance), "test", "")
+	err = mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(customInstance), "test", "different-config-provider")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
+	assert.Equal(t, "different-config-provider", mycheck.ConfigProvider())
 	mycheck.BuildID(1, []byte(customInstance), []byte(initConfig))
 	assert.Equal(t, string(mycheck.ID()), "test:foobar:a934df33209f45f4")
 	mockSender.AssertExpectations(t)
@@ -61,9 +63,10 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(customInstance), "test", "")
+	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(customInstance), "test", "config-provider")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
+	assert.Equal(t, "config-provider", mycheck.ConfigProvider())
 	mycheck.BuildID(1, []byte(customInstance), []byte(initConfig))
 	assert.Equal(t, string(mycheck.ID()), "test:foobar:a934df33209f45f4")
 	mockSender.AssertExpectations(t)
