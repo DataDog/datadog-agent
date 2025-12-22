@@ -7,60 +7,182 @@
     <!-- REQ-MV-001: uPlot for canvas-based rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
     <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
+    <!-- Fuzzy search for metrics -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f5f5f5;
-            padding: 12px;
+            overflow: hidden;
         }
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
+
+        /* Grid layout: sidebar + main content */
+        .app-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
             background: white;
-            padding: 12px 16px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 12px;
-            flex-wrap: wrap;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .header h1 {
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            flex-shrink: 0;
+        }
+        .sidebar-header h1 {
             font-size: 18px;
             color: #333;
-            white-space: nowrap;
         }
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
         }
-        .control-group label {
+        .sidebar-section {
+            margin-bottom: 16px;
+        }
+        .sidebar-section-title {
+            font-size: 11px;
             font-weight: 600;
-            font-size: 13px;
-            color: #555;
-            white-space: nowrap;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
         }
-        select, input[type="text"] {
-            padding: 6px 10px;
+
+        /* Search inputs */
+        .search-input {
+            width: 100%;
+            padding: 8px 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 13px;
+            margin-bottom: 8px;
         }
-        select { min-width: 140px; }
-        #containerSelect {
-            height: 80px;
-            min-width: 220px;
+        .search-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
         }
-        #containerSearch {
-            width: 150px;
+
+        /* Metric list */
+        .metric-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        .metric-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            word-break: break-all;
+        }
+        .metric-item:last-child { border-bottom: none; }
+        .metric-item:hover { background: #f0f0f0; }
+        .metric-item.selected {
+            background: #007bff;
+            color: white;
+        }
+        .metric-item .sample-count {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Filter dropdowns */
+        .filter-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .filter-group {
+            flex: 1;
+        }
+        .filter-group label {
+            display: block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .filter-group select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            background: white;
+        }
+
+        /* Container list */
+        .container-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        .container-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid #eee;
+            gap: 8px;
+        }
+        .container-item:last-child { border-bottom: none; }
+        .container-item:hover { background: #f0f0f0; }
+        .container-item input[type="checkbox"] {
+            flex-shrink: 0;
+        }
+        .container-item .container-id {
+            font-family: monospace;
+            font-weight: 500;
+        }
+        .container-item .container-qos {
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            background: #e0e0e0;
+            color: #555;
+        }
+        .container-item .container-qos.Guaranteed { background: #d4edda; color: #155724; }
+        .container-item .container-qos.Burstable { background: #fff3cd; color: #856404; }
+        .container-item .container-qos.BestEffort { background: #f8d7da; color: #721c24; }
+        .container-item .container-avg {
+            margin-left: auto;
+            font-size: 10px;
+            color: #888;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
         }
         button {
-            padding: 6px 12px;
+            padding: 6px 10px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             white-space: nowrap;
         }
         button:hover { opacity: 0.9; }
@@ -69,38 +191,79 @@
         .btn-secondary { background: #6c757d; color: white; }
         .btn-warning { background: #ffc107; color: #333; }
         .btn-info { background: #17a2b8; color: white; }
-        .status {
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+        /* Main content area */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+        .main-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        .main-header .status {
             color: #666;
             font-size: 12px;
             padding: 4px 8px;
             background: #f0f0f0;
             border-radius: 4px;
-            margin-left: auto;
+        }
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Charts container */
+        .charts-container {
+            flex: 1;
+            background: white;
+            margin: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 3px;
+            border-radius: 2px;
         }
         #mainChart {
-            width: 100%;
-            height: calc(100vh - 380px);
-            min-height: 250px;
+            flex: 1;
+            min-height: 200px;
         }
-        /* REQ-MV-006: Range overview */
         #overviewChart {
-            width: 100%;
             height: 80px;
             margin-top: 12px;
             border-top: 1px solid #ddd;
             padding-top: 8px;
             background: #fafafa;
             border-radius: 4px;
+            flex-shrink: 0;
         }
-        .charts-container {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 12px 16px;
-            max-height: calc(100vh - 100px);
-            overflow: visible;
-        }
-        /* Ensure uPlot charts have enough left padding for Y-axis labels */
         .charts-container .uplot {
             margin-left: 10px;
         }
@@ -112,6 +275,7 @@
             color: #666;
             font-size: 16px;
         }
+
         /* REQ-MV-008: Oscillation tooltip */
         .oscillation-tooltip {
             position: absolute;
@@ -124,83 +288,86 @@
             z-index: 1000;
             display: none;
         }
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 8px;
-            font-size: 12px;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .legend-color {
-            width: 16px;
-            height: 3px;
+
+        /* Metric match highlight */
+        .metric-item .match {
+            background: rgba(255, 235, 59, 0.5);
             border-radius: 2px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Metrics Viewer</h1>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Metrics Viewer</h1>
+            </div>
+            <div class="sidebar-content">
+                <!-- REQ-MV-002: Metric selection with fuzzy search -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Metrics</div>
+                    <input type="text" id="metricSearch" class="search-input" placeholder="Search metrics...">
+                    <div class="metric-list" id="metricList"></div>
+                </div>
 
-        <!-- REQ-MV-002: Metric selector -->
-        <div class="control-group">
-            <label>Metric:</label>
-            <select id="metricSelect"></select>
+                <!-- REQ-MV-003: Filters -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Filters</div>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>QoS Class</label>
+                            <select id="qosFilter">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Namespace</label>
+                            <select id="namespaceFilter">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REQ-MV-004: Container search and selection -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Containers</div>
+                    <input type="text" id="containerSearch" class="search-input" placeholder="Search containers...">
+                    <div class="container-list" id="containerList"></div>
+                    <div class="action-buttons">
+                        <button class="btn-primary btn-sm" onclick="selectTop(5)">Top 5</button>
+                        <button class="btn-primary btn-sm" onclick="selectTop(10)">Top 10</button>
+                        <button class="btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
+                    </div>
+                </div>
+
+                <!-- REQ-MV-007: Oscillation study -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Studies</div>
+                    <button class="btn-info" id="oscillationBtn" onclick="toggleOscillation()" style="width: 100%;">
+                        Oscillation Study
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- REQ-MV-003: Filters -->
-        <div class="control-group">
-            <label>QoS:</label>
-            <select id="qosFilter">
-                <option value="">All</option>
-            </select>
+        <!-- Main content -->
+        <div class="main-content">
+            <div class="main-header">
+                <span class="status" id="status">Loading...</span>
+                <div class="chart-controls">
+                    <!-- REQ-MV-009: Rescale Y button -->
+                    <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
+                    <button class="btn-warning" onclick="resetZoom()">Reset</button>
+                </div>
+            </div>
+            <div class="charts-container">
+                <div class="legend" id="legend"></div>
+                <div id="mainChart"></div>
+                <div id="overviewChart"></div>
+            </div>
         </div>
-        <div class="control-group">
-            <label>Namespace:</label>
-            <select id="namespaceFilter">
-                <option value="">All</option>
-            </select>
-        </div>
-
-        <!-- REQ-MV-004: Container search and selection -->
-        <div class="control-group">
-            <label>Search:</label>
-            <input type="text" id="containerSearch" placeholder="Filter containers...">
-        </div>
-        <div class="control-group">
-            <label>Containers:</label>
-            <select id="containerSelect" multiple></select>
-        </div>
-
-        <div class="control-group">
-            <button class="btn-primary" onclick="selectTop(5)">Top 5</button>
-            <button class="btn-primary" onclick="selectTop(10)">Top 10</button>
-            <button class="btn-secondary" onclick="clearSelection()">Clear</button>
-        </div>
-
-        <!-- REQ-MV-007: Oscillation study toggle -->
-        <div class="control-group">
-            <button class="btn-info" id="oscillationBtn" onclick="toggleOscillation()">Oscillation</button>
-        </div>
-
-        <!-- REQ-MV-009: Rescale Y button -->
-        <div class="control-group">
-            <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
-            <button class="btn-warning" onclick="resetZoom()">Reset</button>
-        </div>
-
-        <span class="status" id="status">Loading...</span>
-    </div>
-
-    <div class="charts-container">
-        <div class="legend" id="legend"></div>
-        <div id="mainChart"></div>
-        <div id="overviewChart"></div>
     </div>
 
     <!-- REQ-MV-008: Oscillation tooltip -->
@@ -217,6 +384,8 @@
         let overviewPlot = null;
         let originalXRange = null;
         let originalYRange = null;
+        let selectedMetric = null;
+        let fuse = null;  // Fuse.js instance for metric search
 
         // Colors for traces
         const COLORS = [
@@ -231,21 +400,54 @@
             const data = await res.json();
             metrics = data.metrics;
 
-            const select = document.getElementById('metricSelect');
-            select.innerHTML = metrics.map(m =>
-                `<option value="${m.name}">${m.name} (${m.sample_count.toLocaleString()})</option>`
-            ).join('');
+            // Initialize Fuse.js for fuzzy search
+            fuse = new Fuse(metrics, {
+                keys: ['name'],
+                threshold: 0.4,
+                includeMatches: true
+            });
 
             // Default to total_cpu_usage_millicores if available
             const preferredMetric = 'total_cpu_usage_millicores';
             if (metrics.some(m => m.name === preferredMetric)) {
-                select.value = preferredMetric;
+                selectedMetric = preferredMetric;
+            } else if (metrics.length > 0) {
+                selectedMetric = metrics[0].name;
             }
+
+            renderMetricList(metrics);
 
             if (metrics.length > 0) {
                 await loadFilters();
                 await loadContainers();
             }
+        }
+
+        function renderMetricList(metricsToShow) {
+            const list = document.getElementById('metricList');
+            list.innerHTML = metricsToShow.map(m => {
+                const metric = m.item || m;  // Handle Fuse result or raw metric
+                const isSelected = metric.name === selectedMetric;
+                return `<div class="metric-item ${isSelected ? 'selected' : ''}"
+                             onclick="selectMetric('${metric.name}')">
+                    <span class="metric-name">${metric.name}</span>
+                    <span class="sample-count">${metric.sample_count.toLocaleString()}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function selectMetric(name) {
+            selectedMetric = name;
+            renderMetricList(getFilteredMetrics());
+            loadContainers();
+        }
+
+        function getFilteredMetrics() {
+            const searchTerm = document.getElementById('metricSearch').value.trim();
+            if (!searchTerm) {
+                return metrics;
+            }
+            return fuse.search(searchTerm);
         }
 
         async function loadFilters() {
@@ -262,12 +464,13 @@
         }
 
         async function loadContainers() {
-            const metric = document.getElementById('metricSelect').value;
+            if (!selectedMetric) return;
+
             const qos = document.getElementById('qosFilter').value;
             const ns = document.getElementById('namespaceFilter').value;
             const search = document.getElementById('containerSearch').value;
 
-            let url = `/api/containers?metric=${encodeURIComponent(metric)}`;
+            let url = `/api/containers?metric=${encodeURIComponent(selectedMetric)}`;
             if (qos) url += `&qos_class=${encodeURIComponent(qos)}`;
             if (ns) url += `&namespace=${encodeURIComponent(ns)}`;
             if (search) url += `&search=${encodeURIComponent(search)}`;
@@ -276,24 +479,44 @@
             const data = await res.json();
             containers = data.containers;
 
-            const select = document.getElementById('containerSelect');
-            const wasSelected = new Set(Array.from(select.selectedOptions).map(o => o.value));
-
-            select.innerHTML = containers.map((c, i) => {
-                const selected = wasSelected.has(c.info.short_id) || (wasSelected.size === 0 && i < 5);
-                const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
-                const label = `${c.info.short_id} (${c.info.qos_class || '?'}) avg:${avgStr}`;
-                return `<option value="${c.info.short_id}" ${selected ? 'selected' : ''}>${label}</option>`;
-            }).join('');
-
+            renderContainerList();
             document.getElementById('status').textContent = `${containers.length} containers`;
             await loadTimeseries();
         }
 
+        function renderContainerList() {
+            const list = document.getElementById('containerList');
+            const currentlySelected = getSelectedContainerIds();
+
+            list.innerHTML = containers.map((c, i) => {
+                // Preserve selection, or auto-select first 5 if nothing selected
+                const isSelected = currentlySelected.length > 0
+                    ? currentlySelected.includes(c.info.short_id)
+                    : i < 5;
+                const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
+                const qosClass = c.info.qos_class || '?';
+
+                return `<label class="container-item">
+                    <input type="checkbox" value="${c.info.short_id}"
+                           ${isSelected ? 'checked' : ''} onchange="onContainerChange()">
+                    <span class="container-id">${c.info.short_id}</span>
+                    <span class="container-qos ${qosClass}">${qosClass}</span>
+                    <span class="container-avg">avg: ${avgStr}</span>
+                </label>`;
+            }).join('');
+        }
+
+        function getSelectedContainerIds() {
+            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        function onContainerChange() {
+            loadTimeseries();
+        }
+
         async function loadTimeseries() {
-            const metric = document.getElementById('metricSelect').value;
-            const select = document.getElementById('containerSelect');
-            const selected = Array.from(select.selectedOptions).map(o => o.value);
+            const selected = getSelectedContainerIds();
 
             if (selected.length === 0) {
                 showEmptyState();
@@ -302,7 +525,7 @@
 
             document.getElementById('status').textContent = 'Loading...';
 
-            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(metric)}&containers=${selected.join(',')}`);
+            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
             const data = await res.json();
 
             currentData = {};
@@ -321,13 +544,11 @@
 
         // REQ-MV-007: Load oscillation study data
         async function loadOscillationData() {
-            const metric = document.getElementById('metricSelect').value;
-            const select = document.getElementById('containerSelect');
-            const selected = Array.from(select.selectedOptions).map(o => o.value);
+            const selected = getSelectedContainerIds();
 
             if (selected.length === 0) return;
 
-            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(metric)}&containers=${selected.join(',')}`);
+            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
             const data = await res.json();
 
             oscillationData = {};
@@ -355,7 +576,6 @@
             const legendDiv = document.getElementById('legend');
 
             // Build uPlot data: [timestamps, ...values]
-            // First, collect all timestamps
             let allTimes = new Set();
             containerIds.forEach(id => {
                 const data = currentData[id] || [];
@@ -427,18 +647,18 @@
                     y: { range: (u, min, max) => [0, max * 1.1] }
                 },
                 cursor: {
-                    drag: { x: true, y: false, setScale: true }  // REQ-MV-005: Drag to zoom
+                    drag: { x: true, y: false, setScale: true }
                 },
                 hooks: {
-                    draw: [drawOscillationOverlay],  // REQ-MV-008: Draw oscillation markers
+                    draw: [drawOscillationOverlay],
                     setScale: [syncOverview]
                 },
                 axes: [
                     { stroke: '#666', grid: { stroke: '#eee' } },
                     { stroke: '#666', grid: { stroke: '#eee' }, size: 80 }
                 ],
-                padding: [8, 16, 8, 8],  // top, right, bottom, left
-                legend: { show: false }  // We have our own legend at the top
+                padding: [8, 16, 8, 8],
+                legend: { show: false }
             };
 
             // Destroy previous plots
@@ -481,7 +701,6 @@
             if (!overviewPlot) return;
             const xRange = u.scales.x;
             if (xRange.min !== undefined && xRange.max !== undefined) {
-                // Draw selection rectangle on overview
                 const left = overviewPlot.valToPos(xRange.min, 'x');
                 const right = overviewPlot.valToPos(xRange.max, 'x');
                 overviewPlot.setSelect({ left, width: right - left, top: 0, height: 60 });
@@ -504,8 +723,7 @@
             const xScale = u.scales.x;
             const yScale = u.scales.y;
 
-            const selectedIds = Array.from(document.getElementById('containerSelect').selectedOptions)
-                .map(o => o.value);
+            const selectedIds = getSelectedContainerIds();
 
             selectedIds.forEach((id, idx) => {
                 const result = oscillationData[id];
@@ -519,14 +737,13 @@
                     const y1 = u.valToPos(yScale.max, 'y', true);
                     const y2 = u.valToPos(yScale.min, 'y', true);
 
-                    // Skip if outside visible range
                     if (x2 < 0 || x1 > u.width) return;
 
                     // Draw shaded region
                     ctx.fillStyle = color + '20';
                     ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
 
-                    // Draw period markers (vertical dashed lines)
+                    // Draw period markers
                     const period = w.metrics.period || 10;
                     const periodMs = period * 1000;
                     ctx.strokeStyle = color;
@@ -549,20 +766,18 @@
 
         // --- Actions ---
 
-        // REQ-MV-004: Select top N containers by average value
         function selectTop(n) {
-            const select = document.getElementById('containerSelect');
-            Array.from(select.options).forEach((opt, i) => { opt.selected = i < n; });
+            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
+            checkboxes.forEach((cb, i) => { cb.checked = i < n; });
             loadTimeseries();
         }
 
         function clearSelection() {
-            const select = document.getElementById('containerSelect');
-            Array.from(select.options).forEach(opt => { opt.selected = false; });
+            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
+            checkboxes.forEach(cb => { cb.checked = false; });
             loadTimeseries();
         }
 
-        // REQ-MV-007: Toggle oscillation study
         function toggleOscillation() {
             oscillationEnabled = !oscillationEnabled;
             const btn = document.getElementById('oscillationBtn');
@@ -577,13 +792,11 @@
             }
         }
 
-        // REQ-MV-009: Rescale Y-axis to visible data
         function rescaleY() {
             if (!mainPlot) return;
 
             const xRange = mainPlot.scales.x;
-            const selectedIds = Array.from(document.getElementById('containerSelect').selectedOptions)
-                .map(o => o.value);
+            const selectedIds = getSelectedContainerIds();
 
             let yMin = Infinity, yMax = -Infinity;
 
@@ -607,7 +820,6 @@
             }
         }
 
-        // REQ-MV-005: Reset zoom to full range
         function resetZoom() {
             if (!mainPlot || !originalXRange) return;
             mainPlot.setScale('x', { min: originalXRange[0], max: originalXRange[1] });
@@ -619,16 +831,23 @@
 
         // --- Event Listeners ---
 
-        document.getElementById('metricSelect').addEventListener('change', () => loadContainers());
+        // Metric search with fuzzy matching
+        let metricSearchTimeout;
+        document.getElementById('metricSearch').addEventListener('input', () => {
+            clearTimeout(metricSearchTimeout);
+            metricSearchTimeout = setTimeout(() => {
+                renderMetricList(getFilteredMetrics());
+            }, 150);
+        });
+
         document.getElementById('qosFilter').addEventListener('change', () => loadContainers());
         document.getElementById('namespaceFilter').addEventListener('change', () => loadContainers());
-        document.getElementById('containerSelect').addEventListener('change', () => loadTimeseries());
 
-        // REQ-MV-004: Debounced search
-        let searchTimeout;
+        // Container search (debounced)
+        let containerSearchTimeout;
         document.getElementById('containerSearch').addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => loadContainers(), 300);
+            clearTimeout(containerSearchTimeout);
+            containerSearchTimeout = setTimeout(() => loadContainers(), 300);
         });
 
         // Handle resize
@@ -643,7 +862,7 @@
             }
         });
 
-        // REQ-MV-005: Scroll wheel zoom
+        // Scroll wheel zoom on main chart
         document.getElementById('mainChart').addEventListener('wheel', (e) => {
             if (!mainPlot) return;
             e.preventDefault();
