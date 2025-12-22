@@ -163,8 +163,12 @@ func testSeelogConfig(t *testing.T, config *Config, testName string) {
 
 func TestCommonSyslogFormatter(t *testing.T) {
 	pid := os.Getpid()
-	expected := fmt.Sprintf(`<166>seelog.test[%d]: CORE | INFO | (pkg/util/log/setup/internal/seelog/seelog_config_test.go:28 in callerPC) | check:cpu | Done running check
-`, pid)
+	procName := "seelog.test"
+	if runtime.GOOS == "windows" {
+		procName = "seelog.test.exe"
+	}
+	expected := fmt.Sprintf(`<166>%s[%d]: CORE | INFO | (pkg/util/log/setup/internal/seelog/seelog_config_test.go:28 in callerPC) | check:cpu | Done running check
+`, procName, pid)
 
 	cfg := Config{loggerName: "CORE"}
 	logTime := time.Now()
@@ -182,8 +186,12 @@ func TestCommonSyslogFormatter(t *testing.T) {
 
 func TestJsonSyslogFormatter(t *testing.T) {
 	pid := os.Getpid()
-	expected := fmt.Sprintf(`<166>1 seelog.test %d - - {"agent":"core","level":"INFO","relfile":"pkg/util/log/setup/internal/seelog/seelog_config_test.go","line":"28","msg":"Done running check","check":"cpu"}
-`, pid)
+	procName := "seelog.test"
+	if runtime.GOOS == "windows" {
+		procName = "seelog.test.exe"
+	}
+	expected := fmt.Sprintf(`<166>1 %s %d - - {"agent":"core","level":"INFO","relfile":"pkg/util/log/setup/internal/seelog/seelog_config_test.go","line":"28","msg":"Done running check","check":"cpu"}
+`, procName, pid)
 
 	cfg := Config{loggerName: "CORE", syslogRFC: true}
 	logTime := time.Now()
