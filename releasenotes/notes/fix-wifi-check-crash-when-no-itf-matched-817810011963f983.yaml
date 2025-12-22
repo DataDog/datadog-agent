@@ -8,7 +8,5 @@
 ---
 fixes:
   - |
-    This is a bug fix for the rare issue where the Wi-Fi check would
-    crash the Agent when Wi-Fi interface is connected but on some
     Fixes a rare crash on Windows during the Wi-Fi check when the  
     Agent cannot find a matching Wi-Fi adapter on some computers.
