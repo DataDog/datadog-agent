@@ -66,6 +66,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.SetXAttr = deepCopySetXAttrEvent(e.SetXAttr)
 	copied.Setrlimit = deepCopySetrlimitEvent(e.Setrlimit)
 	copied.Signal = deepCopySignalEvent(e.Signal)
+	copied.Signature = e.Signature
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)

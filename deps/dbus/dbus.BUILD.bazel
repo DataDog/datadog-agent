@@ -126,6 +126,7 @@ cc_library(
     ],
     includes = ["."],
     linkstatic = True,
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
