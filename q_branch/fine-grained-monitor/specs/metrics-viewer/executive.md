@@ -31,5 +31,6 @@ detection uses sliding-window autocorrelation (60-sample windows, 50% overlap).
 | **REQ-MV-007:** Detect Periodic Oscillations | ✅ Complete | Study trait with oscillation implementation |
 | **REQ-MV-008:** Visualize Oscillation Patterns | ✅ Complete | Period markers, region shading via uPlot hooks |
 | **REQ-MV-009:** Automatic Y-Axis Scaling | ✅ Complete | uPlot auto-ranges Y-axis to visible data |
+| **REQ-MV-010:** Graceful Empty Data Display | ✅ Complete | Y-axis minimum range, no-data detection |
 
-**Progress:** 9 of 9 complete
+**Progress:** 10 of 10 complete
