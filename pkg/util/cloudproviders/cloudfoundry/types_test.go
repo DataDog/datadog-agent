@@ -398,22 +398,20 @@ func TestActualLRPFromBBSModel(t *testing.T) {
 }
 
 func TestDesiredLRPFromBBSModel(t *testing.T) {
+	cc := setupCCCache(t, false)
+
 	includeList := []*regexp.Regexp{regexp.MustCompile("CUSTOM_*")}
 	excludeList := []*regexp.Regexp{regexp.MustCompile("NOT_CUSTOM_*")}
-	result := DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	result := DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList, cc)
 	assert.EqualValues(t, ExpectedD2, result)
 
 	includeList = []*regexp.Regexp{}
 	excludeList = []*regexp.Regexp{}
-	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList, cc)
 	assert.EqualValues(t, ExpectedD1, result)
 
-	// Temporarily disable global CC cache and acquire lock to prevent any refresh of the BBS cache in the background
-	globalBBSCache.Lock()
-	defer globalBBSCache.Unlock()
-	globalCCCache.configured = false
-	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
-	globalCCCache.configured = true
+	// Test with nil CC cache to verify behavior when CC cache is not available
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList, nil)
 	assert.EqualValues(t, ExpectedD3NoCCCache, result)
 }
 

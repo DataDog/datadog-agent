@@ -43,7 +43,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 	// Create check instance using mocks
 	checkGeneric := newCheck(
 		fakeTagger,
@@ -54,8 +54,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -187,7 +186,7 @@ func TestRunDoesNotError(t *testing.T) {
 			}),
 		),
 	)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 	// Create check instance using mocks
 	checkGeneric := newCheck(
@@ -216,10 +215,7 @@ func TestRunDoesNotError(t *testing.T) {
 	})
 
 	// Enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
-	})
+	WithGPUConfigEnabled(t)
 
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
@@ -266,13 +262,12 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	}
 
 	// create check instance using mocks
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
 	check, ok := iCheck.(*Check)
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	// configure check
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -343,8 +338,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -418,8 +412,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { check.Cancel() })
@@ -541,4 +534,75 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	require.NoError(t, check.Run())
 
 	mockSender.AssertExpectations(t)
+}
+
+func TestDisabledCollectorsConfiguration(t *testing.T) {
+	tests := []struct {
+		name               string
+		disabledCollectors []string
+		expected           []string
+	}{
+		{
+			name:               "disable gpm collector",
+			disabledCollectors: []string{"gpm"},
+			expected:           []string{"gpm"},
+		},
+		{
+			name:               "disable multiple collectors",
+			disabledCollectors: []string{"gpm", "fields", "sampling"},
+			expected:           []string{"gpm", "fields", "sampling"},
+		},
+		{
+			name:               "disable all collectors",
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+		},
+		{
+			name:               "no collectors disabled",
+			disabledCollectors: []string{},
+			expected:           []string{},
+		},
+		{
+			name:               "nil disabled_collectors list",
+			disabledCollectors: nil,
+			expected:           []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+
+			checkGeneric := newCheck(
+				fakeTagger,
+				testutil.GetTelemetryMock(t),
+				wmetaMock,
+			)
+			check, ok := checkGeneric.(*Check)
+			require.True(t, ok)
+
+			WithGPUConfigEnabled(t)
+			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			t.Cleanup(func() {
+				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+			})
+
+			check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
+			err := check.Configure(
+				mocksender.CreateDefaultDemultiplexer(),
+				integration.FakeConfigHash,
+				[]byte{},
+				[]byte{},
+				"test",
+			)
+			require.NoError(t, err)
+
+			// Verify the disabled collectors are correctly identified in the check struct
+			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
+				"expected %d disabled collectors, got %d", len(tt.expected), len(check.disabledCollectors))
+			assert.ElementsMatch(t, tt.expected, check.disabledCollectors,
+				"disabled collectors mismatch")
+		})
+	}
 }

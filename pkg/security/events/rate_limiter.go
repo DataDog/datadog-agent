@@ -43,6 +43,7 @@ var (
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
+		RawPacketActionRuleID:           rate.Every(30 * time.Second),
 	}
 )
 
@@ -108,13 +109,13 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 		}
 
 		if len(rule.Def.RateLimiterToken) > 0 {
-			newLimiters[rule.Def.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
+			newLimiters[rule.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
 				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
-				newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+				newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 			}
 		} else {
-			newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+			newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		}
 	}
 
@@ -128,6 +129,7 @@ func (rl *RateLimiter) Allow(ruleID string, event Event) bool {
 
 	limiter, ok := rl.limiters[ruleID]
 	if !ok {
+		seclog.Errorf("Rule %s not found in rate limiter", ruleID)
 		return false
 	}
 	return limiter.Allow(event)

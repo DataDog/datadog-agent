@@ -202,7 +202,7 @@ new-e2e-unit-tests:
   script:
     - dda inv -- -e install-tools
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - dda inv -- -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
@@ -210,3 +210,24 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
   timeout: 20m  # Not less than 20m because job startup can take time.
+
+tests_gpu:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  extends: .linux_tests
+  tags: ["gpu:a10-amd64"]
+  rules:
+    - !reference [.on_gpu_integration_tests]
+    - !reference [.except_disable_unit_tests]
+  allow_failure: true
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
+  variables:
+    FLAVORS: ''
+    EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi

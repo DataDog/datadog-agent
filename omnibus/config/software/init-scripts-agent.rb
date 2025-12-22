@@ -3,20 +3,23 @@ name 'init-scripts-agent'
 description "Generate and configure init scripts packaging"
 
 always_build true
+skip_transitive_dependency_licensing true
 
 build do
+  destdir = ENV["OMNIBUS_BASE_DIR"] || "/"
   output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
   if linux_target?
     etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
     if debian_target?
+      # building into / is not acceptable. We'll continue to to that for now,
+      # but the replacement has to build to a build output tree.
+      command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/debian/etc:install --verbose --destdir=#{destdir}"
+      command_on_repo_root "cp bazel-bin/packages/debian/etc/etc/init/datadog-agent.conf /etc/init"
+
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
 
-      erb source: "upstart_debian.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,

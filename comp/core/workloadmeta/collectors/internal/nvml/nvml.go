@@ -66,11 +66,17 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		TotalMemory: devInfo.Memory,
 	}
 
-	switch device.(type) {
+	switch d := device.(type) {
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+		for _, child := range d.MIGChildren {
+			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
+		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+		if d.Parent != nil {
+			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
+		}
 	default:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
@@ -192,7 +198,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 }
 
 // Pull collects the GPUs available on the node and notifies the store
-func (c *collector) Pull(_ context.Context) error {
+func (c *collector) Pull(ctx context.Context) error {
 	lib, err := ddnvml.GetSafeNvmlLib()
 	if err != nil {
 		// Do not consider an unloaded driver as an error more than once.
@@ -207,7 +213,7 @@ func (c *collector) Pull(_ context.Context) error {
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
 
-	deviceCache := ddnvml.NewDeviceCacheWithOptions(lib)
+	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
 	if err := deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
@@ -223,6 +229,12 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 	}
 
+	// attempt getting list of unhealthy devices (if available)
+	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
+	if (err != nil || unhealthyDevices == nil) && logLimiter.ShouldLog() {
+		log.Warnf("failed getting unhealthy devices: %v", err)
+	}
+
 	// note: the device list can change over time so we need to set/unset for reconciliation
 	allDevices, err := deviceCache.All()
 	if err != nil {
@@ -236,10 +248,14 @@ func (c *collector) Pull(_ context.Context) error {
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
-		gpu.DriverVersion = driverVersion
 		if err != nil {
 			return err
 		}
+
+		gpu.DriverVersion = driverVersion
+
+		_, unhealthy := unhealthyDevices[gpu.ID]
+		gpu.Healthy = !unhealthy
 
 		uuid := dev.GetDeviceInfo().UUID
 		currentUUIDs[uuid] = struct{}{}
