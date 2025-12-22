@@ -15,15 +15,16 @@ import (
 )
 
 const (
-	defaultAgentImageRepo        = "gcr.io/datadoghq/agent"
-	defaultClusterAgentImageRepo = "gcr.io/datadoghq/cluster-agent"
-	defaultAgentImageTag         = "latest"
-	defaultAgent6ImageTag        = "6"
-	defaultDevAgentImageRepo     = "datadog/agent-dev" // Used as default repository for images that are not stable and released yet, should not be used in the CI
-	defaultOTAgentImageTag       = "nightly-full-main-jmx"
-	jmxSuffix                    = "-jmx"
-	otelSuffix                   = "-7-full"
-	fipsSuffix                   = "-fips"
+	defaultAgentImageRepo            = "gcr.io/datadoghq/agent"
+	defaultClusterAgentImageRepo     = "gcr.io/datadoghq/cluster-agent"
+	defaultOTelAgentGatewayImageRepo = "gcr.io/datadoghq/ddot-collector"
+	defaultAgentImageTag             = "latest"
+	defaultAgent6ImageTag            = "6"
+	defaultDevAgentImageRepo         = "datadog/agent-dev" // Used as default repository for images that are not stable and released yet, should not be used in the CI
+	defaultOTAgentImageTag           = "nightly-full-main-jmx"
+	jmxSuffix                        = "-jmx"
+	otelSuffix                       = "-7-full"
+	fipsSuffix                       = "-fips"
 )
 
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool) string {
@@ -142,6 +143,35 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips b
 	}
 
 	return utils.BuildDockerImagePath(repositoryPath, dockerAgentImageTag(e, config.ClusterAgentSemverVersion))
+}
+
+func dockerOTelAgentGatewayFullImagePath(e config.Env, repositoryPath, imageTag string) string {
+	// return agent image path if defined
+	if e.AgentFullImagePath() != "" {
+		return e.AgentFullImagePath()
+	}
+
+	// if agent pipeline id and commit sha are defined, use the image from the pipeline pushed on agent QA registry
+	if e.PipelineID() != "" && e.CommitSHA() != "" && imageTag == "" {
+		tag := fmt.Sprintf("%s-%s", e.PipelineID(), e.CommitSHA())
+
+		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/otel-agent", e.InternalRegistry()), tag)
+		if err != nil || !exists {
+			panic(fmt.Sprintf("image %s/otel-agent:%s not found in the internal registry", e.InternalRegistry(), tag))
+		}
+		return utils.BuildDockerImagePath(fmt.Sprintf("%s/otel-agent", e.InternalRegistry()), tag)
+	}
+
+	if repositoryPath == "" {
+		repositoryPath = defaultOTelAgentGatewayImageRepo
+	}
+
+	if imageTag == "" {
+		imageTag = dockerAgentImageTag(e, config.AgentSemverVersion)
+	}
+
+	e.Ctx().Log.Info("The following image will be used in your test: "+fmt.Sprintf("%s:%s", repositoryPath, imageTag), nil)
+	return utils.BuildDockerImagePath(repositoryPath, imageTag)
 }
 
 func dockerAgentImageTag(e config.Env, semverVersion func(config.Env) (*semver.Version, error)) string {
