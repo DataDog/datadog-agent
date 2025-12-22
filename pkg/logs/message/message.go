@@ -301,6 +301,23 @@ func (m *Message) Render() ([]byte, error) {
 	}
 }
 
+// Methods implementing observer.LogView for read-only observation.
+
+// GetStatus returns the message status.
+func (m *Message) GetStatus() string {
+	return m.Status
+}
+
+// GetTags returns the message processing tags.
+func (m *Message) GetTags() []string {
+	return m.ProcessingTags
+}
+
+// GetHostname returns the message hostname.
+func (m *Message) GetHostname() string {
+	return m.Hostname
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.

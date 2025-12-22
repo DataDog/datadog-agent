@@ -149,3 +149,25 @@ func (m *MetricSample) IsNoIndex() bool {
 func (m *MetricSample) GetSource() MetricSource {
 	return m.Source
 }
+
+// Methods implementing observer.MetricView for read-only observation.
+
+// GetValue returns the metric sample value.
+func (m *MetricSample) GetValue() float64 {
+	return m.Value
+}
+
+// GetRawTags returns the metric sample tags without tagger enrichment.
+func (m *MetricSample) GetRawTags() []string {
+	return m.Tags
+}
+
+// GetTimestamp returns the metric sample timestamp.
+func (m *MetricSample) GetTimestamp() float64 {
+	return m.Timestamp
+}
+
+// GetSampleRate returns the metric sample rate.
+func (m *MetricSample) GetSampleRate() float64 {
+	return m.SampleRate
+}
