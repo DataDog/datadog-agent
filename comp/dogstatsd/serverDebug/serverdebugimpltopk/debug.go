@@ -221,10 +221,10 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	shard.stats[key] = ms
 
 	// Log if enabled
-	if d.dogstatsdDebugLogger != nil {
-		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
-		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
-	}
+	//if d.dogstatsdDebugLogger != nil {
+	//	logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
+	//	d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
+	//}
 
 	// Notify metrics count tracker
 	select {
