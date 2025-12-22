@@ -109,13 +109,13 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 		}
 
 		if len(rule.Def.RateLimiterToken) > 0 {
-			newLimiters[rule.Def.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
+			newLimiters[rule.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
 				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
-				newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+				newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 			}
 		} else {
-			newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+			newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		}
 	}
 
