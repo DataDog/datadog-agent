@@ -204,13 +204,13 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 		// Load customer-provided configuration
 		customerConfig, err = loadCustomerConfig(ctx, uris)
 		if err != nil {
-			fmt.Fprintf(color.Output, color.YellowString("Warning: Could not load customer config: %v\n", err))
+			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load customer config: %v\n", err)))
 		}
 
 		// Load runtime configuration with all providers
 		runtimeConfig, envConfig, err = loadRuntimeConfig(ctx, uris)
 		if err != nil {
-			fmt.Fprintf(color.Output, color.YellowString("Warning: Could not load runtime config: %v\n", err))
+			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load runtime config: %v\n", err)))
 		}
 	} else {
 		customerConfig = "# No configuration files provided"
