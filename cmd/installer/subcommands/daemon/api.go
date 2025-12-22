@@ -28,10 +28,11 @@ import (
 
 type cliParams struct {
 	command.GlobalParams
-	pkg     string
-	version string
-	catalog string
-	configs string
+	pkg              string
+	version          string
+	catalog          string
+	configs          string
+	encryptedSecrets map[string]string
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
@@ -127,14 +128,20 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"start-config"},
 		Short:   "Starts an experiment",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			secrets, err := cmd.Flags().GetStringToString("secrets")
+			if err != nil {
+				return err
+			}
 			return experimentFxWrapper(startConfig, &cliParams{
-				GlobalParams: *global,
-				pkg:          args[0],
-				version:      args[1],
+				GlobalParams:     *global,
+				pkg:              args[0],
+				version:          args[1],
+				encryptedSecrets: secrets,
 			})
 		},
 	}
+	startConfigExperimentCmd.Flags().StringToString("secrets", nil, "Encrypted secrets as key=value pairs")
 	stopConfigExperimentCmd := &cobra.Command{
 		Use:     "stop-config-experiment package",
 		Aliases: []string{"stop-config"},
@@ -245,7 +252,7 @@ func promote(params *cliParams, client localapiclient.Component) error {
 }
 
 func startConfig(params *cliParams, client localapiclient.Component) error {
-	err := client.StartConfigExperiment(params.pkg, params.version)
+	err := client.StartConfigExperiment(params.pkg, params.version, params.encryptedSecrets)
 	if err != nil {
 		fmt.Println("Error starting config experiment:", err)
 		return err

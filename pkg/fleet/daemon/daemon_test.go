@@ -569,23 +569,23 @@ func TestDecryptConfigSecrets(t *testing.T) {
 		encryptedAPI := encryptSecret(t, apiKey, pubKey)
 		encryptedApp := encryptSecret(t, appKey, pubKey)
 
-		config := installerConfig{
-			ID: "test-config",
-			FileOperations: []installerConfigFileOperation{
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
 				{
 					FileOperationType: "patch",
 					FilePath:          "/etc/datadog/datadog.yaml",
-					Patch:             []byte(`api_key: SEC[apikey]`),
+					Patch:             []byte(`api_key: SEC[test-config:apikey]`),
 				},
 				{
 					FileOperationType: "patch",
 					FilePath:          "/etc/datadog/datadog.yaml",
-					Patch:             []byte(`app_key: SEC[appkey]`),
+					Patch:             []byte(`app_key: SEC[test-config:appkey]`),
 				},
 			},
 		}
 
-		result, err := d.decryptConfigSecrets(config, map[string]string{
+		result, err := d.decryptConfigSecrets(ops, map[string]string{
 			"apikey": encryptedAPI,
 			"appkey": encryptedApp,
 		})
@@ -601,15 +601,16 @@ func TestDecryptConfigSecrets(t *testing.T) {
 			secretsPrivKey: privKey,
 		}
 
-		config := installerConfig{
-			FileOperations: []installerConfigFileOperation{
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[apikey]`),
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
 				},
 			},
 		}
 
-		_, err := d.decryptConfigSecrets(config, map[string]string{
+		_, err := d.decryptConfigSecrets(ops, map[string]string{
 			"apikey": "not-valid-base64!!!",
 		})
 
@@ -628,19 +629,42 @@ func TestDecryptConfigSecrets(t *testing.T) {
 
 		encryptedSecret := encryptSecret(t, "secret-value", wrongPubKey)
 
-		config := installerConfig{
-			FileOperations: []installerConfigFileOperation{
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[apikey]`),
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
 				},
 			},
 		}
 
-		_, err = d.decryptConfigSecrets(config, map[string]string{
+		_, err = d.decryptConfigSecrets(ops, map[string]string{
 			"apikey": encryptedSecret,
 		})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
+	})
+
+	t.Run("secrets are not fully decrypted returns error", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
+				{
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
+				},
+			},
+		}
+
+		_, err := d.decryptConfigSecrets(ops, map[string]string{
+			"another-secret": encryptSecret(t, "another-secret", pubKey),
+		})
+
+		require.Error(t, err)
 	})
 }

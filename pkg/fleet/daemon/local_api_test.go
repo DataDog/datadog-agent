@@ -58,7 +58,7 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, operations config.Operations) error {
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, operations config.Operations, encryptedSecrets map[string]string) error {
 	args := m.Called(ctx, url, operations)
 	return args.Error(0)
 }
