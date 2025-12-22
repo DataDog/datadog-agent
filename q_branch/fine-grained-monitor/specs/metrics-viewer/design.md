@@ -148,6 +148,39 @@ pub struct StudyWindow {
 `StudyRegistry` holds available studies. This pattern allows adding new
 analysis types without API changes.
 
+### Per-Container Study Initiation
+
+Studies are initiated per-container via a study icon in the container list,
+rather than a global button. This makes the action intentional and ensures
+single-container focus.
+
+Container list item with study action:
+```
+┌─────────────────────────────────────────┐
+│ ☑ d7cd12621111  avg: 64.1  [📊]        │
+│                             ^           │
+│                     study icon button   │
+└─────────────────────────────────────────┘
+```
+
+### Selection State Management
+
+When user clicks study icon on container X:
+
+1. Save current container selection to `previousSelection`
+2. Deselect all containers
+3. Select container X
+4. Set `studyActive = true` and `studyContainer = X`
+5. Fetch oscillation data for container X
+6. Preserve current time range (do not reset zoom/pan)
+
+Frontend state:
+```javascript
+let previousSelection = [];     // Container IDs before study
+let studyActive = false;
+let studyContainer = null;      // Container ID being studied
+```
+
 ### Oscillation Detection Algorithm
 
 Sliding window autocorrelation (ported from existing `oscillation_detector.rs`):
@@ -174,26 +207,63 @@ Returns available studies:
 
 ### API: GET /api/study/oscillation
 
-Query params: `metric`, `containers`.
+Query params: `metric`, `container` (single container ID).
 
 Returns oscillation detection results:
 
 ```json
 {
   "study": "oscillation",
-  "results": [
-    {"container": "abc123",
-     "windows": [
-       {"start_time_ms": 1000, "end_time_ms": 5000,
-        "metrics": {"period": 10.0, "score": 0.85, "amplitude": 25.3},
-        "label": "10s period (0.85 score)"}
-     ],
-     "summary": "Found 3 oscillation windows"}
-  ]
+  "container": "abc123",
+  "windows": [
+    {"start_time_ms": 1000, "end_time_ms": 5000,
+     "metrics": {"period": 10.0, "score": 0.85, "amplitude": 25.3},
+     "label": "10s period (85% confidence)"}
+  ],
+  "summary": {
+    "window_count": 3,
+    "dominant_period": 10.0,
+    "avg_confidence": 0.82
+  }
 }
 ```
 
 ## REQ-MV-008: Visualize Oscillation Patterns
+
+### Results Panel
+
+When oscillation study is active, the Studies section in the sidebar transforms
+into a results panel:
+
+```
+┌─────────────────────────────┐
+│ Oscillation Study     [✕]  │
+│ Container: d7cd12621111    │
+├─────────────────────────────┤
+│ 52 windows detected        │
+│ Dominant period: 20s       │
+│ Avg confidence: 81%        │
+├─────────────────────────────┤
+│ [Restore previous view]    │
+└─────────────────────────────┘
+```
+
+Panel elements:
+- Header with close button [✕] to exit study mode
+- Target container identifier
+- Summary statistics computed from StudyResult
+- Restoration button (visible when previousSelection is non-empty)
+
+### Exit Study Flow
+
+When user clicks [✕] or "Restore previous view":
+
+1. Set `studyActive = false`
+2. Clear oscillation overlay data
+3. If restoring: select containers from `previousSelection`
+4. If not restoring: keep current single-container selection
+5. Preserve current time range (critical: do not reset zoom/pan)
+6. Clear `previousSelection`
 
 ### Frontend Visualization Plugin
 
@@ -276,5 +346,11 @@ User flow:
   1. /api/metrics -> populate metric dropdown
   2. Select metric -> /api/containers?metric=X -> populate container list
   3. Select containers -> /api/timeseries?metric=X&containers=a,b,c -> render chart
-  4. Enable study -> /api/study/oscillation?metric=X&containers=a,b,c -> overlay results
+
+Study flow:
+  1. Click study icon on container Y
+  2. Save current selection to previousSelection
+  3. Deselect all, select Y -> /api/timeseries?metric=X&containers=Y -> render chart
+  4. /api/study/oscillation?metric=X&container=Y -> display results panel + overlay
+  5. Exit study -> restore previousSelection OR keep Y -> preserve time range
 ```
