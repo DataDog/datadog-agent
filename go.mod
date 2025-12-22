@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.0
+go 1.25.5
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -205,7 +205,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.277.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.113.1
-	github.com/aws/karpenter-provider-aws v1.8.2
+	github.com/aws/karpenter-provider-aws v1.8.3
 	github.com/beevik/ntp v1.4.3
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
