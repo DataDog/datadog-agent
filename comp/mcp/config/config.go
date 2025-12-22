@@ -24,6 +24,15 @@ type MCPConfig struct {
 
 	// LogLevel specific to MCP server operations
 	LogLevel string
+
+	// AnthropicAPIKey is the API key for Anthropic Claude
+	AnthropicAPIKey string
+
+	// AnthropicModel is the Claude model to use (e.g., "claude-sonnet-4-5")
+	AnthropicModel string
+
+	// MaxTokens is the maximum number of tokens for LLM responses
+	MaxTokens int
 }
 
 type dependencies struct {
@@ -38,10 +47,13 @@ type mcpConfig struct {
 // newConfig creates a new MCP configuration from the agent's config
 func newConfig(deps dependencies) Component {
 	cfg := &MCPConfig{
-		Enabled:    deps.Config.GetBool("mcp_server.enabled"),
-		SocketPath: deps.Config.GetString("mcp_server.socket_path"),
-		BufferSize: deps.Config.GetInt("mcp_server.buffer_size"),
-		LogLevel:   deps.Config.GetString("mcp_server.log_level"),
+		Enabled:         deps.Config.GetBool("mcp_server.enabled"),
+		SocketPath:      deps.Config.GetString("mcp_server.socket_path"),
+		BufferSize:      deps.Config.GetInt("mcp_server.buffer_size"),
+		LogLevel:        deps.Config.GetString("mcp_server.log_level"),
+		AnthropicAPIKey: deps.Config.GetString("mcp_server.anthropic_api_key"),
+		AnthropicModel:  deps.Config.GetString("mcp_server.anthropic_model"),
+		MaxTokens:       deps.Config.GetInt("mcp_server.max_tokens"),
 	}
 
 	// Set defaults if not configured
@@ -53,6 +65,12 @@ func newConfig(deps dependencies) Component {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	if cfg.AnthropicModel == "" {
+		cfg.AnthropicModel = "claude-sonnet-4-5"
+	}
+	if cfg.MaxTokens == 0 {
+		cfg.MaxTokens = 4096
 	}
 
 	return &mcpConfig{

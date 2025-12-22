@@ -8,6 +8,8 @@
 package mcp
 
 import (
+	"github.com/DataDog/datadog-agent/comp/mcp/agent"
+	"github.com/DataDog/datadog-agent/comp/mcp/client"
 	"github.com/DataDog/datadog-agent/comp/mcp/config"
 	"github.com/DataDog/datadog-agent/comp/mcp/server"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,6 +21,8 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		server.Module(),
+		client.Module(),
+		agent.Module(),
 		config.Module(),
 	)
 }
