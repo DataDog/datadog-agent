@@ -780,6 +780,7 @@
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
+/test/new-e2e/tests/sbom                      @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
