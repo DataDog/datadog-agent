@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
 func TestFileBackendGetSecretOutput(t *testing.T) {
@@ -28,7 +30,7 @@ func TestFileBackendGetSecretOutput(t *testing.T) {
 	backend := &TextFileBackend{
 		Config: TextFileBackendConfig{
 			SecretsPath:     tmpDir,
-			MaxFileReadSize: DefaultMaxFileReadSize,
+			MaxFileReadSize: secret.DefaultMaxFileReadSize,
 		},
 	}
 
@@ -168,7 +170,7 @@ func TestFileBackendMaxFileSize(t *testing.T) {
 			"secrets_path": tmpDir,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, int64(DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
+		assert.Equal(t, int64(secret.DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
 
 		output := backend.GetSecretOutput(ctx, "small_secret")
 		assert.NotNil(t, output.Value)
@@ -180,7 +182,7 @@ func TestFileBackendMaxFileSize(t *testing.T) {
 			"secrets_path": tmpDir,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, int64(DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
+		assert.Equal(t, int64(secret.DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
 
 		output := backend.GetSecretOutput(ctx, "large_secret")
 		assert.Nil(t, output.Value)
@@ -221,7 +223,7 @@ func TestFileBackendMaxFileSize(t *testing.T) {
 			"max_file_read_size": 0,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, int64(DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
+		assert.Equal(t, int64(secret.DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
 	})
 
 	t.Run("negative max file size uses default", func(t *testing.T) {
@@ -230,6 +232,6 @@ func TestFileBackendMaxFileSize(t *testing.T) {
 			"max_file_read_size": -1,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, int64(DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
+		assert.Equal(t, int64(secret.DefaultMaxFileReadSize), backend.Config.MaxFileReadSize)
 	})
 }

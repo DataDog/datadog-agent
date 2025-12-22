@@ -53,3 +53,15 @@ key2: value2
 	assert.Nil(t, secretOutput.Value)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
+
+func TestYAMLBackendMaxFileSize(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	largeFile := filepath.Join(tmpDir, "large.yaml")
+	err := os.WriteFile(largeFile, make([]byte, 15*1024*1024), 0644)
+	assert.NoError(t, err)
+
+	_, err = NewYAMLBackend(map[string]interface{}{"file_path": largeFile})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum size limit")
+}

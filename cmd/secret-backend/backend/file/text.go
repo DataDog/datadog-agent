@@ -25,11 +25,6 @@ type TextFileBackendConfig struct {
 	MaxFileReadSize int64  `mapstructure:"max_file_read_size"`
 }
 
-const (
-	// DefaultMaxFileReadSize is the maximum file size (10 MB) that can be read as a secret
-	DefaultMaxFileReadSize = 10 * 1024 * 1024
-)
-
 // TextFileBackend represents backend for individual secret files
 type TextFileBackend struct {
 	Config TextFileBackendConfig
@@ -56,7 +51,7 @@ func NewTextFileBackend(bc map[string]interface{}) (*TextFileBackend, error) {
 	}
 
 	if backendConfig.MaxFileReadSize <= 0 {
-		backendConfig.MaxFileReadSize = DefaultMaxFileReadSize
+		backendConfig.MaxFileReadSize = secret.DefaultMaxFileReadSize
 	}
 
 	return &TextFileBackend{Config: backendConfig}, nil

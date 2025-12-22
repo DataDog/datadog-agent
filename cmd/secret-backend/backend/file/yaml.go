@@ -20,7 +20,8 @@ import (
 
 // YamlBackendConfig is the configuration for a YAML backend
 type YamlBackendConfig struct {
-	FilePath string `mapstructure:"file_path"`
+	FilePath        string `mapstructure:"file_path"`
+	MaxFileReadSize int64  `mapstructure:"max_file_read_size"`
 }
 
 // YamlBackend represents backend for YAML file
@@ -37,6 +38,14 @@ func NewYAMLBackend(bc map[string]interface{}) (
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+	}
+
+	if backendConfig.MaxFileReadSize <= 0 {
+		backendConfig.MaxFileReadSize = secret.DefaultMaxFileReadSize
+	}
+
+	if info, err := os.Stat(backendConfig.FilePath); err == nil && info.Size() > backendConfig.MaxFileReadSize {
+		return nil, fmt.Errorf("secret file '%s' exceeds maximum size limit of %d bytes (actual: %d bytes)", backendConfig.FilePath, backendConfig.MaxFileReadSize, info.Size())
 	}
 
 	content, err := os.ReadFile(backendConfig.FilePath)
