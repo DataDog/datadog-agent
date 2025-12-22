@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -681,8 +682,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 
-	// Populate AzureServerlessTags for Azure App Services extension on Windows
-	if os.Getenv("DD_AZURE_APP_SERVICES") == "1" {
+	// Populate AzureServerlessTags when running in Azure App Services extension on Windows
+	if serverlessenv.IsAzureAppServicesExtension() {
 		c.AzureServerlessTags = traceutil.BuildAppServiceOriginTagForProfiles()
 	}
 
