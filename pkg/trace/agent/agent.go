@@ -507,7 +507,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
-			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
+			statsInput.Traces = append(statsInput.Traces, *pt.Clone()) // TODO: remove the clone here
 		}
 
 		keep, numEvents := a.sampleV1(now, ts, pt)
@@ -527,25 +527,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
 		}
 		sampledChunks.EventCount += int64(numEvents)
-		// Yes this is the msgpack size of the trace chunk not the protobuf size.
-		// This is still a good approximation of the size of the trace chunk and copies the existing logic.
-		sampledChunks.Size += pt.TraceChunk.Msgsize()
 		i++
-
-		if sampledChunks.Size > writer.MaxPayloadSize {
-			// payload size is getting big; split and flush what we have so far
-			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
-			i = 0
-			sampledChunks.TracerPayload.Chunks = newChunksArrayV1(sampledChunks.TracerPayload.Chunks)
-			// We must also flush the stats input to the concentrator to avoid a race condition
-			// Where if a trace payload is split into multiple chunks, the concentrator races with the trace writer to access the string table.
-			if len(statsInput.Traces) > 0 {
-				a.Concentrator.AddV1(statsInput)
-				statsInput.Traces = make([]traceutil.ProcessedTraceV1, 0, len(p.TracerPayload.Chunks))
-			}
-			a.TraceWriterV1.WriteChunksV1(sampledChunks)
-			sampledChunks = new(writer.SampledChunksV1)
-		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
@@ -554,9 +536,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		// but the concentrator will sync copy all strings it needs.
 		a.Concentrator.AddV1(statsInput)
 	}
-	if sampledChunks.Size > 0 {
-		a.writeChunksV1(sampledChunks)
-	}
+	a.writeChunksV1(sampledChunks)
 }
 
 func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
@@ -571,7 +551,7 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 		enrichTracesWithCtagsV1(p, cTags, err)
 		a.TraceWriterV1.WriteChunksV1(p)
 	}
-	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.Size))
+	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.TracerPayload.Msgsize()))
 }
 
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.

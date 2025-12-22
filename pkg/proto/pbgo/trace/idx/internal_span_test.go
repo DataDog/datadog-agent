@@ -153,34 +153,6 @@ func TestInternalSpan_MultipleRefsKept(t *testing.T) {
 	assert.Equal(t, "old-value", value)
 }
 
-func TestInternalTracerPayload_CutConcurrentSafe(t *testing.T) {
-	payload := testPayload()
-
-	halfPayload := payload.Cut(1)
-
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		payload.Chunks[0].SetStringAttribute("key1", "value1")
-		str, found := payload.Chunks[0].GetAttributeAsString("key1")
-		assert.True(t, found)
-		assert.Equal(t, "value1", str)
-		_, found = payload.Chunks[0].GetAttributeAsString("key2")
-		assert.False(t, found)
-	}()
-	go func() {
-		defer wg.Done()
-		halfPayload.Chunks[0].SetStringAttribute("key2", "value2")
-		str, found := halfPayload.Chunks[0].GetAttributeAsString("key2")
-		assert.True(t, found)
-		assert.Equal(t, "value2", str)
-		_, found = halfPayload.Chunks[0].GetAttributeAsString("key1")
-		assert.False(t, found)
-	}()
-	wg.Wait()
-}
-
 func testPayload() *InternalTracerPayload {
 	strings := NewStringTable()
 	strings.Add("unused-string")

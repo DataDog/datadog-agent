@@ -128,7 +128,7 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
-// Msgsize returns the size of the message when serialized.
+// Msgsize returns the size of the message when serialized to messagepack.
 func (tp *InternalTracerPayload) Msgsize() int {
 	size := 0
 	size += tp.Strings.Msgsize()
@@ -256,6 +256,24 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 }
 
+// ShallowCopy returns a shallow copy of the tracer payload.
+// The copy is not safe to use concurrently with the original.
+func (pbTp *TracerPayload) ShallowCopy() *TracerPayload {
+	return &TracerPayload{
+		Strings:            pbTp.Strings,
+		ContainerIDRef:     pbTp.ContainerIDRef,
+		LanguageNameRef:    pbTp.LanguageNameRef,
+		LanguageVersionRef: pbTp.LanguageVersionRef,
+		TracerVersionRef:   pbTp.TracerVersionRef,
+		RuntimeIDRef:       pbTp.RuntimeIDRef,
+		EnvRef:             pbTp.EnvRef,
+		HostnameRef:        pbTp.HostnameRef,
+		AppVersionRef:      pbTp.AppVersionRef,
+		Attributes:         pbTp.Attributes,
+		Chunks:             pbTp.Chunks,
+	}
+}
+
 // SetAttributes sets the attributes for the tracer payload.
 func (tp *InternalTracerPayload) SetAttributes(attributes map[uint32]*AnyValue) {
 	tp.Attributes = attributes
@@ -380,40 +398,6 @@ func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool)
 	return getAttributeAsString(key, tp.Strings, tp.Attributes)
 }
 
-// Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
-// and keeps [i, n-1] chunks in the original payload `p`.
-// The new payload will have a new string table, so it can be used concurrently with the original payload.
-func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
-	if i < 0 {
-		i = 0
-	}
-	if i > len(tp.Chunks) {
-		i = len(tp.Chunks)
-	}
-	newStrings := tp.Strings.Clone()
-	newPayload := InternalTracerPayload{
-		Strings:            newStrings, // Clone string table to protect against concurrent access
-		containerIDRef:     tp.containerIDRef,
-		languageNameRef:    tp.languageNameRef,
-		languageVersionRef: tp.languageVersionRef,
-		tracerVersionRef:   tp.tracerVersionRef,
-		runtimeIDRef:       tp.runtimeIDRef,
-		envRef:             tp.envRef,
-		hostnameRef:        tp.hostnameRef,
-		appVersionRef:      tp.appVersionRef,
-		Attributes:         tp.Attributes,
-	}
-	newPayload.Chunks = tp.Chunks[:i]
-	for _, chunk := range newPayload.Chunks {
-		chunk.Strings = newStrings
-		for _, span := range chunk.Spans {
-			span.Strings = newStrings
-		}
-	}
-	tp.Chunks = tp.Chunks[i:]
-	return &newPayload
-}
-
 // InternalTraceChunk is a trace chunk structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
@@ -463,7 +447,6 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 // Msgsize returns the size of the message when serialized.
 func (c *InternalTraceChunk) Msgsize() int {
 	size := 0
-	size += c.Strings.Msgsize()
 	size += msgp.Int32Size     // Priority
 	size += msgp.Uint32Size    // OriginRef
 	size += msgp.MapHeaderSize // Attributes
