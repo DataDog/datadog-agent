@@ -229,35 +229,8 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  test_folders = [
-    '../idlelib/idle_test',
-    'bs4/tests',
-    'Cryptodome/SelfTest',
-    'gssapi/tests',
-    'keystoneauth1/tests',
-    'lazy_loader/tests',
-    'openstack/tests',
-    'os_service_types/tests',
-    'pbr/tests',
-    'pkg_resources/tests',
-    'pip/_vendor/colorama/tests',
-    'psutil/tests',
-    'requests_unixsocket/tests',
-    'securesystemslib/_vendor/ed25519/test_data',
-    'setuptools/_distutils/compilers/C/tests',
-    'setuptools/_distutils/tests',
-    'setuptools/tests',
-    'simplejson/tests',
-    'stevedore/tests',
-    'supervisor/tests',
-    'test', # cm-client
-    'vertica_python/tests',
-    'websocket/tests',
-    'win32com/test',
-  ]
-  test_folders.each do |test_folder|
-    delete "#{site_packages_path}/#{test_folder}/"
-  end
+  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
+  delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
     block "Remove .exe files" do
@@ -344,21 +317,6 @@ build do
           f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
         end
       end
-    end
-  end
-
-  # These are files containing Python type annotations which aren't used at runtime
-  libraries = [
-    'krb5',
-    'Cryptodome',
-    'ddtrace',
-    'pyVmomi',
-    'gssapi',
-  ]
-  block "Remove type annotations files" do
-    libraries.each do |library|
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
     end
   end
 

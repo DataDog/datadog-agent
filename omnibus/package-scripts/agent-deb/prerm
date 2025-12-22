@@ -8,18 +8,20 @@
 ##########################################################################
 
 INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
-INSTALLER_OCI=/opt/datadog-package/datadog-agent/stable/embedded/bin/installer
+INSTALLER_OCI=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer
+
+# Remove the agent if it was upgraded using the installer
+# Check if INSTALLER_OCI exists and doesn't resolve to the same path as INSTALLER_DEB
+# (accounting for symlinks at any level in the path)
+if [ -f ${INSTALLER_OCI} ] && [ "$(readlink -f ${INSTALLER_OCI})" != "$(readlink -f ${INSTALLER_DEB})" ] && [ "$1" = "remove" ]; then
+    ${INSTALLER_OCI} remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
+fi
 
 # Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
 if [ -f ${INSTALLER_DEB} ] && [ "$1" = "remove" ]; then
     ${INSTALLER_DEB} prerm datadog-agent deb || true
 elif [ -f ${INSTALLER_DEB} ] && [ "$1" = "upgrade" ]; then
     ${INSTALLER_DEB} prerm --upgrade datadog-agent deb || true
-fi
-
-# Remove the agent if it was upgraded using the installer
-if [ -f ${INSTALLER_OCI} ] && [ "$1" = "remove" ]; then
-    ${INSTALLER_OCI} remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
 fi
 
 exit 0

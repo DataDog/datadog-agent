@@ -199,7 +199,7 @@ jobs:
               echo "team=unknown" >> $GITHUB_OUTPUT
             fi
             SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
-            if grep -q "$SLACK" github_slack_map.yaml; then
+            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml || grep -q "$SLACK" tasks/libs/pipeline/github_slack_review_map.yaml; then
               # We validate the slack channel against the github_slack_map.yaml file
               echo "slack=$SLACK" >> $GITHUB_OUTPUT
             else

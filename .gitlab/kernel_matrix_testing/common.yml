@@ -103,6 +103,11 @@
 .tag_kmt_ci_job:
   - dda inv -- -e kmt.tag-ci-job
 
+.kmt_setup_needs:
+  - go_deps
+  - go_tools_deps
+  - go_e2e_deps
+
 # -- Test dependencies
 
 .package_dependencies:
@@ -134,7 +139,7 @@
     - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: ["go_deps", "go_tools_deps", "go_e2e_deps"]
+  needs: !reference [.kmt_setup_needs]
   tags: ["arch:amd64", "specific:true"]
   retry: !reference [.retry_only_infra_failure, retry]
   variables:

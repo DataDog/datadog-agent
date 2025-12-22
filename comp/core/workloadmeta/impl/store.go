@@ -273,6 +273,17 @@ func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	return entity.(*wmdef.KubeletMetrics), nil
 }
 
+func (w *workloadmeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeCapabilities, wmdef.KubeCapabilitiesID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeCapabilities), nil
+}
+
 // GetProcess implements Store#GetProcess.
 func (w *workloadmeta) GetProcess(pid int32) (*wmdef.Process, error) {
 	id := strconv.Itoa(int(pid))

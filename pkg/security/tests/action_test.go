@@ -959,6 +959,10 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
 		return env.IsContainerized()
 	})
@@ -1156,6 +1160,10 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
 		return env.IsContainerized()
