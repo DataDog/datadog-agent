@@ -90,6 +90,138 @@ struct AppState {
     container_list: Vec<ContainerInfo>,
 }
 
+// ============================================================================
+// Oscillation Detection Module
+// ============================================================================
+
+#[derive(Debug, Clone)]
+struct OscillationConfig {
+    window_size: usize,
+    min_periodicity_score: f64,
+    min_amplitude: f64,
+    min_period: usize,
+    max_period: usize,
+    step_size: usize,
+}
+
+impl Default for OscillationConfig {
+    fn default() -> Self {
+        Self {
+            window_size: 60,
+            min_periodicity_score: 0.6,
+            min_amplitude: 10.0,
+            min_period: 2,
+            max_period: 30,
+            step_size: 30, // 50% overlap
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct OscillationWindow {
+    start_time_ms: i64,
+    end_time_ms: i64,
+    period: f64,
+    periodicity_score: f64,
+    amplitude: f64,
+}
+
+/// Compute normalized autocorrelation at a given lag
+fn autocorrelation(samples: &[f64], mean: f64, variance: f64, lag: usize) -> f64 {
+    if variance == 0.0 || lag >= samples.len() {
+        return 0.0;
+    }
+
+    let n = samples.len();
+    let count = n - lag;
+    if count == 0 {
+        return 0.0;
+    }
+
+    let sum: f64 = (0..count)
+        .map(|i| (samples[i] - mean) * (samples[i + lag] - mean))
+        .sum();
+
+    sum / (count as f64 * variance)
+}
+
+/// Analyze a single window for oscillation patterns
+fn analyze_window(samples: &[f64], config: &OscillationConfig) -> Option<(f64, f64, f64)> {
+    if samples.len() < config.window_size {
+        return None;
+    }
+
+    // Compute statistics
+    let mean: f64 = samples.iter().sum::<f64>() / samples.len() as f64;
+    let variance: f64 =
+        samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
+
+    // Calculate amplitude
+    let min = samples.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = samples.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let amplitude = max - min;
+
+    // Early exit if amplitude below threshold
+    if config.min_amplitude > 0.0 && amplitude < config.min_amplitude {
+        return None;
+    }
+
+    // Find best autocorrelation lag
+    let mut best_lag = 0;
+    let mut best_corr = 0.0;
+
+    for lag in config.min_period..=config.max_period {
+        let corr = autocorrelation(samples, mean, variance, lag);
+        if corr > best_corr {
+            best_corr = corr;
+            best_lag = lag;
+        }
+    }
+
+    // Check if oscillation detected
+    if best_corr >= config.min_periodicity_score && best_lag > 0 {
+        Some((best_lag as f64, best_corr, amplitude))
+    } else {
+        None
+    }
+}
+
+/// Detect oscillations across entire timeseries using sliding window
+fn detect_oscillations_sliding(
+    timeseries: &[TimeseriesPoint],
+    config: &OscillationConfig,
+) -> Vec<OscillationWindow> {
+    let mut results = Vec::new();
+
+    if timeseries.len() < config.window_size {
+        return results;
+    }
+
+    let cpu_values: Vec<f64> = timeseries.iter().map(|p| p.cpu_percent).collect();
+
+    let mut pos = 0;
+    while pos + config.window_size <= cpu_values.len() {
+        let window = &cpu_values[pos..pos + config.window_size];
+
+        if let Some((period, score, amplitude)) = analyze_window(window, config) {
+            let start_time_ms = timeseries[pos].time_ms;
+            let end_time_ms = timeseries[pos + config.window_size - 1].time_ms;
+
+            results.push(OscillationWindow {
+                start_time_ms,
+                end_time_ms,
+                period,
+                periodicity_score: score,
+                amplitude,
+            });
+        }
+
+        pos += config.step_size;
+    }
+
+    results
+}
+
 fn extract_label(labels: &[(String, String)], key: &str) -> Option<String> {
     labels
         .iter()
@@ -380,6 +512,34 @@ async fn timeseries_handler(
     Json(result)
 }
 
+#[derive(Serialize)]
+struct OscillationResponse {
+    container: String,
+    windows: Vec<OscillationWindow>,
+}
+
+async fn oscillations_handler(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<TimeseriesQuery>,
+) -> impl IntoResponse {
+    let container_ids: Vec<&str> = query.containers.split(',').collect();
+    let config = OscillationConfig::default();
+
+    let mut result: Vec<OscillationResponse> = Vec::new();
+
+    for id in container_ids {
+        if let Some(container) = state.containers.get(id) {
+            let windows = detect_oscillations_sliding(&container.timeseries, &config);
+            result.push(OscillationResponse {
+                container: id.to_string(),
+                windows,
+            });
+        }
+    }
+
+    Json(result)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -394,6 +554,7 @@ async fn main() -> Result<()> {
         .route("/", get(index_handler))
         .route("/api/containers", get(containers_handler))
         .route("/api/timeseries", get(timeseries_handler))
+        .route("/api/oscillations", get(oscillations_handler))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -493,6 +654,8 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
         .btn-success { background: #28a745; color: white; }
         .btn-secondary { background: #6c757d; color: white; }
         .btn-warning { background: #ffc107; color: #333; }
+        .btn-oscillation { background: #dc3545; color: white; }
+        .btn-oscillation.active { background: #28a745; }
         .status {
             color: #666;
             font-size: 12px;
@@ -520,6 +683,7 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
             <button class="btn-primary" onclick="selectTop(5)">Top 5</button>
             <button class="btn-primary" onclick="selectTop(10)">Top 10</button>
             <button class="btn-secondary" onclick="clearSelection()">Clear</button>
+            <button class="btn-oscillation" id="oscillationToggle" onclick="toggleOscillations()">Oscillations</button>
             <button class="btn-success" onclick="rescaleY()">Rescale Y</button>
             <button class="btn-warning" onclick="resetZoom()">Reset</button>
             <span class="status" id="status">Loading...</span>
@@ -531,7 +695,15 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
     <script>
         let containers = [];
         let currentData = {};
+        let oscillationData = {};
+        let showOscillations = false;
         let chartDiv = document.getElementById('chart');
+
+        // Plotly default color sequence
+        const plotlyColors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ];
 
         async function loadContainers() {
             try {
@@ -620,6 +792,34 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                 return;
             }
 
+            // Build oscillation period markers as shapes
+            const shapes = [];
+            if (showOscillations) {
+                containerIds.forEach((id, containerIndex) => {
+                    const windows = oscillationData[id] || [];
+                    const color = plotlyColors[containerIndex % plotlyColors.length];
+
+                    windows.forEach(w => {
+                        // Draw vertical lines at each period interval within the window
+                        const periodMs = w.period * 1000; // period in seconds -> ms
+                        let t = w.start_time_ms;
+                        while (t <= w.end_time_ms) {
+                            shapes.push({
+                                type: 'line',
+                                x0: t,
+                                x1: t,
+                                y0: 0,
+                                y1: 1,
+                                yref: 'paper',
+                                line: { color: color, width: 1, dash: 'dot' },
+                                opacity: 0.4
+                            });
+                            t += periodMs;
+                        }
+                    });
+                });
+            }
+
             const layout = {
                 xaxis: {
                     title: 'Time',
@@ -640,7 +840,8 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                     x: 1,
                     bgcolor: 'rgba(255,255,255,0.8)'
                 },
-                margin: { t: 40, b: 40, l: 50, r: 20 }
+                margin: { t: 40, b: 40, l: 50, r: 20 },
+                shapes: shapes
             };
 
             if (yRange) {
@@ -710,6 +911,62 @@ const INDEX_HTML: &str = r##"<!DOCTYPE html>
                 'xaxis.autorange': true,
                 'yaxis.autorange': true
             });
+        }
+
+        async function toggleOscillations() {
+            showOscillations = !showOscillations;
+            const btn = document.getElementById('oscillationToggle');
+            btn.classList.toggle('active', showOscillations);
+
+            if (showOscillations) {
+                await loadOscillations();
+            } else {
+                // Re-plot without oscillations
+                btn.textContent = 'Oscillations';
+                const select = document.getElementById('containerSelect');
+                const selected = Array.from(select.selectedOptions).map(o => o.value);
+                plotData(selected);
+            }
+        }
+
+        async function loadOscillations() {
+            const select = document.getElementById('containerSelect');
+            const selected = Array.from(select.selectedOptions).map(o => o.value);
+
+            if (selected.length === 0) return;
+
+            document.getElementById('status').textContent = 'Loading oscillations...';
+
+            try {
+                const response = await fetch(`/api/oscillations?containers=${selected.join(',')}`);
+                const data = await response.json();
+
+                oscillationData = {};
+                let totalWindows = 0;
+                data.forEach(d => {
+                    oscillationData[d.container] = d.windows;
+                    totalWindows += d.windows.length;
+                    console.log(`  ${d.container}: ${d.windows.length} oscillation windows`);
+                });
+
+                plotData(selected);
+
+                const btn = document.getElementById('oscillationToggle');
+                const totalPoints = Object.values(currentData).reduce((sum, d) => sum + d.length, 0);
+
+                if (totalWindows === 0) {
+                    document.getElementById('status').textContent =
+                        `${selected.length} containers, ${totalPoints.toLocaleString()} pts - NO oscillations detected`;
+                    btn.textContent = 'Oscillations (0)';
+                } else {
+                    document.getElementById('status').textContent =
+                        `${selected.length} containers, ${totalPoints.toLocaleString()} pts, ${totalWindows} oscillation windows`;
+                    btn.textContent = `Oscillations (${totalWindows})`;
+                }
+            } catch (err) {
+                console.error('Error loading oscillations:', err);
+                document.getElementById('status').textContent = 'Error: ' + err;
+            }
         }
 
         document.getElementById('containerSelect').addEventListener('change', loadTimeseries);
