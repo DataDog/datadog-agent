@@ -636,6 +636,24 @@
             overviewPlot = null;
         }
 
+        // REQ-MV-010: Show state when metric has timestamps but no actual values
+        function showNoDataState(metricName) {
+            document.getElementById('mainChart').innerHTML =
+                `<div class="empty-state">
+                    <div style="text-align: center;">
+                        <div style="font-size: 14px; margin-bottom: 8px;">No data recorded for</div>
+                        <div style="font-family: monospace; font-size: 12px; color: #888;">${metricName || 'this metric'}</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 8px;">
+                            This metric exists but has no non-zero values in the selected time range
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('overviewChart').innerHTML = '';
+            document.getElementById('legend').innerHTML = '';
+            mainPlot = null;
+            overviewPlot = null;
+        }
+
         function renderChart(containerIds, preservedXRange = null) {
             const chartDiv = document.getElementById('mainChart');
             const overviewDiv = document.getElementById('overviewChart');
@@ -665,6 +683,16 @@
                 });
                 return values;
             });
+
+            // REQ-MV-010: Check if all series values are null (no actual data)
+            let hasAnyData = false;
+            series.forEach(s => {
+                s.forEach(v => { if (v !== null) hasAnyData = true; });
+            });
+            if (!hasAnyData) {
+                showNoDataState(selectedMetric);
+                return;
+            }
 
             // Convert timestamps to seconds for uPlot
             const uplotData = [
@@ -700,6 +728,10 @@
             series.forEach(s => {
                 s.forEach(v => { if (v !== null && v > yMax) yMax = v; });
             });
+            // REQ-MV-010: Ensure minimum Y-axis range for all-zero/constant data
+            if (yMax === 0) {
+                yMax = 1;  // Fallback for all-zero data to prevent chart collapse
+            }
             originalXRange = [xMin, xMax];
             originalYRange = [0, yMax * 1.1];
 
@@ -716,13 +748,14 @@
             }
 
             // REQ-MV-005: uPlot options with zoom/pan
+            // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
             const opts = {
                 width: chartDiv.clientWidth,
                 height: chartDiv.clientHeight,
                 series: uplotSeries,
                 scales: {
                     x: initialXScale,
-                    y: { range: (u, min, max) => [0, max * 1.1] }
+                    y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
                 },
                 cursor: {
                     drag: { x: true, y: false, setScale: true }
@@ -749,13 +782,14 @@
             mainPlot = new uPlot(opts, uplotData, chartDiv);
 
             // REQ-MV-006: Overview chart (no cursor/drag - we use HTML overlay for interaction)
+            // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
             const overviewOpts = {
                 width: overviewDiv.clientWidth,
                 height: 60,
                 series: uplotSeries.map((s, i) => i === 0 ? s : { ...s, width: 1 }),
                 scales: {
                     x: { time: true },
-                    y: { range: (u, min, max) => [0, max * 1.1] }
+                    y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
                 },
                 cursor: { show: false },
                 axes: [

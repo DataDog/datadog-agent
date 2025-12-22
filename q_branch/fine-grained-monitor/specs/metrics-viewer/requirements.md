@@ -178,3 +178,18 @@ data is currently visible. This reveals subtle variations that would be
 compressed if the scale remained fixed to the original full-range bounds.
 
 ---
+
+### REQ-MV-010: Graceful Empty Data Display
+
+WHEN selected containers have no data points for the chosen metric
+THE SYSTEM SHALL display a clear message indicating no data is available
+
+WHEN selected containers have all zero or constant values
+THE SYSTEM SHALL display the chart with a reasonable Y-axis range
+
+**Rationale:** Some metrics only record non-zero values during specific
+conditions (e.g., hugetlb usage). Users need clear feedback when data is absent
+rather than a broken chart display, helping them understand the metric is valid
+but simply has no recorded activity.
+
+---
