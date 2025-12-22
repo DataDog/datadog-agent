@@ -31,12 +31,12 @@ import "C"
 type NoopSharedLibraryLoader struct{}
 
 // Load does nothing
-func (ml *NoopSharedLibraryLoader) Open(_ string) (Library, error) {
-	return Library{}, nil
+func (ml *NoopSharedLibraryLoader) Open(_ string) (*Library, error) {
+	return nil, nil
 }
 
 // Close does nothing
-func (ml *NoopSharedLibraryLoader) Close(_ Library) error {
+func (ml *NoopSharedLibraryLoader) Close(_ *Library) error {
 	return nil
 }
 

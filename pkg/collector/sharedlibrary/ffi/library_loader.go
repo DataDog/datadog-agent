@@ -67,8 +67,8 @@ type Library struct {
 
 // LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
-	Open(name string) (Library, error)
-	Close(lib Library) error
+	Open(name string) (*Library, error)
+	Close(lib *Library) error
 	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Version(versionPtr *C.version_function_t) (string, error)
 }
@@ -80,7 +80,7 @@ type SharedLibraryLoader struct {
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
-func (l *SharedLibraryLoader) Open(name string) (Library, error) {
+func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 
@@ -92,10 +92,10 @@ func (l *SharedLibraryLoader) Open(name string) (Library, error) {
 	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return Library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
+		return nil, fmt.Errorf("failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
-	return Library{
+	return &Library{
 		Handle:  cLib.handle,
 		Run:     cLib.run,
 		Version: cLib.version,
@@ -103,7 +103,7 @@ func (l *SharedLibraryLoader) Open(name string) (Library, error) {
 }
 
 // Close closes the shared library
-func (l *SharedLibraryLoader) Close(lib Library) error {
+func (l *SharedLibraryLoader) Close(lib *Library) error {
 	var cErr *C.char
 
 	C.close_shared_library(lib.Handle, &cErr)
