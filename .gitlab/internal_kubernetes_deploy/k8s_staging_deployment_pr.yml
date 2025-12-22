@@ -3,7 +3,7 @@
 # Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo to create staging deployment PR
 
 k8s_staging_deployment_pr:
-  stage: k8s_staging_deployment_pr
+  stage: internal_kubernetes_deploy
   rules:
     - if: $RC_BUILD == "true"
       when: on_success
