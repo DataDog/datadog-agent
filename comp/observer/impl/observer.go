@@ -7,6 +7,8 @@
 package observerimpl
 
 import (
+	"time"
+
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -26,13 +28,19 @@ func NewComponent(deps Requires) Provides {
 		analyses: []observerdef.Analysis{
 			&BadDetector{},
 		},
+		tsAnalyses: []observerdef.TimeSeriesAnalysis{
+			&SpikeDetector{},
+		},
+		storage: newTimeSeriesStorage(),
 	}
 	return Provides{Comp: obs}
 }
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	analyses []observerdef.Analysis
+	analyses   []observerdef.Analysis
+	tsAnalyses []observerdef.TimeSeriesAnalysis
+	storage    *timeSeriesStorage
 }
 
 // GetHandle returns a lightweight handle for a named source.
@@ -48,14 +56,46 @@ type handle struct {
 
 // ObserveMetric observes a DogStatsD metric sample.
 func (h *handle) ObserveMetric(sample observerdef.MetricView) {
-	// Placeholder - sampling/storage logic goes here later
+	// Add to storage
+	timestamp := int64(sample.GetTimestamp())
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	series := h.observer.storage.Add(
+		h.source,
+		sample.GetName(),
+		sample.GetValue(),
+		timestamp,
+		sample.GetRawTags(),
+	)
+
+	// Run time series analyses
+	h.runTSAnalyses(series)
 }
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
+	timestamp := time.Now().Unix()
+
 	for _, analysis := range h.observer.analyses {
 		result := analysis.Analyze(msg)
-		// TODO: forward metrics and anomalies to appropriate destinations
-		_ = result
+
+		// Add metrics from log analysis to storage
+		for _, m := range result.Metrics {
+			series := h.observer.storage.Add(h.source, m.Name, m.Value, timestamp, m.Tags)
+			h.runTSAnalyses(series)
+		}
+
+		// TODO: forward anomalies to appropriate destination
+		_ = result.Anomalies
+	}
+}
+
+// runTSAnalyses runs all time series analyses on a series.
+func (h *handle) runTSAnalyses(series *observerdef.SeriesStats) {
+	for _, tsAnalysis := range h.observer.tsAnalyses {
+		result := tsAnalysis.Analyze(series)
+		// TODO: forward anomalies to appropriate destination
+		_ = result.Anomalies
 	}
 }
