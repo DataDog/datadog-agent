@@ -8,6 +8,7 @@ package demultiplexer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/anomaly"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -26,4 +27,7 @@ type Component interface {
 	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 	// to be sent on the next flush.
 	AddAgentStartupTelemetry(agentVersion string)
+
+	// GetAnomalyDetector returns the centralized anomaly detector from the aggregator
+	GetAnomalyDetector() anomaly.Detector
 }

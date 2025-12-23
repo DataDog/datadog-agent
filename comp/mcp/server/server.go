@@ -13,8 +13,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -230,9 +233,119 @@ func (s *mcpServer) handleClient(conn net.Conn) {
 
 // registerTools registers all MCP tools for a client
 func (s *mcpServer) registerTools(
-	_ *mcp.Server,
-	_ int32,
+	mcpSrv *mcp.Server,
+	clientID int32,
 ) {
+	// Register check_cpu_usage tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "check_cpu_usage",
+			Description: "Check current CPU usage on the system",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleCheckCPUUsage(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register check_memory_usage tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "check_memory_usage",
+			Description: "Check current memory usage on the system",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleCheckMemoryUsage(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register check_disk_usage tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "check_disk_usage",
+			Description: "Check disk usage for a specific path",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Path to check disk usage for (default: /)",
+					},
+				},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleCheckDiskUsage(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register check_process tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "check_process",
+			Description: "Check if a specific process is running",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"process_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the process to check",
+					},
+				},
+				"required": []string{"process_name"},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleCheckProcess(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
 }
 
 // Stop stops the MCP server
@@ -385,6 +498,240 @@ func (s *mcpServer) handleSendMetric(
 	}, nil
 }
 
+// handleCheckCPUUsage checks current CPU usage
+func (s *mcpServer) handleCheckCPUUsage(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: check_cpu_usage called",
+		clientID,
+	)
+
+	// Get CPU count
+	numCPU := runtime.NumCPU()
+
+	// Read /proc/loadavg for load average (Linux-specific)
+	loadavg := "N/A"
+	if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+		loadavg = string(data)
+	}
+
+	result := fmt.Sprintf(
+		"CPU Info:\n- Number of CPUs: %d\n- Load Average: %s",
+		numCPU,
+		loadavg,
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleCheckMemoryUsage checks current memory usage
+func (s *mcpServer) handleCheckMemoryUsage(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: check_memory_usage called",
+		clientID,
+	)
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	result := fmt.Sprintf(
+		"Memory Usage:\n- Allocated: %d MB\n- Total Allocated: %d MB\n- System: %d MB\n- GC Count: %d",
+		m.Alloc/1024/1024,
+		m.TotalAlloc/1024/1024,
+		m.Sys/1024/1024,
+		m.NumGC,
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleCheckDiskUsage checks disk usage for a path
+func (s *mcpServer) handleCheckDiskUsage(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: check_disk_usage called",
+		clientID,
+	)
+
+	// Parse arguments
+	var params map[string]interface{}
+	if len(req.Params.Arguments) > 0 {
+		if err := json.Unmarshal(
+			req.Params.Arguments,
+			&params,
+		); err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf(
+							"Failed to parse arguments: %v",
+							err,
+						),
+					},
+				},
+				IsError: true,
+			}, nil
+		}
+	}
+
+	// Get path parameter, default to "/"
+	path := "/"
+	if p, ok := params["path"].(string); ok && p != "" {
+		path = p
+	}
+
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(
+		path,
+		&stat,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to get disk usage for %s: %v",
+						path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Calculate usage
+	total := stat.Blocks * uint64(stat.Bsize)
+	free := stat.Bfree * uint64(stat.Bsize)
+	used := total - free
+	usedPercent := float64(used) / float64(total) * 100
+
+	result := fmt.Sprintf(
+		"Disk Usage for %s:\n- Total: %d GB\n- Used: %d GB\n- Free: %d GB\n- Usage: %.2f%%",
+		path,
+		total/1024/1024/1024,
+		used/1024/1024/1024,
+		free/1024/1024/1024,
+		usedPercent,
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleCheckProcess checks if a process is running
+func (s *mcpServer) handleCheckProcess(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: check_process called",
+		clientID,
+	)
+
+	// Parse arguments
+	var params map[string]interface{}
+	if err := json.Unmarshal(
+		req.Params.Arguments,
+		&params,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to parse arguments: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	processName, ok := params["process_name"].(string)
+	if !ok {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "process_name is required and must be a string",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Use pgrep to check for the process
+	cmd := exec.CommandContext(
+		ctx,
+		"pgrep",
+		"-x",
+		processName,
+	)
+	output, err := cmd.Output()
+
+	var result string
+	if err != nil {
+		result = fmt.Sprintf(
+			"Process '%s' is NOT running",
+			processName,
+		)
+	} else {
+		pids := string(output)
+		result = fmt.Sprintf(
+			"Process '%s' is running with PIDs:\n%s",
+			processName,
+			pids,
+		)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
 // connTransport implements mcp.Transport using a net.Conn
 type connTransport struct {
 	conn net.Conn
@@ -421,12 +768,9 @@ func (c *connConnection) Read(ctx context.Context) (
 		return nil, err
 	}
 
-	// Parse the JSON-RPC message
-	var msg jsonrpc.Message
-	if err := json.Unmarshal(
-		line,
-		&msg,
-	); err != nil {
+	// Parse the JSON-RPC 2.0 message using the SDK's decoder
+	msg, err := jsonrpc.DecodeMessage(line)
+	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to parse JSON-RPC message: %w",
 			err,
@@ -444,8 +788,8 @@ func (c *connConnection) Write(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Serialize the JSON-RPC message
-	data, err := json.Marshal(msg)
+	// Serialize the JSON-RPC 2.0 message using the SDK's encoder
+	data, err := jsonrpc.EncodeMessage(msg)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to marshal JSON-RPC message: %w",

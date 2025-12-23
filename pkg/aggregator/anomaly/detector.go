@@ -24,12 +24,7 @@ type MetricSample struct {
 type AnomalyType string
 
 const (
-	AnomalyTypeSpike     AnomalyType = "spike"      // Sudden increase
-	AnomalyTypeDrop      AnomalyType = "drop"       // Sudden decrease
-	AnomalyTypeHigh      AnomalyType = "high"       // Sustained high value
-	AnomalyTypeLow       AnomalyType = "low"        // Sustained low value
-	AnomalyTypeRapidRise AnomalyType = "rapid_rise" // Continuous increase
-	AnomalyTypeRapidFall AnomalyType = "rapid_fall" // Continuous decrease
+	AnomalyTypeSpike AnomalyType = "spike" // Sudden increase
 )
 
 // Anomaly represents a detected anomaly
@@ -40,6 +35,12 @@ type Anomaly struct {
 	Baseline   float64
 	Severity   float64 // 0.0 - 1.0
 	Timestamp  float64
+}
+
+// AnomalyObserver is an interface for observing anomaly detections
+type AnomalyObserver interface {
+	// OnAnomaly is called when an anomaly is detected
+	OnAnomaly(anomaly Anomaly)
 }
 
 // DetectionConfig configures the anomaly detection behavior
@@ -76,6 +77,12 @@ type Detector interface {
 		timestamp float64,
 	)
 
+	// Subscribe adds an observer to receive anomaly notifications
+	Subscribe(observer AnomalyObserver)
+
+	// Unsubscribe removes an observer from receiving anomaly notifications
+	Unsubscribe(observer AnomalyObserver)
+
 	// Clear clears all stored metric history
 	Clear()
 
@@ -93,20 +100,48 @@ type HeuristicDetector struct {
 	lastAlert map[string]time.Time // Track last alert time per metric
 	mu        sync.RWMutex
 
-	// Callback for anomaly notifications
-	onAnomaly func(Anomaly)
+	// Observers for anomaly notifications
+	observers   []AnomalyObserver
+	observersMu sync.RWMutex
 }
 
 // NewHeuristicDetector creates a new heuristic-based anomaly detector
-func NewHeuristicDetector(
-	config DetectionConfig,
-	onAnomaly func(Anomaly),
-) Detector {
+func NewHeuristicDetector(config DetectionConfig) Detector {
 	return &HeuristicDetector{
 		config:    config,
 		metrics:   make(map[string]*ringbuffer.RingBuffer[MetricSample]),
 		lastAlert: make(map[string]time.Time),
-		onAnomaly: onAnomaly,
+		observers: make(
+			[]AnomalyObserver,
+			0,
+		),
+	}
+}
+
+// Subscribe adds an observer to receive anomaly notifications
+func (d *HeuristicDetector) Subscribe(observer AnomalyObserver) {
+	d.observersMu.Lock()
+	defer d.observersMu.Unlock()
+	d.observers = append(
+		d.observers,
+		observer,
+	)
+}
+
+// Unsubscribe removes an observer from receiving anomaly notifications
+func (d *HeuristicDetector) Unsubscribe(observer AnomalyObserver) {
+	d.observersMu.Lock()
+	defer d.observersMu.Unlock()
+
+	// Find and remove the observer
+	for i, obs := range d.observers {
+		if obs == observer {
+			d.observers = append(
+				d.observers[:i],
+				d.observers[i+1:]...,
+			)
+			break
+		}
 	}
 }
 
@@ -276,8 +311,21 @@ func (d *HeuristicDetector) notifyAnomaly(
 	// Update last alert time
 	d.lastAlert[metricName] = time.Now()
 
-	if d.onAnomaly != nil {
-		d.onAnomaly(anomaly)
+	// Notify all observers
+	d.observersMu.RLock()
+	observers := make(
+		[]AnomalyObserver,
+		len(d.observers),
+	)
+	copy(
+		observers,
+		d.observers,
+	)
+	d.observersMu.RUnlock()
+
+	// Call observers outside the lock to avoid deadlocks
+	for _, observer := range observers {
+		observer.OnAnomaly(anomaly)
 	}
 }
 

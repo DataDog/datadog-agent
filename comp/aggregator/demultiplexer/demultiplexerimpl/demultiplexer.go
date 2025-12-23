@@ -23,6 +23,7 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/anomaly"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -114,4 +115,13 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 		options.FlushInterval = v
 	}
 	return options
+}
+
+// GetAnomalyDetector returns the centralized anomaly detector from the aggregator
+func (d demultiplexer) GetAnomalyDetector() anomaly.Detector {
+	if d.AgentDemultiplexer == nil {
+		return nil
+	}
+	// Delegate to AgentDemultiplexer which has thread-safe access to the aggregator
+	return d.AgentDemultiplexer.GetAnomalyDetector()
 }

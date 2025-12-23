@@ -977,6 +977,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	gitlab.com/gitlab-org/api/client-go v1.8.0

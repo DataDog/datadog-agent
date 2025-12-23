@@ -8,7 +8,6 @@ package client
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -244,7 +243,7 @@ type clientTransport struct {
 }
 
 // Connect implements mcp.Transport
-func (t *clientTransport) Connect(ctx context.Context) (
+func (t *clientTransport) Connect(_ context.Context) (
 	mcp.Connection,
 	error,
 ) {
@@ -274,12 +273,9 @@ func (c *clientConnection) Read(ctx context.Context) (
 		return nil, err
 	}
 
-	// Parse the JSON-RPC message
-	var msg jsonrpc.Message
-	if err := json.Unmarshal(
-		line,
-		&msg,
-	); err != nil {
+	// Parse the JSON-RPC 2.0 message using the SDK's decoder
+	msg, err := jsonrpc.DecodeMessage(line)
+	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to parse JSON-RPC message: %w",
 			err,
@@ -297,8 +293,8 @@ func (c *clientConnection) Write(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Serialize the JSON-RPC message
-	data, err := json.Marshal(msg)
+	// Serialize the JSON-RPC 2.0 message using the SDK's encoder
+	data, err := jsonrpc.EncodeMessage(msg)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to marshal JSON-RPC message: %w",

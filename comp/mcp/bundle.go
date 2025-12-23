@@ -9,6 +9,7 @@ package mcp
 
 import (
 	"github.com/DataDog/datadog-agent/comp/mcp/agent"
+	"github.com/DataDog/datadog-agent/comp/mcp/anomalyhandler"
 	"github.com/DataDog/datadog-agent/comp/mcp/client"
 	"github.com/DataDog/datadog-agent/comp/mcp/config"
 	"github.com/DataDog/datadog-agent/comp/mcp/server"
@@ -23,6 +24,7 @@ func Bundle() fxutil.BundleOptions {
 		server.Module(),
 		client.Module(),
 		agent.Module(),
+		anomalyhandler.Module(),
 		config.Module(),
 	)
 }

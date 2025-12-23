@@ -33,6 +33,9 @@ type MCPConfig struct {
 
 	// MaxTokens is the maximum number of tokens for LLM responses
 	MaxTokens int
+
+	// AnomalyDetectionEnabled enables automatic anomaly detection and AI-powered remediation
+	AnomalyDetectionEnabled bool
 }
 
 type dependencies struct {
@@ -47,13 +50,14 @@ type mcpConfig struct {
 // newConfig creates a new MCP configuration from the agent's config
 func newConfig(deps dependencies) Component {
 	cfg := &MCPConfig{
-		Enabled:         deps.Config.GetBool("mcp_server.enabled"),
-		SocketPath:      deps.Config.GetString("mcp_server.socket_path"),
-		BufferSize:      deps.Config.GetInt("mcp_server.buffer_size"),
-		LogLevel:        deps.Config.GetString("mcp_server.log_level"),
-		AnthropicAPIKey: deps.Config.GetString("mcp_server.anthropic_api_key"),
-		AnthropicModel:  deps.Config.GetString("mcp_server.anthropic_model"),
-		MaxTokens:       deps.Config.GetInt("mcp_server.max_tokens"),
+		Enabled:                 deps.Config.GetBool("mcp_server.enabled"),
+		SocketPath:              deps.Config.GetString("mcp_server.socket_path"),
+		BufferSize:              deps.Config.GetInt("mcp_server.buffer_size"),
+		LogLevel:                deps.Config.GetString("mcp_server.log_level"),
+		AnthropicAPIKey:         deps.Config.GetString("mcp_server.anthropic_api_key"),
+		AnthropicModel:          deps.Config.GetString("mcp_server.anthropic_model"),
+		MaxTokens:               deps.Config.GetInt("mcp_server.max_tokens"),
+		AnomalyDetectionEnabled: deps.Config.GetBool("mcp_server.anomaly_detection_enabled"),
 	}
 
 	// Set defaults if not configured

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/anomaly"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -275,6 +276,9 @@ type BufferedAggregator struct {
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
+
+	// anomalyDetector is the centralized anomaly detector for all metrics
+	anomalyDetector anomaly.Detector
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -354,6 +358,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan: make(chan utilstrings.Matcher),
+
+		anomalyDetector: anomaly.NewHeuristicDetector(anomaly.DefaultConfig()),
 	}
 
 	return aggregator
@@ -422,6 +428,11 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
+// GetAnomalyDetector returns the centralized anomaly detector
+func (agg *BufferedAggregator) GetAnomalyDetector() anomaly.Detector {
+	return agg.anomalyDetector
+}
+
 // GetEventPlatformForwarder returns a event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	forwarder, found := agg.eventPlatformForwarder.Get()
@@ -455,6 +466,15 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
+
+			// Record metric in centralized anomaly detector
+			if agg.anomalyDetector != nil {
+				agg.anomalyDetector.RecordMetric(
+					ss.metricSample.Name,
+					ss.metricSample.Value,
+					ss.metricSample.Timestamp,
+				)
+			}
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)

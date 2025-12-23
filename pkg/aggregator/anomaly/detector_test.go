@@ -14,64 +14,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testObserver is a simple observer for testing
+type testObserver struct {
+	anomalies []Anomaly
+	mu        sync.Mutex
+}
+
+func (o *testObserver) OnAnomaly(anomaly Anomaly) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.anomalies = append(o.anomalies, anomaly)
+}
+
+func (o *testObserver) getAnomalies() []Anomaly {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]Anomaly{}, o.anomalies...)
+}
+
+func (o *testObserver) count() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.anomalies)
+}
+
 func TestNewHeuristicDetector(t *testing.T) {
 	config := DefaultConfig()
-	var callbackCalled bool
-	var detectedAnomaly Anomaly
+	observer := &testObserver{}
 
-	detector := NewHeuristicDetector(config, func(a Anomaly) {
-		callbackCalled = true
-		detectedAnomaly = a
-	})
+	detector := NewHeuristicDetector(config)
+	detector.Subscribe(observer)
 
 	require.NotNil(t, detector)
 	assert.Equal(t, config, detector.GetConfig())
-	assert.False(t, callbackCalled)
-	assert.Empty(t, detectedAnomaly)
+	assert.Equal(t, 0, observer.count())
 }
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
 	assert.Equal(t, uint64(100), config.WindowSize)
-	assert.Equal(t, 2.0, config.SpikeThreshold)
+	assert.Equal(t, 3.0, config.SpikeThreshold)
 	assert.Equal(t, uint64(20), config.MinSamples)
 	assert.Equal(t, 5*time.Minute, config.CooldownDuration)
 }
 
 func TestRecordMetric_NoAnomalyBeforeMinSamples(t *testing.T) {
-	var callbackCalled bool
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     10,
 			MinSamples:     5,
 			SpikeThreshold: 2.0,
 		},
-		func(a Anomaly) {
-			callbackCalled = true
-		},
 	)
+	detector.Subscribe(observer)
 
 	// Record fewer than MinSamples
 	for i := 0; i < 4; i++ {
 		detector.RecordMetric("test.metric", 50.0, float64(time.Now().Unix()))
 	}
 
-	assert.False(t, callbackCalled, "Should not detect anomalies before MinSamples reached")
+	assert.Equal(t, 0, observer.count(), "Should not detect anomalies before MinSamples reached")
 }
 
 func TestSpikeDetection(t *testing.T) {
-	var detectedAnomalies []Anomaly
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     20,
 			MinSamples:     10,
 			SpikeThreshold: 2.0, // 200% of baseline
 		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -84,6 +100,7 @@ func TestSpikeDetection(t *testing.T) {
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+10.0)
 
 	// Find spike anomaly
+	detectedAnomalies := observer.getAnomalies()
 	var spikeAnomaly *Anomaly
 	for i := range detectedAnomalies {
 		if detectedAnomalies[i].Type == AnomalyTypeSpike {
@@ -101,17 +118,15 @@ func TestSpikeDetection(t *testing.T) {
 }
 
 func TestNoFalsePositiveSpike(t *testing.T) {
-	var detectedAnomalies []Anomaly
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     20,
 			MinSamples:     10,
 			SpikeThreshold: 2.0,
 		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -122,25 +137,19 @@ func TestNoFalsePositiveSpike(t *testing.T) {
 	}
 
 	// Should not detect any spikes
-	assert.Empty(t, detectedAnomalies, "Should not detect false positive spikes")
+	assert.Equal(t, 0, observer.count(), "Should not detect false positive spikes")
 }
 
 func TestMultipleMetrics(t *testing.T) {
-	detectedMetrics := make(map[string]int)
-	var mu sync.Mutex
-
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     20,
 			MinSamples:     10,
 			SpikeThreshold: 2.0,
 		},
-		func(a Anomaly) {
-			mu.Lock()
-			detectedMetrics[a.MetricName]++
-			mu.Unlock()
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -154,8 +163,10 @@ func TestMultipleMetrics(t *testing.T) {
 	// Trigger spike only on cpu.usage
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+15.0)
 
-	mu.Lock()
-	defer mu.Unlock()
+	detectedMetrics := make(map[string]int)
+	for _, a := range observer.getAnomalies() {
+		detectedMetrics[a.MetricName]++
+	}
 
 	assert.Greater(t, detectedMetrics["cpu.usage"], 0, "Should detect spike on cpu.usage")
 	assert.Equal(t, 0, detectedMetrics["memory.usage"], "Should not detect spike on memory.usage")
@@ -163,7 +174,7 @@ func TestMultipleMetrics(t *testing.T) {
 }
 
 func TestGetMetricHistory(t *testing.T) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 
 	timestamp := float64(time.Now().Unix())
 
@@ -189,14 +200,14 @@ func TestGetMetricHistory(t *testing.T) {
 }
 
 func TestGetMetricHistory_NonExistent(t *testing.T) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 
 	history := detector.GetMetricHistory("nonexistent.metric")
 	assert.Nil(t, history)
 }
 
 func TestClear(t *testing.T) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 
 	timestamp := float64(time.Now().Unix())
 
@@ -222,17 +233,15 @@ func TestClear(t *testing.T) {
 }
 
 func TestZeroTimestamp_UsesCurrentTime(t *testing.T) {
-	var detectedAnomalies []Anomaly
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     20,
 			MinSamples:     10,
 			SpikeThreshold: 2.0,
 		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
 	)
+	detector.Subscribe(observer)
 
 	beforeTime := float64(time.Now().Unix())
 
@@ -246,31 +255,25 @@ func TestZeroTimestamp_UsesCurrentTime(t *testing.T) {
 	afterTime := float64(time.Now().Unix())
 
 	// Should have detected anomaly
-	assert.NotEmpty(t, detectedAnomalies)
+	assert.Greater(t, observer.count(), 0)
 
 	// Timestamp should be between before and after
-	for _, a := range detectedAnomalies {
+	for _, a := range observer.getAnomalies() {
 		assert.GreaterOrEqual(t, a.Timestamp, beforeTime)
 		assert.LessOrEqual(t, a.Timestamp, afterTime+1) // +1 for tolerance
 	}
 }
 
 func TestConcurrentRecordMetric(t *testing.T) {
-	var detectedCount int
-	var mu sync.Mutex
-
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:     100,
 			MinSamples:     20,
 			SpikeThreshold: 2.0,
 		},
-		func(a Anomaly) {
-			mu.Lock()
-			detectedCount++
-			mu.Unlock()
-		},
 	)
+	detector.Subscribe(observer)
 
 	var wg sync.WaitGroup
 	timestamp := float64(time.Now().Unix())
@@ -316,17 +319,15 @@ func TestSeverityCalculation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var detectedAnomaly *Anomaly
+			observer := &testObserver{}
 			detector := NewHeuristicDetector(
 				DetectionConfig{
 					WindowSize:     20,
 					MinSamples:     10,
 					SpikeThreshold: 1.5,
 				},
-				func(a Anomaly) {
-					detectedAnomaly = &a
-				},
 			)
+			detector.Subscribe(observer)
 
 			timestamp := float64(time.Now().Unix())
 
@@ -339,7 +340,9 @@ func TestSeverityCalculation(t *testing.T) {
 			detector.RecordMetric("test.metric", tt.value, timestamp+15.0)
 
 			if tt.severityInRange {
-				require.NotNil(t, detectedAnomaly)
+				anomalies := observer.getAnomalies()
+				require.Greater(t, len(anomalies), 0)
+				detectedAnomaly := anomalies[0]
 				assert.GreaterOrEqual(t, detectedAnomaly.Severity, 0.0)
 				assert.LessOrEqual(t, detectedAnomaly.Severity, 1.0)
 			}
@@ -348,7 +351,7 @@ func TestSeverityCalculation(t *testing.T) {
 }
 
 func TestCooldownPreventsDoubleAlert(t *testing.T) {
-	var detectedAnomalies []Anomaly
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:       20,
@@ -356,10 +359,8 @@ func TestCooldownPreventsDoubleAlert(t *testing.T) {
 			SpikeThreshold:   2.0,
 			CooldownDuration: 1 * time.Minute, // 1 minute cooldown
 		},
-		func(a Anomaly) {
-			detectedAnomalies = append(detectedAnomalies, a)
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -372,24 +373,23 @@ func TestCooldownPreventsDoubleAlert(t *testing.T) {
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+10.0)
 
 	// Should have detected first anomaly
-	assert.Len(t, detectedAnomalies, 1, "Should detect first spike")
+	assert.Equal(t, 1, observer.count(), "Should detect first spike")
 
 	// Send same spike value immediately after (within cooldown)
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+11.0)
 
 	// Should NOT detect second anomaly (within cooldown period)
-	assert.Len(t, detectedAnomalies, 1, "Should not detect duplicate alert within cooldown")
+	assert.Equal(t, 1, observer.count(), "Should not detect duplicate alert within cooldown")
 
 	// Send another spike after a short time (still within cooldown)
 	detector.RecordMetric("cpu.usage", 155.0, timestamp+12.0)
 
 	// Should still have only 1 alert
-	assert.Len(t, detectedAnomalies, 1, "Should not alert again within cooldown period")
+	assert.Equal(t, 1, observer.count(), "Should not alert again within cooldown period")
 }
 
 func TestCooldownAllowsAlertAfterExpiry(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	var mu sync.Mutex
+	observer := &testObserver{}
 
 	shortCooldown := 100 * time.Millisecond
 	detector := NewHeuristicDetector(
@@ -399,12 +399,8 @@ func TestCooldownAllowsAlertAfterExpiry(t *testing.T) {
 			SpikeThreshold:   2.0,
 			CooldownDuration: shortCooldown,
 		},
-		func(a Anomaly) {
-			mu.Lock()
-			detectedAnomalies = append(detectedAnomalies, a)
-			mu.Unlock()
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -416,10 +412,7 @@ func TestCooldownAllowsAlertAfterExpiry(t *testing.T) {
 	// Send first spike
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+10.0)
 
-	mu.Lock()
-	initialCount := len(detectedAnomalies)
-	mu.Unlock()
-
+	initialCount := observer.count()
 	assert.Equal(t, 1, initialCount, "Should detect first spike")
 
 	// Wait for cooldown to expire
@@ -428,17 +421,12 @@ func TestCooldownAllowsAlertAfterExpiry(t *testing.T) {
 	// Send another spike after cooldown expires
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+11.0)
 
-	mu.Lock()
-	finalCount := len(detectedAnomalies)
-	mu.Unlock()
-
+	finalCount := observer.count()
 	assert.Equal(t, 2, finalCount, "Should detect second spike after cooldown expires")
 }
 
 func TestCooldownPerMetric(t *testing.T) {
-	detectedMetrics := make(map[string]int)
-	var mu sync.Mutex
-
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:       20,
@@ -446,12 +434,8 @@ func TestCooldownPerMetric(t *testing.T) {
 			SpikeThreshold:   2.0,
 			CooldownDuration: 1 * time.Minute,
 		},
-		func(a Anomaly) {
-			mu.Lock()
-			detectedMetrics[a.MetricName]++
-			mu.Unlock()
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -467,33 +451,31 @@ func TestCooldownPerMetric(t *testing.T) {
 	// Trigger spike on memory.usage
 	detector.RecordMetric("memory.usage", 180.0, timestamp+15.0)
 
-	mu.Lock()
-	cpuCount := detectedMetrics["cpu.usage"]
-	memCount := detectedMetrics["memory.usage"]
-	mu.Unlock()
+	detectedMetrics := make(map[string]int)
+	for _, a := range observer.getAnomalies() {
+		detectedMetrics[a.MetricName]++
+	}
 
 	// Both should alert once
-	assert.Equal(t, 1, cpuCount, "CPU should alert once")
-	assert.Equal(t, 1, memCount, "Memory should alert once")
+	assert.Equal(t, 1, detectedMetrics["cpu.usage"], "CPU should alert once")
+	assert.Equal(t, 1, detectedMetrics["memory.usage"], "Memory should alert once")
 
 	// Send spikes again on both metrics (within cooldown)
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+16.0)
 	detector.RecordMetric("memory.usage", 180.0, timestamp+16.0)
 
-	mu.Lock()
-	cpuCount2 := detectedMetrics["cpu.usage"]
-	memCount2 := detectedMetrics["memory.usage"]
-	mu.Unlock()
+	detectedMetrics2 := make(map[string]int)
+	for _, a := range observer.getAnomalies() {
+		detectedMetrics2[a.MetricName]++
+	}
 
 	// Neither should alert again (cooldown is per-metric)
-	assert.Equal(t, 1, cpuCount2, "CPU should not alert again within cooldown")
-	assert.Equal(t, 1, memCount2, "Memory should not alert again within cooldown")
+	assert.Equal(t, 1, detectedMetrics2["cpu.usage"], "CPU should not alert again within cooldown")
+	assert.Equal(t, 1, detectedMetrics2["memory.usage"], "Memory should not alert again within cooldown")
 }
 
 func TestClearResetsAlertTracking(t *testing.T) {
-	var detectedAnomalies []Anomaly
-	var mu sync.Mutex
-
+	observer := &testObserver{}
 	detector := NewHeuristicDetector(
 		DetectionConfig{
 			WindowSize:       20,
@@ -501,12 +483,8 @@ func TestClearResetsAlertTracking(t *testing.T) {
 			SpikeThreshold:   2.0,
 			CooldownDuration: 5 * time.Minute, // Long cooldown
 		},
-		func(a Anomaly) {
-			mu.Lock()
-			detectedAnomalies = append(detectedAnomalies, a)
-			mu.Unlock()
-		},
 	)
+	detector.Subscribe(observer)
 
 	timestamp := float64(time.Now().Unix())
 
@@ -518,9 +496,7 @@ func TestClearResetsAlertTracking(t *testing.T) {
 	// Send first spike
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+10.0)
 
-	mu.Lock()
-	assert.Len(t, detectedAnomalies, 1, "Should detect first spike")
-	mu.Unlock()
+	assert.Equal(t, 1, observer.count(), "Should detect first spike")
 
 	// Clear detector (should reset alert tracking)
 	detector.Clear()
@@ -533,15 +509,13 @@ func TestClearResetsAlertTracking(t *testing.T) {
 	// Send another spike (should alert even though cooldown hasn't expired)
 	detector.RecordMetric("cpu.usage", 150.0, timestamp+30.0)
 
-	mu.Lock()
-	assert.Len(t, detectedAnomalies, 2, "Should detect spike after Clear() resets tracking")
-	mu.Unlock()
+	assert.Equal(t, 2, observer.count(), "Should detect spike after Clear() resets tracking")
 }
 
 // Benchmarks
 
 func BenchmarkRecordMetric(b *testing.B) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 	timestamp := float64(time.Now().Unix())
 
 	b.ResetTimer()
@@ -550,14 +524,10 @@ func BenchmarkRecordMetric(b *testing.B) {
 	}
 }
 
-func BenchmarkRecordMetric_WithCallback(b *testing.B) {
-	callbackCalled := 0
-	detector := NewHeuristicDetector(
-		DefaultConfig(),
-		func(a Anomaly) {
-			callbackCalled++
-		},
-	)
+func BenchmarkRecordMetric_WithObserver(b *testing.B) {
+	observer := &testObserver{}
+	detector := NewHeuristicDetector(DefaultConfig())
+	detector.Subscribe(observer)
 	timestamp := float64(time.Now().Unix())
 
 	b.ResetTimer()
@@ -567,7 +537,7 @@ func BenchmarkRecordMetric_WithCallback(b *testing.B) {
 }
 
 func BenchmarkRecordMetric_MultipleMetrics(b *testing.B) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 	timestamp := float64(time.Now().Unix())
 
 	metricNames := []string{
@@ -590,14 +560,15 @@ func BenchmarkSpikeDetection(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
+		observer := &testObserver{}
 		detector := NewHeuristicDetector(
 			DetectionConfig{
 				WindowSize:     20,
 				MinSamples:     10,
 				SpikeThreshold: 2.0,
 			},
-			func(a Anomaly) {},
 		)
+		detector.Subscribe(observer)
 
 		// Establish baseline
 		for j := 0; j < 10; j++ {
@@ -611,7 +582,7 @@ func BenchmarkSpikeDetection(b *testing.B) {
 }
 
 func BenchmarkGetMetricHistory(b *testing.B) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 	timestamp := float64(time.Now().Unix())
 
 	// Populate with data
@@ -626,7 +597,7 @@ func BenchmarkGetMetricHistory(b *testing.B) {
 }
 
 func BenchmarkConcurrentRecordMetric(b *testing.B) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 	timestamp := float64(time.Now().Unix())
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -639,7 +610,7 @@ func BenchmarkConcurrentRecordMetric(b *testing.B) {
 }
 
 func BenchmarkClear(b *testing.B) {
-	detector := NewHeuristicDetector(DefaultConfig(), nil)
+	detector := NewHeuristicDetector(DefaultConfig())
 	timestamp := float64(time.Now().Unix())
 
 	// Populate with data

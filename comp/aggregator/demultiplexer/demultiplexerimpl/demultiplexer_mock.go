@@ -18,6 +18,7 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/anomaly"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,6 +47,15 @@ func (m *mock) GetDefaultSender() (sender.Sender, error) {
 		return *m.sender, nil
 	}
 	return m.AgentDemultiplexer.GetDefaultSender()
+}
+
+// GetAnomalyDetector returns the centralized anomaly detector from the aggregator
+func (m *mock) GetAnomalyDetector() anomaly.Detector {
+	if m.AgentDemultiplexer == nil {
+		return nil
+	}
+	// Delegate to AgentDemultiplexer which has thread-safe access to the aggregator
+	return m.AgentDemultiplexer.GetAnomalyDetector()
 }
 
 type mockDependencies struct {

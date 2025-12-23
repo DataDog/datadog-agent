@@ -19,6 +19,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/anomaly"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -578,6 +579,19 @@ func (d *AgentDemultiplexer) Serializer() serializer.MetricSerializer {
 // Deprecated.
 func (d *AgentDemultiplexer) Aggregator() *BufferedAggregator {
 	return d.aggregator
+}
+
+// GetAnomalyDetector returns the centralized anomaly detector from the aggregator.
+// This is the preferred way to access the anomaly detector instead of using
+// the deprecated Aggregator() method.
+func (d *AgentDemultiplexer) GetAnomalyDetector() anomaly.Detector {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.aggregator == nil {
+		return nil
+	}
+	return d.aggregator.GetAnomalyDetector()
 }
 
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender/anomaly"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -42,10 +41,9 @@ type checkSender struct {
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	checkTags               []string
-	service                 string
-	noIndex                 bool
-	anomalyDetector         anomaly.Detector
+	checkTags []string
+	service   string
+	noIndex   bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -105,21 +103,6 @@ func newCheckSender(
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 ) *checkSender {
-	// Initialize anomaly detector with callback
-	detector := anomaly.NewHeuristicDetector(
-		anomaly.DefaultConfig(),
-		func(a anomaly.Anomaly) {
-			log.Warnf(
-				"[ANOMALY] %s detected on metric '%s': value=%.2f baseline=%.2f severity=%.2f%%",
-				a.Type,
-				a.MetricName,
-				a.Value,
-				a.Baseline,
-				a.Severity*100,
-			)
-		},
-	)
-
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
@@ -131,7 +114,6 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
-		anomalyDetector:         detector,
 	}
 }
 
@@ -226,11 +208,6 @@ func (s *checkSender) sendMetricSample(
 
 	if hostname == "" && !s.defaultHostnameDisabled {
 		metricSample.Host = s.defaultHostname
-	}
-
-	// Record metric for anomaly detection before aggregation
-	if s.anomalyDetector != nil {
-		s.anomalyDetector.RecordMetric(metric, value, timestamp)
 	}
 
 	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
