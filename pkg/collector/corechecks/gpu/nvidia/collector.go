@@ -83,14 +83,7 @@ type subsystemBuilder func(device ddnvml.Device, deps *CollectorDependencies) (C
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
-	// Consolidated collectors that combine multiple collector types into single instances
-	stateless: newStatelessCollector, // Consolidates memory, device, clocks, remappedrows
-	sampling:  newSamplingCollector,  // Consolidates process, samples
-
-	// Specialized collectors that remain unchanged (complex or unique logic)
-	field:        newFieldsCollector,
-	gpm:          newGPMCollector,
-	deviceEvents: newDeviceEventsCollector,
+	gpm: newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
