@@ -1016,6 +1016,11 @@ func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	}
 }
 
+func (p *EBPFProbe) triggerNopEvent() error {
+	req := erpc.NewERPCRequest(erpc.NopEventOp)
+	return p.Erpc.Request(req)
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
@@ -1635,6 +1640,10 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.NopEventType:
+		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
+		seclog.Debugf("nop event received, skipping further event handling")
+		return false
 	case model.MountReleasedEventType:
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
@@ -1885,7 +1894,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 	for _, newKFilter := range newKFilters {
 		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
 		if err := newKFilter.Apply(p.Manager); err != nil {
-			return err
+			return fmt.Errorf("failed applying new kfilter: %w", err)
 		}
 
 		approverType := newKFilter.GetApproverType()
@@ -2523,6 +2532,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	p.ruleSetVersion++
+
+	// trigger a nop event to ensure that the replayed events are processed
+	if err := p.triggerNopEvent(); err != nil {
+		seclog.Warnf("unable to trigger nop event: %v", err)
+	}
 
 	return filterReport, nil
 }
