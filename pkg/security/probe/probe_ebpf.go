@@ -1885,7 +1885,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 	for _, newKFilter := range newKFilters {
 		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
 		if err := newKFilter.Apply(p.Manager); err != nil {
-			return err
+			return fmt.Errorf("failed applying new kfilter: %w", err)
 		}
 
 		approverType := newKFilter.GetApproverType()
