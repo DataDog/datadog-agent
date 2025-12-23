@@ -26,8 +26,6 @@ import (
 	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/swaggest/jsonschema-go"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 // WiFi data validation constants
@@ -82,30 +80,6 @@ type guiIPCResponse struct {
 	Success bool         `json:"success" required:"true"`
 	Data    *guiWiFiData `json:"data"`
 	Error   *string      `json:"error"`
-}
-
-// createIPCResponseSchema generates a JSON schema for IPC response validation
-// Returns interface{} to avoid exposing gojsonschema.Schema in the common WLANCheck struct
-// This is called once during check initialization
-func createIPCResponseSchema() (interface{}, error) {
-	reflector := jsonschema.Reflector{}
-	schema, err := reflector.Reflect(guiIPCResponse{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to reflect schema: %w", err)
-	}
-
-	schemaBytes, err := json.Marshal(schema)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal schema: %w", err)
-	}
-
-	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
-	compiledSchema, err := gojsonschema.NewSchema(schemaLoader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile schema: %w", err)
-	}
-
-	return compiledSchema, nil
 }
 
 // getWiFiInfo is a package-level function variable for testability
@@ -508,33 +482,20 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 
 	log.Debugf("Received response from GUI: %s", strings.TrimSpace(responseLine))
 
-	// Validate response against JSON schema (if available)
-	if c.ipcSchema != nil {
-		// Cast interface{} back to concrete type for validation
-		schema, ok := c.ipcSchema.(*gojsonschema.Schema)
-		if !ok {
-			return wifiInfo{}, errors.New("invalid schema type")
-		}
-		documentLoader := gojsonschema.NewStringLoader(responseLine)
-		result, err := schema.Validate(documentLoader)
-		if err != nil {
-			return wifiInfo{}, fmt.Errorf("schema validation failed: %w", err)
-		}
-		if !result.Valid() {
-			var errMsgs []string
-			for _, desc := range result.Errors() {
-				errMsgs = append(errMsgs, desc.String())
-			}
-			return wifiInfo{}, fmt.Errorf("IPC response failed schema validation: %s", strings.Join(errMsgs, "; "))
-		}
-		log.Debug("IPC response passed JSON schema validation")
-	}
-
-	// Parse response
+	// Parse and validate response structure with strict field checking
+	// DisallowUnknownFields rejects any JSON with extra/unknown fields (attack detection)
 	var response guiIPCResponse
-	if err := json.Unmarshal([]byte(responseLine), &response); err != nil {
-		return wifiInfo{}, fmt.Errorf("failed to parse response: %w", err)
+	decoder := json.NewDecoder(strings.NewReader(responseLine))
+	decoder.DisallowUnknownFields() // Strict validation: reject extra fields
+
+	if err := decoder.Decode(&response); err != nil {
+		// This catches:
+		// - Malformed JSON
+		// - Type mismatches
+		// - Unknown/extra fields (potential attacks)
+		return wifiInfo{}, fmt.Errorf("invalid IPC response structure: %w", err)
 	}
+	log.Debug("IPC response passed structural validation")
 
 	// Check for errors in response
 	if !response.Success || response.Data == nil {
