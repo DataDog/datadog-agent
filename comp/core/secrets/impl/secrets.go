@@ -412,7 +412,7 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
 // - secret_allowed_k8s_namespace: containers can only access secrets from a set of namespaces
-// - secrets in your configuration: user provide a mapping specifying which image can access which secrets
+// - secret_image_to_handle: user provided mapping specifying which image can access which secrets
 func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imageName string, kubeNamespace string) bool {
 	var secretNamespace string
 
