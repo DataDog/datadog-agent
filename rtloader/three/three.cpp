@@ -399,18 +399,6 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
-    if (provider_str != NULL) {
-        provider = PyUnicode_FromString(provider_str);
-        if (provider == NULL) {
-            setError("error 'provider' can't be initialized: " + _fetchPythonError());
-            goto done;
-        }
-        if (PyDict_SetItemString(kwargs, "provider", provider) == -1) {
-            setError("error 'provider' key can't be set: " + _fetchPythonError());
-            goto done;
-        }
-    }
-
     // call `AgentCheck` constructor
     py_check = PyObject_Call(klass, args, kwargs);
     if (py_check == NULL) {
@@ -431,6 +419,25 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
 
         if (PyObject_SetAttrString(py_check, "check_id", check_id) != 0) {
             setError("error could not set 'check_id' attr: " + _fetchPythonError());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+    }
+
+    if (provider_str != NULL && strlen(provider_str) != 0) {
+        provider = PyUnicode_FromString(provider_str);
+        if (provider == NULL) {
+            std::ostringstream err;
+            err << "error could not set provider: " << provider_str;
+            setError(err.str());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+
+        if (PyObject_SetAttrString(py_check, "provider", provider) != 0) {
+            setError("error could not set 'provider' attr: " + _fetchPythonError());
             Py_XDECREF(py_check);
             py_check = NULL;
             goto done;
