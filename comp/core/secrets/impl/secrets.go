@@ -447,7 +447,7 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
-func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string) ([]byte, error) {
+func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -477,9 +477,11 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
 					r.registerSecretOrigin(handle, origin, path)
-					// notify subscriptions
-					for _, sub := range r.subscriptions {
-						sub(handle, origin, path, value, secretValue)
+
+					if notify {
+						for _, sub := range r.subscriptions {
+							sub(handle, origin, path, value, secretValue)
+						}
 					}
 					foundSecrets[handle] = struct{}{}
 					return secretValue, nil
@@ -547,7 +549,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 		}
 
 		// for Resolving secrets, always send notifications
-		r.processSecretResponse(secretResponse, false)
+		r.processSecretResponse(secretResponse, false, notify)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -622,7 +624,7 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
 // and return the handles that have received new values compared to what was in the cache,
 // and where those handles appear
-func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool, notify bool) secretRefreshInfo {
 	var handleInfoList []handleInfo
 
 	// notify subscriptions about the changes to secrets
@@ -641,16 +643,18 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
-			for _, sub := range r.subscriptions {
-				if useAllowlist && !secretMatchesAllowlist(secretCtx) {
-					// only update setting paths that match the allowlist
-					continue
+			if notify {
+				for _, sub := range r.subscriptions {
+					if useAllowlist && !secretMatchesAllowlist(secretCtx) {
+						// only update setting paths that match the allowlist
+						continue
+					}
+					// notify subscribers that secret has changed
+					sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
 				}
-				// notify subscribers that secret has changed
-				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
-				secretPath := strings.Join(secretCtx.path, "/")
-				places = append(places, handlePlace{Context: secretCtx.origin, Path: secretPath})
 			}
+			secretPath := strings.Join(secretCtx.path, "/")
+			places = append(places, handlePlace{Context: secretCtx.origin, Path: secretPath})
 		}
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
@@ -678,6 +682,26 @@ func (r *secretResolver) Refresh(updateNow bool) (string, error) {
 	default:
 	}
 	return "", nil
+}
+
+// RemoveOrigin removes a origin from the cache
+func (r *secretResolver) RemoveOrigin(origin string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	for handle, origins := range r.origin {
+		newList := []secretContext{}
+		for _, item := range origins {
+			if item.origin != origin {
+				newList = append(newList, item)
+			}
+		}
+		if len(newList) == 0 {
+			delete(r.origin, handle)
+		} else {
+			r.origin[handle] = newList
+		}
+	}
 }
 
 // performRefresh executes the actual secret refresh operation
@@ -714,7 +738,7 @@ func (r *secretResolver) performRefresh() (string, error) {
 
 	var auditRecordErr error
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
-	refreshResult := r.processSecretResponse(secretResponse, true)
+	refreshResult := r.processSecretResponse(secretResponse, true, true)
 	if len(refreshResult.Handles) > 0 {
 		// add the results to the audit file, if any secrets have new values
 		if err := r.addToAuditFile(secretResponse); err != nil {
