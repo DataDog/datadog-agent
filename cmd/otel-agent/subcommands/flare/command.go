@@ -107,9 +107,6 @@ func makeFlare(
 	_ config.Component,
 	cliParams *cliParams,
 ) error {
-	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
-	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
-
 	// Get case ID
 	caseID := ""
 	if len(cliParams.args) > 0 {
