@@ -1,0 +1,13 @@
+[package]
+name = "rusthello"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rusthello"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true

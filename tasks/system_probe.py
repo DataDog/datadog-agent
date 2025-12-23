@@ -93,6 +93,11 @@ LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
+# Rust test helper binaries built with Bazel
+RUST_TEST_BINARIES = {
+    "rusthello": "pkg/collector/corechecks/servicediscovery/module/testdata/rusthello",
+}
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -752,6 +757,8 @@ def build(
     """
     Build the system-probe
     """
+    print(f"Building system-probe for {arch} architecture")
+    sys.exit(1)
     if not is_macos:
         build_object_files(
             ctx,
@@ -1580,6 +1587,9 @@ def build_object_files(
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
+    # Build Rust test binaries (for servicediscovery and other tests)
+    build_rust_test_binaries(ctx, arch=arch_obj)
+
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
@@ -1612,6 +1622,39 @@ def build_object_files(
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+
+
+def build_rust_test_binaries(ctx, arch: str | Arch = CURRENT_ARCH):
+    """Build Rust test binaries using Bazel."""
+    if is_windows:
+        return
+
+    arch = Arch.from_str(arch) if isinstance(arch, str) else arch
+
+    for binary_name, source_path in RUST_TEST_BINARIES.items():
+        build_file = os.path.join(source_path, "BUILD.bazel")
+        if not os.path.isfile(build_file):
+            continue
+
+        bazel_target = f"//{source_path}:{binary_name}"
+
+        print(f"Building {binary_name} with Bazel...")
+        ctx.run(f"bazelisk build {bazel_target}")
+
+        # Find the built binary in bazel-bin
+        bazel_out_base = os.path.join("bazel-bin", source_path)
+        dest_path = os.path.join(source_path, binary_name)
+
+        # Search for the binary (may be in platform-specific subdirectory)
+        for root, dirs, files in os.walk(bazel_out_base):
+            if binary_name in files:
+                src_binary = os.path.join(root, binary_name)
+                # Copy to source directory so tests can find it
+                import shutil
+                shutil.copy2(src_binary, dest_path)
+                os.chmod(dest_path, 0o755)
+                print(f"Copied {binary_name} to {dest_path}")
+                break
 
 
 def build_cws_object_files(

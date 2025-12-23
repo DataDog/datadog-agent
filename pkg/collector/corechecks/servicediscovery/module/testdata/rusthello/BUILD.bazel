@@ -1,0 +1,15 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+# Rust hello world test binary for servicediscovery tests
+# Built as a regular binary (not test-only) since it will be shipped in the future
+rust_binary(
+    name = "rusthello",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    rustc_flags = [
+        "-C", "opt-level=z",      # Size optimization (matches Cargo.toml)
+        "-C", "lto=fat",          # Full LTO (matches Cargo.toml)
+        "-C", "strip=symbols",    # Strip symbols (matches Cargo.toml)
+    ],
+    visibility = ["//visibility:public"],
+)

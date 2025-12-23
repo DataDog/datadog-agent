@@ -418,3 +418,25 @@ ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/ot
 		})
 	}
 }
+
+func TestRustHelloBinary(t *testing.T) {
+	t.Run("execute rust hello binary", func(t *testing.T) {
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+
+		// Binary built by build_object_files task
+		binaryPath := filepath.Join(curDir, "testdata", "rusthello", "rusthello")
+
+		// Binary should exist (built during build_object_files before tests)
+		require.FileExists(t, binaryPath, "Rust binary should be built by build_object_files")
+
+		// Execute the binary
+		cmd := exec.Command(binaryPath)
+		output, err := cmd.CombinedOutput()
+
+		// Validate execution
+		require.NoError(t, err, "Rust binary should execute successfully")
+		require.Contains(t, string(output), "Hello from Rust test binary!")
+		require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0")
+	})
+}
