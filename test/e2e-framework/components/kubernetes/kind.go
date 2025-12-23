@@ -31,9 +31,12 @@ const (
 //go:embed kind-cluster.yaml
 var kindClusterConfig string
 
+//go:embed hosts.toml
+var containerdDockerioHostConfig string
+
 // Install Kind on a Linux virtual machine.
 func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, opts ...pulumi.ResourceOption) (*Cluster, error) {
-	return NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfig, opts...)
+	return NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfig, containerdDockerioHostConfig, opts...)
 }
 
 func validateKubeVersionFormat(kubeVersion string) error {
@@ -50,7 +53,7 @@ func validateKubeVersionFormat(kubeVersion string) error {
 	return nil
 }
 
-func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kubeVersion, kindConfig string, opts ...pulumi.ResourceOption) (*Cluster, error) {
+func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kubeVersion, kindConfig, containerdOverrideConfig string, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -102,6 +105,24 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kube
 			return err
 		}
 
+		// pre-create the folder architecture for containerd overrides
+		// The kind cluster configuration has a mount point
+		// - host: /tmp/certs.d/
+		// - cluster: /etc/containerd/certs.d/
+		// this way we can place configuration override files in that 'certs.d' folder
+
+		containerdOverrideDir := "/tmp/certs.d/docker.io/"
+		vm.OS.FileManager().CreateDirectory(containerdOverrideDir, false, opts...)
+		containerdConfigFilePath := containerdOverrideDir + "hosts.toml"
+		containerdConfig, err := vm.OS.FileManager().CopyInlineFile(
+			pulumi.String(containerdOverrideConfig),
+			containerdConfigFilePath,
+			opts...,
+		)
+		if err != nil {
+			return err
+		}
+
 		/*
 			The internal mirror should be able to pull arbitrary kubernetes images but the sha is required
 			with the tag. We also support the user supplying the url (in case we want to host
@@ -121,7 +142,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kube
 				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
 				Triggers: pulumi.Array{pulumi.String(kindConfig)},
 			},
-			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig, kindInstall), pulumi.DeleteBeforeReplace(true))...,
+			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig, containerdConfig, kindInstall), pulumi.DeleteBeforeReplace(true))...,
 		)
 		if err != nil {
 			return err

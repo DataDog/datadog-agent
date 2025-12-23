@@ -56,7 +56,7 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion st
 		return nil, err
 	}
 
-	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, clusterConfig, opts...)
+	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, "", clusterConfig, opts...)
 	if err != nil {
 		return nil, err
 	}
