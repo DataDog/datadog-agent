@@ -100,6 +100,7 @@ job-owners:
     - send_pkg_size
     - setup_agent_version
     - single-machine-performance-regression_detector
+    - single-machine-performance-metal-runners-regression_detector
     - single-machine-performance-regression_detector-pr-comment
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps

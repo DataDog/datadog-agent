@@ -1,0 +1,24 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+datadog:
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.52.0"
+      enabledNamespaces: []
+      targets:
+        - name: "python-apps"
+          podSelector:
+            matchLabels:
+              language: "python"
+          namespaceSelector:
+            matchLabels:
+              injection: "yes"
+          ddTraceVersions:
+            python: "v3.18.1"
+          ddTraceConfigs:
+            - name: "DD_PROFILING_ENABLED"
+              value: "true"

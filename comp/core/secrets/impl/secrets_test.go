@@ -549,13 +549,6 @@ func TestResolveCached(t *testing.T) {
 }
 
 func TestResolveThenRefresh(t *testing.T) {
-	// disable the allowlist for the test, let any secret changes happen
-	originalValue := isAllowlistEnabled()
-	setAllowlistEnabled(false)
-	defer func() {
-		setAllowlistEnabled(originalValue)
-	}()
-
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
@@ -639,7 +632,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	resolver.origin = handleToContext{
 		"handle": []secretContext{
 			{
-				origin: "test",
+				origin: "datadog.yaml",
 				path:   []string{"another", "config", "setting"},
 			},
 		},
@@ -655,11 +648,11 @@ func TestRefreshAllowlist(t *testing.T) {
 		changes = append(changes, fmt.Sprintf("%s", newValue))
 	})
 
-	originalAllowlistPaths := allowlistPaths
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	// only allow api_key config setting to change
-	allowlistPaths = []string{"api_key"}
+	allowListPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
 	_, err := resolver.Refresh(true)
@@ -667,12 +660,66 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{})
 
 	// now allow the config setting under scrutiny to change
-	allowlistPaths = []string{"setting"}
+	allowListPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
 	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
+}
+
+// Check that the allowListOrigin works well
+func TestRefreshAllowlistFromContainer(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{
+		"handle1": "init_value1",
+		"handle2": "init_value2",
+	}
+	resolver.origin = handleToContext{
+		"handle1": []secretContext{
+			{
+				origin: "datadog.yaml",
+				path:   []string{"another", "config", "setting"},
+			},
+			{
+				origin: "datadog.yaml",
+				path:   []string{"something", "additional_endpoints"},
+			},
+			{
+				origin: "postgres:1234",
+				path:   []string{"db_password"},
+			},
+		},
+		"handle2": []secretContext{
+			{
+				origin: "postgres:1234",
+				path:   []string{"db_password_2"},
+			},
+		},
+	}
+
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"handle1": "updated_value1",
+			"handle2": "updated_value2",
+		}, nil
+	}
+	changes := []string{}
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, _, _ any) {
+		changes = append(changes, fmt.Sprintf("%s/%s/%v", handle, origin, path))
+	})
+
+	// Refresh means nothing changes because allowlist doesn't allow it
+	_, err := resolver.Refresh(true)
+	require.NoError(t, err)
+	slices.Sort(changes)
+	assert.Equal(t, changes, []string{
+		"handle1/datadog.yaml/[something additional_endpoints]",
+		"handle1/postgres:1234/[db_password]",
+		"handle2/postgres:1234/[db_password_2]",
+	})
 }
 
 // test that only setting paths that match the allowlist will get notifications
@@ -689,14 +736,14 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// test configuration resolves, the secret appears at two setting paths
-	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "datadog.yaml", "", "")
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 
 	// set the allowlist so that only 1 of the settings matches, the 2nd does not
-	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = []string{"instances"}
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	allowListPaths = []string{"instances"}
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	// subscribe to changes made during Refresh, keep track of updated setting paths
 	changedPaths := []string{}
@@ -722,9 +769,9 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
 
-	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = []string{"setting"}
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	allowListPaths = []string{"setting"}
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
@@ -797,11 +844,6 @@ func TestRefreshModes(t *testing.T) {
 		resolver.apiKeyFailureRefreshInterval = 100 * time.Millisecond
 		resolver.lastThrottledRefresh = time.Time{}
 		resolver.startRefreshRoutine(nil)
-		defer func() {
-			if resolver.ticker != nil {
-				resolver.ticker.Stop()
-			}
-		}()
 
 		calls.Store(0)
 
@@ -823,9 +865,6 @@ func TestRefreshModes(t *testing.T) {
 
 	t.Run("feature disabled drops all refreshes", func(t *testing.T) {
 		resolver.apiKeyFailureRefreshInterval = 0
-		if resolver.ticker == nil {
-			resolver.startRefreshRoutine(nil)
-		}
 
 		calls.Store(0)
 		resolver.Refresh(false)
@@ -865,11 +904,6 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			resolver := newEnabledSecretResolver(tel)
 			mockClock := resolver.clk.(*clock.Mock)
-			originalValue := isAllowlistEnabled()
-			setAllowlistEnabled(false)
-			defer func() {
-				setAllowlistEnabled(originalValue)
-			}()
 
 			resolver.refreshInterval = 10 * time.Second
 			resolver.refreshIntervalScatter = tc.scatter
@@ -908,7 +942,6 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
 				changeDetected <- struct{}{}
 			})
-			require.NotNil(t, resolver.ticker)
 
 			if tc.scatter {
 				// The set random seed has a the scatterDuration is 6.477027098s
@@ -965,11 +998,6 @@ func (s *alwaysZeroSource) Seed(int64) {}
 func TestScatterWithSmallRandomValue(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	originalValue := isAllowlistEnabled()
-	setAllowlistEnabled(false)
-	defer func() {
-		setAllowlistEnabled(originalValue)
-	}()
 
 	resolver.refreshInterval = 1 * time.Second
 	resolver.refreshIntervalScatter = true
@@ -982,8 +1010,10 @@ func TestScatterWithSmallRandomValue(t *testing.T) {
 	// NOTE: clock and ticker are not mocked, as the mock ticker doesn't fail on a
 	// zero parameter the way a real ticker does
 	r := rand.New(&alwaysZeroSource{})
-	resolver.startRefreshRoutine(r)
-	require.NotNil(t, resolver.ticker)
+	ticker := resolver.setupRefreshInterval(r)
+	require.NotNil(t, ticker)
+	require.True(t, resolver.scatterDuration > 0)
+
 }
 
 // helper to read number of rows in the audit file

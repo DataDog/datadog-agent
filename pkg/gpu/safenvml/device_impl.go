@@ -356,3 +356,11 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
 }
+
+func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {
+	if err := d.lib.lookup(toNativeName("GetRunningProcessDetailList")); err != nil {
+		return nvml.ProcessDetailList{}, err
+	}
+	processes, ret := d.nvmlDevice.GetRunningProcessDetailList()
+	return processes, NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", ret)
+}

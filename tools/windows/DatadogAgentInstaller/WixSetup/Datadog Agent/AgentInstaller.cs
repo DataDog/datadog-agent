@@ -145,6 +145,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_OTELCOLLECTOR_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -368,20 +372,6 @@ namespace WixSetup.Datadog_Agent
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
-                // Conditionally include the APM injection MSM while it is in active development to make it easier
-                // to build/ship without it.
-                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_APMINJECT_MODULE")))
-                {
-                    document
-                        .FindAll("Directory")
-                        .First(x => x.HasAttribute("Id", value => value == "AGENT"))
-                        .AddElement("Merge",
-                            $"Id=ddapminstall; SourceFile={BinSource}\\ddapminstall.msm; DiskId=1; Language=1033");
-                    document
-                        .FindAll("Feature")
-                        .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
-                        .AddElement("MergeRef", "Id=ddapminstall");
-                }
                 document
                     .FindAll("Directory")
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
@@ -591,7 +581,8 @@ namespace WixSetup.Datadog_Agent
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    }
+                    },
+                    new WixSharp.File(_agentBinaries.DatadogInterop)
             );
             var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
                  new Files($@"{InstallerSource}\bin\scripts\*")
@@ -630,7 +621,6 @@ namespace WixSetup.Datadog_Agent
                 },
                 agentBinDir,
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
-                new WixSharp.File(_agentBinaries.MSStoreApps),
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {
@@ -659,6 +649,7 @@ namespace WixSetup.Datadog_Agent
             if (_agentFlavor.FlavorName != Constants.FipsFlavor)
             {
                 targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.DdCompilePolicy));
             }
 
             return targetBinFolder;

@@ -62,9 +62,8 @@ func newCheckSampler(
 	}
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
-	contextKey := cs.contextResolver.trackContext(metricSample)
-
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList *TagMatcher) {
+	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return
@@ -89,7 +88,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList *TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -112,7 +111,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket)
+	contextKey := cs.contextResolver.trackContext(bucket, filterList)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -169,7 +168,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 		} else {
-			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
+			log.Debugf("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
 	}
 	for _, serie := range series {

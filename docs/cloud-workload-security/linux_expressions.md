@@ -186,6 +186,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.signature`](#event-signature-doc) | Signature of the process pid and its cgroup with agent secret key |
 | [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -2190,17 +2191,17 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter using sha256 |
-| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
-| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
-| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
+| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER` |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
-| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
 
 ### Event `setuid`
 
@@ -4027,6 +4028,13 @@ Definition: Service associated with the event
 
 
 
+### `event.signature` {#event-signature-doc}
+Type: string
+
+Definition: Signature of the process pid and its cgroup with agent secret key
+
+
+
 ### `event.source` {#event-source-doc}
 Type: string
 
@@ -4596,28 +4604,28 @@ Definition: Maximum (hard) limit value
 ### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
 Type: string
 
-Definition: Hash of the socket filter using sha256
+Definition: Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.filter_instructions` {#setsockopt-filter_instructions-doc}
 Type: string
 
-Definition: Filter instructions
+Definition: Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.filter_len` {#setsockopt-filter_len-doc}
 Type: int
 
-Definition: Length of the filter
+Definition: Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.is_filter_truncated` {#setsockopt-is_filter_truncated-doc}
 Type: bool
 
-Definition: Indicates that the filter is truncated
+Definition: Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
@@ -4659,7 +4667,7 @@ Definition: Socket type
 ### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
 Type: int
 
-Definition: List of immediate values used in the filter
+Definition: List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 

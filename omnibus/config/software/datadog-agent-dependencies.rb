@@ -10,14 +10,18 @@ end
 if fips_mode?
   dependency 'openssl-fips-provider'
 else
-  dependency 'secret-generic-connector' unless heroku_target?
+  if !heroku_target?
+    build do
+      command_on_repo_root "bazelisk run -- //deps/secret_connector:install --verbose --destdir=#{install_dir}"
+    end
+  end
 end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-if linux_target? and !heroku_target?
+if (linux_target? && !heroku_target?) || windows_target?
   build do
-    command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir=#{install_dir}"
   end
 end
 
@@ -32,17 +36,15 @@ dependency 'pympler'
 
 dependency "systemd" if linux_target?
 
-dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
+if linux_target? and !heroku_target? # system-probe dependency
+  build do
+    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir=#{install_dir}/embedded"
+  end
+end
 
 # Include traps db file in snmp.d/traps_db/
-# TODO: Fix rules_pkg so install works.
-if windows_target?
-  dependency 'snmp-traps'
-else
-  build do
-      command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir='#{install_dir}'",
-          env: { BUILD_WORKSPACE_DIRECTORY: "." }
-  end
+build do
+    command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir=#{install_dir}"
 end
 
 dependency 'datadog-agent-integrations-py3'
@@ -52,9 +54,6 @@ dependency 'datadog-agent-integrations-py3'
 if windows_target?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
   end
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'

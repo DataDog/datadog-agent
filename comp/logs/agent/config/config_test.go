@@ -1201,3 +1201,51 @@ func TestIsTCPRequired(t *testing.T) {
 		})
 	}
 }
+
+func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
+	suite.config.SetWithoutSource("api_key", "123")
+
+	// Test with 0.1 seconds (100ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.1)
+
+	logsConfig := NewLogsConfigKeys("logs_config.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(100*time.Millisecond, endpoints.BatchWait, "BatchWait should be 100ms")
+
+	// Test with 0.5 seconds (500ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 500ms")
+
+	// Test with 1.5 seconds
+	suite.config.SetWithoutSource("logs_config.batch_wait", 1.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(1500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 1.5 seconds")
+
+	// Test with integer value for backwards compatibility
+	suite.config.SetWithoutSource("logs_config.batch_wait", 5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(5*time.Second, endpoints.BatchWait, "BatchWait should be 5 seconds (integer value)")
+
+	// Test with value below minimum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.05) // 50ms, below 100ms minimum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
+
+	// Test with value above maximum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 15) // Above 10 second maximum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
+}

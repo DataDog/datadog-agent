@@ -10,6 +10,7 @@ package nvidia
 import (
 	"fmt"
 	"strconv"
+	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -80,29 +81,29 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return allMetrics, 0, multiErr
 }
 
-// processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
-	procs, err := device.GetComputeRunningProcesses()
+type processMemoryUsageData struct {
+	pid           uint32
+	usedGpuMemory uint64
+}
 
+func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, priority MetricPriority) []Metric {
 	var processMetrics []Metric
 	var allWorkloadIDs []workloadmeta.EntityID
 
-	if err == nil {
-		for _, proc := range procs {
-			workloads := []workloadmeta.EntityID{{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(proc.Pid)),
-			}}
-			allWorkloadIDs = append(allWorkloadIDs, workloads...)
+	for _, usage := range usage {
+		workloads := []workloadmeta.EntityID{{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(usage.pid)),
+		}}
+		allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
-			processMetrics = append(processMetrics, Metric{
-				Name:                "process.memory.usage",
-				Value:               float64(proc.UsedGpuMemory),
-				Type:                metrics.GaugeType,
-				Priority:            High,
-				AssociatedWorkloads: workloads,
-			})
-		}
+		processMetrics = append(processMetrics, Metric{
+			Name:                "process.memory.usage",
+			Value:               float64(usage.usedGpuMemory),
+			Type:                metrics.GaugeType,
+			Priority:            priority,
+			AssociatedWorkloads: workloads,
+		})
 	}
 
 	// Add device memory limit
@@ -111,15 +112,49 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 		Name:                "memory.limit",
 		Value:               float64(devInfo.Memory),
 		Type:                metrics.GaugeType,
-		Priority:            High,
+		Priority:            priority,
 		AssociatedWorkloads: allWorkloadIDs,
 	})
 
-	return processMetrics, 0, err
+	return processMetrics
+}
+
+// processMemorySample handles process memory usage collection logic
+func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
+	procs, err := device.GetComputeRunningProcesses()
+	var usage []processMemoryUsageData
+	if err == nil {
+		for _, proc := range procs {
+			usage = append(usage, processMemoryUsageData{
+				pid:           proc.Pid,
+				usedGpuMemory: proc.UsedGpuMemory,
+			})
+		}
+	}
+
+	return processMemoryUsage(device, usage, Medium), 0, err
+}
+
+func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	detail, err := device.GetRunningProcessDetailList()
+	var usage []processMemoryUsageData
+	if err == nil {
+		// procs.ProcArray is a pointer to an array of ProcessDetail_v1, in C-style pointer+length mode,
+		// so convert it to a slice:
+		procs := unsafe.Slice(detail.ProcArray, detail.NumProcArrayEntries)
+		for _, proc := range procs {
+			usage = append(usage, processMemoryUsageData{
+				pid:           proc.Pid,
+				usedGpuMemory: proc.UsedGpuMemory,
+			})
+		}
+	}
+
+	return processMemoryUsage(device, usage, High), 0, err
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs() []apiCallInfo {
+func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -144,7 +179,7 @@ func createStatelessAPIs() []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{
-					{Name: "memory.free", Value: float64(memInfo.Free), Priority: High, Type: metrics.GaugeType},
+					{Name: "memory.free", Value: float64(memInfo.Free), Priority: Medium, Type: metrics.GaugeType},
 					{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
 				}, 0, nil
 			},
@@ -324,16 +359,22 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "device_count",
+			Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return []Metric{{Name: "device.total", Value: 1, Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				isMig, err := device.IsMigDeviceHandle()
+				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
 				if err != nil {
 					return nil, 0, err
 				}
 				var count float64
-				if !isMig {
+				if !gpu.Healthy {
 					count = 1
 				}
-				return []Metric{{Name: "device.total", Value: count, Type: metrics.GaugeType}}, 0, nil
+				return []Metric{{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
@@ -355,7 +396,7 @@ func createStatelessAPIs() []apiCallInfo {
 					"none":                        nvml.ClocksEventReasonNone,
 				} {
 					value := 0.0
-					if reasons&reasonBit != 0 {
+					if reasons&reasonBit != 0 || (reasons == 0 && reasonBit == 0) {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
@@ -389,6 +430,13 @@ func createStatelessAPIs() []apiCallInfo {
 			Name: "process_memory_usage",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return processMemorySample(device)
+			},
+		},
+		// similar to process_memory_usage, but works with MIG. However, only supported on Hopper and later.
+		{
+			Name: "process_detail_list",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return processDetailListSample(device)
 			},
 		},
 		// NVLink collector APIs
@@ -430,6 +478,6 @@ func createStatelessAPIs() []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory())
+func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	return NewBaseCollector(stateless, device, statelessAPIFactory(deps))
 }

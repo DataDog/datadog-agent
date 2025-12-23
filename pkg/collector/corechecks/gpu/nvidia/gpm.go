@@ -169,12 +169,12 @@ func (c *gpmCollector) getLastTwoSamples() (nvml.GpmSample, nvml.GpmSample) {
 }
 
 func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
-	sample1, sample2 := c.getLastTwoSamples()
+	lastSample, secondToLastSample := c.getLastTwoSamples()
 	metricsGet := &nvml.GpmMetricsGetType{
 		NumMetrics: uint32(len(c.metricsToCollect)),
 		Version:    nvml.GPM_METRICS_GET_VERSION,
-		Sample1:    sample1,
-		Sample2:    sample2,
+		Sample1:    secondToLastSample,
+		Sample2:    lastSample,
 	}
 
 	metricIndex := 0
@@ -230,7 +230,7 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 			Name:     metricData.name,
 			Value:    metric.Value,
 			Type:     metricData.metricType,
-			Priority: High, // All GPM metrics have priority over other collectors
+			Priority: Medium, // All GPM metrics have priority over other collectors
 		})
 	}
 

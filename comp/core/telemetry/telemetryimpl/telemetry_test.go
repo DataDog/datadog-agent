@@ -131,6 +131,10 @@ func TestGoMetrics(t *testing.T) {
 	assert.Contains(t, metricNames, "go_sched_goroutines_goroutines")
 	assert.Contains(t, metricNames, "go_threads")
 	assert.Contains(t, metricNames, "go_gc_duration_seconds")
+	assert.Contains(t, metricNames, "go_cgo_go_to_c_calls_calls_total")
+	assert.Contains(t, metricNames, "go_cpu_classes_gc_mark_assist_cpu_seconds_total")
+	assert.Contains(t, metricNames, "go_sync_mutex_wait_total_seconds_total")
+	assert.NotContains(t, metricNames, "go_godebug_non_default_behavior_execerrdot_events_total")
 }
 
 func TestGatherText(t *testing.T) {
