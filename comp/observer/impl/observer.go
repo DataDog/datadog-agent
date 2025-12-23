@@ -25,7 +25,7 @@ type Provides struct {
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
-		analyses: []observerdef.Analysis{
+		logAnalyses: []observerdef.LogAnalysis{
 			&BadDetector{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -38,9 +38,9 @@ func NewComponent(deps Requires) Provides {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	analyses   []observerdef.Analysis
-	tsAnalyses []observerdef.TimeSeriesAnalysis
-	storage    *timeSeriesStorage
+	logAnalyses []observerdef.LogAnalysis
+	tsAnalyses  []observerdef.TimeSeriesAnalysis
+	storage     *timeSeriesStorage
 }
 
 // GetHandle returns a lightweight handle for a named source.
@@ -76,7 +76,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 func (h *handle) ObserveLog(msg observerdef.LogView) {
 	timestamp := time.Now().Unix()
 
-	for _, analysis := range h.observer.analyses {
+	for _, analysis := range h.observer.logAnalyses {
 		result := analysis.Analyze(msg)
 
 		// Add metrics from log analysis to storage, then run TS analyses
