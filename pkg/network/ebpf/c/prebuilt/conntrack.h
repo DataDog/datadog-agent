@@ -4,8 +4,10 @@
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#include <linux/skbuff.h>
 
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 
 #include "ip.h"
 #include "ipv6.h"
