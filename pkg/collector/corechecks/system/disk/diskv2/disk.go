@@ -46,7 +46,7 @@ const (
 	tagDeviceLabel = "device_label:"
 )
 
-// diskInstanceConfig represents an instance configuration.
+// diskInitConfig represents initialization configuration shared across instances.
 type diskInitConfig struct {
 	DeviceGlobalExclude       []string `yaml:"device_global_exclude"`
 	DeviceGlobalBlacklist     []string `yaml:"device_global_blacklist"`
@@ -101,9 +101,10 @@ type diskInstanceConfig struct {
 	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
 }
 
-func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
-	for _, regexp := range slice {
-		if regexp.MatchString(expression) {
+// matchesAnyRegex returns true if value matches any of the provided regular expressions.
+func matchesAnyRegex(value string, regexes []regexp.Regexp) bool {
+	for _, re := range regexes {
+		if re.MatchString(value) {
 			return true
 		}
 	}
@@ -653,42 +654,42 @@ func (c *Check) excludeDevice(device string) bool {
 	if device == "" || len(c.excludedDevices) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedDevices, device)
+	return matchesAnyRegex(device, c.excludedDevices)
 }
 
 func (c *Check) includeDevice(device string) bool {
 	if device == "" || len(c.includedDevices) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedDevices, device)
+	return matchesAnyRegex(device, c.includedDevices)
 }
 
 func (c *Check) excludeFileSystem(fileSystem string) bool {
 	if len(c.excludedFilesystems) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedFilesystems, fileSystem)
+	return matchesAnyRegex(fileSystem, c.excludedFilesystems)
 }
 
 func (c *Check) includeFileSystem(fileSystem string) bool {
 	if len(c.includedFilesystems) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedFilesystems, fileSystem)
+	return matchesAnyRegex(fileSystem, c.includedFilesystems)
 }
 
 func (c *Check) excludeMountPoint(mountPoint string) bool {
 	if len(c.excludedMountpoints) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedMountpoints, mountPoint)
+	return matchesAnyRegex(mountPoint, c.excludedMountpoints)
 }
 
 func (c *Check) includeMountPoint(mountPoint string) bool {
 	if len(c.includedMountpoints) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedMountpoints, mountPoint)
+	return matchesAnyRegex(mountPoint, c.includedMountpoints)
 }
 
 func (c *Check) getDeviceTags(device string) []string {
