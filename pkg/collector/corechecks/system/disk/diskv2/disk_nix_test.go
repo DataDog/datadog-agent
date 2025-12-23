@@ -1488,3 +1488,87 @@ func TestDeviceMapperResolution_WithMixedDeviceTypes(t *testing.T) {
 	// Regular device should keep its original name
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
 }
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenInodeMetricsAreReported(t *testing.T) {
+	// This tests that inode metrics (system.fs.inodes.*) are sent on Linux
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "ext4",
+			Total:             100000000000,
+			Free:              30000000000,
+			Used:              70000000000,
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        400000,
+			InodesFree:        600000,
+			InodesUsedPercent: 40.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Verify inode metrics are sent
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.total", float64(1000000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.used", float64(400000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.free", float64(600000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.utilized", float64(40.0), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.in_use", float64(0.4), "", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndInodesIsZero_ThenInodeMetricsAreNotReported(t *testing.T) {
+	// When InodesTotal is 0, inode metrics should not be sent (e.g., some filesystems don't support inodes)
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "tmpfs",
+			Total:             100000000,
+			Free:              50000000,
+			Used:              50000000,
+			UsedPercent:       50.0,
+			InodesTotal:       0, // No inodes
+			InodesUsed:        0,
+			InodesFree:        0,
+			InodesUsedPercent: 0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "tmpfs",
+				Mountpoint: "/tmp",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Disk metrics should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "device_name:tmpfs"})
+	// Inode metrics should NOT be reported when InodesTotal is 0
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
