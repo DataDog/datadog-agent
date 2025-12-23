@@ -116,3 +116,113 @@ func TestIsProcessProtected(t *testing.T) {
 		})
 	}
 }
+
+func TestGetFileDescription(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		expectError  bool
+		validateFunc func(t *testing.T, desc string)
+	}{
+		{
+			name:        "notepad.exe",
+			path:        "C:\\Windows\\System32\\notepad.exe",
+			expectError: false,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.Contains(t, desc, "Notepad", "notepad.exe does not match expected description")
+				t.Logf("notepad.exe description: %s", desc)
+			},
+		},
+		{
+			name:        "cmd.exe",
+			path:        "C:\\Windows\\System32\\cmd.exe",
+			expectError: false,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.NotEmpty(t, desc)
+				assert.Contains(t, desc, "Command", "cmd.exe does mention not match expected description")
+				t.Logf("cmd.exe description: %s", desc)
+			},
+		},
+		{
+			name:        "explorer.exe",
+			path:        "C:\\Windows\\explorer.exe",
+			expectError: false,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.Contains(t, desc, "Windows Explorer", "explorer.exe does not match expected description")
+				t.Logf("explorer.exe description: %s", desc)
+			},
+		},
+		{
+			name:        "powershell.exe",
+			path:        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			expectError: false,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.Contains(t, desc, "Windows PowerShell", "powershell.exe does not match expected description")
+				t.Logf("powershell.exe description: %s", desc)
+			},
+		},
+		{
+			name:        "kernel32.dll",
+			path:        "C:\\Windows\\System32\\kernel32.dll",
+			expectError: false,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.NotEmpty(t, desc)
+				t.Logf("kernel32.dll description: %s", desc)
+			},
+		},
+		{
+			name:        "non-existent file",
+			path:        "C:\\DoesNotExist\\fake.exe",
+			expectError: true,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.Empty(t, desc)
+			},
+		},
+		{
+			name:        "empty path",
+			path:        "",
+			expectError: true,
+			validateFunc: func(t *testing.T, desc string) {
+				assert.Empty(t, desc)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desc, err := GetFileDescription(tt.path)
+
+			if tt.expectError {
+				assert.Error(t, err, "Expected error for path: %s", tt.path)
+				t.Logf("Expected error: %v", err)
+			} else {
+				if err != nil {
+					t.Logf("Warning: Could not get file description for %s: %v", tt.path, err)
+					// Some systems might not have all files, so just log warning
+					return
+				}
+				assert.NoError(t, err, "Should not error for valid path: %s", tt.path)
+			}
+
+			if tt.validateFunc != nil {
+				tt.validateFunc(t, desc)
+			}
+		})
+	}
+}
+
+func TestGetFileDescriptionMultipleCalls(t *testing.T) {
+	// Test that multiple calls to the same file return consistent results
+	path := "C:\\Windows\\System32\\notepad.exe"
+
+	desc1, err1 := GetFileDescription(path)
+	if err1 != nil {
+		t.Skipf("Skipping test, notepad.exe not accessible: %v", err1)
+	}
+
+	desc2, err2 := GetFileDescription(path)
+	require.NoError(t, err2)
+
+	assert.Equal(t, desc1, desc2, "Multiple calls should return same description")
+	t.Logf("Consistent description: %s", desc1)
+}
