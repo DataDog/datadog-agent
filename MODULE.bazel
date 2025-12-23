@@ -31,6 +31,18 @@ bazel_dep(name = "bazel_lib", version = "3.0.1")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
+# Rust support
+bazel_dep(name = "rules_rust", version = "0.68.1")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = ["1.92.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
 # Temporary until rules_pkg 1.2.0 is in BCR
 archive_override(
     module_name = "rules_pkg",

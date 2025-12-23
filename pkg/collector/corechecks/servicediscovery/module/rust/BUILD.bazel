@@ -1,0 +1,20 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+rust_binary(
+    name = "sd-agent",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "sd-agent_pkg",
+    srcs = [":sd-agent"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":sd-agent_pkg"],
+)

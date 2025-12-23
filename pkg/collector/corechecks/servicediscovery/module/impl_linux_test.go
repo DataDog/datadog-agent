@@ -418,3 +418,29 @@ ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/ot
 		})
 	}
 }
+
+func TestRustBinary(t *testing.T) {
+	// Skip on CentOS 7 due to Rust binary not being statically linked
+	platform, err := kernel.Platform()
+	require.NoError(t, err)
+	platformVersion, err := kernel.PlatformVersion()
+	require.NoError(t, err)
+
+	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
+		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
+	}
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	binaryPath := filepath.Join(curDir, "rust", "sd-agent")
+
+	require.FileExists(t, binaryPath, "Rust binary should be built")
+
+	cmd := exec.Command(binaryPath)
+	output, err := cmd.CombinedOutput()
+
+	require.NoError(t, err, "Rust binary should execute successfully")
+	require.Contains(t, string(output), "Hello from Rust test binary!")
+	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0")
+}
