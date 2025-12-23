@@ -37,6 +37,13 @@ const (
 	CheckName   = "disk"
 	diskMetric  = "system.disk.%s"
 	inodeMetric = "system.fs.inodes.%s"
+
+	// Tag prefixes
+	tagDevice      = "device:"
+	tagDeviceName  = "device_name:"
+	tagFilesystem  = "filesystem:"
+	tagLabel       = "label:"
+	tagDeviceLabel = "device_label:"
 )
 
 // diskInstanceConfig represents an instance configuration.
@@ -575,7 +582,7 @@ func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsut
 func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string {
 	tags := []string{}
 	if c.instanceConfig.TagByFilesystem {
-		tags = append(tags, partition.Fstype, "filesystem:"+partition.Fstype)
+		tags = append(tags, partition.Fstype, tagFilesystem+partition.Fstype)
 	}
 	var deviceName string
 	if c.instanceConfig.UseMount {
@@ -592,23 +599,23 @@ func (c *Check) getDeviceNameTags(deviceName string) []string {
 }
 
 // buildDeviceTags creates common device-related tags.
-// tagDevice is used for the device: tag and regex matching (device_tag_re).
-// baseDevice is used for the device_name: tag and label lookup.
-func (c *Check) buildDeviceTags(tagDevice, baseDevice string) []string {
+// deviceForTag is used for the device: tag and regex matching (device_tag_re).
+// deviceForBase is used for the device_name: tag and label lookup.
+func (c *Check) buildDeviceTags(deviceForTag, deviceForBase string) []string {
 	tags := []string{}
 	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
-	normalizedDeviceName := normalizeDeviceTag(tagDevice)
+	normalizedDeviceName := normalizeDeviceTag(deviceForTag)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
+		tags = append(tags, tagDevice+strings.ToLower(normalizedDeviceName))
 	} else {
-		tags = append(tags, "device:"+normalizedDeviceName)
+		tags = append(tags, tagDevice+normalizedDeviceName)
 	}
-	tags = append(tags, "device_name:"+baseDeviceName(baseDevice))
-	// Use original tagDevice for regex matching in device_tag_re
-	tags = append(tags, c.getDeviceTags(tagDevice)...)
-	label, ok := c.deviceLabels[baseDevice]
+	tags = append(tags, tagDeviceName+baseDeviceName(deviceForBase))
+	// Use original deviceForTag for regex matching in device_tag_re
+	tags = append(tags, c.getDeviceTags(deviceForTag)...)
+	label, ok := c.deviceLabels[deviceForBase]
 	if ok {
-		tags = append(tags, "label:"+label, "device_label:"+label)
+		tags = append(tags, tagLabel+label, tagDeviceLabel+label)
 	}
 	return tags
 }
