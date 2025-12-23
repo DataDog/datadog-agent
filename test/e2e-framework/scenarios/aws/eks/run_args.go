@@ -79,8 +79,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	// Agent options: set defaults not depending on resources
 	if e.AgentDeploy() {
 		rp.agentOptions = append(rp.agentOptions, kubernetesagentparams.WithNamespace("datadog"))
-	} else {
-		rp.agentOptions = nil
 	}
 
 	// Fakeintake options
@@ -96,8 +94,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 			fiOpts = append(fiOpts, fakeintake.WithRetentionPeriod(retention))
 		}
 		rp.fakeintakeOptions = fiOpts
-	} else {
-		rp.fakeintakeOptions = nil
 	}
 
 	rp.deployDogstatsd = e.DogstatsdDeploy()

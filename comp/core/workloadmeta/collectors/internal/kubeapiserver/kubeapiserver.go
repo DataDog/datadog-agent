@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -191,7 +192,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {
-	var objectStores []*reflectorStore
+	var objectStores []cache.ResourceEventHandlerRegistration
 
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -223,6 +224,18 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
+	if c.config.GetBool("cluster_checks.crd_collection") {
+		log.Info("Enabling CRD informer for workloadmeta collector")
+		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
+		if err != nil {
+			log.Errorf("failed to setup CRD informer: %v", err)
+		} else {
+			log.Debug("CRD informer configured for workloadmeta")
+			objectStores = append(objectStores, handlerRegistration)
+		}
+	}
+	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
+
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
@@ -240,7 +253,48 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
+func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 15*time.Second)
+	if err != nil {
+		log.Infof("Couldn't collect cluster feature gates: %v", err)
+		return
+	}
+
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	for name, featureGate := range featureGates {
+		wlmFeatureGates[name] = workloadmeta.FeatureGate{
+			Name:    featureGate.Name,
+			Stage:   workloadmeta.FeatureGateStage(featureGate.Stage),
+			Enabled: featureGate.Enabled,
+		}
+	}
+
+	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 15*time.Second)
+	if err != nil {
+		log.Infof("Couldn't collect cluster version: %v", err)
+		return
+	}
+
+	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: &workloadmeta.KubeCapabilities{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubeCapabilities,
+					ID:   workloadmeta.KubeCapabilitiesID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: workloadmeta.KubeCapabilitiesName,
+				},
+				Version:      versionInfo,
+				FeatureGates: wlmFeatureGates,
+			},
+		},
+	})
+}
+
+func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
 	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
