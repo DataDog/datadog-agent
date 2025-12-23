@@ -20,8 +20,9 @@
 //! ```
 
 pub mod data;
+pub mod lazy_data;
 pub mod server;
 pub mod studies;
 
-pub use data::{load_parquet_files, LoadedData};
+pub use lazy_data::LazyDataStore;
 pub use server::{run_server, ServerConfig};
