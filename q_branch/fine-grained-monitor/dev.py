@@ -252,25 +252,37 @@ def cmd_start(data_file: str):
     # Write state
     write_state(proc.pid, port, str(data_path))
 
-    # Wait for health check
-    print("Waiting for server to be healthy...", end=" ", flush=True)
-    for i in range(100):  # 10 seconds total
-        time.sleep(0.1)
+    # Wait for health check (3 minute timeout for large data files)
+    file_size_mb = data_path.stat().st_size / (1024 * 1024)
+    print(f"Loading {file_size_mb:.1f}MB parquet file...")
+    start_wait = time.time()
+    timeout_secs = 180  # 3 minutes
+    check_interval = 0.5  # Check every 500ms
+    last_status = 0  # Last time we printed status
+
+    while (time.time() - start_wait) < timeout_secs:
+        time.sleep(check_interval)
 
         # Check if process died
         if proc.poll() is not None:
-            print("FAILED")
-            print(f"\nServer exited with code {proc.returncode}")
+            print(f"Server exited with code {proc.returncode}")
             print(f"Check logs: {LOG_FILE}")
             clear_state()
             return 1
 
         if check_health(port):
-            print("ok")
+            elapsed = time.time() - start_wait
+            print(f"Server ready ({elapsed:.1f}s)")
             break
+
+        # Print status every 5 seconds
+        elapsed = int(time.time() - start_wait)
+        if elapsed > 0 and elapsed % 5 == 0 and elapsed != last_status:
+            print(f"  Waiting for initial data load - {elapsed}s elapsed")
+            last_status = elapsed
     else:
-        print("TIMEOUT")
-        print("Server started but health check failed after 10s")
+        elapsed = time.time() - start_wait
+        print(f"Health check timed out after {elapsed:.0f}s")
         print(f"Check logs: {LOG_FILE}")
         # Don't kill it - maybe it's still loading
         print(f"\nServer may still be starting (pid {proc.pid})")
