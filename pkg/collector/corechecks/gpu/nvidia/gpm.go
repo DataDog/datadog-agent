@@ -230,7 +230,7 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 			Name:     metricData.name,
 			Value:    metric.Value,
 			Type:     metricData.metricType,
-			Priority: High, // All GPM metrics have priority over other collectors
+			Priority: Medium, // All GPM metrics have priority over other collectors
 		})
 	}
 

@@ -7,7 +7,6 @@
 package securityagentimpl
 
 import (
-	"context"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -15,7 +14,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,7 +25,6 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
-	Telemetry telemetry.Component
 }
 
 // Provides defines the output of the remoteagent component
@@ -54,12 +51,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 		ipc:               reqs.IPC,
 		cfg:               reqs.Config,
-		telemetry:         reqs.Telemetry,
 		remoteAgentServer: remoteAgentServer,
 	}
-
-	// Add your gRPC services implementations here:
-	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -68,27 +61,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type remoteagentImpl struct {
-	log       log.Component
-	ipc       ipc.Component
-	cfg       config.Component
-	telemetry telemetry.Component
+	log log.Component
+	ipc ipc.Component
+	cfg config.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
-}
-
-func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
-	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
-	// Add here the metric names that should be included in the telemetry response.
-	// This is useful to avoid sending too many metrics to the Core Agent.
-	))
-	if err != nil {
-		return nil, err
-	}
-
-	return &pbcore.GetTelemetryResponse{
-		Payload: &pbcore.GetTelemetryResponse_PromText{
-			PromText: prometheusText,
-		},
-	}, nil
 }
