@@ -83,7 +83,7 @@ func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 	}
 
 	var artifactOption artifact.Option
-	if looselyCompareAnalyzers(scanOptions.Analyzers, []string{OSAnalyzers}) {
+	if len(scanOptions.Analyzers) == 1 && scanOptions.Analyzers[0] == OSAnalyzers {
 		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
 	} else {
 		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
@@ -292,30 +292,4 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, 
 		dependencies:    c.config.computeDependencies,
 		simplifyBomRefs: c.config.simplifyBomRefs,
 	})
-}
-
-func looselyCompareAnalyzers(given []string, against []string) bool {
-	target := make(map[string]struct{}, len(against))
-	for _, val := range against {
-		target[val] = struct{}{}
-	}
-
-	validated := make(map[string]struct{})
-
-	for _, val := range given {
-		// if already validated, skip
-		// this allows to support duplicated entries
-		if _, ok := validated[val]; ok {
-			continue
-		}
-
-		// if this value is not in
-		if _, ok := target[val]; !ok {
-			return false
-		}
-		delete(target, val)
-		validated[val] = struct{}{}
-	}
-
-	return len(target) == 0
 }
