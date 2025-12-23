@@ -34,6 +34,10 @@ Report()
 ```
 Unlike analyses, consumers are stateful. They accumulate events and process them when `Report()` is called.
 
+## Threading Model
+
+Handles are the only concurrent part. They copy data and send it over a channel. Everything else (storage, analyses, consumers) runs in a single dispatch goroutine, so no locks are needed in component implementations.
+
 ## Writing a New Analysis
 
 Implement `LogAnalysis` or `TimeSeriesAnalysis`:
@@ -76,21 +80,16 @@ Implement `AnomalyConsumer`:
 
 ```go
 type MyConsumer struct {
-    mu     sync.Mutex
     events []observer.AnomalyOutput
 }
 
 func (c *MyConsumer) Name() string { return "my_consumer" }
 
 func (c *MyConsumer) Consume(anomaly observer.AnomalyOutput) {
-    c.mu.Lock()
-    defer c.mu.Unlock()
     c.events = append(c.events, anomaly)
 }
 
 func (c *MyConsumer) Report() {
-    c.mu.Lock()
-    defer c.mu.Unlock()
     // Do something with accumulated events
     for _, e := range c.events {
         fmt.Printf("Anomaly: %s\n", e.Title)

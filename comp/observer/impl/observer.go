@@ -22,6 +22,30 @@ type Provides struct {
 	Comp observerdef.Component
 }
 
+// observation is a message sent from handles to the observer.
+type observation struct {
+	source string
+	metric *metricObs
+	log    *logObs
+}
+
+// metricObs contains copied metric data.
+type metricObs struct {
+	name      string
+	value     float64
+	tags      []string
+	timestamp int64
+}
+
+// logObs contains copied log data.
+type logObs struct {
+	content   []byte
+	status    string
+	tags      []string
+	hostname  string
+	timestamp int64
+}
+
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
@@ -35,7 +59,9 @@ func NewComponent(deps Requires) Provides {
 			&MemoryConsumer{},
 		},
 		storage: newTimeSeriesStorage(),
+		obsCh:   make(chan observation, 1000),
 	}
+	go obs.run()
 	return Provides{Comp: obs}
 }
 
@@ -45,17 +71,82 @@ type observerImpl struct {
 	tsAnalyses  []observerdef.TimeSeriesAnalysis
 	consumers   []observerdef.AnomalyConsumer
 	storage     *timeSeriesStorage
+	obsCh       chan observation
+}
+
+// run is the main dispatch loop, processing all observations sequentially.
+func (o *observerImpl) run() {
+	for obs := range o.obsCh {
+		if obs.metric != nil {
+			o.processMetric(obs.source, obs.metric)
+		}
+		if obs.log != nil {
+			o.processLog(obs.source, obs.log)
+		}
+	}
+}
+
+// processMetric handles a metric observation.
+func (o *observerImpl) processMetric(source string, m *metricObs) {
+	// Add to storage
+	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+
+	// Run time series analyses (using average aggregation)
+	if series := o.storage.GetSeries(source, m.name, m.tags, AggregateAverage); series != nil {
+		o.runTSAnalyses(*series)
+	}
+}
+
+// processLog handles a log observation.
+func (o *observerImpl) processLog(source string, l *logObs) {
+	// Create a view for analyses
+	view := &logView{obs: l}
+
+	for _, analysis := range o.logAnalyses {
+		result := analysis.Analyze(view)
+
+		// Add metrics from log analysis to storage, then run TS analyses
+		for _, m := range result.Metrics {
+			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
+			if series := o.storage.GetSeries(source, m.Name, m.Tags, AggregateAverage); series != nil {
+				o.runTSAnalyses(*series)
+			}
+		}
+
+		// Forward anomalies to consumers
+		for _, anomaly := range result.Anomalies {
+			o.consumeAnomaly(anomaly)
+		}
+	}
+}
+
+// runTSAnalyses runs all time series analyses on a series.
+func (o *observerImpl) runTSAnalyses(series observerdef.Series) {
+	for _, tsAnalysis := range o.tsAnalyses {
+		result := tsAnalysis.Analyze(series)
+		for _, anomaly := range result.Anomalies {
+			o.consumeAnomaly(anomaly)
+		}
+	}
+}
+
+// consumeAnomaly sends an anomaly to all registered consumers.
+func (o *observerImpl) consumeAnomaly(anomaly observerdef.AnomalyOutput) {
+	for _, consumer := range o.consumers {
+		consumer.Consume(anomaly)
+	}
 }
 
 // GetHandle returns a lightweight handle for a named source.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
-	return &handle{observer: o, source: name}
+	return &handle{ch: o.obsCh, source: name}
 }
 
 // handle is the lightweight observation interface passed to other components.
+// It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	observer *observerImpl
-	source   string
+	ch     chan<- observation
+	source string
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -64,54 +155,48 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
-	name := sample.GetName()
-	tags := sample.GetRawTags()
 
-	// Add to storage
-	h.observer.storage.Add(h.source, name, sample.GetValue(), timestamp, tags)
-
-	// Run time series analyses (using average aggregation)
-	if series := h.observer.storage.GetSeries(h.source, name, tags, AggregateAverage); series != nil {
-		h.runTSAnalyses(*series)
+	h.ch <- observation{
+		source: h.source,
+		metric: &metricObs{
+			name:      sample.GetName(),
+			value:     sample.GetValue(),
+			tags:      copyTags(sample.GetRawTags()),
+			timestamp: timestamp,
+		},
 	}
 }
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
-	timestamp := time.Now().Unix()
-
-	for _, analysis := range h.observer.logAnalyses {
-		result := analysis.Analyze(msg)
-
-		// Add metrics from log analysis to storage, then run TS analyses
-		for _, m := range result.Metrics {
-			h.observer.storage.Add(h.source, m.Name, m.Value, timestamp, m.Tags)
-			if series := h.observer.storage.GetSeries(h.source, m.Name, m.Tags, AggregateAverage); series != nil {
-				h.runTSAnalyses(*series)
-			}
-		}
-
-		// Forward anomalies to consumers
-		for _, anomaly := range result.Anomalies {
-			h.consumeAnomaly(anomaly)
-		}
+	h.ch <- observation{
+		source: h.source,
+		log: &logObs{
+			content:   copyBytes(msg.GetContent()),
+			status:    msg.GetStatus(),
+			tags:      copyTags(msg.GetTags()),
+			hostname:  msg.GetHostname(),
+			timestamp: time.Now().Unix(),
+		},
 	}
 }
 
-// runTSAnalyses runs all time series analyses on a series.
-func (h *handle) runTSAnalyses(series observerdef.Series) {
-	for _, tsAnalysis := range h.observer.tsAnalyses {
-		result := tsAnalysis.Analyze(series)
-		// Forward anomalies to consumers
-		for _, anomaly := range result.Anomalies {
-			h.consumeAnomaly(anomaly)
-		}
-	}
+// logView wraps logObs to implement LogView interface.
+type logView struct {
+	obs *logObs
 }
 
-// consumeAnomaly sends an anomaly to all registered consumers.
-func (h *handle) consumeAnomaly(anomaly observerdef.AnomalyOutput) {
-	for _, consumer := range h.observer.consumers {
-		consumer.Consume(anomaly)
+func (v *logView) GetContent() []byte  { return v.obs.content }
+func (v *logView) GetStatus() string   { return v.obs.status }
+func (v *logView) GetTags() []string   { return v.obs.tags }
+func (v *logView) GetHostname() string { return v.obs.hostname }
+
+// copyBytes creates a copy of a byte slice.
+func copyBytes(b []byte) []byte {
+	if b == nil {
+		return nil
 	}
+	result := make([]byte, len(b))
+	copy(result, b)
+	return result
 }
