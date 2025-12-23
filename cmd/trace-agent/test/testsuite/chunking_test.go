@@ -7,6 +7,8 @@ package testsuite
 
 import (
 	"fmt"
+	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func randomString(n int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var sb strings.Builder
+	sb.Grow(n)
+	for i := 0; i < n; i++ {
+		sb.WriteByte(charset[rand.Intn(len(charset))])
+	}
+	return sb.String()
+}
 
 // TestPayloadChunking creates a payload that is N * writer.MaxPayloadSize and
 // expects the trace-agent to writer N+1 payloads and not miss any trace.
@@ -33,27 +45,31 @@ func TestPayloadChunking(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.KillAgent()
-
-	trace, err := jsonTraceFromPath("./testdata/trace_with_rates.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedPayloadCount := 5
+	expectedPayloadCount := 4
 	// make a payload that will need to be chunked into separate payloads
 	var traces pb.Traces
-	for range 1290 { // We know 1290 traces will fit into 5 payloads out (we do not calculate up front due to the v1 payload size limit reducing the size required before chunking)
+	for range 50 {
+		trace, err := jsonTraceFromPath("./testdata/trace_with_rates.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for span := range trace {
+			// We must add some uniqueness over each chunk so we actually take up space when converted to v1
+			trace[span].Meta["someRandomness"] = randomString(25_000) // 25kb is the max size of a string attribute value
+		}
 		traces = append(traces, trace)
 	}
-
+	fmt.Printf("Sending %d traces of size %d\n", len(traces), traces.Msgsize())
 	if err := r.Post(traces); err != nil {
 		t.Fatal(err)
 	}
 	timeout := time.After(3 * time.Second)
 	var got int
-	for i := 0; i < expectedPayloadCount+1; i++ {
+	for i := 0; i < expectedPayloadCount; i++ {
 		select {
 		case p := <-r.Out():
 			if v, ok := p.(*pb.AgentPayload); ok {
+				fmt.Printf("Got a payload with %d chunks of size %d\n", len(v.IdxTracerPayloads[0].Chunks), v.IdxTracerPayloads[0].SizeVT())
 				// ok
 				for _, tracerPayload := range v.IdxTracerPayloads {
 					got += len(tracerPayload.Chunks)

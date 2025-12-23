@@ -33,7 +33,7 @@ const defaultConnectionLimit = 5
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
-var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+var MaxPayloadSize = 3_200_000 // 3.2MB is the maximum allowed by the Datadog API
 
 type samplerTPSReader interface {
 	GetTargetTPS() float64
@@ -227,30 +227,48 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 	var toFlush [][]*idx.TracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	pkg.TracerPayload.RemoveUnusedStrings()
 	pbTracerPayload := pkg.TracerPayload.ToProto()
-	size := 0
-	for i := 0; i < len(pbTracerPayload.Chunks); {
-		size += pbTracerPayload.Chunks[i].SizeVT()
-		if size+w.bufferedSizeV1 > MaxPayloadSize {
-			log.Tracef("Writer: reached maximum allowed buffered size, flushing payload with %d chunks", i)
-			// reached maximum allowed buffered size
-			// Split the payload into two and flush
-			splitPayload := pbTracerPayload.ShallowCopy()
-			splitPayload.Chunks = splitPayload.Chunks[:i]
-			pbTracerPayload.Chunks = pbTracerPayload.Chunks[i:]
-			agentPayload := append(w.tracerPayloadsV1, splitPayload)
-			toFlush = append(toFlush, agentPayload)
-			w.resetBufferV1()
-			size = 0
-			i = 0
+	pbTracerPayload.RemoveUnusedStrings()
+	size := pbTracerPayload.SizeVT()
+	if size+w.bufferedSizeV1 > MaxPayloadSize {
+		// Buffer is full, split the incoming Tracer payload
+		log.Debugf("Writer: reached maximum allowed buffered size, splitting payload with %d chunks and size %d", len(pbTracerPayload.Chunks), size)
+		numChunks := len(pbTracerPayload.Chunks)
+		if numChunks < 4 {
+			// If fewer than 4 chunks, send each chunk separately
+			for i := 0; i < numChunks; i++ {
+				splitPayload := pbTracerPayload.NewStringsClone()
+				splitPayload.Chunks = pbTracerPayload.Chunks[i : i+1]
+				splitPayload.RemoveUnusedStrings()
+				log.Debugf("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				agentPayload := append(w.tracerPayloadsV1, splitPayload)
+				toFlush = append(toFlush, agentPayload)
+				w.resetBufferV1()
+			}
 		} else {
-			i++
+			// Split into 4 groups of chunks
+			// This ensures we stay well under the intake limit as the worstcase here is 3.2 MB + 25 MB / 4 = 7.3 MB
+			chunksPerPayload := numChunks / 4
+			for i := range 4 {
+				splitPayload := pbTracerPayload.NewStringsClone()
+				// For the last group, include any remaining chunks due to integer division
+				endIdx := (i + 1) * chunksPerPayload
+				if i == 3 {
+					endIdx = numChunks
+				}
+				splitPayload.Chunks = pbTracerPayload.Chunks[i*chunksPerPayload : endIdx]
+				splitPayload.RemoveUnusedStrings() // We must remove unused strings again from these new split payloads to reduce the size of each payload
+				log.Debugf("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				agentPayload := append(w.tracerPayloadsV1, splitPayload)
+				toFlush = append(toFlush, agentPayload)
+				w.resetBufferV1()
+			}
 		}
+		return toFlush
 	}
 	w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pbTracerPayload)
 	w.bufferedSizeV1 += size
-	return toFlush
+	return nil
 }
 
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent

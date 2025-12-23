@@ -2658,7 +2658,8 @@ func TestPartialSamplingFree(t *testing.T) {
 	// The big strings from the partial flush will be cleaned up when we flush the old payload
 	// To simulate that we explicitly call RemoveUnusedStrings on the payload as the real TraceWriterV1 does
 	assert.Len(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1, 1)
-	agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1[0].TracerPayload.RemoveUnusedStrings()
+	pbTP := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1[0].TracerPayload.ToProto()
+	pbTP.RemoveUnusedStrings()
 	// big chunk should be cleaned as unsampled and passed through stats
 	runtime.GC()
 	runtime.ReadMemStats(&m)

@@ -152,28 +152,26 @@ func (tp *InternalTracerPayload) Msgsize() int {
 }
 
 // RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
-// This should be called before marshalling or otherwise exposing the tracer payload to remove any sensitive
+// This should be called before serializing or otherwise exposing the tracer payload to remove any sensitive
 // strings that are no longer referenced
-func (tp *InternalTracerPayload) RemoveUnusedStrings() {
-	usedStrings := make([]bool, tp.Strings.Len())
-	usedStrings[tp.containerIDRef] = true
-	usedStrings[tp.languageNameRef] = true
-	usedStrings[tp.languageVersionRef] = true
-	usedStrings[tp.tracerVersionRef] = true
-	usedStrings[tp.runtimeIDRef] = true
-	usedStrings[tp.envRef] = true
-	usedStrings[tp.hostnameRef] = true
-	usedStrings[tp.appVersionRef] = true
-	markAttributeMapStringsUsed(usedStrings, tp.Strings, tp.Attributes)
+func (tp *TracerPayload) RemoveUnusedStrings() {
+	usedStrings := make([]bool, len(tp.Strings))
+	usedStrings[tp.ContainerIDRef] = true
+	usedStrings[tp.LanguageNameRef] = true
+	usedStrings[tp.LanguageVersionRef] = true
+	usedStrings[tp.TracerVersionRef] = true
+	usedStrings[tp.RuntimeIDRef] = true
+	usedStrings[tp.EnvRef] = true
+	usedStrings[tp.HostnameRef] = true
+	usedStrings[tp.AppVersionRef] = true
+	markAttributeMapStringsUsed(usedStrings, tp.Attributes)
 	for _, chunk := range tp.Chunks {
 		chunk.markUsedStrings(usedStrings)
 	}
 	for i, used := range usedStrings {
 		if !used {
-			// Remove the reverse lookup and set the string to the empty string
 			// We don't adjust the table itself to avoid changing the indices of the other strings
-			delete(tp.Strings.lookup, tp.Strings.strings[i])
-			tp.Strings.strings[i] = ""
+			tp.Strings[i] = ""
 		}
 	}
 }
@@ -256,11 +254,13 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 }
 
-// ShallowCopy returns a shallow copy of the tracer payload.
-// The copy is not safe to use concurrently with the original.
-func (pbTp *TracerPayload) ShallowCopy() *TracerPayload {
+// NewStringsClone returns a shallow copy of the tracer payload. where the strings are set to a new string table.
+// This can be used to split a payload into multiple payloads and remove unused strings from the new payloads without modifying the original payload.
+func (pbTp *TracerPayload) NewStringsClone() *TracerPayload {
+	newStrings := make([]string, len(pbTp.Strings))
+	copy(newStrings, pbTp.Strings)
 	return &TracerPayload{
-		Strings:            pbTp.Strings,
+		Strings:            newStrings,
 		ContainerIDRef:     pbTp.ContainerIDRef,
 		LanguageNameRef:    pbTp.LanguageNameRef,
 		LanguageVersionRef: pbTp.LanguageVersionRef,
@@ -508,9 +508,9 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
-func (c *InternalTraceChunk) markUsedStrings(usedStrings []bool) {
-	usedStrings[c.originRef] = true
-	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
+func (c *TraceChunk) markUsedStrings(usedStrings []bool) {
+	usedStrings[c.OriginRef] = true
+	markAttributeMapStringsUsed(usedStrings, c.Attributes)
 	for _, span := range c.Spans {
 		span.markUsedStrings(usedStrings)
 	}
@@ -560,20 +560,20 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
-func (s *InternalSpan) markUsedStrings(usedStrings []bool) {
-	usedStrings[s.span.ServiceRef] = true
-	usedStrings[s.span.NameRef] = true
-	usedStrings[s.span.ResourceRef] = true
-	usedStrings[s.span.TypeRef] = true
-	usedStrings[s.span.EnvRef] = true
-	usedStrings[s.span.VersionRef] = true
-	usedStrings[s.span.ComponentRef] = true
-	markAttributeMapStringsUsed(usedStrings, s.Strings, s.span.Attributes)
-	for _, link := range s.span.Links {
-		markSpanLinkUsedStrings(usedStrings, s.Strings, link)
+func (s *Span) markUsedStrings(usedStrings []bool) {
+	usedStrings[s.ServiceRef] = true
+	usedStrings[s.NameRef] = true
+	usedStrings[s.ResourceRef] = true
+	usedStrings[s.TypeRef] = true
+	usedStrings[s.EnvRef] = true
+	usedStrings[s.VersionRef] = true
+	usedStrings[s.ComponentRef] = true
+	markAttributeMapStringsUsed(usedStrings, s.Attributes)
+	for _, link := range s.Links {
+		markSpanLinkUsedStrings(usedStrings, link)
 	}
-	for _, event := range s.span.Events {
-		markSpanEventUsedStrings(usedStrings, s.Strings, event)
+	for _, event := range s.Events {
+		markSpanEventUsedStrings(usedStrings, event)
 	}
 }
 
@@ -582,14 +582,14 @@ func (s *InternalSpan) ToProto() *Span {
 	return s.span
 }
 
-func markSpanLinkUsedStrings(usedStrings []bool, strTable *StringTable, link *SpanLink) {
+func markSpanLinkUsedStrings(usedStrings []bool, link *SpanLink) {
 	usedStrings[link.TracestateRef] = true
-	markAttributeMapStringsUsed(usedStrings, strTable, link.Attributes)
+	markAttributeMapStringsUsed(usedStrings, link.Attributes)
 }
 
-func markSpanEventUsedStrings(usedStrings []bool, strTable *StringTable, event *SpanEvent) {
+func markSpanEventUsedStrings(usedStrings []bool, event *SpanEvent) {
 	usedStrings[event.NameRef] = true
-	markAttributeMapStringsUsed(usedStrings, strTable, event.Attributes)
+	markAttributeMapStringsUsed(usedStrings, event.Attributes)
 }
 
 // ShallowCopy returns a shallow copy of the span
@@ -1315,27 +1315,27 @@ func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*A
 	}
 }
 
-func markAttributeMapStringsUsed(usedStrings []bool, strTable *StringTable, attributes map[uint32]*AnyValue) {
+func markAttributeMapStringsUsed(usedStrings []bool, attributes map[uint32]*AnyValue) {
 	for keyIdx, attr := range attributes {
 		usedStrings[keyIdx] = true
-		markAttributeStringUsed(usedStrings, strTable, attr)
+		markAttributeStringUsed(usedStrings, attr)
 	}
 }
 
 // markAttributeStringUsed marks the string referenced by the value as used
 // This is used to track which strings are used in the span and can be removed from the string table
-func markAttributeStringUsed(usedStrings []bool, strTable *StringTable, value *AnyValue) {
+func markAttributeStringUsed(usedStrings []bool, value *AnyValue) {
 	switch v := value.Value.(type) {
 	case *AnyValue_StringValueRef:
 		usedStrings[v.StringValueRef] = true
 	case *AnyValue_ArrayValue:
 		for _, value := range v.ArrayValue.Values {
-			markAttributeStringUsed(usedStrings, strTable, value)
+			markAttributeStringUsed(usedStrings, value)
 		}
 	case *AnyValue_KeyValueList:
 		for _, kv := range v.KeyValueList.KeyValues {
 			usedStrings[kv.Key] = true
-			markAttributeStringUsed(usedStrings, strTable, kv.Value)
+			markAttributeStringUsed(usedStrings, kv.Value)
 		}
 	}
 }
