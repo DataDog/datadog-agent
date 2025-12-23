@@ -98,7 +98,7 @@ func newFakeForkEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
 	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
-	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
+	e.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
 	return e
 }
 
@@ -113,7 +113,7 @@ func newFakeExecEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
 	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
-	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
+	e.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
 	return e
 }
 
@@ -158,14 +158,14 @@ func TestFork1st(t *testing.T) {
 	child := newFakeForkEvent(3, 4, 123, resolver)
 
 	// X(pid:3)
-	resolver.AddForkEntry(parent, nil)
+	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// X(pid:3)
 	//    |
 	// X(pid:4)
-	resolver.AddForkEntry(child, nil)
+	resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -842,7 +842,7 @@ func TestCGroupContext(t *testing.T) {
 		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, model.CGroupContext{
 			Releasable: &model.Releasable{},
 			CGroupID:   cgroupID,
-			CGroupFile: model.PathKey{
+			CGroupPathKey: model.PathKey{
 				Inode: 4242,
 			},
 		}, nil)

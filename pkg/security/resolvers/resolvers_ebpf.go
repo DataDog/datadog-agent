@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -102,7 +101,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil, dentryResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -256,27 +255,6 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
-}
-
-// ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (model.CGroupContext, bool, error) {
-	cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey)
-	if found {
-		return cgroupContext, true, nil
-	}
-
-	cgroupPath, err := r.DentryResolver.Resolve(pathKey, false)
-	if err != nil {
-		return cgroupContext, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
-	}
-
-	cgroupContext = model.CGroupContext{
-		Releasable: &model.Releasable{},
-		CGroupID:   containerutils.CGroupID(cgroupPath),
-		CGroupFile: pathKey,
-	}
-
-	return cgroupContext, false, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

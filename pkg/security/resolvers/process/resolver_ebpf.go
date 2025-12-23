@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -292,7 +291,7 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) error {
+func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
 	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
@@ -305,12 +304,12 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.P
 
 	p.Lock()
 	defer p.Unlock()
-	p.insertForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent, newEntryCb)
+	p.insertForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, cgroupContext, model.ProcessCacheEntryFromEvent, newEntryCb)
 	return nil
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
+func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -324,7 +323,7 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 		if event.ProcessCacheEntry.Pid == 0 {
 			return errors.New("no pid context")
 		}
-		p.insertExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent)
+		p.insertExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, cgroupContext, model.ProcessCacheEntryFromEvent)
 	}
 
 	event.Exec.Process = &event.ProcessCacheEntry.Process
@@ -375,31 +374,6 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		}
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info: %w", proc.Pid, err)
 	}
-
-	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
-	containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
-	if err != nil {
-		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
-			// If the process is not found, it may have exited, so we log a warning
-			seclog.Warnf("%s", errMsg)
-		} else {
-			seclog.Errorf("%s", errMsg)
-		}
-	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
-		// Get the file fields of the sysfs cgroup file
-		info, err := p.RetrieveFileFieldsFromProcfs(cgroupPath)
-		if err != nil {
-			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
-		} else {
-			cgroup.CGroupFile.MountID = info.MountID
-		}
-	}
-
-	entry.Process.ContainerContext.ContainerID = containerID
-
-	entry.CGroup = cgroup
-	entry.Process.CGroup = cgroup
 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
@@ -463,6 +437,32 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.EnvsEntry.Values = envs
 		entry.EnvsEntry.Truncated = truncated
 	}
+
+	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
+	containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
+	if err != nil {
+		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+			// If the process is not found, it may have exited, so we log a warning
+			seclog.Warnf("%s", errMsg)
+		} else {
+			seclog.Errorf("%s", errMsg)
+		}
+	} else if cgroup.CGroupPathKey.Inode != 0 && cgroup.CGroupPathKey.MountID == 0 { // the mount id is unavailable through statx
+		// TODO REMOVE THIS PART
+		// Get the file fields of the sysfs cgroup file
+		info, err := p.RetrieveFileFieldsFromProcfs(cgroupPath)
+		if err != nil {
+			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
+		} else {
+			cgroup.CGroupPathKey.MountID = info.MountID
+		}
+	}
+
+	entry.Process.ContainerContext.ContainerID = containerID
+	entry.Process.ContainerContext.CreatedAt = uint64(entry.ExecTime.UnixNano())
+
+	entry.Process.CGroup = cgroup
 
 	// Heuristic to detect likely interpreter event
 	// Cannot detect when a script if as follows:
@@ -574,16 +574,21 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	return &fileFields, nil
 }
 
-func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64, newPid bool) {
+func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext model.CGroupContext, source uint64) {
 	entry.Source = source
 
 	p.entryCache[entry.Pid] = entry
 
-	if newPid && p.cgroupResolver != nil {
+	// handle cgroup & container context
+	if p.cgroupResolver != nil {
 		// add the new PID in the right cgroup_resolver bucket
-		p.cgroupResolver.AddPID(entry)
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, uint64(entry.ExecTime.UnixNano()), cgroupContext); cacheEntry != nil {
+			entry.CGroup = cacheEntry.CGroupContext
+			entry.Process.ContainerContext = cacheEntry.ContainerContext
+		}
 	}
 
+	// increment the stats
 	switch source {
 	case model.ProcessCacheEntryFromEvent:
 		p.addedEntriesFromEvent.Inc()
@@ -594,7 +599,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 	}
 }
 
-func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
+func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, cgroupContext model.CGroupContext, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	if entry.Pid == 0 {
 		return
 	}
@@ -626,10 +631,10 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 		}
 	}
 
-	p.insertEntry(entry, source, true)
+	p.insertEntry(entry, cgroupContext, source)
 }
 
-func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, cgroupContext model.CGroupContext, source uint64) {
 	if entry.Pid == 0 {
 		return
 	}
@@ -651,7 +656,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		entry.IsParentMissing = true
 	}
 
-	p.insertEntry(entry, source, false)
+	p.insertEntry(entry, cgroupContext, source)
 }
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -901,7 +906,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
-	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
+	cgroupRead, err := entry.CGroup.CGroupPathKey.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
@@ -919,10 +924,10 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
+	/*if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
 		entry.CGroup.Merge(&cgroup)
 		entry.Process.ContainerContext.ContainerID = containerID
-	}
+	}*/
 
 	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
 		if newEntryCb != nil {
@@ -932,11 +937,12 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry, entry.FileEvent.Inode, model.ProcessCacheEntryFromKernelMap, newEntryCb)
-	} else {
-		p.insertExecEntry(entry, 0, model.ProcessCacheEntryFromKernelMap)
-	}
+	/*	if entry.ExecTime.IsZero() {
+			p.insertForkEntry(entry, entry.FileEvent.Inode, model.ProcessCacheEntryFromKernelMap, newEntryCb)
+		} else {
+			p.insertExecEntry(entry, 0, model.ProcessCacheEntryFromKernelMap)
+		}
+	*/
 
 	if newEntryCb != nil {
 		newEntryCb(entry, nil)
@@ -1388,7 +1394,7 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
-	p.insertEntry(entry, source, true)
+	p.insertEntry(entry, entry.CGroup, source)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
@@ -1536,21 +1542,6 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
-// SetProcessCGroupContext sets the cgroup context and container ID of the process matching the provided PID
-func (p *EBPFResolver) SetProcessCGroupContext(pce *model.ProcessCacheEntry, cgroupContext model.CGroupContext) {
-	pce.Process.CGroup = cgroupContext
-
-	if cgroupContext.CGroupID != "" {
-		pce.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.Process.ContainerContext.CreatedAt = uint64(pce.Process.ExecTime.UnixNano())
-
-		// update the PID in the right cgroup_resolver bucket
-		if p.cgroupResolver != nil {
-			p.cgroupResolver.AddPID(pce)
-		}
-	}
-}
-
 // UpdateProcessCGroupContext updates the cgroup context and container ID of the process matching the provided PID
 func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	p.Lock()
@@ -1561,7 +1552,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext mode
 		return false
 	}
 
-	p.SetProcessCGroupContext(pce, cgroupContext)
+	pce.Process.CGroup = cgroupContext
 
 	return true
 }

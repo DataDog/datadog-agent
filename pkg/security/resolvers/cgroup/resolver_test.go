@@ -38,7 +38,7 @@ func (m *MockCGroupFS) GetCgroupPids(cgroupID string) ([]uint32, error) {
 func createTestResolver(t *testing.T) (*Resolver, *MockCGroupFS) {
 	mockCGroupFS := &MockCGroupFS{}
 
-	resolver, err := NewResolver(nil, mockCGroupFS)
+	resolver, err := NewResolver(nil, mockCGroupFS, nil)
 	assert.NoError(t, err)
 
 	return resolver, mockCGroupFS
@@ -60,7 +60,7 @@ func createTestProcessCacheEntry(pid, ppid uint32, containerID containerutils.Co
 				CGroup: model.CGroupContext{
 					Releasable: &model.Releasable{},
 					CGroupID:   "",
-					CGroupFile: model.PathKey{
+					CGroupPathKey: model.PathKey{
 						Inode:   0,
 						MountID: 0,
 					},
@@ -142,7 +142,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 	parentCgroup := &model.CGroupContext{
 		Releasable: &model.Releasable{},
 		CGroupID:   "parent-cgroup-id",
-		CGroupFile: model.PathKey{
+		CGroupPathKey: model.PathKey{
 			Inode:   parentInode,
 			MountID: 123,
 		},

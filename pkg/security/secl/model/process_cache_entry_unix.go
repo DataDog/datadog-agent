@@ -91,7 +91,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 
 	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !parent.CGroup.CGroupFile.IsNull() && child.CGroup.CGroupFile.IsNull() {
+	if !parent.CGroup.CGroupPathKey.IsNull() && child.CGroup.CGroupPathKey.IsNull() {
 		child.CGroup = parent.CGroup
 	}
 
@@ -193,7 +193,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	}
 
 	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !pc.CGroup.CGroupFile.IsNull() && childEntry.CGroup.CGroupFile.IsNull() {
+	if !pc.CGroup.CGroupPathKey.IsNull() && childEntry.CGroup.CGroupPathKey.IsNull() {
 		childEntry.CGroup = pc.CGroup
 	}
 
