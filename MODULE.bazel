@@ -121,11 +121,12 @@ use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
-register_toolchains(
-    "@gcc_toolchain_x86_64//:cc_toolchain",
-    "@gcc_toolchain_aarch64//:cc_toolchain",
-    "//bazel/toolchains/mingw:mingw_cc_toolchain",
-)
+# #agent-build workaround until after the holidays
+#register_toolchains(
+#    "@gcc_toolchain_x86_64//:cc_toolchain",
+#    "@gcc_toolchain_aarch64//:cc_toolchain",
+#    "//bazel/toolchains/mingw:mingw_cc_toolchain",
+#)
 
 # Visual Studio / MSBuild tooling, taken from the local installation
 visual_studio(
