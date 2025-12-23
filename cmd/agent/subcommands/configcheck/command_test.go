@@ -95,7 +95,9 @@ value: 456`,
 		Logs:         "foo: bar",
 	}
 
-	expected := `{"check_name":"check name","provider":"file","source":"file:/path/to/config.yaml","instances":[{"id":"0","config":""},{"id":"123","config":"name: instance123\nvalue: 456"}],"init_config":"foo: bar","metric_config":"foo: bar","logs":"foo: bar"}`
+	// raw json terminated by a newline
+	expected := `{"check_name":"check name","provider":"file","source":"file:/path/to/config.yaml","instances":[{"id":"0","config":""},{"id":"123","config":"name: instance123\nvalue: 456"}],"init_config":"foo: bar","metric_config":"foo: bar","logs":"foo: bar"}
+`
 
 	var b bytes.Buffer
 
@@ -127,6 +129,7 @@ value: 456`,
 		Logs:         "foo: bar",
 	}
 
+	// pretty-formatted json terminated by a newline
 	expected := `{
   "check_name": "check name",
   "provider": "file",
@@ -144,7 +147,8 @@ value: 456`,
   "init_config": "foo: bar",
   "metric_config": "foo: bar",
   "logs": "foo: bar"
-}`
+}
+`
 
 	var b bytes.Buffer
 
