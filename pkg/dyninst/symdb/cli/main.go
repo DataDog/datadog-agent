@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	container "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
@@ -232,13 +233,23 @@ func run() (retErr error) {
 	bufferFuncs := 0
 	// Flush every so ofter in order to not store too many scopes in memory.
 	const maxBufferFuncs = 10000
-	maybeFlush := func(force bool) error {
+	uploadID := uuid.New()
+	batchNum := 0
+	maybeFlush := func(final bool) error {
 		if len(uploadBuffer) == 0 {
 			return nil
 		}
-		if force || bufferFuncs >= maxBufferFuncs {
+		if final || bufferFuncs >= maxBufferFuncs {
 			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
-			if err := up.Upload(context.Background(), uploadBuffer); err != nil {
+			err := up.UploadBatch(
+				context.Background(),
+				uploader.UploadInfo{
+					UploadID: uploadID,
+					BatchNum: batchNum,
+					Final:    final,
+				},
+				uploadBuffer)
+			if err != nil {
 				return fmt.Errorf("upload failed: %w", err)
 			}
 			uploadBuffer = uploadBuffer[:0]
@@ -254,25 +265,21 @@ func run() (retErr error) {
 		}
 
 		if up != nil {
-			scope := uploader.ConvertPackageToScope(pkg, "cli" /* agentVersion */)
+			scope := uploader.ConvertPackageToScope(pkg.Package, "cli" /* agentVersion */)
 			uploadBuffer = append(uploadBuffer, scope)
 			bufferFuncs += pkg.Stats().NumFunctions
-			if err := maybeFlush(false /* force */); err != nil {
+			if err := maybeFlush(pkg.Final); err != nil {
 				return err
 			}
 		}
 
-		stats.addPackage(pkg)
+		stats.addPackage(pkg.Package)
 
 		if !*silent {
 			pkg.Serialize(out)
 		}
 	}
-	if err := maybeFlush(true /* force */); err != nil {
-		log.Errorf("Failed to upload symbols: %v", err)
-	} else {
-		log.Info("Upload completed")
-	}
+	log.Info("Upload completed")
 
 	trace.Stop()
 	log.Infof("Symbol extraction completed in %s.", time.Since(start))
