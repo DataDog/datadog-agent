@@ -284,6 +284,10 @@ func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEven
 func (c *DeviceEventsGatherer) SupportsDevice(device ddnvml.Device) (bool, error) {
 	evtTypes, err := device.GetSupportedEventTypes()
 	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return false, nil
+		}
+
 		return false, fmt.Errorf("failed to query supported device event types for %s: %w", device.GetDeviceInfo().UUID, err)
 	}
 	return (evtTypes & eventSetMask) != 0, nil
