@@ -289,42 +289,60 @@ func isValidMACAddress(mac string) bool {
 
 // validateWiFiData performs defensive validation on WiFi data received from GUI
 func validateWiFiData(data *guiWiFiData) error {
+	var validationErrors []string
+
 	// RSSI should be in valid range
 	if data.RSSI < minRSSI || data.RSSI > maxRSSI {
-		return fmt.Errorf("invalid RSSI value: %d (expected %d to %d)", data.RSSI, minRSSI, maxRSSI)
+		msg := fmt.Sprintf("RSSI out of range: %d (expected %d to %d)", data.RSSI, minRSSI, maxRSSI)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_rssi")
 	}
 
 	// SSID max length per IEEE 802.11 standard
 	if len(data.SSID) > maxSSIDLength {
-		return fmt.Errorf("SSID too long: %d bytes (max %d)", len(data.SSID), maxSSIDLength)
+		msg := fmt.Sprintf("SSID too long: %d bytes (max %d)", len(data.SSID), maxSSIDLength)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_ssid_length")
 	}
 
 	// BSSID should be empty or valid MAC address format
 	if data.BSSID != "" && !isValidMACAddress(data.BSSID) {
-		return fmt.Errorf("invalid BSSID format: %s (expected XX:XX:XX:XX:XX:XX)", data.BSSID)
+		msg := fmt.Sprintf("Invalid BSSID format: %s (expected XX:XX:XX:XX:XX:XX)", data.BSSID)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_bssid_format")
 	}
 
 	// Channel should be in valid WiFi channel range
 	if data.Channel < minChannel || data.Channel > maxChannel {
-		return fmt.Errorf("invalid channel: %d (expected %d-%d)", data.Channel, minChannel, maxChannel)
+		msg := fmt.Sprintf("Channel out of range: %d (expected %d-%d)", data.Channel, minChannel, maxChannel)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_channel")
 	}
 
 	// Noise should be in reasonable range
 	if data.Noise < minNoise || data.Noise > maxNoise {
-		return fmt.Errorf("invalid noise value: %d (expected %d to %d)", data.Noise, minNoise, maxNoise)
+		msg := fmt.Sprintf("Noise out of range: %d (expected %d to %d)", data.Noise, minNoise, maxNoise)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_noise")
 	}
 
 	// Data rates should be non-negative and reasonable
 	if data.TransmitRate < minDataRate || data.TransmitRate > maxDataRate {
-		return fmt.Errorf("invalid transmit rate: %f (expected %d-%d Mbps)", data.TransmitRate, minDataRate, maxDataRate)
+		msg := fmt.Sprintf("Transmit rate out of range: %f (expected %d-%d Mbps)", data.TransmitRate, minDataRate, maxDataRate)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_tx_rate")
 	}
 	if data.ReceiveRate < minDataRate || data.ReceiveRate > maxDataRate {
-		return fmt.Errorf("invalid receive rate: %f (expected %d-%d Mbps)", data.ReceiveRate, minDataRate, maxDataRate)
+		msg := fmt.Sprintf("Receive rate out of range: %f (expected %d-%d Mbps)", data.ReceiveRate, minDataRate, maxDataRate)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_rx_rate")
 	}
 
 	// MAC address should be empty or valid format
 	if data.MACAddress != "" && !isValidMACAddress(data.MACAddress) {
-		return fmt.Errorf("invalid MAC address format: %s", data.MACAddress)
+		msg := fmt.Sprintf("Invalid MAC address format: %s (expected XX:XX:XX:XX:XX:XX)", data.MACAddress)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_mac_format")
 	}
 
 	// PHY mode should be from known set
@@ -343,7 +361,14 @@ func validateWiFiData(data *guiWiFiData) error {
 		"Unknown":  true,
 	}
 	if !validPHYModes[data.PHYMode] {
-		return fmt.Errorf("invalid PHY mode: %s (expected 802.11a/b/g/n/ac/ax/ah/ad/ay/be/None/Unknown)", data.PHYMode)
+		msg := fmt.Sprintf("Unknown PHY mode: %s (expected 802.11a/b/g/n/ac/ax/ah/ad/ay/be/None/Unknown)", data.PHYMode)
+		log.Warn(msg)
+		validationErrors = append(validationErrors, "invalid_phy_mode")
+	}
+
+	// Return aggregated error if any validation failed
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("WiFi data validation failed: %s", strings.Join(validationErrors, ", "))
 	}
 
 	return nil
