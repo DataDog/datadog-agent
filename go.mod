@@ -977,7 +977,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
-	github.com/DataDog/ddtrivy v0.0.0-20251222174104-089f2d7a1093
+	github.com/DataDog/ddtrivy v0.0.0-20260105154803-43ef4de19047
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/creack/pty v1.1.23
