@@ -49,6 +49,7 @@ parquet = { version = "54", features = ["arrow"] }
 arrow = "54"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
+rayon = "1.10"
 
 [dev-dependencies]
 proptest = "1.5"
