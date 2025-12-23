@@ -359,16 +359,8 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 		{
 			Name: "device_count",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				isMig, err := device.IsMigDeviceHandle()
-				if err != nil {
-					return nil, 0, err
-				}
-				var count float64
-				if !isMig {
-					count = 1
-				}
-				return []Metric{{Name: "device.total", Value: count, Type: metrics.GaugeType}}, 0, nil
+			Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return []Metric{{Name: "device.total", Value: 1, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
