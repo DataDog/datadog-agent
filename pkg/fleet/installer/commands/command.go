@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -382,14 +383,29 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 
+			// Parse operations from command-line argument
 			var operations config.Operations
 			err = json.Unmarshal([]byte(args[1]), &operations)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not decode operations: %w", err)
 			}
+
+			// Read decrypted secrets from stdin
+			// For backwards compatibility, accept empty stdin (no secrets)
+			var decryptedSecrets map[string]string
+			decoder := json.NewDecoder(os.Stdin)
+			err = decoder.Decode(&decryptedSecrets)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("could not decode secrets from stdin: %w", err)
+			}
+			// If stdin is empty or EOF, use empty map
+			if decryptedSecrets == nil {
+				decryptedSecrets = make(map[string]string)
+			}
+
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
 			i.span.SetTag("params.operations", operations.FileOperations)
-			return i.InstallConfigExperiment(i.ctx, args[0], operations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations, decryptedSecrets)
 		},
 	}
 	return cmd

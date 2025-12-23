@@ -7,13 +7,16 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	patch "gopkg.in/evanphx/json-patch.v4"
@@ -38,6 +41,11 @@ const (
 	FileOperationMove FileOperationType = "move"
 )
 
+var (
+	// secRegex matches SEC[...] placeholders in config patches
+	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
+)
+
 // Directories is the directories of the config.
 type Directories struct {
 	StablePath     string
@@ -54,6 +62,34 @@ type State struct {
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
 	FileOperations []FileOperation `json:"file_operations"`
+}
+
+// ReplaceSecrets replaces SEC[deployment_id:key] placeholders with decrypted values in the operations.
+func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
+	for key, decryptedValue := range decryptedSecrets {
+		// Build the full key: SEC[deployment_id:key]
+		fullKey := fmt.Sprintf("SEC[%s:%s]", operations.DeploymentID, key)
+
+		// Replace in all file operations
+		for i := range operations.FileOperations {
+			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
+				operations.FileOperations[i].Patch = bytes.ReplaceAll(
+					operations.FileOperations[i].Patch,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
+		}
+	}
+
+	// Verify all secrets have been replaced
+	for _, operation := range operations.FileOperations {
+		if secRegex.Match(operation.Patch) {
+			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+		}
+	}
+
+	return nil
 }
 
 // Apply applies the operations to the root.

@@ -727,3 +727,62 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 		assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
 	}
 }
+
+func TestReplaceSecrets(t *testing.T) {
+	t.Run("successfully replace secrets", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
+				},
+				{
+					Patch: []byte(`app_key: SEC[test-config:appkey]`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+			"appkey": "my-app-key",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "api_key: my-api-key", string(ops.FileOperations[0].Patch))
+		assert.Equal(t, "app_key: my-app-key", string(ops.FileOperations[1].Patch))
+	})
+
+	t.Run("no secrets to replace", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					Patch: []byte(`{"log_level": "debug"}`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, `{"log_level": "debug"}`, string(ops.FileOperations[0].Patch))
+	})
+
+	t.Run("unreplaced secret returns error", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"wrong-key": "some-value",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "secrets are not fully replaced")
+	})
+}

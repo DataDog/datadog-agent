@@ -102,8 +102,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
-	args := m.Called(ctx, pkg, operations)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
+	args := m.Called(ctx, pkg, operations, decryptedSecrets)
 	return args.Error(0)
 }
 
@@ -248,7 +248,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
-	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader) // TODO: make this deterministic?
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
 	daemon := newDaemon(
@@ -493,7 +493,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
-	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader) // TODO: make this deterministic?
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
 	testEnv := &env.Env{
@@ -546,7 +546,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	pm.AssertExpectations(t)
 }
 
-func TestDecryptConfigSecrets(t *testing.T) {
+func TestDecryptSecrets(t *testing.T) {
 	// Generate test encryption keys
 	pubKey, privKey, err := box.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -558,7 +558,7 @@ func TestDecryptConfigSecrets(t *testing.T) {
 		return base64.StdEncoding.EncodeToString(encrypted)
 	}
 
-	t.Run("successfully decrypt and replace secrets", func(t *testing.T) {
+	t.Run("successfully decrypt secrets and skip unreferenced", func(t *testing.T) {
 		d := &daemonImpl{
 			secretsPubKey:  pubKey,
 			secretsPrivKey: privKey,
@@ -568,34 +568,55 @@ func TestDecryptConfigSecrets(t *testing.T) {
 		appKey := "my-app-key"
 		encryptedAPI := encryptSecret(t, apiKey, pubKey)
 		encryptedApp := encryptSecret(t, appKey, pubKey)
+		encryptedUnused := encryptSecret(t, "unused", pubKey)
 
 		ops := config.Operations{
 			DeploymentID: "test-config",
 			FileOperations: []config.FileOperation{
 				{
-					FileOperationType: "patch",
-					FilePath:          "/etc/datadog/datadog.yaml",
-					Patch:             []byte(`api_key: SEC[test-config:apikey]`),
+					Patch: []byte(`api_key: SEC[test-config:apikey]`),
 				},
 				{
-					FileOperationType: "patch",
-					FilePath:          "/etc/datadog/datadog.yaml",
-					Patch:             []byte(`app_key: SEC[test-config:appkey]`),
+					Patch: []byte(`app_key: SEC[test-config:appkey]`),
 				},
 			},
 		}
 
-		result, err := d.decryptConfigSecrets(ops, map[string]string{
+		decryptedSecrets, err := d.decryptSecrets(ops, map[string]string{
 			"apikey": encryptedAPI,
 			"appkey": encryptedApp,
+			"unused": encryptedUnused,
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, "api_key: "+apiKey, string(result.FileOperations[0].Patch))
-		assert.Equal(t, "app_key: "+appKey, string(result.FileOperations[1].Patch))
+		assert.Equal(t, apiKey, decryptedSecrets["apikey"])
+		assert.Equal(t, appKey, decryptedSecrets["appkey"])
+		assert.NotContains(t, decryptedSecrets, "unused")
+		assert.Len(t, decryptedSecrets, 2)
 	})
 
-	t.Run("invalid base64 encoding returns error", func(t *testing.T) {
+	t.Run("empty secrets map", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
+				{
+					Patch: []byte(`log_level: debug`),
+				},
+			},
+		}
+
+		decryptedSecrets, err := d.decryptSecrets(ops, map[string]string{})
+
+		require.NoError(t, err)
+		assert.Empty(t, decryptedSecrets)
+	})
+
+	t.Run("decryption errors", func(t *testing.T) {
 		d := &daemonImpl{
 			secretsPubKey:  pubKey,
 			secretsPrivKey: privKey,
@@ -610,61 +631,22 @@ func TestDecryptConfigSecrets(t *testing.T) {
 			},
 		}
 
-		_, err := d.decryptConfigSecrets(ops, map[string]string{
+		// Invalid base64
+		_, err := d.decryptSecrets(ops, map[string]string{
 			"apikey": "not-valid-base64!!!",
 		})
-
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decode secret")
-	})
 
-	t.Run("decryption with wrong key returns error", func(t *testing.T) {
+		// Wrong encryption key
 		wrongPubKey, _, err := box.GenerateKey(rand.Reader)
 		require.NoError(t, err)
+		encryptedWithWrongKey := encryptSecret(t, "secret", wrongPubKey)
 
-		d := &daemonImpl{
-			secretsPubKey:  pubKey,
-			secretsPrivKey: privKey,
-		}
-
-		encryptedSecret := encryptSecret(t, "secret-value", wrongPubKey)
-
-		ops := config.Operations{
-			DeploymentID: "test-config",
-			FileOperations: []config.FileOperation{
-				{
-					Patch: []byte(`api_key: SEC[test-config:apikey]`),
-				},
-			},
-		}
-
-		_, err = d.decryptConfigSecrets(ops, map[string]string{
-			"apikey": encryptedSecret,
+		_, err = d.decryptSecrets(ops, map[string]string{
+			"apikey": encryptedWithWrongKey,
 		})
-
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
-	})
-
-	t.Run("secrets are not fully decrypted returns error", func(t *testing.T) {
-		d := &daemonImpl{
-			secretsPubKey:  pubKey,
-			secretsPrivKey: privKey,
-		}
-
-		ops := config.Operations{
-			DeploymentID: "test-config",
-			FileOperations: []config.FileOperation{
-				{
-					Patch: []byte(`api_key: SEC[test-config:apikey]`),
-				},
-			},
-		}
-
-		_, err := d.decryptConfigSecrets(ops, map[string]string{
-			"another-secret": encryptSecret(t, "another-secret", pubKey),
-		})
-
-		require.Error(t, err)
 	})
 }

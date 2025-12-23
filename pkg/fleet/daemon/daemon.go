@@ -17,7 +17,6 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -54,9 +53,6 @@ var (
 
 	// installExperimentFunc is the method to install an experiment. Overridden in tests.
 	installExperimentFunc = bootstrap.InstallExperiment
-
-	// secRegex is the regex to match SEC (greedy)
-	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
 )
 
 // PackageState represents a package state.
@@ -293,10 +289,14 @@ func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
 	return config, nil
 }
 
-// decryptConfigSecrets decrypts the secrets in the config.
-func (d *daemonImpl) decryptConfigSecrets(operations config.Operations, encryptedSecrets map[string]string) (config.Operations, error) {
+// decryptSecrets decrypts the encrypted secrets and returns them as a map.
+// It does NOT replace them in the operations - that will be done by the installer binary.
+// This is to avoid leaking the secrets in argv/envp.
+func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecrets map[string]string) (map[string]string, error) {
+	decryptedSecrets := make(map[string]string)
+
 	for key, encoded := range encryptedSecrets {
-		// 1. Check any file operation in the config contains SEC[key]
+		// 1. Check if any file operation in the config contains SEC[key]
 		found := false
 		for _, operation := range operations.FileOperations {
 			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s:%s]", operations.DeploymentID, key)) {
@@ -311,32 +311,20 @@ func (d *daemonImpl) decryptConfigSecrets(operations config.Operations, encrypte
 		// 2. Decode the base64 encoded secret
 		raw, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
-			return config.Operations{}, fmt.Errorf("could not decode secret %s: %w", key, err)
+			return nil, fmt.Errorf("could not decode secret %s: %w", key, err)
 		}
 
 		// 3. Decrypt the secret
 		decrypted, ok := box.OpenAnonymous(nil, raw, d.secretsPubKey, d.secretsPrivKey)
 		if !ok {
-			return config.Operations{}, fmt.Errorf("could not decrypt secret %s: %w", key, err)
+			return nil, fmt.Errorf("could not decrypt secret %s", key)
 		}
 
-		// 4. Replace the secret in the patch
-		fullKey := fmt.Sprintf("SEC[%s:%s]", operations.DeploymentID, key)
-		for i := range operations.FileOperations {
-			if strings.Contains(string(operations.FileOperations[i].Patch), fullKey) {
-				operations.FileOperations[i].Patch = bytes.ReplaceAll(operations.FileOperations[i].Patch, []byte(fullKey), decrypted)
-			}
-		}
+		// 4. Store the decrypted secret
+		decryptedSecrets[key] = string(decrypted)
 	}
 
-	// 5. If any SEC[key] is left, return an error. We don't care what's in the SEC[.*], it just shouldn't be left.
-	for _, operation := range operations.FileOperations {
-		if secRegex.MatchString(string(operation.Patch)) {
-			return config.Operations{}, errors.New("secrets are not fully decrypted, SEC[...] found in the config")
-		}
-	}
-
-	return operations, nil
+	return decryptedSecrets, nil
 }
 
 // SetCatalog sets the catalog.
@@ -558,12 +546,15 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, oper
 
 	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
 
-	operations, err = d.decryptConfigSecrets(operations, encryptedSecrets)
+	// Decrypt secrets but don't replace them in operations yet
+	decryptedSecrets, err := d.decryptSecrets(operations, encryptedSecrets)
 	if err != nil {
 		return fmt.Errorf("could not decrypt secrets: %w", err)
 	}
 
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
+	// Pass operations with placeholders and decrypted secrets to installer
+	// The installer will do the replacement
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations, decryptedSecrets)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
