@@ -6,6 +6,8 @@
 package stats
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -117,11 +119,22 @@ type SpanConcentrator struct {
 
 // NewSpanConcentrator builds a new SpanConcentrator object
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {
+	// Allow overriding buffer length via environment variable for testing
+	bufferLen := defaultBufferLen
+	if envVal := os.Getenv("DD_APM_STATS_BUFFER_LEN"); envVal != "" {
+		if val, err := strconv.Atoi(envVal); err == nil && val > 0 {
+			bufferLen = val
+			log.Debugf("Using stats buffer length from DD_APM_STATS_BUFFER_LEN: %d", bufferLen)
+		} else {
+			log.Warnf("Invalid DD_APM_STATS_BUFFER_LEN value '%s', using default: %d", envVal, defaultBufferLen)
+		}
+	}
+
 	sc := &SpanConcentrator{
 		computeStatsBySpanKind: cfg.ComputeStatsBySpanKind,
 		bsize:                  cfg.BucketInterval,
 		oldestTs:               alignTs(now.UnixNano(), cfg.BucketInterval),
-		bufferLen:              defaultBufferLen,
+		bufferLen:              bufferLen,
 		mu:                     sync.Mutex{},
 		buckets:                make(map[int64]*RawBucket),
 	}
