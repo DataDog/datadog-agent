@@ -1456,3 +1456,62 @@ mount_point_exclude:
 		return false
 	}))
 }
+
+func TestGivenADiskCheckWithDeviceTagReConfiguredWithMultipleTags_WhenCheckRuns_ThenAllTagsAreReported(t *testing.T) {
+	// This tests that device_tag_re supports comma-separated multiple tags
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "ext4",
+			Total:             100000000,
+			Free:              50000000,
+			Used:              50000000,
+			UsedPercent:       50.0,
+			InodesTotal:       10000,
+			InodesUsed:        5000,
+			InodesFree:        5000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	// Configure device_tag_re with multiple comma-separated tags
+	config := integration.Data([]byte(`
+device_tag_re:
+  /dev/sda.*: role:primary, type:ssd, tier:fast
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Verify all three tags are present on the metrics
+	m.AssertCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		hasRole := false
+		hasType := false
+		hasTier := false
+		for _, tag := range tags {
+			if tag == "role:primary" {
+				hasRole = true
+			}
+			if tag == "type:ssd" {
+				hasType = true
+			}
+			if tag == "tier:fast" {
+				hasTier = true
+			}
+		}
+		return hasRole && hasType && hasTier
+	}))
+}
