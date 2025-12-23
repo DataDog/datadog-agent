@@ -12,6 +12,7 @@ use arrow::array::{
 };
 use arrow::datatypes::DataType;
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -354,162 +355,43 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
 }
 
 /// Load timeseries data for a specific metric and set of containers.
-/// Uses predicate pushdown to filter by metric_name at the parquet level.
+/// Uses predicate pushdown and parallel processing for speed.
 fn load_metric_data(
     paths: &[PathBuf],
     metric: &str,
     container_ids: &[&str],
 ) -> Result<Vec<(String, Vec<TimeseriesPoint>)>> {
     let start = std::time::Instant::now();
-    let container_set: HashSet<&str> = container_ids.iter().copied().collect();
-
-    // Collect raw data: container_id -> RawContainerData
-    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    let container_set: Arc<HashSet<String>> = Arc::new(
+        container_ids
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+    );
     let is_cumulative_metric = is_cumulative(metric);
+    let metric = metric.to_string();
 
-    for path in paths {
-        let file = File::open(path).context("Failed to open file")?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    // Process files in parallel, each file returns its own HashMap
+    let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
+        .par_iter()
+        .map(|path| {
+            load_metric_from_file(path, &metric, &container_set, is_cumulative_metric)
+        })
+        .collect();
 
-        let schema = builder.schema();
-        let parquet_schema = builder.parquet_schema();
-
-        // Project needed columns for data reading
-        let projection: Vec<usize> =
-            ["metric_name", "time", "value_int", "value_float", "labels"]
-                .iter()
-                .filter_map(|name| schema.index_of(name).ok())
-                .collect();
-
-        let projection_mask =
-            parquet::arrow::ProjectionMask::roots(parquet_schema, projection.clone());
-
-        // Create predicate pushdown filter for metric_name
-        // This tells parquet to skip row groups/pages that don't match
-        let metric_name_idx = schema.index_of("metric_name").ok();
-        let reader = if let Some(idx) = metric_name_idx {
-            let predicate_mask = parquet::arrow::ProjectionMask::roots(parquet_schema, vec![idx]);
-
-            let target_metric = Arc::new(metric.to_string());
-            let predicate = ArrowPredicateFn::new(predicate_mask, move |batch| {
-                // batch contains only the metric_name column
-                let metric_col = batch
-                    .column(0)
-                    .as_any()
-                    .downcast_ref::<StringArray>();
-
-                match metric_col {
-                    Some(arr) => {
-                        // Vectorized comparison - build boolean mask
-                        let matches: BooleanArray = arr
-                            .iter()
-                            .map(|opt| opt.map(|s| s == target_metric.as_str()))
-                            .collect();
-                        Ok(matches)
-                    }
-                    None => {
-                        // Fallback: keep all rows if column type is unexpected
-                        Ok(BooleanArray::from(vec![true; batch.num_rows()]))
-                    }
-                }
-            });
-
-            let row_filter = RowFilter::new(vec![Box::new(predicate)]);
-
-            builder
-                .with_projection(projection_mask)
-                .with_row_filter(row_filter)
-                .with_batch_size(65536)
-                .build()?
-        } else {
-            // Fallback without predicate if metric_name column not found
-            builder
-                .with_projection(projection_mask)
-                .with_batch_size(65536)
-                .build()?
-        };
-
-        for batch_result in reader {
-            let batch = batch_result?;
-
-            // With predicate pushdown, all rows already match metric_name == metric
-            // But we still need to read the column for the rare fallback case
-            let times = batch.column_by_name("time").context("Missing time column")?;
-
-            let values_int = batch
-                .column_by_name("value_int")
-                .and_then(|c| c.as_any().downcast_ref::<UInt64Array>());
-
-            let values_float = batch
-                .column_by_name("value_float")
-                .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
-
-            let labels_col = batch
-                .column_by_name("labels")
-                .context("Missing labels column")?;
-
-            let time_values: Vec<i64> = match times.data_type() {
-                DataType::Timestamp(_, _) => {
-                    let ts_array = times
-                        .as_any()
-                        .downcast_ref::<arrow::array::TimestampMillisecondArray>()
-                        .context("Failed to cast timestamp")?;
-                    (0..ts_array.len()).map(|i| ts_array.value(i)).collect()
-                }
-                _ => anyhow::bail!("Unexpected time column type"),
-            };
-
-            for row in 0..batch.num_rows() {
-                // No metric_name check needed - predicate pushdown already filtered
-
-                // Get container ID from labels
-                let labels = extract_labels_from_column(labels_col.as_ref(), row)?;
-                let container_id = match extract_label(&labels, "container_id") {
-                    Some(id) => id,
-                    None => continue,
-                };
-
-                let short_id = if container_id.len() > 12 {
-                    container_id[..12].to_string()
-                } else {
-                    container_id.clone()
-                };
-
-                // Filter by container
-                if !container_set.contains(short_id.as_str()) {
-                    continue;
-                }
-
-                // Get value
-                let value = if let Some(arr) = values_float {
-                    if !arr.is_null(row) {
-                        arr.value(row)
-                    } else if let Some(int_arr) = values_int {
-                        if !int_arr.is_null(row) {
-                            int_arr.value(row) as f64
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                } else if let Some(int_arr) = values_int {
-                    if !int_arr.is_null(row) {
-                        int_arr.value(row) as f64
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                };
-
-                let time = time_values[row];
-
-                raw_data
-                    .entry(short_id)
-                    .or_default()
-                    .add_point(time, value, is_cumulative_metric);
-            }
+    // Merge results from all files
+    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    for result in file_results {
+        let file_data = result?;
+        for (id, data) in file_data {
+            raw_data
+                .entry(id)
+                .or_insert_with(|| RawContainerData {
+                    is_cumulative: is_cumulative_metric,
+                    initialized: true,
+                    ..Default::default()
+                })
+                .merge(data);
         }
     }
 
@@ -528,6 +410,258 @@ fn load_metric_data(
     );
 
     Ok(result)
+}
+
+/// Load metric data from a single parquet file using parallel row group reading.
+fn load_metric_from_file(
+    path: &PathBuf,
+    metric: &str,
+    container_set: &HashSet<String>,
+    is_cumulative_metric: bool,
+) -> Result<HashMap<String, RawContainerData>> {
+    // First, get metadata to determine row groups
+    let file = File::open(path).context("Failed to open file")?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    let num_row_groups = builder.metadata().num_row_groups();
+
+    // For small files, process sequentially
+    if num_row_groups <= 4 {
+        return load_row_groups(path, metric, container_set, is_cumulative_metric, None);
+    }
+
+    // Split row groups across threads for parallel processing
+    let num_threads = rayon::current_num_threads().min(num_row_groups);
+    let chunk_size = (num_row_groups + num_threads - 1) / num_threads;
+
+    let row_group_chunks: Vec<Vec<usize>> = (0..num_row_groups)
+        .collect::<Vec<_>>()
+        .chunks(chunk_size)
+        .map(|c| c.to_vec())
+        .collect();
+
+    // Process row group chunks in parallel
+    let chunk_results: Vec<Result<HashMap<String, RawContainerData>>> = row_group_chunks
+        .par_iter()
+        .map(|row_groups| {
+            load_row_groups(
+                path,
+                metric,
+                container_set,
+                is_cumulative_metric,
+                Some(row_groups.clone()),
+            )
+        })
+        .collect();
+
+    // Merge results
+    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    for result in chunk_results {
+        let chunk_data = result?;
+        for (id, data) in chunk_data {
+            raw_data
+                .entry(id)
+                .or_insert_with(|| RawContainerData {
+                    is_cumulative: is_cumulative_metric,
+                    initialized: true,
+                    ..Default::default()
+                })
+                .merge(data);
+        }
+    }
+
+    Ok(raw_data)
+}
+
+/// Load specific row groups from a parquet file.
+fn load_row_groups(
+    path: &PathBuf,
+    metric: &str,
+    container_set: &HashSet<String>,
+    is_cumulative_metric: bool,
+    row_groups: Option<Vec<usize>>,
+) -> Result<HashMap<String, RawContainerData>> {
+    let file = File::open(path).context("Failed to open file")?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+
+    let schema = builder.schema().clone();
+    let parquet_schema = builder.parquet_schema();
+
+    // Project needed columns for data reading
+    let projection: Vec<usize> = ["metric_name", "time", "value_int", "value_float", "labels"]
+        .iter()
+        .filter_map(|name| schema.index_of(name).ok())
+        .collect();
+
+    let projection_mask = parquet::arrow::ProjectionMask::roots(parquet_schema, projection.clone());
+
+    // Create predicate mask before consuming builder
+    let metric_name_idx = schema.index_of("metric_name").ok();
+    let predicate_mask = metric_name_idx
+        .map(|idx| parquet::arrow::ProjectionMask::roots(parquet_schema, vec![idx]));
+
+    let mut reader_builder = builder.with_projection(projection_mask).with_batch_size(65536);
+
+    // Apply row group filter if specified
+    if let Some(rgs) = row_groups {
+        reader_builder = reader_builder.with_row_groups(rgs);
+    }
+
+    let reader = if let Some(pred_mask) = predicate_mask {
+        let target_metric = Arc::new(metric.to_string());
+        let predicate = ArrowPredicateFn::new(pred_mask, move |batch| {
+            let metric_col = batch.column(0).as_any().downcast_ref::<StringArray>();
+
+            match metric_col {
+                Some(arr) => {
+                    let matches: BooleanArray = arr
+                        .iter()
+                        .map(|opt| opt.map(|s| s == target_metric.as_str()))
+                        .collect();
+                    Ok(matches)
+                }
+                None => Ok(BooleanArray::from(vec![true; batch.num_rows()])),
+            }
+        });
+
+        let row_filter = RowFilter::new(vec![Box::new(predicate)]);
+        reader_builder.with_row_filter(row_filter).build()?
+    } else {
+        reader_builder.build()?
+    };
+
+    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+
+    for batch_result in reader {
+        let batch = batch_result?;
+
+        let times = batch.column_by_name("time").context("Missing time column")?;
+
+        let values_int = batch
+            .column_by_name("value_int")
+            .and_then(|c| c.as_any().downcast_ref::<UInt64Array>());
+
+        let values_float = batch
+            .column_by_name("value_float")
+            .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
+
+        let labels_col = batch
+            .column_by_name("labels")
+            .context("Missing labels column")?;
+
+        // Hoist downcasts outside the row loop - do once per batch
+        let map_array = labels_col
+            .as_any()
+            .downcast_ref::<MapArray>()
+            .context("Labels column is not a MapArray")?;
+
+        let entries = map_array.entries();
+        let struct_array = entries
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .context("Map entries is not a StructArray")?;
+
+        let label_keys = struct_array
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("Missing key column in labels")?;
+
+        let label_vals = struct_array
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("Missing value column in labels")?;
+
+        let time_values: Vec<i64> = match times.data_type() {
+            DataType::Timestamp(_, _) => {
+                let ts_array = times
+                    .as_any()
+                    .downcast_ref::<arrow::array::TimestampMillisecondArray>()
+                    .context("Failed to cast timestamp")?;
+                (0..ts_array.len()).map(|i| ts_array.value(i)).collect()
+            }
+            _ => anyhow::bail!("Unexpected time column type"),
+        };
+
+        for row in 0..batch.num_rows() {
+            // Direct container_id extraction - no intermediate Vec allocation
+            let container_id =
+                match extract_container_id_direct(map_array, label_keys, label_vals, row) {
+                    Some(id) => id,
+                    None => continue,
+                };
+
+            let short_id = if container_id.len() > 12 {
+                &container_id[..12]
+            } else {
+                container_id
+            };
+
+            // Filter by container
+            if !container_set.contains(short_id) {
+                continue;
+            }
+
+            // Get value
+            let value = if let Some(arr) = values_float {
+                if !arr.is_null(row) {
+                    arr.value(row)
+                } else if let Some(int_arr) = values_int {
+                    if !int_arr.is_null(row) {
+                        int_arr.value(row) as f64
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            } else if let Some(int_arr) = values_int {
+                if !int_arr.is_null(row) {
+                    int_arr.value(row) as f64
+                } else {
+                    continue;
+                }
+            } else {
+                continue;
+            };
+
+            let time = time_values[row];
+
+            raw_data
+                .entry(short_id.to_string())
+                .or_default()
+                .add_point(time, value, is_cumulative_metric);
+        }
+    }
+
+    Ok(raw_data)
+}
+
+/// Extract container_id directly from MapArray without creating intermediate Vec.
+/// Much faster than extract_labels_from_column + extract_label.
+#[inline]
+fn extract_container_id_direct<'a>(
+    map_array: &MapArray,
+    keys: &'a StringArray,
+    vals: &'a StringArray,
+    row: usize,
+) -> Option<&'a str> {
+    if map_array.is_null(row) {
+        return None;
+    }
+
+    let start = map_array.value_offsets()[row] as usize;
+    let end = map_array.value_offsets()[row + 1] as usize;
+
+    for i in start..end {
+        if !keys.is_null(i) && keys.value(i) == "container_id" {
+            if !vals.is_null(i) {
+                return Some(vals.value(i));
+            }
+        }
+    }
+
+    None
 }
 
 /// Extract a label value from a labels list.
@@ -624,5 +758,12 @@ impl RawContainerData {
             .zip(self.values)
             .map(|(time_ms, value)| TimeseriesPoint { time_ms, value })
             .collect()
+    }
+
+    /// Merge another RawContainerData into this one.
+    /// Used when combining results from parallel file processing.
+    fn merge(&mut self, other: RawContainerData) {
+        self.times.extend(other.times);
+        self.values.extend(other.values);
     }
 }
