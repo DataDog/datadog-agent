@@ -160,11 +160,6 @@ const (
 	DOT11_CIPHER_ALGO_IHV_END       DOT11_CIPHER_ALGORITHM = 0xffffffff
 )
 
-// MIB_IF_TYPE constants (Wi-Fi is usually IF_TYPE_IEEE80211 - 71)
-const (
-	IF_TYPE_IEEE80211 = 71
-)
-
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_interface_info
 type WLAN_INTERFACE_INFO struct {
 	InterfaceGUID           windows.GUID
@@ -212,22 +207,6 @@ type WLAN_CONNECTION_ATTRIBUTES struct {
 	profileName               [256]uint16
 	wlanAssociationAttributes WLAN_ASSOCIATION_ATTRIBUTES
 	wlanSecurityAttributes    WLAN_SECURITY_ATTRIBUTES
-}
-
-// MIB_IF_ROW2 structure for GetIfEntry2
-// https://learn.microsoft.com/en-us/windows/win32/api/netioapi/ns-netioapi-mib_if_row2
-type MIB_IF_ROW2 struct {
-	InterfaceLuid            uint64 // NET_LUID
-	InterfaceIndex           uint32
-	InterfaceGuid            windows.GUID
-	Alias                    [257]uint16 // IF_MAX_STRING_SIZE + 1
-	Description              [257]uint16
-	PhysicalAddressLength    uint32
-	PhysicalAddress          [32]byte // IF_MAX_PHYS_ADDRESS_LENGTH
-	PermanentPhysicalAddress [32]byte
-	Mtu                      uint32
-	Type                     uint32
-	// there are more fields below  but we do not need to access them
 }
 
 // ------------------------------------------------------
@@ -412,7 +391,7 @@ func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error
 // Use GetIfEntry2() for the wlan Interface GUID
 func getWlanMacAddr(wlanItfGuid windows.GUID) (string, error) {
 	// row will be initialized to 0 (by Go standard)
-	var row MIB_IF_ROW2
+	var row windows.MibIfRow2
 
 	// To find Interface details via GetIfEntry2() function, its InterfaceLuid or InterfaceIndex fields need to be set.
 	// We will set InterfaceLuid field by converting passed Interface Guid to its Luid via ConvertInterfaceGuidToLuid.
