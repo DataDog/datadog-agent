@@ -309,6 +309,7 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
+    trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -335,9 +336,7 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = (
-        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
-    )
+    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args} {trimpath_opt}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -356,6 +355,7 @@ def test(
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
         "extra_args": extra_args or "",
+        "trimpath_opt": trimpath_opt,
     }
 
     # Test
