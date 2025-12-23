@@ -1672,8 +1672,20 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, event.CgroupWrite.CGroupContext); cacheEntry == nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		pid := event.CgroupWrite.Pid
+
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		if pce == nil {
+			seclog.Errorf("failed to resolve process: %d", pid)
+			return false
+		}
+
+		cgroupContext := model.CGroupContext{
+			CGroupPathKey: event.CgroupWrite.File.PathKey,
+		}
+
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pid, pce.ExecTime, cgroupContext); cacheEntry == nil {
+			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		}
 		return false
 	case model.UnshareMountNsEventType:
@@ -3428,7 +3440,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 
 				if action.Def.NetworkFilter.Scope == "cgroup" {
-					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupFile
+					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupPathKey
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}

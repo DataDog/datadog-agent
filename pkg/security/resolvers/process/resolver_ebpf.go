@@ -582,7 +582,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 	// handle cgroup & container context
 	if p.cgroupResolver != nil {
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, uint64(entry.ExecTime.UnixNano()), cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.ExecTime, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.CGroupContext
 			entry.Process.ContainerContext = cacheEntry.ContainerContext
 		}
