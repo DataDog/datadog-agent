@@ -32,7 +32,7 @@ func getListener(address string) (net.Listener, error) {
 			return nil, err
 		}
 
-		port, err := strconv.ParseUint(sPort, 10, 32)
+		port, err := strconv.ParseUint(sPort, 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 		}
