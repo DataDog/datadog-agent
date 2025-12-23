@@ -1,6 +1,8 @@
 import os
+import platform
 import shutil
 import tempfile
+import time
 import unittest
 
 from codeowners import CodeOwners
@@ -23,8 +25,19 @@ class TestCodeownerLinter(unittest.TestCase):
         os.chdir(self.test_dir)
 
     def tearDown(self):
-        shutil.rmtree(self.test_dir)
         os.chdir(self.backup_cwd)
+        # Windows file locking requires retry logic
+        if platform.system() == 'Windows':
+            for attempt in range(3):
+                try:
+                    shutil.rmtree(self.test_dir)
+                    break
+                except PermissionError:
+                    if attempt < 2:
+                        time.sleep(0.5)
+                    # Ignore on final attempt to prevent test suite failure
+        else:
+            shutil.rmtree(self.test_dir)
 
     def test_all_pkg_have_codeowner(self):
         codeowner = CodeOwners("\n".join("/pkg/" + pkg for pkg in self.fake_pkgs))

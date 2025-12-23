@@ -18,6 +18,11 @@ WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
 
 
+def git_path(path) -> str:
+    """Convert Windows paths to Git-compatible forward slash paths."""
+    return str(path).replace('\\', '/')
+
+
 def init_env(ctx, branch: str | None = None, commit: str | None = None):
     """Will prepare the environment for commands applying to a worktree.
 
@@ -44,21 +49,24 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
     # Copy the configuration file
     ctx.run(f"cp {LOCAL_DIRECTORY}/.git/config {WORKTREE_DIRECTORY}/.git/config", hide=True)
     # Be sure the target branch is present locally and set up to track the remote branch
-    ctx.run(f"git -C '{WORKTREE_DIRECTORY}' branch {branch or 'main'} origin/{branch or 'main'} || true", hide=True)
+    ctx.run(
+        f"git -C '{git_path(WORKTREE_DIRECTORY)}' branch {branch or 'main'} origin/{branch or 'main'} || true",
+        hide=True,
+    )
     # If the state is not clean, clean it
-    if ctx.run(f"git -C '{WORKTREE_DIRECTORY}' status --porcelain", hide=True).stdout.strip():
+    if ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' status --porcelain", hide=True).stdout.strip():
         print(f'{color_message("Info", Color.BLUE)}: Cleaning worktree directory', file=sys.stderr)
-        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' reset --hard", hide=True)
-        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' clean -f", hide=True)
+        ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' reset --hard", hide=True)
+        ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' clean -f", hide=True)
 
     if branch:
         worktree_branch = ctx.run(
-            f"git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD", hide=True
+            f"git -C '{git_path(WORKTREE_DIRECTORY)}' rev-parse --abbrev-ref HEAD", hide=True
         ).stdout.strip()
         if worktree_branch != branch:
             for retry in range(2):
                 try:
-                    ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
+                    ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' checkout '{branch}'", hide=True)
                 except UnexpectedExit as e:
                     if retry == 1:
                         raise e
@@ -67,16 +75,16 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                             f'{color_message("Warning", Color.ORANGE)}: Git branch not found in the local worktree folder, fetching repository',
                             file=sys.stderr,
                         )
-                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
+                        ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' fetch --set-upstream origin", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin '{branch}'", hide=True)
+            ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' pull --set-upstream origin '{branch}'", hide=True)
 
     if commit:
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
+            ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' fetch --set-upstream origin", hide=True)
 
-        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{commit}'", hide=True)
+        ctx.run(f"git -C '{git_path(WORKTREE_DIRECTORY)}' checkout '{commit}'", hide=True)
 
 
 def remove_env(ctx):

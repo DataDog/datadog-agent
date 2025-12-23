@@ -1,6 +1,8 @@
 import os
+import platform
 import shutil
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -30,7 +32,18 @@ class TestComponents(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.origDir)
         if self.tmpdir:
-            shutil.rmtree(self.tmpdir)
+            # Windows file locking requires retry logic
+            if platform.system() == 'Windows':
+                for attempt in range(3):
+                    try:
+                        shutil.rmtree(self.tmpdir)
+                        break
+                    except PermissionError:
+                        if attempt < 2:
+                            time.sleep(0.5)
+                        # Ignore on final attempt to prevent test suite failure
+            else:
+                shutil.rmtree(self.tmpdir)
         classicComp = 'comp/classic/classicimpl'
         components.components_classic_style.remove(classicComp)
 

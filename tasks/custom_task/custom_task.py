@@ -69,7 +69,12 @@ def log_invoke_task(
     ```
     """
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(message)s')
-    user = getuser()
+    # Windows-compatible user detection
+    try:
+        user = getuser()
+    except (AttributeError, OSError):
+        # Fallback for Windows or when getuser() fails
+        user = os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
     running_modes = get_running_modes()
     task_info = {
         "name": name,
