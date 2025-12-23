@@ -707,7 +707,8 @@ func (c *Check) fetchAllDeviceLabels() error {
 	log.Debugf("Fetching all device labels")
 	if c.instanceConfig.UseLsblk {
 		return c.fetchAllDeviceLabelsFromLsblk()
-	} else if c.instanceConfig.BlkidCacheFile != "" {
+	}
+	if c.instanceConfig.BlkidCacheFile != "" {
 		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
 	return c.fetchAllDeviceLabelsFromBlkid()
