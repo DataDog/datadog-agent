@@ -1051,6 +1051,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 			return r == ',' || r == ' '
 		})
 	})
+	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
