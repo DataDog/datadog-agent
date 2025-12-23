@@ -457,9 +457,9 @@
                     <input type="text" id="containerSearch" class="search-input" placeholder="Search containers...">
                     <div class="container-list" id="containerList"></div>
                     <div class="action-buttons">
-                        <button class="btn-primary btn-sm" onclick="selectTop(5)">Top 5</button>
-                        <button class="btn-primary btn-sm" onclick="selectTop(10)">Top 10</button>
-                        <button class="btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
+                        <button class="btn-primary btn-sm">Top 5</button>
+                        <button class="btn-primary btn-sm">Top 10</button>
+                        <button class="btn-secondary btn-sm">Clear</button>
                     </div>
                 </div>
 
@@ -480,7 +480,7 @@
             <div class="main-header">
                 <span class="status" id="status">Loading...</span>
                 <div class="chart-controls">
-                    <button class="btn-warning" onclick="resetZoom()">Reset</button>
+                    <button class="btn-warning">Reset</button>
                 </div>
             </div>
             <div class="charts-container">
@@ -495,549 +495,1214 @@
     <div class="oscillation-tooltip" id="oscillationTooltip"></div>
 
     <script>
-        // State
-        let metrics = [];
-        let containers = [];
-        let currentData = {};  // container -> [{time_ms, value}]
-        let oscillationData = {};  // single container study result
-        let mainPlot = null;
-        let overviewPlot = null;
-        let originalXRange = null;
-        let originalYRange = null;
-        let selectedMetric = null;
-        let fuse = null;  // Fuse.js instance for metric search
+        // ============================================================
+        // SECTION 1: CONSTANTS
+        // ============================================================
 
-        // REQ-MV-007: Study mode state
-        let studyActive = false;
-        let studyContainer = null;      // Container ID being studied
-        let previousSelection = [];     // Container IDs before study (for restoration)
-
-        // Colors for traces
         const COLORS = [
             '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
             '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
         ];
 
-        // --- Data Loading ---
+        const DEFAULT_METRIC = 'total_cpu_usage_millicores';
 
-        async function loadMetrics() {
-            const res = await fetch('/api/metrics');
-            const data = await res.json();
-            metrics = data.metrics;
+        // ============================================================
+        // SECTION 2: STATE
+        // ============================================================
 
-            // Initialize Fuse.js for fuzzy search
-            fuse = new Fuse(metrics, {
-                keys: ['name'],
-                threshold: 0.4,
-                includeMatches: true
-            });
+        const AppState = {
+            // Data from API
+            metrics: [],                    // [{name, sample_count}]
+            containers: [],                 // [{info: {short_id, qos_class, namespace}, avg, max}]
+            timeseries: {},                 // {containerId: [{time_ms, value}]}
 
-            // Default to total_cpu_usage_millicores if available
-            const preferredMetric = 'total_cpu_usage_millicores';
-            if (metrics.some(m => m.name === preferredMetric)) {
-                selectedMetric = preferredMetric;
-            } else if (metrics.length > 0) {
-                selectedMetric = metrics[0].name;
-            }
+            // UI state
+            selectedMetric: null,
+            selectedContainerIds: [],       // Array of short_ids
+            metricSearchQuery: '',
+            containerSearchQuery: '',
 
-            renderMetricList(metrics);
+            // Filter state
+            filters: {
+                qosClass: '',               // '' means "all"
+                namespace: '',              // '' means "all"
+            },
+            filterOptions: {
+                qosClasses: [],
+                namespaces: [],
+            },
 
-            if (metrics.length > 0) {
-                await loadFilters();
-                await loadContainers();
-            }
-        }
+            // Chart state
+            chart: {
+                xRange: null,               // {min, max} in seconds, null = full range
+                originalXRange: null,       // [min, max] for reset
+                originalYRange: null,       // [min, max] for reset
+            },
 
-        function renderMetricList(metricsToShow) {
-            const list = document.getElementById('metricList');
-            list.innerHTML = metricsToShow.map(m => {
-                const metric = m.item || m;  // Handle Fuse result or raw metric
-                const isSelected = metric.name === selectedMetric;
-                return `<div class="metric-item ${isSelected ? 'selected' : ''}"
-                             onclick="selectMetric('${metric.name}')">
-                    <span class="metric-name">${metric.name}</span>
-                    <span class="sample-count">${metric.sample_count.toLocaleString()}</span>
-                </div>`;
-            }).join('');
-        }
+            // REQ-MV-007: Study state
+            study: {
+                active: false,
+                containerId: null,
+                previousSelection: [],      // For restore functionality
+                results: {},                // {containerId: oscillation results}
+            },
 
-        function selectMetric(name) {
-            selectedMetric = name;
-            renderMetricList(getFilteredMetrics());
-
-            // Show loading state immediately - metric data may take 10-15s to load
-            document.getElementById('status').textContent = 'Loading metric data...';
-            document.getElementById('containerList').innerHTML =
-                '<div style="padding: 12px; color: #888; text-align: center;">Loading containers...</div>';
-            showChartLoading();
-
-            loadContainers();
-        }
-
-        function showChartLoading() {
-            document.getElementById('mainChart').innerHTML =
-                '<div class="empty-state">Loading data for metric...</div>';
-            document.getElementById('overviewChart').innerHTML = '';
-            document.getElementById('legend').innerHTML = '';
-            mainPlot = null;
-            overviewPlot = null;
-        }
-
-        function getFilteredMetrics() {
-            const searchTerm = document.getElementById('metricSearch').value.trim();
-            if (!searchTerm) {
-                return metrics;
-            }
-            return fuse.search(searchTerm);
-        }
-
-        async function loadFilters() {
-            const res = await fetch('/api/filters');
-            const data = await res.json();
-
-            const qosSelect = document.getElementById('qosFilter');
-            qosSelect.innerHTML = '<option value="">All</option>' +
-                data.qos_classes.map(q => `<option value="${q}">${q}</option>`).join('');
-
-            const nsSelect = document.getElementById('namespaceFilter');
-            nsSelect.innerHTML = '<option value="">All</option>' +
-                data.namespaces.map(n => `<option value="${n}">${n}</option>`).join('');
-        }
-
-        async function loadContainers() {
-            if (!selectedMetric) return;
-
-            const qos = document.getElementById('qosFilter').value;
-            const ns = document.getElementById('namespaceFilter').value;
-            const search = document.getElementById('containerSearch').value;
-
-            let url = `/api/containers?metric=${encodeURIComponent(selectedMetric)}`;
-            if (qos) url += `&qos_class=${encodeURIComponent(qos)}`;
-            if (ns) url += `&namespace=${encodeURIComponent(ns)}`;
-            if (search) url += `&search=${encodeURIComponent(search)}`;
-
-            const res = await fetch(url);
-            const data = await res.json();
-            containers = data.containers;
-
-            renderContainerList();
-            document.getElementById('status').textContent = `${containers.length} containers`;
-            await loadTimeseries();
-        }
-
-        function renderContainerList() {
-            const list = document.getElementById('containerList');
-            const currentlySelected = getSelectedContainerIds();
-
-            // Build selected order map for color assignment
-            const selectedOrder = {};
-            currentlySelected.forEach((id, idx) => { selectedOrder[id] = idx; });
-
-            // Check if any current selection matches new container list
-            // If none match (e.g., metric changed), auto-select first 5
-            const newContainerIds = containers.map(c => c.info.short_id);
-            const anyMatch = currentlySelected.some(id => newContainerIds.includes(id));
-            const useAutoSelect = currentlySelected.length === 0 || !anyMatch;
-
-            list.innerHTML = containers.map((c, i) => {
-                // Preserve selection if it matches, otherwise auto-select first 5
-                const isSelected = useAutoSelect
-                    ? i < 5
-                    : currentlySelected.includes(c.info.short_id);
-                const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
-
-                // Color swatch matches chart color for selected containers
-                const colorIdx = isSelected ? (selectedOrder[c.info.short_id] ?? i) : -1;
-                const color = colorIdx >= 0 ? COLORS[colorIdx % COLORS.length] : '#ddd';
-
-                // REQ-MV-007: Study icon - highlight if this container is being studied
-                const isStudied = studyActive && studyContainer === c.info.short_id;
-                const studyBtnStyle = isStudied ? 'background: #007bff; color: white; opacity: 1;' : '';
-
-                return `<label class="container-item">
-                    <input type="checkbox" value="${c.info.short_id}"
-                           ${isSelected ? 'checked' : ''} onchange="onContainerChange()">
-                    <span class="container-color" style="background: ${color}"></span>
-                    <span class="container-id">${c.info.short_id}</span>
-                    <span class="container-avg">avg: ${avgStr}</span>
-                    <button class="study-btn" style="${studyBtnStyle}" onclick="event.preventDefault(); startStudy('${c.info.short_id}')" title="Run Oscillation Study">📊</button>
-                </label>`;
-            }).join('');
-        }
-
-        function getSelectedContainerIds() {
-            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]:checked');
-            return Array.from(checkboxes).map(cb => cb.value);
-        }
-
-        function onContainerChange() {
-            // Re-render list to update color swatches, then load data
-            renderContainerList();
-            loadTimeseries();
-        }
-
-        async function loadTimeseries() {
-            // REQ-MV-002, REQ-MV-003, REQ-MV-004: Capture current time range FIRST
-            // Must happen before getSelectedContainerIds() since container list may have changed
-            let preservedXRange = null;
-            if (mainPlot && mainPlot.scales.x) {
-                preservedXRange = {
-                    min: mainPlot.scales.x.min,
-                    max: mainPlot.scales.x.max
-                };
-            }
-
-            const selected = getSelectedContainerIds();
-
-            if (selected.length === 0) {
-                showEmptyState();
-                return;
-            }
-
-            document.getElementById('status').textContent = 'Loading...';
-
-            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
-            const data = await res.json();
-
-            currentData = {};
-            data.forEach(d => { currentData[d.container] = d.data; });
-
-            renderChart(selected, preservedXRange);
-
-            // REQ-MV-007: If study is active and user changes selection, exit study
-            if (studyActive) {
-                exitStudy(false);
-            }
-
-            const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
-            document.getElementById('status').textContent =
-                `${selected.length} containers, ${totalPoints.toLocaleString()} points`;
-        }
-
-        // --- Chart Rendering ---
-
-        function showEmptyState() {
-            document.getElementById('mainChart').innerHTML =
-                '<div class="empty-state">Select containers to display timeseries</div>';
-            document.getElementById('overviewChart').innerHTML = '';
-            document.getElementById('legend').innerHTML = '';
-            mainPlot = null;
-            overviewPlot = null;
-        }
-
-        // REQ-MV-010: Show state when metric has timestamps but no actual values
-        function showNoDataState(metricName) {
-            document.getElementById('mainChart').innerHTML =
-                `<div class="empty-state">
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; margin-bottom: 8px;">No data recorded for</div>
-                        <div style="font-family: monospace; font-size: 12px; color: #888;">${metricName || 'this metric'}</div>
-                        <div style="font-size: 12px; color: #999; margin-top: 8px;">
-                            This metric exists but has no non-zero values in the selected time range
-                        </div>
-                    </div>
-                </div>`;
-            document.getElementById('overviewChart').innerHTML = '';
-            document.getElementById('legend').innerHTML = '';
-            mainPlot = null;
-            overviewPlot = null;
-        }
-
-        function renderChart(containerIds, preservedXRange = null) {
-            const chartDiv = document.getElementById('mainChart');
-            const overviewDiv = document.getElementById('overviewChart');
-            const legendDiv = document.getElementById('legend');
-
-            // Build uPlot data: [timestamps, ...values]
-            let allTimes = new Set();
-            containerIds.forEach(id => {
-                const data = currentData[id] || [];
-                data.forEach(p => allTimes.add(p.time_ms));
-            });
-            let timestamps = Array.from(allTimes).sort((a, b) => a - b);
-
-            if (timestamps.length === 0) {
-                showEmptyState();
-                return;
-            }
-
-            // Build value arrays (aligned to timestamps)
-            const timeToIdx = new Map(timestamps.map((t, i) => [t, i]));
-            const series = containerIds.map(id => {
-                const values = new Array(timestamps.length).fill(null);
-                const data = currentData[id] || [];
-                data.forEach(p => {
-                    const idx = timeToIdx.get(p.time_ms);
-                    if (idx !== undefined) values[idx] = p.value;
-                });
-                return values;
-            });
-
-            // REQ-MV-010: Check if all series values are null (no actual data)
-            let hasAnyData = false;
-            series.forEach(s => {
-                s.forEach(v => { if (v !== null) hasAnyData = true; });
-            });
-            if (!hasAnyData) {
-                showNoDataState(selectedMetric);
-                return;
-            }
-
-            // Convert timestamps to seconds for uPlot
-            const uplotData = [
-                timestamps.map(t => t / 1000),
-                ...series
-            ];
-
-            // Build series config
-            const uplotSeries = [
-                { label: 'Time' },
-                ...containerIds.map((id, i) => ({
-                    label: id,
-                    stroke: COLORS[i % COLORS.length],
-                    width: 1.5,
-                    points: { show: false }
-                }))
-            ];
-
-            // Build legend
-            legendDiv.innerHTML = containerIds.map((id, i) => {
-                const container = containers.find(c => c.info.short_id === id);
-                const qos = container?.info.qos_class || '?';
-                return `<div class="legend-item">
-                    <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
-                    <span>${id} (${qos})</span>
-                </div>`;
-            }).join('');
-
-            // Store original ranges for reset
-            const xMin = timestamps[0] / 1000;
-            const xMax = timestamps[timestamps.length - 1] / 1000;
-            let yMax = 0;
-            series.forEach(s => {
-                s.forEach(v => { if (v !== null && v > yMax) yMax = v; });
-            });
-            // REQ-MV-010: Ensure minimum Y-axis range for all-zero/constant data
-            if (yMax === 0) {
-                yMax = 1;  // Fallback for all-zero data to prevent chart collapse
-            }
-            originalXRange = [xMin, xMax];
-            originalYRange = [0, yMax * 1.1];
-
-            // REQ-MV-002: Calculate initial X scale range (preserve zoom if available)
-            let initialXScale = { time: true };
-            if (preservedXRange && preservedXRange.min != null && preservedXRange.max != null) {
-                const clampedMin = Math.max(xMin, Math.min(preservedXRange.min, xMax));
-                const clampedMax = Math.min(xMax, Math.max(preservedXRange.max, xMin));
-                // Only apply preserved range if it's a meaningful zoom (less than 99% of full range)
-                if (clampedMax - clampedMin < (xMax - xMin) * 0.99) {
-                    initialXScale.min = clampedMin;
-                    initialXScale.max = clampedMax;
-                }
-            }
-
-            // REQ-MV-005: uPlot options with zoom/pan
-            // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
-            const opts = {
-                width: chartDiv.clientWidth,
-                height: chartDiv.clientHeight,
-                series: uplotSeries,
-                scales: {
-                    x: initialXScale,
-                    y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
-                },
-                cursor: {
-                    drag: { x: true, y: false, setScale: true }
-                },
-                hooks: {
-                    draw: [drawOscillationOverlay],
-                    setScale: [syncOverview]
-                },
-                axes: [
-                    { stroke: '#666', grid: { stroke: '#eee' } },
-                    { stroke: '#666', grid: { stroke: '#eee' }, size: 80 }
-                ],
-                padding: [8, 16, 8, 8],
-                legend: { show: false }
-            };
-
-            // Destroy previous plots
-            if (mainPlot) mainPlot.destroy();
-            if (overviewPlot) overviewPlot.destroy();
-
-            chartDiv.innerHTML = '';
-            overviewDiv.innerHTML = '';
-
-            mainPlot = new uPlot(opts, uplotData, chartDiv);
-
-            // REQ-MV-006: Overview chart (no cursor/drag - we use HTML overlay for interaction)
-            // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
-            const overviewOpts = {
-                width: overviewDiv.clientWidth,
-                height: 60,
-                series: uplotSeries.map((s, i) => i === 0 ? s : { ...s, width: 1 }),
-                scales: {
-                    x: { time: true },
-                    y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
-                },
-                cursor: { show: false },
-                axes: [
-                    { show: false },
-                    { show: false }
-                ],
-                legend: { show: false }
-            };
-
-            overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
-
-            // REQ-MV-006: Add HTML overlay for range selection
-            createRangeOverlay(overviewDiv);
-
-            // REQ-MV-002: Sync overview after chart creation to reflect preserved zoom
-            // Use requestAnimationFrame to ensure uPlot has rendered with correct scale values
-            requestAnimationFrame(() => {
-                syncOverview(mainPlot);
-            });
-
-        }
-
-        // REQ-MV-006: Range overlay state
-        let rangeOverlay = null;
-        let rangeDrag = {
-            active: false,
-            mode: null,  // 'pan', 'resize-left', 'resize-right', 'select'
-            startX: 0,
-            startLeft: 0,
-            startWidth: 0
+            // Internal (not persisted)
+            _fuse: null,                    // Fuse.js instance
+            _mainPlot: null,                // uPlot instance
+            _overviewPlot: null,            // uPlot instance
+            _rangeOverlay: null,            // DOM element
+            _rangeDrag: {
+                active: false,
+                mode: null,
+                startX: 0,
+                startLeft: 0,
+                startWidth: 0
+            },
+            _listeners: new Set(),
         };
 
-        function createRangeOverlay(overviewDiv) {
-            // Remove existing overlay if any
-            const existing = overviewDiv.querySelector('.range-overlay');
-            if (existing) existing.remove();
+        // ============================================================
+        // SECTION 3: STATE MANAGEMENT
+        // ============================================================
 
-            // Create overlay structure
-            const overlay = document.createElement('div');
-            overlay.className = 'range-overlay';
-            overlay.innerHTML = `
-                <div class="range-dim left"></div>
-                <div class="range-selection">
-                    <div class="range-handle left"></div>
-                    <div class="range-handle right"></div>
-                </div>
-                <div class="range-dim right"></div>
-            `;
-            overviewDiv.appendChild(overlay);
-            rangeOverlay = overlay;
+        function deepMerge(target, source) {
+            for (const key of Object.keys(source)) {
+                if (source[key] !== null &&
+                    typeof source[key] === 'object' &&
+                    !Array.isArray(source[key]) &&
+                    key in target &&
+                    target[key] !== null &&
+                    typeof target[key] === 'object' &&
+                    !Array.isArray(target[key])) {
+                    deepMerge(target[key], source[key]);
+                } else {
+                    target[key] = source[key];
+                }
+            }
+            return target;
+        }
 
-            // Get elements
-            const dimLeft = overlay.querySelector('.range-dim.left');
-            const dimRight = overlay.querySelector('.range-dim.right');
-            const selection = overlay.querySelector('.range-selection');
-            const handleLeft = overlay.querySelector('.range-handle.left');
-            const handleRight = overlay.querySelector('.range-handle.right');
+        function updateState(changes) {
+            deepMerge(AppState, changes);
+            AppState._listeners.forEach(fn => fn(AppState));
+        }
 
-            // Get chart dimensions (account for uPlot padding)
-            const getChartBounds = () => {
-                if (!overviewPlot) return { left: 0, width: overviewDiv.clientWidth };
-                // uPlot bbox is in CSS pixels
-                const bbox = overviewPlot.bbox;
+        function subscribe(fn) {
+            AppState._listeners.add(fn);
+            return () => AppState._listeners.delete(fn);
+        }
+
+        // ============================================================
+        // SECTION 4: HELPER FUNCTIONS
+        // ============================================================
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+            if (str == null) return '';
+            return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function filterMetrics(metrics, query) {
+            if (!query || !query.trim()) {
+                return metrics;
+            }
+            if (!AppState._fuse) {
+                return metrics;
+            }
+            return AppState._fuse.search(query);
+        }
+
+        function getContainerColor(containerId, selectedIds) {
+            const index = selectedIds.indexOf(containerId);
+            if (index === -1) {
+                return '#ddd';
+            }
+            return COLORS[index % COLORS.length];
+        }
+
+        // ============================================================
+        // SECTION 5: API FUNCTIONS
+        // ============================================================
+
+        const Api = {
+            async fetchMetrics() {
+                const res = await fetch('/api/metrics');
+                const data = await res.json();
+                return data.metrics;
+            },
+
+            async fetchFilters() {
+                const res = await fetch('/api/filters');
+                const data = await res.json();
                 return {
+                    qosClasses: data.qos_classes,
+                    namespaces: data.namespaces,
+                };
+            },
+
+            async fetchContainers(metricName, qosClass, namespace, search) {
+                let url = `/api/containers?metric=${encodeURIComponent(metricName)}`;
+                if (qosClass) {
+                    url += `&qos_class=${encodeURIComponent(qosClass)}`;
+                }
+                if (namespace) {
+                    url += `&namespace=${encodeURIComponent(namespace)}`;
+                }
+                if (search) {
+                    url += `&search=${encodeURIComponent(search)}`;
+                }
+                const res = await fetch(url);
+                const data = await res.json();
+                return data.containers;
+            },
+
+            async fetchTimeseries(metricName, containerIds) {
+                const res = await fetch(
+                    `/api/timeseries?metric=${encodeURIComponent(metricName)}&containers=${containerIds.join(',')}`
+                );
+                const data = await res.json();
+                const result = {};
+                data.forEach(d => {
+                    result[d.container] = d.data;
+                });
+                return result;
+            },
+
+            async fetchOscillationStudy(metricName, containerId) {
+                const res = await fetch(
+                    `/api/study/oscillation?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
+                );
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    return data.results[0];
+                }
+                return null;
+            },
+        };
+
+        // ============================================================
+        // SECTION 6: COMPONENTS (Pure Rendering Functions)
+        // ============================================================
+
+        const Components = {
+            // REQ-MV-002: Metric list with search
+            MetricList(state) {
+                const filtered = filterMetrics(state.metrics, state.metricSearchQuery);
+
+                if (filtered.length === 0) {
+                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No metrics found</div>';
+                }
+
+                return filtered.map(m => {
+                    const metric = m.item || m;  // Handle Fuse result or raw metric
+                    const isSelected = metric.name === state.selectedMetric;
+                    const selectedClass = isSelected ? 'selected' : '';
+                    return `
+                        <div class="metric-item ${selectedClass}" data-metric="${escapeAttr(metric.name)}">
+                            <span class="metric-name">${escapeHtml(metric.name)}</span>
+                            <span class="sample-count">${metric.sample_count.toLocaleString()}</span>
+                        </div>
+                    `;
+                }).join('');
+            },
+
+            // REQ-MV-004: Container list with checkboxes and study buttons
+            ContainerList(state) {
+                if (state.containers.length === 0) {
+                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No containers found</div>';
+                }
+
+                return state.containers.map((c, index) => {
+                    const containerId = c.info.short_id;
+                    const isSelected = state.selectedContainerIds.includes(containerId);
+                    const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
+                    const color = getContainerColor(containerId, state.selectedContainerIds);
+
+                    // REQ-MV-007: Study icon - highlight if this container is being studied
+                    const isStudied = state.study.active && state.study.containerId === containerId;
+                    const studyBtnStyle = isStudied
+                        ? 'background: #007bff; color: white; opacity: 1;'
+                        : '';
+
+                    return `
+                        <label class="container-item">
+                            <input type="checkbox"
+                                   value="${escapeAttr(containerId)}"
+                                   ${isSelected ? 'checked' : ''}
+                                   data-container-checkbox>
+                            <span class="container-color" style="background: ${color}"></span>
+                            <span class="container-id">${escapeHtml(containerId)}</span>
+                            <span class="container-avg">avg: ${avgStr}</span>
+                            <button class="study-btn"
+                                    style="${studyBtnStyle}"
+                                    data-study-btn="${escapeAttr(containerId)}"
+                                    title="Run Oscillation Study">📊</button>
+                        </label>
+                    `;
+                }).join('');
+            },
+
+            // REQ-MV-008: Study results panel
+            StudyPanel(state) {
+                if (!state.study.active) {
+                    return `
+                        <div style="color: #888; font-size: 12px;">
+                            Click the study icon on a container to analyze
+                        </div>
+                    `;
+                }
+
+                const containerId = state.study.containerId;
+                const result = state.study.results[containerId];
+                const windowCount = result?.windows?.length || 0;
+
+                // Compute summary stats
+                let dominantPeriod = 'N/A';
+                let avgConfidence = 'N/A';
+
+                if (result && result.windows && result.windows.length > 0) {
+                    // Find most common period
+                    const periodCounts = {};
+                    result.windows.forEach(w => {
+                        const p = Math.round(w.metrics.period);
+                        periodCounts[p] = (periodCounts[p] || 0) + 1;
+                    });
+                    const maxCount = Math.max(...Object.values(periodCounts));
+                    dominantPeriod = Object.keys(periodCounts).find(p => periodCounts[p] === maxCount) + 's';
+
+                    // Average confidence
+                    const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
+                    avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
+                }
+
+                const restoreBtn = state.study.previousSelection.length > 0
+                    ? `<button class="study-panel-restore" data-restore-btn>Restore previous view (${state.study.previousSelection.length} containers)</button>`
+                    : '';
+
+                return `
+                    <div class="study-panel">
+                        <div class="study-panel-header">
+                            <span>Oscillation Study</span>
+                            <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
+                        </div>
+                        <div class="study-panel-container">Container: ${escapeHtml(containerId)}</div>
+                        <div class="study-panel-stats">
+                            <div><strong>${windowCount}</strong> oscillation windows</div>
+                            <div>Dominant period: <strong>${dominantPeriod}</strong></div>
+                            <div>Avg confidence: <strong>${avgConfidence}</strong></div>
+                        </div>
+                        ${restoreBtn}
+                    </div>
+                `;
+            },
+
+            Legend(state) {
+                if (state.selectedContainerIds.length === 0) {
+                    return '';
+                }
+
+                return state.selectedContainerIds.map((id, i) => {
+                    const container = state.containers.find(c => c.info.short_id === id);
+                    const qos = container?.info.qos_class || '?';
+                    return `
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
+                            <span>${escapeHtml(id)} (${escapeHtml(qos)})</span>
+                        </div>
+                    `;
+                }).join('');
+            },
+
+            StatusText(state) {
+                const containerCount = state.selectedContainerIds.length;
+                if (containerCount === 0) {
+                    return `${state.containers.length} containers`;
+                }
+
+                let pointCount = 0;
+                state.selectedContainerIds.forEach(id => {
+                    const data = state.timeseries[id];
+                    if (data) {
+                        pointCount += data.length;
+                    }
+                });
+
+                const containerLabel = containerCount === 1 ? 'container' : 'containers';
+                return `${containerCount} ${containerLabel}, ${pointCount.toLocaleString()} points`;
+            },
+
+            // REQ-MV-003: Filter dropdowns
+            FilterDropdown(options, selectedValue, emptyLabel) {
+                const optionElements = options.map(opt =>
+                    `<option value="${escapeAttr(opt)}" ${opt === selectedValue ? 'selected' : ''}>${escapeHtml(opt)}</option>`
+                ).join('');
+                return `<option value="">${emptyLabel}</option>${optionElements}`;
+            },
+        };
+
+        // ============================================================
+        // SECTION 7: ACTIONS (State Mutations + Side Effects)
+        // ============================================================
+
+        const Actions = {
+            // Initialize the application
+            async initialize() {
+                const metrics = await Api.fetchMetrics();
+
+                // Initialize Fuse.js for fuzzy search
+                const fuse = new Fuse(metrics, {
+                    keys: ['name'],
+                    threshold: 0.4,
+                    includeMatches: true
+                });
+
+                // Select default metric
+                let selectedMetric = null;
+                if (metrics.some(m => m.name === DEFAULT_METRIC)) {
+                    selectedMetric = DEFAULT_METRIC;
+                } else if (metrics.length > 0) {
+                    selectedMetric = metrics[0].name;
+                }
+
+                updateState({
+                    metrics: metrics,
+                    selectedMetric: selectedMetric,
+                    _fuse: fuse,
+                });
+
+                if (metrics.length > 0) {
+                    await Actions.loadFilters();
+                    await Actions.loadContainers();
+                }
+            },
+
+            async loadFilters() {
+                const filters = await Api.fetchFilters();
+                updateState({
+                    filterOptions: {
+                        qosClasses: filters.qosClasses,
+                        namespaces: filters.namespaces,
+                    },
+                });
+            },
+
+            // User selects a metric
+            async selectMetric(metricName) {
+                updateState({ selectedMetric: metricName });
+                await Actions.loadContainers();
+            },
+
+            // User changes metric search query
+            setMetricSearchQuery(query) {
+                updateState({ metricSearchQuery: query });
+            },
+
+            // User changes container search query
+            setContainerSearchQuery(query) {
+                updateState({ containerSearchQuery: query });
+            },
+
+            // User changes a filter
+            async setFilter(filterType, value) {
+                const changes = { filters: {} };
+                changes.filters[filterType] = value;
+                updateState(changes);
+                await Actions.loadContainers();
+            },
+
+            // Load containers for current metric and filters
+            async loadContainers() {
+                if (!AppState.selectedMetric) return;
+
+                const containers = await Api.fetchContainers(
+                    AppState.selectedMetric,
+                    AppState.filters.qosClass,
+                    AppState.filters.namespace,
+                    AppState.containerSearchQuery
+                );
+
+                // Determine selected containers
+                const currentlySelected = AppState.selectedContainerIds;
+                const newContainerIds = containers.map(c => c.info.short_id);
+                const anyMatch = currentlySelected.some(id => newContainerIds.includes(id));
+
+                let selectedContainerIds;
+                if (currentlySelected.length === 0 || !anyMatch) {
+                    // Auto-select first 5 if no match
+                    selectedContainerIds = newContainerIds.slice(0, 5);
+                } else {
+                    // Keep existing selection that still exists
+                    selectedContainerIds = currentlySelected.filter(id => newContainerIds.includes(id));
+                }
+
+                updateState({
+                    containers: containers,
+                    selectedContainerIds: selectedContainerIds,
+                });
+
+                await Actions.loadTimeseries();
+            },
+
+            // User toggles a container checkbox
+            toggleContainer(containerId) {
+                const current = AppState.selectedContainerIds;
+                let updated;
+                if (current.includes(containerId)) {
+                    updated = current.filter(id => id !== containerId);
+                } else {
+                    updated = [...current, containerId];
+                }
+                updateState({ selectedContainerIds: updated });
+                Actions.loadTimeseries();
+            },
+
+            // User clicks "Top N" button
+            selectTopN(n) {
+                const containerIds = AppState.containers.slice(0, n).map(c => c.info.short_id);
+                updateState({ selectedContainerIds: containerIds });
+                Actions.loadTimeseries();
+            },
+
+            // User clicks "Clear" button
+            clearSelection() {
+                updateState({ selectedContainerIds: [] });
+                Actions.loadTimeseries();
+            },
+
+            // REQ-MV-002, REQ-MV-003, REQ-MV-004: Load timeseries data
+            async loadTimeseries() {
+                // Capture current time range FIRST
+                const preservedXRange = ChartRenderer.getCurrentXRange();
+
+                const selectedIds = AppState.selectedContainerIds;
+
+                if (selectedIds.length === 0) {
+                    updateState({ timeseries: {} });
+                    ChartRenderer.showEmptyState();
+                    return;
+                }
+
+                const timeseries = await Api.fetchTimeseries(
+                    AppState.selectedMetric,
+                    selectedIds
+                );
+
+                // REQ-MV-007: If study is active and user changes selection externally, exit study
+                if (AppState.study.active) {
+                    Actions.exitStudy(false);
+                }
+
+                updateState({ timeseries: timeseries });
+                ChartRenderer.renderChart(AppState, preservedXRange);
+            },
+
+            // REQ-MV-007: Start oscillation study on specific container
+            async startStudy(containerId) {
+                // If already studying this container, exit instead
+                if (AppState.study.active && AppState.study.containerId === containerId) {
+                    Actions.exitStudy(false);
+                    return;
+                }
+
+                // Capture current time range BEFORE any changes
+                const preservedXRange = ChartRenderer.getCurrentXRange();
+
+                // Save current selection for potential restoration
+                const previousSelection = [...AppState.selectedContainerIds];
+
+                updateState({
+                    study: {
+                        active: true,
+                        containerId: containerId,
+                        previousSelection: previousSelection,
+                        results: {},
+                    },
+                    selectedContainerIds: [containerId],
+                });
+
+                // Load timeseries for single container
+                const timeseries = await Api.fetchTimeseries(
+                    AppState.selectedMetric,
+                    [containerId]
+                );
+                updateState({ timeseries: timeseries });
+
+                // Render chart with preserved range
+                ChartRenderer.renderChart(AppState, preservedXRange);
+
+                // Fetch oscillation data
+                const oscillationResult = await Api.fetchOscillationStudy(
+                    AppState.selectedMetric,
+                    containerId
+                );
+
+                const results = {};
+                if (oscillationResult) {
+                    results[containerId] = oscillationResult;
+                }
+                updateState({ study: { results: results } });
+
+                // Redraw to show oscillation overlay
+                if (AppState._mainPlot) {
+                    AppState._mainPlot.redraw();
+                }
+            },
+
+            // REQ-MV-007, REQ-MV-008: Exit study mode
+            async exitStudy(restorePrevious) {
+                // Capture current time range BEFORE any changes
+                const preservedXRange = ChartRenderer.getCurrentXRange();
+
+                let newSelectedIds;
+                if (restorePrevious && AppState.study.previousSelection.length > 0) {
+                    newSelectedIds = [...AppState.study.previousSelection];
+                } else {
+                    // Keep current single-container selection
+                    newSelectedIds = [...AppState.selectedContainerIds];
+                }
+
+                updateState({
+                    study: {
+                        active: false,
+                        containerId: null,
+                        previousSelection: [],
+                        results: {},
+                    },
+                    selectedContainerIds: newSelectedIds,
+                });
+
+                // Reload timeseries with preserved time range
+                const timeseries = await Api.fetchTimeseries(
+                    AppState.selectedMetric,
+                    AppState.selectedContainerIds
+                );
+                updateState({ timeseries: timeseries });
+                ChartRenderer.renderChart(AppState, preservedXRange);
+            },
+
+            // REQ-MV-005: Reset zoom
+            resetZoom() {
+                ChartRenderer.resetZoom();
+            },
+        };
+
+        // ============================================================
+        // SECTION 8: CHART RENDERING (uPlot-specific)
+        // ============================================================
+
+        const ChartRenderer = {
+            getCurrentXRange() {
+                const plot = AppState._mainPlot;
+                if (plot && plot.scales.x) {
+                    return {
+                        min: plot.scales.x.min,
+                        max: plot.scales.x.max
+                    };
+                }
+                return null;
+            },
+
+            showEmptyState() {
+                document.getElementById('mainChart').innerHTML =
+                    '<div class="empty-state">Select containers to display timeseries</div>';
+                document.getElementById('overviewChart').innerHTML = '';
+                document.getElementById('legend').innerHTML = '';
+                AppState._mainPlot = null;
+                AppState._overviewPlot = null;
+            },
+
+            // REQ-MV-010: Show state when metric has timestamps but no actual values
+            showNoDataState(metricName) {
+                document.getElementById('mainChart').innerHTML =
+                    `<div class="empty-state">
+                        <div style="text-align: center;">
+                            <div style="font-size: 14px; margin-bottom: 8px;">No data recorded for</div>
+                            <div style="font-family: monospace; font-size: 12px; color: #888;">${escapeHtml(metricName) || 'this metric'}</div>
+                            <div style="font-size: 12px; color: #999; margin-top: 8px;">
+                                This metric exists but has no non-zero values in the selected time range
+                            </div>
+                        </div>
+                    </div>`;
+                document.getElementById('overviewChart').innerHTML = '';
+                document.getElementById('legend').innerHTML = '';
+                AppState._mainPlot = null;
+                AppState._overviewPlot = null;
+            },
+
+            renderChart(state, preservedXRange = null) {
+                const chartDiv = document.getElementById('mainChart');
+                const overviewDiv = document.getElementById('overviewChart');
+                const legendDiv = document.getElementById('legend');
+                const containerIds = state.selectedContainerIds;
+
+                // Build uPlot data: [timestamps, ...values]
+                const allTimes = new Set();
+                containerIds.forEach(id => {
+                    const data = state.timeseries[id] || [];
+                    data.forEach(p => allTimes.add(p.time_ms));
+                });
+                const timestamps = Array.from(allTimes).sort((a, b) => a - b);
+
+                if (timestamps.length === 0) {
+                    ChartRenderer.showEmptyState();
+                    return;
+                }
+
+                // Build value arrays (aligned to timestamps)
+                const timeToIdx = new Map(timestamps.map((t, i) => [t, i]));
+                const series = containerIds.map(id => {
+                    const values = new Array(timestamps.length).fill(null);
+                    const data = state.timeseries[id] || [];
+                    data.forEach(p => {
+                        const idx = timeToIdx.get(p.time_ms);
+                        if (idx !== undefined) {
+                            values[idx] = p.value;
+                        }
+                    });
+                    return values;
+                });
+
+                // REQ-MV-010: Check if all series values are null (no actual data)
+                let hasAnyData = false;
+                series.forEach(s => {
+                    s.forEach(v => {
+                        if (v !== null) {
+                            hasAnyData = true;
+                        }
+                    });
+                });
+                if (!hasAnyData) {
+                    ChartRenderer.showNoDataState(state.selectedMetric);
+                    return;
+                }
+
+                // Convert timestamps to seconds for uPlot
+                const uplotData = [
+                    timestamps.map(t => t / 1000),
+                    ...series
+                ];
+
+                // Build series config
+                const uplotSeries = [
+                    { label: 'Time' },
+                    ...containerIds.map((id, i) => ({
+                        label: id,
+                        stroke: COLORS[i % COLORS.length],
+                        width: 1.5,
+                        points: { show: false }
+                    }))
+                ];
+
+                // Build legend
+                legendDiv.innerHTML = Components.Legend(state);
+
+                // Store original ranges for reset
+                const xMin = timestamps[0] / 1000;
+                const xMax = timestamps[timestamps.length - 1] / 1000;
+                let yMax = 0;
+                series.forEach(s => {
+                    s.forEach(v => {
+                        if (v !== null && v > yMax) {
+                            yMax = v;
+                        }
+                    });
+                });
+                // REQ-MV-010: Ensure minimum Y-axis range for all-zero/constant data
+                if (yMax === 0) {
+                    yMax = 1;
+                }
+                const originalXRange = [xMin, xMax];
+                const originalYRange = [0, yMax * 1.1];
+
+                updateState({
+                    chart: {
+                        originalXRange: originalXRange,
+                        originalYRange: originalYRange,
+                    }
+                });
+
+                // REQ-MV-002: Calculate initial X scale range (preserve zoom if available)
+                let initialXScale = { time: true };
+                if (preservedXRange && preservedXRange.min != null && preservedXRange.max != null) {
+                    const clampedMin = Math.max(xMin, Math.min(preservedXRange.min, xMax));
+                    const clampedMax = Math.min(xMax, Math.max(preservedXRange.max, xMin));
+                    // Only apply preserved range if it's a meaningful zoom (less than 99% of full range)
+                    if (clampedMax - clampedMin < (xMax - xMin) * 0.99) {
+                        initialXScale.min = clampedMin;
+                        initialXScale.max = clampedMax;
+                    }
+                }
+
+                // REQ-MV-005: uPlot options with zoom/pan
+                // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
+                const opts = {
+                    width: chartDiv.clientWidth,
+                    height: chartDiv.clientHeight,
+                    series: uplotSeries,
+                    scales: {
+                        x: initialXScale,
+                        y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
+                    },
+                    cursor: {
+                        drag: { x: true, y: false, setScale: true }
+                    },
+                    hooks: {
+                        draw: [ChartRenderer.drawOscillationOverlay],
+                        setScale: [ChartRenderer.syncOverview]
+                    },
+                    axes: [
+                        { stroke: '#666', grid: { stroke: '#eee' } },
+                        { stroke: '#666', grid: { stroke: '#eee' }, size: 80 }
+                    ],
+                    padding: [8, 16, 8, 8],
+                    legend: { show: false }
+                };
+
+                // Destroy previous plots
+                if (AppState._mainPlot) {
+                    AppState._mainPlot.destroy();
+                }
+                if (AppState._overviewPlot) {
+                    AppState._overviewPlot.destroy();
+                }
+
+                chartDiv.innerHTML = '';
+                overviewDiv.innerHTML = '';
+
+                AppState._mainPlot = new uPlot(opts, uplotData, chartDiv);
+
+                // REQ-MV-006: Overview chart
+                // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
+                const overviewOpts = {
+                    width: overviewDiv.clientWidth,
+                    height: 60,
+                    series: uplotSeries.map((s, i) => i === 0 ? s : { ...s, width: 1 }),
+                    scales: {
+                        x: { time: true },
+                        y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
+                    },
+                    cursor: { show: false },
+                    axes: [
+                        { show: false },
+                        { show: false }
+                    ],
+                    legend: { show: false }
+                };
+
+                AppState._overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
+
+                // REQ-MV-006: Add HTML overlay for range selection
+                ChartRenderer.createRangeOverlay(overviewDiv);
+
+                // REQ-MV-002: Sync overview after chart creation to reflect preserved zoom
+                requestAnimationFrame(() => {
+                    ChartRenderer.syncOverview(AppState._mainPlot);
+                });
+            },
+
+            // REQ-MV-006: Sync range overlay with main chart zoom
+            syncOverview(u) {
+                if (AppState._rangeOverlay && AppState._rangeOverlay.update) {
+                    AppState._rangeOverlay.update();
+                }
+            },
+
+            // REQ-MV-008: Draw oscillation overlay
+            drawOscillationOverlay(u) {
+                if (!AppState.study.active) return;
+
+                const ctx = u.ctx;
+                const { left, top, width, height } = u.bbox;
+                const plotRight = left + width;
+                const plotBottom = top + height;
+
+                const selectedIds = AppState.selectedContainerIds;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(left, top, width, height);
+                ctx.clip();
+
+                selectedIds.forEach((id, idx) => {
+                    const result = AppState.study.results[id];
+                    if (!result || !result.windows) return;
+
+                    const color = COLORS[idx % COLORS.length];
+
+                    result.windows.forEach(w => {
+                        let x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
+                        let x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
+
+                        if (x2 < left || x1 > plotRight) return;
+
+                        x1 = Math.max(x1, left);
+                        x2 = Math.min(x2, plotRight);
+
+                        const y1 = top;
+                        const y2 = plotBottom;
+
+                        // Draw shaded region
+                        ctx.fillStyle = color + '20';
+                        ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+
+                        // Draw period markers
+                        const period = w.metrics.period || 10;
+                        const periodMs = period * 1000;
+                        ctx.strokeStyle = color;
+                        ctx.setLineDash([4, 4]);
+                        ctx.lineWidth = 1;
+
+                        for (let t = w.start_time_ms; t <= w.end_time_ms; t += periodMs) {
+                            const x = u.valToPos(t / 1000, 'x', true);
+                            if (x >= left && x <= plotRight) {
+                                ctx.beginPath();
+                                ctx.moveTo(x, y1);
+                                ctx.lineTo(x, y2);
+                                ctx.stroke();
+                            }
+                        }
+                        ctx.setLineDash([]);
+                    });
+                });
+
+                ctx.restore();
+            },
+
+            createRangeOverlay(overviewDiv) {
+                const existing = overviewDiv.querySelector('.range-overlay');
+                if (existing) existing.remove();
+
+                const overlay = document.createElement('div');
+                overlay.className = 'range-overlay';
+                overlay.innerHTML = `
+                    <div class="range-dim left"></div>
+                    <div class="range-selection">
+                        <div class="range-handle left"></div>
+                        <div class="range-handle right"></div>
+                    </div>
+                    <div class="range-dim right"></div>
+                `;
+                overviewDiv.appendChild(overlay);
+                AppState._rangeOverlay = overlay;
+
+                const dimLeft = overlay.querySelector('.range-dim.left');
+                const dimRight = overlay.querySelector('.range-dim.right');
+                const selection = overlay.querySelector('.range-selection');
+                const handleLeft = overlay.querySelector('.range-handle.left');
+                const handleRight = overlay.querySelector('.range-handle.right');
+
+                const getChartBounds = () => {
+                    if (!AppState._overviewPlot) return { left: 0, width: overviewDiv.clientWidth };
+                    const bbox = AppState._overviewPlot.bbox;
+                    return {
+                        left: bbox.left / devicePixelRatio,
+                        width: bbox.width / devicePixelRatio
+                    };
+                };
+
+                const posToVal = (px) => {
+                    if (!AppState._overviewPlot) return 0;
+                    const bounds = getChartBounds();
+                    return AppState._overviewPlot.posToVal(px - bounds.left, 'x');
+                };
+
+                const valToPos = (val) => {
+                    if (!AppState._overviewPlot) return 0;
+                    const bounds = getChartBounds();
+                    return AppState._overviewPlot.valToPos(val, 'x') + bounds.left;
+                };
+
+                const updateOverlayFromScale = () => {
+                    if (!AppState._mainPlot || !AppState._overviewPlot) return;
+                    const xScale = AppState._mainPlot.scales.x;
+                    const bounds = getChartBounds();
+
+                    const left = valToPos(xScale.min);
+                    const right = valToPos(xScale.max);
+                    const width = right - left;
+
+                    selection.style.left = left + 'px';
+                    selection.style.width = width + 'px';
+                    dimLeft.style.width = left + 'px';
+                    dimRight.style.left = right + 'px';
+                    dimRight.style.width = (bounds.left + bounds.width - right) + 'px';
+                };
+
+                updateOverlayFromScale();
+
+                handleLeft.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    AppState._rangeDrag = {
+                        active: true,
+                        mode: 'resize-left',
+                        startX: e.clientX,
+                        startLeft: selection.offsetLeft,
+                        startWidth: selection.offsetWidth
+                    };
+                });
+
+                handleRight.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    AppState._rangeDrag = {
+                        active: true,
+                        mode: 'resize-right',
+                        startX: e.clientX,
+                        startLeft: selection.offsetLeft,
+                        startWidth: selection.offsetWidth
+                    };
+                });
+
+                selection.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('range-handle')) return;
+                    AppState._rangeDrag = {
+                        active: true,
+                        mode: 'pan',
+                        startX: e.clientX,
+                        startLeft: selection.offsetLeft,
+                        startWidth: selection.offsetWidth
+                    };
+                });
+
+                const onDimClick = (e) => {
+                    const overlayRect = overlay.getBoundingClientRect();
+                    AppState._rangeDrag = {
+                        active: true,
+                        mode: 'select',
+                        startX: e.clientX,
+                        startLeft: e.clientX - overlayRect.left,
+                        startWidth: 0
+                    };
+                };
+                dimLeft.addEventListener('mousedown', onDimClick);
+                dimRight.addEventListener('mousedown', onDimClick);
+
+                overlay.update = updateOverlayFromScale;
+            },
+
+            resetZoom() {
+                const plot = AppState._mainPlot;
+                const originalX = AppState.chart.originalXRange;
+                const originalY = AppState.chart.originalYRange;
+                if (!plot || !originalX) return;
+                plot.setScale('x', { min: originalX[0], max: originalX[1] });
+                plot.setScale('y', { min: originalY[0], max: originalY[1] });
+            },
+
+            // REQ-MV-008: Find oscillation window at a given time value
+            findOscillationWindowAtTime(timeVal) {
+                if (!AppState.study.active) return null;
+
+                const selectedIds = AppState.selectedContainerIds;
+                for (const id of selectedIds) {
+                    const result = AppState.study.results[id];
+                    if (!result || !result.windows) continue;
+
+                    for (const w of result.windows) {
+                        const startSec = w.start_time_ms / 1000;
+                        const endSec = w.end_time_ms / 1000;
+                        if (timeVal >= startSec && timeVal <= endSec) {
+                            return { window: w, containerId: id };
+                        }
+                    }
+                }
+                return null;
+            },
+
+            // REQ-MV-008: Zoom to oscillation window
+            zoomToOscillationWindow(windowData) {
+                const plot = AppState._mainPlot;
+                if (!plot) return;
+
+                const w = windowData.window;
+                const startSec = w.start_time_ms / 1000;
+                const endSec = w.end_time_ms / 1000;
+
+                const duration = endSec - startSec;
+                const padding = duration * 0.1;
+
+                plot.setScale('x', {
+                    min: startSec - padding,
+                    max: endSec + padding
+                });
+            },
+        };
+
+        // ============================================================
+        // SECTION 9: RENDER FUNCTION
+        // ============================================================
+
+        function render(state) {
+            // Update metric list
+            document.getElementById('metricList').innerHTML = Components.MetricList(state);
+
+            // Update container list
+            document.getElementById('containerList').innerHTML = Components.ContainerList(state);
+
+            // Update studies panel
+            document.getElementById('studiesContent').innerHTML = Components.StudyPanel(state);
+
+            // Update filter dropdowns
+            document.getElementById('qosFilter').innerHTML = Components.FilterDropdown(
+                state.filterOptions.qosClasses,
+                state.filters.qosClass,
+                'All'
+            );
+            document.getElementById('namespaceFilter').innerHTML = Components.FilterDropdown(
+                state.filterOptions.namespaces,
+                state.filters.namespace,
+                'All'
+            );
+
+            // Update status bar
+            document.getElementById('status').textContent = Components.StatusText(state);
+        }
+
+        // ============================================================
+        // SECTION 10: EVENT LISTENERS
+        // ============================================================
+
+        function setupEventListeners() {
+            // Metric list clicks (event delegation)
+            document.getElementById('metricList').addEventListener('click', (e) => {
+                const item = e.target.closest('.metric-item');
+                if (item) {
+                    Actions.selectMetric(item.dataset.metric);
+                }
+            });
+
+            // Metric search with fuzzy matching (debounced)
+            let metricSearchTimeout;
+            document.getElementById('metricSearch').addEventListener('input', (e) => {
+                clearTimeout(metricSearchTimeout);
+                metricSearchTimeout = setTimeout(() => {
+                    Actions.setMetricSearchQuery(e.target.value);
+                }, 150);
+            });
+
+            // Filter changes
+            document.getElementById('qosFilter').addEventListener('change', (e) => {
+                Actions.setFilter('qosClass', e.target.value);
+            });
+
+            document.getElementById('namespaceFilter').addEventListener('change', (e) => {
+                Actions.setFilter('namespace', e.target.value);
+            });
+
+            // Container search (debounced)
+            let containerSearchTimeout;
+            document.getElementById('containerSearch').addEventListener('input', (e) => {
+                clearTimeout(containerSearchTimeout);
+                containerSearchTimeout = setTimeout(() => {
+                    Actions.setContainerSearchQuery(e.target.value);
+                    Actions.loadContainers();
+                }, 300);
+            });
+
+            // Container list interactions (event delegation)
+            document.getElementById('containerList').addEventListener('change', (e) => {
+                if (e.target.hasAttribute('data-container-checkbox')) {
+                    Actions.toggleContainer(e.target.value);
+                }
+            });
+
+            document.getElementById('containerList').addEventListener('click', (e) => {
+                const studyBtn = e.target.closest('[data-study-btn]');
+                if (studyBtn) {
+                    e.preventDefault();
+                    Actions.startStudy(studyBtn.dataset.studyBtn);
+                }
+            });
+
+            // Action buttons
+            document.querySelector('.action-buttons').addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+
+                if (btn.textContent.includes('Top 5')) {
+                    Actions.selectTopN(5);
+                } else if (btn.textContent.includes('Top 10')) {
+                    Actions.selectTopN(10);
+                } else if (btn.textContent.includes('Clear')) {
+                    Actions.clearSelection();
+                }
+            });
+
+            // Study panel interactions (event delegation)
+            document.getElementById('studiesContent').addEventListener('click', (e) => {
+                if (e.target.closest('[data-close-study]')) {
+                    Actions.exitStudy(false);
+                } else if (e.target.closest('[data-restore-btn]')) {
+                    Actions.exitStudy(true);
+                }
+            });
+
+            // Reset zoom button
+            document.querySelector('.chart-controls').addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (btn && btn.textContent.includes('Reset')) {
+                    Actions.resetZoom();
+                }
+            });
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                if (AppState._mainPlot) {
+                    const chartDiv = document.getElementById('mainChart');
+                    AppState._mainPlot.setSize({ width: chartDiv.clientWidth, height: chartDiv.clientHeight });
+                }
+                if (AppState._overviewPlot) {
+                    const overviewDiv = document.getElementById('overviewChart');
+                    AppState._overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 60 });
+                    if (AppState._rangeOverlay && AppState._rangeOverlay.update) {
+                        setTimeout(() => AppState._rangeOverlay.update(), 10);
+                    }
+                }
+            });
+
+            // REQ-MV-005: Scroll wheel zoom on main chart
+            document.getElementById('mainChart').addEventListener('wheel', (e) => {
+                const plot = AppState._mainPlot;
+                if (!plot) return;
+                e.preventDefault();
+
+                const rect = plot.root.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const xVal = plot.posToVal(x, 'x');
+
+                const xRange = plot.scales.x;
+                const factor = e.deltaY > 0 ? 1.2 : 0.8;
+                const newMin = xVal - (xVal - xRange.min) * factor;
+                const newMax = xVal + (xRange.max - xVal) * factor;
+
+                plot.setScale('x', { min: newMin, max: newMax });
+            }, { passive: false });
+
+            // Range overlay mouse handlers (global)
+            document.addEventListener('mousemove', (e) => {
+                const rangeDrag = AppState._rangeDrag;
+                if (!rangeDrag.active || !AppState._overviewPlot || !AppState._mainPlot) return;
+
+                const overlay = AppState._rangeOverlay;
+                if (!overlay) return;
+
+                const selection = overlay.querySelector('.range-selection');
+                const dimLeft = overlay.querySelector('.range-dim.left');
+                const dimRight = overlay.querySelector('.range-dim.right');
+
+                const overviewDiv = document.getElementById('overviewChart');
+                const bbox = AppState._overviewPlot.bbox;
+                const bounds = {
                     left: bbox.left / devicePixelRatio,
                     width: bbox.width / devicePixelRatio
                 };
-            };
 
-            // Convert pixel position to time value
-            const posToVal = (px) => {
-                if (!overviewPlot) return 0;
-                const bounds = getChartBounds();
-                return overviewPlot.posToVal(px - bounds.left, 'x');
-            };
-
-            // Convert time value to pixel position
-            const valToPos = (val) => {
-                if (!overviewPlot) return 0;
-                const bounds = getChartBounds();
-                return overviewPlot.valToPos(val, 'x') + bounds.left;
-            };
-
-            // Update overlay positions from main chart scale
-            const updateOverlayFromScale = () => {
-                if (!mainPlot || !overviewPlot) return;
-                const xScale = mainPlot.scales.x;
-                const bounds = getChartBounds();
-
-                const left = valToPos(xScale.min);
-                const right = valToPos(xScale.max);
-                const width = right - left;
-
-                selection.style.left = left + 'px';
-                selection.style.width = width + 'px';
-                dimLeft.style.width = left + 'px';
-                dimRight.style.left = right + 'px';
-                dimRight.style.width = (bounds.left + bounds.width - right) + 'px';
-            };
-
-            // Initial position (full range = no selection visible)
-            updateOverlayFromScale();
-
-            // Handle left resize
-            handleLeft.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                const rect = selection.getBoundingClientRect();
-                rangeDrag = {
-                    active: true,
-                    mode: 'resize-left',
-                    startX: e.clientX,
-                    startLeft: selection.offsetLeft,
-                    startWidth: selection.offsetWidth
-                };
-            });
-
-            // Handle right resize
-            handleRight.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-                rangeDrag = {
-                    active: true,
-                    mode: 'resize-right',
-                    startX: e.clientX,
-                    startLeft: selection.offsetLeft,
-                    startWidth: selection.offsetWidth
-                };
-            });
-
-            // Handle pan (drag middle of selection)
-            selection.addEventListener('mousedown', (e) => {
-                if (e.target.classList.contains('range-handle')) return;
-                rangeDrag = {
-                    active: true,
-                    mode: 'pan',
-                    startX: e.clientX,
-                    startLeft: selection.offsetLeft,
-                    startWidth: selection.offsetWidth
-                };
-            });
-
-            // Handle click on dim areas (create new selection)
-            const onDimClick = (e) => {
-                const overlayRect = overlay.getBoundingClientRect();
-                rangeDrag = {
-                    active: true,
-                    mode: 'select',
-                    startX: e.clientX,
-                    startLeft: e.clientX - overlayRect.left,
-                    startWidth: 0
-                };
-            };
-            dimLeft.addEventListener('mousedown', onDimClick);
-            dimRight.addEventListener('mousedown', onDimClick);
-
-            // Mouse move handler
-            document.addEventListener('mousemove', (e) => {
-                if (!rangeDrag.active || !overviewPlot || !mainPlot) return;
-
-                const bounds = getChartBounds();
                 const overlayRect = overlay.getBoundingClientRect();
                 const delta = e.clientX - rangeDrag.startX;
                 const currentX = e.clientX - overlayRect.left;
@@ -1048,7 +1713,6 @@
                     case 'pan':
                         newLeft = rangeDrag.startLeft + delta;
                         newWidth = rangeDrag.startWidth;
-                        // Clamp to bounds
                         newLeft = Math.max(bounds.left, Math.min(newLeft, bounds.left + bounds.width - newWidth));
                         break;
 
@@ -1073,203 +1737,41 @@
                         break;
                 }
 
-                // Update overlay visuals
                 selection.style.left = newLeft + 'px';
                 selection.style.width = newWidth + 'px';
                 dimLeft.style.width = newLeft + 'px';
                 dimRight.style.left = (newLeft + newWidth) + 'px';
                 dimRight.style.width = (bounds.left + bounds.width - newLeft - newWidth) + 'px';
 
-                // Update main chart scale
                 if (newWidth > 10) {
-                    const minVal = posToVal(newLeft);
-                    const maxVal = posToVal(newLeft + newWidth);
-                    mainPlot.setScale('x', { min: minVal, max: maxVal });
+                    const minVal = AppState._overviewPlot.posToVal(newLeft - bounds.left, 'x');
+                    const maxVal = AppState._overviewPlot.posToVal(newLeft + newWidth - bounds.left, 'x');
+                    AppState._mainPlot.setScale('x', { min: minVal, max: maxVal });
                 }
             });
 
-            // Mouse up handler
             document.addEventListener('mouseup', () => {
-                if (rangeDrag.active) {
-                    rangeDrag.active = false;
-                    rangeDrag.mode = null;
+                if (AppState._rangeDrag.active) {
+                    AppState._rangeDrag = {
+                        active: false,
+                        mode: null,
+                        startX: 0,
+                        startLeft: 0,
+                        startWidth: 0
+                    };
                 }
             });
 
-            // Store update function for external sync
-            rangeOverlay.update = updateOverlayFromScale;
-        }
-
-        // REQ-MV-006: Sync range overlay with main chart zoom
-        function syncOverview(u) {
-            if (rangeOverlay && rangeOverlay.update) {
-                rangeOverlay.update();
-            }
-        }
-
-        // REQ-MV-008: Draw oscillation overlay
-        function drawOscillationOverlay(u) {
-            if (!studyActive) return;
-
-            const ctx = u.ctx;
-            // Use bbox for proper plot area bounds (canvas pixels)
-            const { left, top, width, height } = u.bbox;
-            const plotRight = left + width;
-            const plotBottom = top + height;
-
-            const selectedIds = getSelectedContainerIds();
-
-            // Save context state and clip to plot area
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(left, top, width, height);
-            ctx.clip();
-
-            selectedIds.forEach((id, idx) => {
-                const result = oscillationData[id];
-                if (!result || !result.windows) return;
-
-                const color = COLORS[idx % COLORS.length];
-
-                result.windows.forEach(w => {
-                    // Convert to canvas pixels (true) for drawing
-                    let x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
-                    let x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
-
-                    // Skip windows entirely outside plot area
-                    if (x2 < left || x1 > plotRight) return;
-
-                    // Clamp to plot area bounds
-                    x1 = Math.max(x1, left);
-                    x2 = Math.min(x2, plotRight);
-
-                    // Use plot area bounds for y (consistent regardless of auto-scale)
-                    const y1 = top;
-                    const y2 = plotBottom;
-
-                    // Draw shaded region
-                    ctx.fillStyle = color + '20';
-                    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
-
-                    // Draw period markers
-                    const period = w.metrics.period || 10;
-                    const periodMs = period * 1000;
-                    ctx.strokeStyle = color;
-                    ctx.setLineDash([4, 4]);
-                    ctx.lineWidth = 1;
-
-                    for (let t = w.start_time_ms; t <= w.end_time_ms; t += periodMs) {
-                        const x = u.valToPos(t / 1000, 'x', true);
-                        if (x >= left && x <= plotRight) {
-                            ctx.beginPath();
-                            ctx.moveTo(x, y1);
-                            ctx.lineTo(x, y2);
-                            ctx.stroke();
-                        }
-                    }
-                    ctx.setLineDash([]);
-                });
-            });
-
-            // Restore context state
-            ctx.restore();
-        }
-
-        // REQ-MV-008: Find oscillation window at a given time value
-        function findOscillationWindowAtTime(timeVal) {
-            if (!studyActive) return null;
-
-            const selectedIds = getSelectedContainerIds();
-            for (const id of selectedIds) {
-                const result = oscillationData[id];
-                if (!result || !result.windows) continue;
-
-                for (const w of result.windows) {
-                    const startSec = w.start_time_ms / 1000;
-                    const endSec = w.end_time_ms / 1000;
-                    if (timeVal >= startSec && timeVal <= endSec) {
-                        return { window: w, containerId: id };
-                    }
-                }
-            }
-            return null;
-        }
-
-        // REQ-MV-008: Show tooltip for oscillation window
-        function showOscillationTooltip(e, windowData) {
-            const tooltip = document.getElementById('oscillationTooltip');
-            const w = windowData.window;
-
-            const period = w.metrics.period || 0;
-            const score = w.metrics.score || 0;
-            const amplitude = w.metrics.amplitude || 0;
-
-            tooltip.innerHTML = `
-                <div style="font-weight: 600; margin-bottom: 4px;">Oscillation Detected</div>
-                <div>Period: <strong>${period.toFixed(1)}s</strong></div>
-                <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
-                <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
-                <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
-            `;
-
-            // Position tooltip near cursor
-            const offsetX = 15;
-            const offsetY = 15;
-            let x = e.clientX + offsetX;
-            let y = e.clientY + offsetY;
-
-            // Keep tooltip on screen
-            const tooltipRect = tooltip.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-
-            // Show briefly to measure
-            tooltip.style.display = 'block';
-            const measuredWidth = tooltip.offsetWidth;
-            const measuredHeight = tooltip.offsetHeight;
-
-            if (x + measuredWidth > viewportWidth - 10) {
-                x = e.clientX - measuredWidth - offsetX;
-            }
-            if (y + measuredHeight > viewportHeight - 10) {
-                y = e.clientY - measuredHeight - offsetY;
-            }
-
-            tooltip.style.left = x + 'px';
-            tooltip.style.top = y + 'px';
-        }
-
-        function hideOscillationTooltip() {
-            const tooltip = document.getElementById('oscillationTooltip');
-            tooltip.style.display = 'none';
-        }
-
-        // REQ-MV-008: Zoom to oscillation window
-        function zoomToOscillationWindow(windowData) {
-            if (!mainPlot) return;
-
-            const w = windowData.window;
-            const startSec = w.start_time_ms / 1000;
-            const endSec = w.end_time_ms / 1000;
-
-            // Add 10% padding on each side for context
-            const duration = endSec - startSec;
-            const padding = duration * 0.1;
-
-            mainPlot.setScale('x', {
-                min: startSec - padding,
-                max: endSec + padding
-            });
+            // REQ-MV-008: Oscillation interaction handlers
+            setupOscillationInteraction();
         }
 
         // REQ-MV-008: Set up oscillation interaction handlers on chart
         function setupOscillationInteraction() {
             const chartDiv = document.getElementById('mainChart');
+            const tooltip = document.getElementById('oscillationTooltip');
 
-            // Track if we're over an oscillation window
             let overWindow = null;
-
-            // Track drag state to prevent click after drag-to-zoom
             let isDragging = false;
             let dragStartPos = null;
 
@@ -1279,7 +1781,7 @@
             });
 
             chartDiv.addEventListener('mousemove', (e) => {
-                // Detect if this is a drag (moved more than 5px from start)
+                // Detect drag
                 if (dragStartPos) {
                     const dx = Math.abs(e.clientX - dragStartPos.x);
                     const dy = Math.abs(e.clientY - dragStartPos.y);
@@ -1287,33 +1789,23 @@
                         isDragging = true;
                     }
                 }
-            });
 
-            chartDiv.addEventListener('mouseup', () => {
-                // Reset drag tracking after a short delay to allow click to be suppressed
-                setTimeout(() => {
-                    dragStartPos = null;
-                    isDragging = false;
-                }, 50);
-            });
-
-            chartDiv.addEventListener('mousemove', (e) => {
-                if (!studyActive || !mainPlot) {
+                // Tooltip handling
+                const plot = AppState._mainPlot;
+                if (!AppState.study.active || !plot) {
                     if (overWindow) {
-                        hideOscillationTooltip();
+                        tooltip.style.display = 'none';
                         chartDiv.style.cursor = '';
                         overWindow = null;
                     }
                     return;
                 }
 
-                // Get position relative to chart
-                const rect = mainPlot.root.getBoundingClientRect();
+                const rect = plot.root.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
 
-                // Check if within plot area (CSS pixels)
-                const bbox = mainPlot.bbox;
+                const bbox = plot.bbox;
                 const plotLeft = bbox.left / devicePixelRatio;
                 const plotTop = bbox.top / devicePixelRatio;
                 const plotWidth = bbox.width / devicePixelRatio;
@@ -1322,323 +1814,106 @@
                 if (x < plotLeft || x > plotLeft + plotWidth ||
                     y < plotTop || y > plotTop + plotHeight) {
                     if (overWindow) {
-                        hideOscillationTooltip();
+                        tooltip.style.display = 'none';
                         chartDiv.style.cursor = '';
                         overWindow = null;
                     }
                     return;
                 }
 
-                // Convert x position to time value
-                const timeVal = mainPlot.posToVal(x, 'x');
-                const windowData = findOscillationWindowAtTime(timeVal);
+                const timeVal = plot.posToVal(x, 'x');
+                const windowData = ChartRenderer.findOscillationWindowAtTime(timeVal);
 
                 if (windowData) {
                     overWindow = windowData;
                     chartDiv.style.cursor = 'pointer';
-                    showOscillationTooltip(e, windowData);
+
+                    const w = windowData.window;
+                    const period = w.metrics.period || 0;
+                    const score = w.metrics.score || 0;
+                    const amplitude = w.metrics.amplitude || 0;
+
+                    tooltip.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 4px;">Oscillation Detected</div>
+                        <div>Period: <strong>${period.toFixed(1)}s</strong></div>
+                        <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
+                        <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
+                        <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
+                    `;
+
+                    const offsetX = 15;
+                    const offsetY = 15;
+                    let tx = e.clientX + offsetX;
+                    let ty = e.clientY + offsetY;
+
+                    tooltip.style.display = 'block';
+                    const measuredWidth = tooltip.offsetWidth;
+                    const measuredHeight = tooltip.offsetHeight;
+
+                    if (tx + measuredWidth > window.innerWidth - 10) {
+                        tx = e.clientX - measuredWidth - offsetX;
+                    }
+                    if (ty + measuredHeight > window.innerHeight - 10) {
+                        ty = e.clientY - measuredHeight - offsetY;
+                    }
+
+                    tooltip.style.left = tx + 'px';
+                    tooltip.style.top = ty + 'px';
                 } else {
                     if (overWindow) {
-                        hideOscillationTooltip();
+                        tooltip.style.display = 'none';
                         chartDiv.style.cursor = '';
                         overWindow = null;
                     }
                 }
             });
 
+            chartDiv.addEventListener('mouseup', () => {
+                setTimeout(() => {
+                    dragStartPos = null;
+                    isDragging = false;
+                }, 50);
+            });
+
             chartDiv.addEventListener('mouseleave', () => {
                 if (overWindow) {
-                    hideOscillationTooltip();
+                    tooltip.style.display = 'none';
                     chartDiv.style.cursor = '';
                     overWindow = null;
                 }
             });
 
-            // Use capture phase to get click before uPlot's handlers
             chartDiv.addEventListener('click', (e) => {
-                // Don't zoom if this was a drag operation (user was drag-selecting a region)
                 if (isDragging) return;
-                if (!studyActive || !mainPlot) return;
+                const plot = AppState._mainPlot;
+                if (!AppState.study.active || !plot) return;
 
-                // Get position relative to chart
-                const rect = mainPlot.root.getBoundingClientRect();
+                const rect = plot.root.getBoundingClientRect();
                 const x = e.clientX - rect.left;
 
-                // Convert to time and find window
-                const timeVal = mainPlot.posToVal(x, 'x');
-                const windowData = findOscillationWindowAtTime(timeVal);
+                const timeVal = plot.posToVal(x, 'x');
+                const windowData = ChartRenderer.findOscillationWindowAtTime(timeVal);
 
                 if (windowData) {
-                    e.stopPropagation();  // Prevent uPlot from handling this click
-                    zoomToOscillationWindow(windowData);
-                    hideOscillationTooltip();
+                    e.stopPropagation();
+                    ChartRenderer.zoomToOscillationWindow(windowData);
+                    tooltip.style.display = 'none';
                 }
-            }, true);  // Use capture phase
+            }, true);
         }
 
-        // --- Actions ---
+        // ============================================================
+        // SECTION 11: INITIALIZATION
+        // ============================================================
 
-        function selectTop(n) {
-            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
-            checkboxes.forEach((cb, i) => { cb.checked = i < n; });
-            loadTimeseries();
-        }
+        // Subscribe render to state changes
+        subscribe(render);
 
-        function clearSelection() {
-            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
-            checkboxes.forEach(cb => { cb.checked = false; });
-            loadTimeseries();
-        }
+        // Set up event listeners
+        setupEventListeners();
 
-        // REQ-MV-007: Start oscillation study on specific container
-        async function startStudy(containerId) {
-            // If already studying this container, exit instead
-            if (studyActive && studyContainer === containerId) {
-                exitStudy(false);
-                return;
-            }
-
-            // REQ-MV-007: Capture current time range BEFORE any changes
-            let preservedXRange = null;
-            if (mainPlot && mainPlot.scales.x) {
-                preservedXRange = {
-                    min: mainPlot.scales.x.min,
-                    max: mainPlot.scales.x.max
-                };
-            }
-
-            // Save current selection for potential restoration
-            previousSelection = getSelectedContainerIds();
-
-            // Set study state
-            studyActive = true;
-            studyContainer = containerId;
-
-            // Deselect all, select only the study container
-            const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
-            checkboxes.forEach(cb => { cb.checked = cb.value === containerId; });
-
-            // Re-render container list to show study icon highlight
-            renderContainerList();
-
-            // Load timeseries for single container (preserving time range)
-            await loadTimeseriesWithRange(preservedXRange);
-
-            // Fetch oscillation data for this container
-            await loadOscillationDataForContainer(containerId);
-
-            // Update studies panel
-            renderStudyPanel();
-        }
-
-        // REQ-MV-007, REQ-MV-008: Exit study mode
-        function exitStudy(restorePrevious) {
-            // REQ-MV-008: Capture current time range BEFORE any changes
-            let preservedXRange = null;
-            if (mainPlot && mainPlot.scales.x) {
-                preservedXRange = {
-                    min: mainPlot.scales.x.min,
-                    max: mainPlot.scales.x.max
-                };
-            }
-
-            // Clear study state
-            studyActive = false;
-            const wasStudyContainer = studyContainer;
-            studyContainer = null;
-            oscillationData = {};
-
-            if (restorePrevious && previousSelection.length > 0) {
-                // Restore previous container selection
-                const checkboxes = document.querySelectorAll('#containerList input[type="checkbox"]');
-                checkboxes.forEach(cb => { cb.checked = previousSelection.includes(cb.value); });
-            }
-            // If not restoring, keep current single-container selection
-
-            previousSelection = [];
-
-            // Re-render container list
-            renderContainerList();
-
-            // Reset studies panel to default state
-            renderStudyPanel();
-
-            // Reload timeseries with preserved time range
-            loadTimeseriesWithRange(preservedXRange);
-        }
-
-        // Helper to load timeseries while preserving a specific time range
-        async function loadTimeseriesWithRange(preservedRange) {
-            const selected = getSelectedContainerIds();
-
-            if (selected.length === 0) {
-                showEmptyState();
-                return;
-            }
-
-            const res = await fetch(`/api/timeseries?metric=${encodeURIComponent(selectedMetric)}&containers=${selected.join(',')}`);
-            const data = await res.json();
-
-            // Check for empty data
-            if (data.length === 0 || data.every(d => d.data.length === 0)) {
-                showNoDataState(selectedMetric);
-                return;
-            }
-
-            // Check for all-null data
-            const hasNonNullData = data.some(d => d.data.some(p => p.value != null));
-            if (!hasNonNullData) {
-                showNoDataState(selectedMetric);
-                return;
-            }
-
-            // Store data
-            currentData = {};
-            data.forEach(d => { currentData[d.container] = d.data; });
-
-            // Render chart with preserved range
-            renderChart(selected, preservedRange);
-
-            const totalPoints = data.reduce((sum, d) => sum + d.data.length, 0);
-            document.getElementById('status').textContent =
-                `${selected.length} container${selected.length > 1 ? 's' : ''}, ${totalPoints.toLocaleString()} points`;
-        }
-
-        // Load oscillation data for a single container
-        async function loadOscillationDataForContainer(containerId) {
-            if (!selectedMetric) return;
-
-            const res = await fetch(`/api/study/oscillation?metric=${encodeURIComponent(selectedMetric)}&containers=${containerId}`);
-            const data = await res.json();
-
-            oscillationData = {};
-            if (data.results && data.results.length > 0) {
-                oscillationData[containerId] = data.results[0];
-            }
-
-            if (mainPlot) {
-                mainPlot.redraw();
-            }
-        }
-
-        // REQ-MV-008: Render the study results panel
-        function renderStudyPanel() {
-            const content = document.getElementById('studiesContent');
-
-            if (!studyActive) {
-                content.innerHTML = `
-                    <div style="color: #888; font-size: 12px;">
-                        Click the study icon on a container to analyze
-                    </div>`;
-                return;
-            }
-
-            const result = oscillationData[studyContainer];
-            const windowCount = result?.windows?.length || 0;
-
-            // Compute summary stats
-            let dominantPeriod = 'N/A';
-            let avgConfidence = 'N/A';
-
-            if (result && result.windows && result.windows.length > 0) {
-                // Find most common period
-                const periodCounts = {};
-                result.windows.forEach(w => {
-                    const p = Math.round(w.metrics.period);
-                    periodCounts[p] = (periodCounts[p] || 0) + 1;
-                });
-                const maxCount = Math.max(...Object.values(periodCounts));
-                dominantPeriod = Object.keys(periodCounts).find(p => periodCounts[p] === maxCount) + 's';
-
-                // Average confidence
-                const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
-                avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
-            }
-
-            const restoreBtn = previousSelection.length > 0
-                ? `<button class="study-panel-restore" onclick="exitStudy(true)">Restore previous view (${previousSelection.length} containers)</button>`
-                : '';
-
-            content.innerHTML = `
-                <div class="study-panel">
-                    <div class="study-panel-header">
-                        <span>Oscillation Study</span>
-                        <button class="study-panel-close" onclick="exitStudy(false)" title="Exit study">&times;</button>
-                    </div>
-                    <div class="study-panel-container">Container: ${studyContainer}</div>
-                    <div class="study-panel-stats">
-                        <div><strong>${windowCount}</strong> oscillation windows</div>
-                        <div>Dominant period: <strong>${dominantPeriod}</strong></div>
-                        <div>Avg confidence: <strong>${avgConfidence}</strong></div>
-                    </div>
-                    ${restoreBtn}
-                </div>`;
-        }
-
-        function resetZoom() {
-            if (!mainPlot || !originalXRange) return;
-            mainPlot.setScale('x', { min: originalXRange[0], max: originalXRange[1] });
-            mainPlot.setScale('y', { min: originalYRange[0], max: originalYRange[1] });
-            // syncOverview will be called via setScale hook to update the overlay
-        }
-
-        // --- Event Listeners ---
-
-        // Metric search with fuzzy matching
-        let metricSearchTimeout;
-        document.getElementById('metricSearch').addEventListener('input', () => {
-            clearTimeout(metricSearchTimeout);
-            metricSearchTimeout = setTimeout(() => {
-                renderMetricList(getFilteredMetrics());
-            }, 150);
-        });
-
-        document.getElementById('qosFilter').addEventListener('change', () => loadContainers());
-        document.getElementById('namespaceFilter').addEventListener('change', () => loadContainers());
-
-        // Container search (debounced)
-        let containerSearchTimeout;
-        document.getElementById('containerSearch').addEventListener('input', () => {
-            clearTimeout(containerSearchTimeout);
-            containerSearchTimeout = setTimeout(() => loadContainers(), 300);
-        });
-
-        // Handle resize
-        window.addEventListener('resize', () => {
-            if (mainPlot) {
-                const chartDiv = document.getElementById('mainChart');
-                mainPlot.setSize({ width: chartDiv.clientWidth, height: chartDiv.clientHeight });
-            }
-            if (overviewPlot) {
-                const overviewDiv = document.getElementById('overviewChart');
-                overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 60 });
-                // Update overlay after resize
-                if (rangeOverlay && rangeOverlay.update) {
-                    setTimeout(() => rangeOverlay.update(), 10);
-                }
-            }
-        });
-
-        // Scroll wheel zoom on main chart
-        document.getElementById('mainChart').addEventListener('wheel', (e) => {
-            if (!mainPlot) return;
-            e.preventDefault();
-
-            const rect = mainPlot.root.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const xVal = mainPlot.posToVal(x, 'x');
-
-            const xRange = mainPlot.scales.x;
-            const factor = e.deltaY > 0 ? 1.2 : 0.8;
-            const newMin = xVal - (xVal - xRange.min) * factor;
-            const newMax = xVal + (xRange.max - xVal) * factor;
-
-            mainPlot.setScale('x', { min: newMin, max: newMax });
-        }, { passive: false });
-
-        // Initialize
-        setupOscillationInteraction();
-        loadMetrics();
+        // Initialize the application
+        Actions.initialize();
     </script>
 </body>
 </html>
