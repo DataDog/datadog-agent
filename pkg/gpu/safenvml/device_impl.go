@@ -317,11 +317,11 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
 
-func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceId int, sample nvml.GpmSample) error {
+func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error {
 	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
 		return err
 	}
-	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceId, sample)
+	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
 	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
 }
 

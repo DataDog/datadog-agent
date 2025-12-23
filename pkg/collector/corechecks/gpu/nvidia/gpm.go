@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -74,7 +75,7 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	if isMig && migDevice.Parent == nil {
-		return nil, fmt.Errorf("MIG device has no parent physical device")
+		return nil, errors.New("MIG device has no parent physical device")
 	}
 
 	var support nvml.GpmSupport

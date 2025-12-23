@@ -94,7 +94,7 @@ type SafeDevice interface {
 	// GpmSampleGet gets a sample for GPM
 	GpmSampleGet(sample nvml.GpmSample) error
 	// GpmMigSampleGet gets a sample for GPM for a MIG device
-	GpmMigSampleGet(migInstanceId int, sample nvml.GpmSample) error
+	GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error
 	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
@@ -257,11 +257,11 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 
-		gpuInstanceId, err := migChildDevice.GetGpuInstanceId()
+		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
 		if err != nil {
 			return fmt.Errorf("error getting MIG device GPU instance ID: %w", err)
 		}
-		migChildDevice.MIGInstanceID = gpuInstanceId
+		migChildDevice.MIGInstanceID = gpuInstanceID
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
