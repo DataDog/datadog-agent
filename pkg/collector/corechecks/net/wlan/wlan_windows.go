@@ -533,7 +533,3 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	return *wi, nil
 }
 
-// createIPCResponseSchema is a stub for Windows (IPC validation only needed on macOS)
-func createIPCResponseSchema() (interface{}, error) {
-	return nil, errors.New("IPC schema validation only needed on macOS")
-}

@@ -7,8 +7,6 @@
 package wlan
 
 import (
-	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -45,7 +43,6 @@ type WLANCheck struct {
 	lastBSSID   string
 	lastSSID    string
 	isWarmedUp  bool
-	ipcSchema   interface{} // Pre-compiled JSON schema for IPC validation (Darwin only, stored as interface{} to avoid import)
 }
 
 func (c *WLANCheck) String() string {
@@ -114,17 +111,6 @@ const (
 
 // Run runs the check
 func (c *WLANCheck) Run() error {
-	// Lazy initialize JSON schema on first run (macOS only)
-	// This defers memory allocation until the check is actually enabled and running
-	if c.ipcSchema == nil && runtime.GOOS == "darwin" {
-		schema, err := createIPCResponseSchema()
-		if err != nil {
-			return fmt.Errorf("failed to create IPC validation schema: %w", err)
-		}
-		c.ipcSchema = schema
-		log.Debug("IPC response JSON schema validation enabled")
-	}
-
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -230,6 +216,5 @@ func Factory() option.Option[func() check.Check] {
 func newCheck() check.Check {
 	return &WLANCheck{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
-		// ipcSchema initialized lazily in Run() to avoid memory overhead for disabled checks
 	}
 }
