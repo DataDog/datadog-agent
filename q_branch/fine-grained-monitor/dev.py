@@ -32,7 +32,7 @@ LOG_FILE = DEV_DIR / "server.log"
 STATE_FILE = DEV_DIR / "state.json"
 
 # Default data file (in sibling directory q_branch/out/)
-DEFAULT_DATA = PROJECT_ROOT.parent / "out" / "merged-fgm.parquet"
+DEFAULT_DATA = PROJECT_ROOT.parent / "out" / "fixed-dec-22-23.parquet"
 
 # Binary path
 BINARY = PROJECT_ROOT / "target" / "release" / "fgm-viewer"
