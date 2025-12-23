@@ -146,9 +146,10 @@ THE SYSTEM SHALL overlay their timeseries on the same chart for visual
 comparison of patterns
 
 **Rationale:** Users investigating performance issues need to visually inspect
-CPU usage patterns to identify oscillations, spikes, or anomalies. The automated
-oscillation detector identifies candidates, but human judgment is needed to
-confirm patterns and understand their characteristics. Interactive visualization
+CPU usage patterns to identify periodic patterns, spikes, or anomalies. The
+automated periodicity detector identifies candidates, but human judgment is
+needed to confirm patterns and understand their characteristics. Interactive
+visualization
 lets users quickly compare container behavior and zoom into specific time
 windows. Browser-based viewing enables sharing and collaboration without
 additional tooling.
