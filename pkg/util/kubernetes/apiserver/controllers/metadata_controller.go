@@ -305,7 +305,7 @@ func (m *metadataController) syncEndpoints(key string) error {
 	case err != nil:
 		log.Debugf("Unable to retrieve endpoints %v from store: %v", key, err)
 	default:
-		err = m.mapEndpoints(endpoints)
+		m.mapEndpoints(endpoints)
 	}
 	return err
 }
@@ -331,7 +331,7 @@ func (m *metadataController) syncEndpointSlices(key string) error {
 }
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
-func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
+func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) {
 	nodeToPods := make(map[string]map[string]sets.Set[string])
 	affectedNodes := sets.New[string]()
 
@@ -343,13 +343,11 @@ func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 
 	m.cleanupStaleNodes(endpoints.Namespace, endpoints.Name, affectedNodes)
 	m.updateNodeMetadata(endpoints.Namespace, endpoints.Name, nodeToPods)
-
-	return nil
 }
 
 func (m *metadataController) mapEndpointAddresses(address []corev1.EndpointAddress, ns, name string,
 	nodeToPods map[string]map[string]sets.Set[string], affectedNodes sets.Set[string],
-) error {
+) {
 	for _, address := range address {
 		if address.TargetRef == nil {
 			// Endpoints are also used by the control plane as resource locks for leader election.
@@ -385,8 +383,6 @@ func (m *metadataController) mapEndpointAddresses(address []corev1.EndpointAddre
 		}
 		nodeToPods[nodeName][namespace].Insert(podName)
 	}
-
-	return nil
 }
 
 // mapEndpointSlice matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.19+.
