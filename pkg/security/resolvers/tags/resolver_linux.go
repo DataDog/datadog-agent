@@ -122,7 +122,7 @@ func needsTagsResolution(workload *Workload) bool {
 func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 	workload := pendingWorkload
 	// check if the workload tags were found or if it was deleted
-	if !workload.Deleted.Load() && needsTagsResolution(workload) {
+	if !workload.IsDeleted() && needsTagsResolution(workload) {
 		// this is an alive cgroup, try to resolve its tags now
 		err := t.fetchTags(workload)
 		if err != nil || needsTagsResolution(workload) {

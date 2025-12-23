@@ -710,7 +710,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
-	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
+	cgr.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
 		cgce.Lock()
 		defer cgce.Unlock()
 

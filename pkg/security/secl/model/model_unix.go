@@ -172,36 +172,24 @@ func (e *Event) GetContainerID() string {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
-	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFile    PathKey                 `field:"file"`
+	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
-// IsResolved returns true if the cgroup context is resolved
-func (cg *CGroupContext) IsResolved() bool {
-	return cg.CGroupID != "" || !cg.IsNull()
-}
-
+// IsNull returns true if the cgroup context is null
 func (cg *CGroupContext) IsNull() bool {
-	return cg.CGroupFile.IsNull()
+	return cg.CGroupPathKey.IsNull()
 }
 
-// Equals returns true if the cgroup context is equal to the other cgroup context
-func (cg *CGroupContext) Equals(cg2 CGroupContext) bool {
-	return cg.CGroupFile.Equals(cg2.CGroupFile)
+// IsResolved returns true if the cgroup context is resolved & not null
+func (cg *CGroupContext) IsResolved() bool {
+	return cg.CGroupID != "" && !cg.CGroupPathKey.IsNull()
 }
 
-// Merge two cgroup context
-func (cg *CGroupContext) Merge(cg2 CGroupContext) {
-	if cg.CGroupID == "" {
-		cg.CGroupID = cg2.CGroupID
-	}
-	if cg.CGroupFile.Inode == 0 {
-		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
-	}
-	if cg.CGroupFile.MountID == 0 {
-		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
-	}
+// Equals returns true if the two cgroup contexts are equal
+func (cg *CGroupContext) Equals(cg2 *CGroupContext) bool {
+	return cg.CGroupPathKey.Inode == cg2.CGroupPathKey.Inode
 }
 
 // Hash returns a unique key for the entity

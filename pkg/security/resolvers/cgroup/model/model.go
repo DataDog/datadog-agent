@@ -22,19 +22,19 @@ type CacheEntry struct {
 	CGroupContext    model.CGroupContext
 	ContainerContext model.ContainerContext
 
-	Deleted *atomic.Bool
-	PIDs    map[uint32]bool
+	deleted *atomic.Bool
+	pids    map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
 func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pid uint32) *CacheEntry {
 	cacheEntry := CacheEntry{
-		Deleted:          atomic.NewBool(false),
+		deleted:          atomic.NewBool(false),
 		ContainerContext: containerContext,
 		CGroupContext:    cgroupContext,
-		PIDs:             make(map[uint32]bool, 10),
+		pids:             make(map[uint32]bool, 10),
 	}
-	cacheEntry.PIDs[pid] = true
+	cacheEntry.pids[pid] = true
 
 	// should not happen but added as a safe-guard to avoid overriding
 	// a Releasable pointer which would cause Releasable callbacks to not be called
@@ -52,9 +52,9 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	cgce.RLock()
 	defer cgce.RUnlock()
 
-	pids := make([]uint32, len(cgce.PIDs))
+	pids := make([]uint32, len(cgce.pids))
 	i := 0
-	for k := range cgce.PIDs {
+	for k := range cgce.pids {
 		pids[i] = k
 		i++
 	}
@@ -63,11 +63,13 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 }
 
 // RemovePID removes the provided pid from the list of pids
-func (cgce *CacheEntry) RemovePID(pid uint32) {
+func (cgce *CacheEntry) RemovePID(pid uint32) int {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	delete(cgce.PIDs, pid)
+	delete(cgce.pids, pid)
+
+	return len(cgce.pids)
 }
 
 // AddPID adds a pid to the list of pids
@@ -75,5 +77,57 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs[pid] = true
+	cgce.pids[pid] = true
+}
+
+// SetPIDs set the pids list
+func (cgce *CacheEntry) SetPIDs(pids []uint32) {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	clear(cgce.pids)
+	for _, pid := range pids {
+		cgce.pids[pid] = true
+	}
+}
+
+// RemovePIDs removes the pids and return the new size
+func (cgce *CacheEntry) RemovePIDs(pids []uint32) int {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	for _, pid := range pids {
+		delete(cgce.pids, pid)
+	}
+
+	return len(cgce.pids)
+}
+
+// IsDeleted returns whether the cache entry is deleted
+func (cgce *CacheEntry) IsDeleted() bool {
+	return cgce.deleted.Load()
+}
+
+// SetAsDeleted sets the cache entry as deleted
+func (cgce *CacheEntry) SetAsDeleted() {
+	cgce.deleted.Store(true)
+}
+
+// ContainsPID returns whether the cache entry contains the pid
+func (cgce *CacheEntry) ContainsPID(pid uint32) bool {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	_, exists := cgce.pids[pid]
+	return exists
+}
+
+// CGroupContextEquals returns if the cgroups are equal
+func (cgce *CacheEntry) CGroupContextEquals(other *CacheEntry) bool {
+	cgce.RLock()
+	other.RLock()
+	defer cgce.RUnlock()
+	defer other.RUnlock()
+
+	return cgce.CGroupContext.Equals(&other.CGroupContext)
 }

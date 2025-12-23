@@ -43,7 +43,7 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	n, err := e.CGroupFile.UnmarshalBinary(data)
+	n, err := e.CGroupPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}

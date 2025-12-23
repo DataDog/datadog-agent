@@ -44,18 +44,18 @@ type Resolver struct {
 }
 
 type containerFS struct {
-	cgroup *cgroupModel.CacheEntry
+	cgroupCacheEntry *cgroupModel.CacheEntry
 }
 
 // Open implements the fs.FS interface for containers
 func (fs *containerFS) Open(filename string) (fs.File, error) {
-	for _, rootCandidatePID := range fs.cgroup.GetPIDs() {
+	for _, rootCandidatePID := range fs.cgroupCacheEntry.GetPIDs() {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
 			if os.IsNotExist(err) {
-				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerContext.ContainerID, err)
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroupCacheEntry.ContainerContext.ContainerID, err)
 			} else {
-				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerContext.ContainerID, err)
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroupCacheEntry.ContainerContext.ContainerID, err)
 			}
 			continue
 		}
@@ -63,7 +63,7 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		return file, nil
 	}
 
-	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ContainerContext.ContainerID)
+	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroupCacheEntry.ContainerContext.ContainerID)
 }
 
 type hostFS struct{}
@@ -80,11 +80,11 @@ func (r *Resolver) getFilesystem(containerID containerutils.ContainerID) (fs.FS,
 	var fsys fs.FS
 
 	if containerID != "" {
-		cgroupEntry, found := r.cgroupResolver.GetContainerWorkload(containerID)
-		if !found {
+		cacheEntry := r.cgroupResolver.GetCacheEntryContainerID(containerID)
+		if cacheEntry == nil {
 			return nil, fmt.Errorf("failed to resolve container %s", containerID)
 		}
-		fsys = &containerFS{cgroup: cgroupEntry}
+		fsys = &containerFS{cgroupCacheEntry: cacheEntry}
 	} else {
 		fsys = &hostFS{}
 	}
