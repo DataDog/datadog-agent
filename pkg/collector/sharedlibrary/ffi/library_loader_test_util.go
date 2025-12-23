@@ -54,10 +54,5 @@ func (ml *NoopSharedLibraryLoader) Version(_ *C.version_function_t) (string, err
 // GetNoopLibrary returns a library with pointers to noop functions
 func GetNoopLibrary() *Library {
 	cLib := C.get_noop_library()
-
-	return &Library{
-		Handle:  cLib.handle,
-		Run:     cLib.run,
-		Version: cLib.version,
-	}
+	return newLibrary(cLib)
 }

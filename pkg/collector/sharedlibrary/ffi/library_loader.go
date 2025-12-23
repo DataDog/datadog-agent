@@ -95,11 +95,7 @@ func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 		return nil, fmt.Errorf("failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
-	return &Library{
-		Handle:  cLib.handle,
-		Run:     cLib.run,
-		Version: cLib.version,
-	}, nil
+	return newLibrary(&cLib), nil
 }
 
 // Close closes the shared library
@@ -156,5 +152,13 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
+	}
+}
+
+func newLibrary(lib *C.library_t) *Library {
+	return &Library{
+		Handle:  lib.handle,
+		Run:     lib.run,
+		Version: lib.version,
 	}
 }
