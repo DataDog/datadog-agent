@@ -564,7 +564,23 @@
         function selectMetric(name) {
             selectedMetric = name;
             renderMetricList(getFilteredMetrics());
+
+            // Show loading state immediately - metric data may take 10-15s to load
+            document.getElementById('status').textContent = 'Loading metric data...';
+            document.getElementById('containerList').innerHTML =
+                '<div style="padding: 12px; color: #888; text-align: center;">Loading containers...</div>';
+            showChartLoading();
+
             loadContainers();
+        }
+
+        function showChartLoading() {
+            document.getElementById('mainChart').innerHTML =
+                '<div class="empty-state">Loading data for metric...</div>';
+            document.getElementById('overviewChart').innerHTML = '';
+            document.getElementById('legend').innerHTML = '';
+            mainPlot = null;
+            overviewPlot = null;
         }
 
         function getFilteredMetrics() {

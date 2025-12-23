@@ -7,7 +7,8 @@
 //! REQ-MV-007: GET /api/studies - list available studies.
 //! REQ-MV-007: GET /api/study/:id - run study on selected containers.
 
-use crate::metrics_viewer::data::{ContainerStats, LoadedData, MetricInfo, TimeseriesPoint};
+use crate::metrics_viewer::data::{ContainerStats, MetricInfo, TimeseriesPoint};
+use crate::metrics_viewer::lazy_data::LazyDataStore;
 use crate::metrics_viewer::studies::{StudyInfo, StudyRegistry, StudyResult};
 use axum::{
     extract::{Path, Query, State},
@@ -22,7 +23,7 @@ use tower_http::cors::CorsLayer;
 
 /// Application state shared across handlers.
 pub struct AppState {
-    pub data: LoadedData,
+    pub data: LazyDataStore,
     pub studies: StudyRegistry,
 }
 
@@ -42,7 +43,7 @@ impl Default for ServerConfig {
 }
 
 /// Start the HTTP server.
-pub async fn run_server(data: LoadedData, config: ServerConfig) -> anyhow::Result<()> {
+pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         data,
         studies: StudyRegistry::new(),
@@ -104,7 +105,7 @@ struct HealthResponse {
 /// REQ-MV-002: Returns list of available metric names with sample counts.
 async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<MetricsResponse> {
     Json(MetricsResponse {
-        metrics: state.data.metrics.clone(),
+        metrics: state.data.index.metrics.clone(),
     })
 }
 
@@ -117,8 +118,8 @@ struct MetricsResponse {
 /// REQ-MV-003: Returns available qos_class and namespace values.
 async fn filters_handler(State(state): State<Arc<AppState>>) -> Json<FiltersResponse> {
     Json(FiltersResponse {
-        qos_classes: state.data.qos_classes.clone(),
-        namespaces: state.data.namespaces.clone(),
+        qos_classes: state.data.index.qos_classes.clone(),
+        namespaces: state.data.index.namespaces.clone(),
     })
 }
 
@@ -146,8 +147,14 @@ async fn containers_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ContainersQuery>,
 ) -> Json<ContainersResponse> {
-    let empty = std::collections::HashMap::new();
-    let metric_stats = state.data.stats.get(&query.metric).unwrap_or(&empty);
+    // Load stats on demand
+    let metric_stats = match state.data.get_container_stats(&query.metric) {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error loading container stats: {}", e);
+            return Json(ContainersResponse { containers: vec![] });
+        }
+    };
 
     let mut containers: Vec<ContainerStats> = metric_stats
         .values()
@@ -217,19 +224,19 @@ async fn timeseries_handler(
 ) -> Json<Vec<TimeseriesResponse>> {
     let container_ids: Vec<&str> = query.containers.split(',').collect();
 
-    let empty = std::collections::HashMap::new();
-    let metric_ts = state.data.timeseries.get(&query.metric).unwrap_or(&empty);
-
-    let mut result: Vec<TimeseriesResponse> = Vec::new();
-
-    for id in container_ids {
-        if let Some(data) = metric_ts.get(id) {
-            result.push(TimeseriesResponse {
-                container: id.to_string(),
-                data: data.clone(),
-            });
+    // Load timeseries on demand
+    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids) {
+        Ok(ts) => ts,
+        Err(e) => {
+            eprintln!("Error loading timeseries: {}", e);
+            return Json(vec![]);
         }
-    }
+    };
+
+    let result: Vec<TimeseriesResponse> = timeseries
+        .into_iter()
+        .map(|(container, data)| TimeseriesResponse { container, data })
+        .collect();
 
     Json(result)
 }
@@ -284,19 +291,24 @@ async fn study_handler(
     };
 
     let container_ids: Vec<&str> = query.containers.split(',').collect();
-    let empty = std::collections::HashMap::new();
-    let metric_ts = state.data.timeseries.get(&query.metric).unwrap_or(&empty);
+
+    // Load timeseries on demand
+    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids) {
+        Ok(ts) => ts,
+        Err(e) => {
+            eprintln!("Error loading timeseries for study: {}", e);
+            return Json(StudyResponse {
+                study: study_id,
+                results: vec![],
+            });
+        }
+    };
 
     let mut results: Vec<ContainerStudyResult> = Vec::new();
 
-    for id in container_ids {
-        if let Some(data) = metric_ts.get(id) {
-            let result = study.analyze(data);
-            results.push(ContainerStudyResult {
-                container: id.to_string(),
-                result,
-            });
-        }
+    for (container, data) in timeseries {
+        let result = study.analyze(&data);
+        results.push(ContainerStudyResult { container, result });
     }
 
     Json(StudyResponse {
