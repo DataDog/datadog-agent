@@ -440,8 +440,7 @@ fine-grained-monitor/
 │       ├── design.md
 │       └── executive.md
 ├── scripts/                      # Analysis and visualization tools
-│   ├── metrics_viewer.rs         # REQ-FM-005: Interactive visualization (Rust/axum)
-│   └── oscillation_detector.rs   # Pattern detection for CPU oscillations
+│   └── metrics_viewer.rs         # REQ-FM-005: Interactive visualization (Rust/axum)
 └── src/
     ├── main.rs              # CLI, lifecycle orchestration
     ├── lib.rs

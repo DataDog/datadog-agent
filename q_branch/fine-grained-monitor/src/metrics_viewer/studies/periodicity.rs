@@ -1,15 +1,15 @@
-//! Oscillation detection study using autocorrelation.
+//! Periodicity detection study using autocorrelation.
 //!
-//! REQ-MV-007: Detects periodic oscillation patterns in timeseries data.
+//! REQ-MV-007: Detects periodic patterns in timeseries data.
 //! REQ-MV-008: Provides window data for visualization.
 
 use super::{Study, StudyResult, StudyWindow};
 use crate::metrics_viewer::data::TimeseriesPoint;
 use std::collections::HashMap;
 
-/// Configuration for oscillation detection.
+/// Configuration for periodicity detection.
 #[derive(Debug, Clone)]
-pub struct OscillationConfig {
+pub struct PeriodicityConfig {
     /// Window size in samples.
     pub window_size: usize,
     /// Step size between windows (overlap = window_size - step_size).
@@ -24,7 +24,7 @@ pub struct OscillationConfig {
     pub max_period: usize,
 }
 
-impl Default for OscillationConfig {
+impl Default for PeriodicityConfig {
     fn default() -> Self {
         // REQ-MV-007: Default parameters from design.md
         Self {
@@ -38,33 +38,33 @@ impl Default for OscillationConfig {
     }
 }
 
-/// Oscillation detection study.
-pub struct OscillationStudy {
-    config: OscillationConfig,
+/// Periodicity detection study.
+pub struct PeriodicityStudy {
+    config: PeriodicityConfig,
 }
 
-impl OscillationStudy {
+impl PeriodicityStudy {
     /// Create with custom configuration.
-    pub fn with_config(config: OscillationConfig) -> Self {
+    pub fn with_config(config: PeriodicityConfig) -> Self {
         Self { config }
     }
 }
 
-impl Default for OscillationStudy {
+impl Default for PeriodicityStudy {
     fn default() -> Self {
         Self {
-            config: OscillationConfig::default(),
+            config: PeriodicityConfig::default(),
         }
     }
 }
 
-impl Study for OscillationStudy {
+impl Study for PeriodicityStudy {
     fn id(&self) -> &str {
-        "oscillation"
+        "periodicity"
     }
 
     fn name(&self) -> &str {
-        "Oscillation Study"
+        "Periodicity Study"
     }
 
     fn description(&self) -> &str {
@@ -117,9 +117,9 @@ impl Study for OscillationStudy {
         }
 
         let summary = if windows.is_empty() {
-            "No oscillation patterns detected".to_string()
+            "No periodic patterns detected".to_string()
         } else {
-            format!("Found {} oscillation windows", windows.len())
+            format!("Found {} periodic windows", windows.len())
         };
 
         StudyResult {
@@ -137,8 +137,8 @@ struct WindowDetection {
     amplitude: f64,
 }
 
-/// Analyze a single window for oscillation.
-fn analyze_window(samples: &[f64], config: &OscillationConfig) -> Option<WindowDetection> {
+/// Analyze a single window for periodicity.
+fn analyze_window(samples: &[f64], config: &PeriodicityConfig) -> Option<WindowDetection> {
     if samples.len() < config.window_size {
         return None;
     }
@@ -230,10 +230,10 @@ mod tests {
     }
 
     #[test]
-    fn test_oscillation_detection() {
-        let study = OscillationStudy::default();
+    fn test_periodicity_detection() {
+        let study = PeriodicityStudy::default();
 
-        // Create oscillating data
+        // Create periodic data
         let timeseries: Vec<TimeseriesPoint> = (0..100)
             .map(|i| TimeseriesPoint {
                 time_ms: i * 1000,
@@ -242,12 +242,12 @@ mod tests {
             .collect();
 
         let result = study.analyze(&timeseries);
-        assert!(!result.windows.is_empty(), "Should detect oscillation");
+        assert!(!result.windows.is_empty(), "Should detect periodicity");
     }
 
     #[test]
-    fn test_no_oscillation_flat() {
-        let study = OscillationStudy::default();
+    fn test_no_periodicity_flat() {
+        let study = PeriodicityStudy::default();
 
         // Create flat data
         let timeseries: Vec<TimeseriesPoint> = (0..100)
@@ -258,6 +258,6 @@ mod tests {
             .collect();
 
         let result = study.analyze(&timeseries);
-        assert!(result.windows.is_empty(), "Should not detect oscillation in flat data");
+        assert!(result.windows.is_empty(), "Should not detect periodicity in flat data");
     }
 }

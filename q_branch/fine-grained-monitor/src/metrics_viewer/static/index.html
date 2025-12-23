@@ -381,9 +381,39 @@
             background: #f5f5f5;
             border-color: #999;
         }
+        .study-panel-summary {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #b8daff;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .study-panel-summary-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .period-group {
+            margin-bottom: 10px;
+        }
+        .period-group-header {
+            font-weight: 600;
+            color: #0056b3;
+            margin-bottom: 4px;
+        }
+        .period-group-windows {
+            padding-left: 12px;
+            color: #555;
+        }
+        .period-group-windows div {
+            margin: 2px 0;
+            font-family: monospace;
+            font-size: 11px;
+        }
 
-        /* REQ-MV-008: Oscillation tooltip */
-        .oscillation-tooltip {
+        /* REQ-MV-008: Periodicity tooltip */
+        .periodicity-tooltip {
             position: absolute;
             background: rgba(0,0,0,0.8);
             color: white;
@@ -471,8 +501,8 @@
         </div>
     </div>
 
-    <!-- REQ-MV-008: Oscillation tooltip -->
-    <div class="oscillation-tooltip" id="oscillationTooltip"></div>
+    <!-- REQ-MV-008: Periodicity tooltip -->
+    <div class="periodicity-tooltip" id="periodicityTooltip"></div>
 
     <script>
         // ============================================================
@@ -524,7 +554,7 @@
                 active: false,
                 containerId: null,
                 previousSelection: [],      // For restore functionality
-                results: {},                // {containerId: oscillation results}
+                results: {},                // {containerId: periodicity results}
             },
 
             // Internal (not persisted)
@@ -655,9 +685,9 @@
                 return result;
             },
 
-            async fetchOscillationStudy(metricName, containerId) {
+            async fetchPeriodicityStudy(metricName, containerId) {
                 const res = await fetch(
-                    `/api/study/oscillation?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
+                    `/api/study/periodicity?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
                 );
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
@@ -724,7 +754,7 @@
                             <button class="study-btn"
                                     style="${studyBtnStyle}"
                                     data-study-btn="${escapeAttr(containerId)}"
-                                    title="Run Oscillation Study">📊</button>
+                                    title="Run Periodicity Study">📊</button>
                         </label>
                     `;
                 }).join('');
@@ -747,38 +777,82 @@
                 // Compute summary stats
                 let dominantPeriod = 'N/A';
                 let avgConfidence = 'N/A';
+                let groupedSummaryHtml = '';
 
                 if (result && result.windows && result.windows.length > 0) {
-                    // Find most common period
-                    const periodCounts = {};
+                    // Group windows by period
+                    const periodGroups = {};
                     result.windows.forEach(w => {
                         const p = Math.round(w.metrics.period);
-                        periodCounts[p] = (periodCounts[p] || 0) + 1;
+                        if (!periodGroups[p]) {
+                            periodGroups[p] = [];
+                        }
+                        periodGroups[p].push(w);
                     });
-                    const maxCount = Math.max(...Object.values(periodCounts));
-                    dominantPeriod = Object.keys(periodCounts).find(p => periodCounts[p] === maxCount) + 's';
+
+                    // Find dominant period (most windows)
+                    const sortedPeriods = Object.keys(periodGroups)
+                        .map(p => parseInt(p))
+                        .sort((a, b) => periodGroups[b].length - periodGroups[a].length);
+                    dominantPeriod = sortedPeriods[0] + 's';
 
                     // Average confidence
                     const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
                     avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
+
+                    // Format time helper
+                    const formatTime = (ms) => {
+                        const d = new Date(ms);
+                        return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    };
+
+                    // Build grouped summary HTML
+                    groupedSummaryHtml = sortedPeriods.map(period => {
+                        const windows = periodGroups[period];
+                        // Sort windows by start time
+                        windows.sort((a, b) => a.start_time_ms - b.start_time_ms);
+
+                        const windowLines = windows.map(w => {
+                            const startTime = formatTime(w.start_time_ms);
+                            const endTime = formatTime(w.end_time_ms);
+                            const confidence = Math.round((w.metrics.score || 0) * 100);
+                            const amplitude = (w.metrics.amplitude || 0).toFixed(1);
+                            return `<div>${startTime} - ${endTime} (${confidence}%, amp: ${amplitude})</div>`;
+                        }).join('');
+
+                        return `
+                            <div class="period-group">
+                                <div class="period-group-header">${period}s period (${windows.length} windows)</div>
+                                <div class="period-group-windows">${windowLines}</div>
+                            </div>
+                        `;
+                    }).join('');
                 }
 
                 const restoreBtn = state.study.previousSelection.length > 0
                     ? `<button class="study-panel-restore" data-restore-btn>Restore previous view (${state.study.previousSelection.length} containers)</button>`
                     : '';
 
+                const summarySection = groupedSummaryHtml ? `
+                    <div class="study-panel-summary">
+                        <div class="study-panel-summary-title">Detected Patterns</div>
+                        ${groupedSummaryHtml}
+                    </div>
+                ` : '';
+
                 return `
                     <div class="study-panel">
                         <div class="study-panel-header">
-                            <span>Oscillation Study</span>
+                            <span>Periodicity Study</span>
                             <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
                         </div>
                         <div class="study-panel-container">Container: ${escapeHtml(containerId)}</div>
                         <div class="study-panel-stats">
-                            <div><strong>${windowCount}</strong> oscillation windows</div>
+                            <div><strong>${windowCount}</strong> periodic windows</div>
                             <div>Dominant period: <strong>${dominantPeriod}</strong></div>
                             <div>Avg confidence: <strong>${avgConfidence}</strong></div>
                         </div>
+                        ${summarySection}
                         ${restoreBtn}
                     </div>
                 `;
@@ -966,7 +1040,7 @@
                 ChartRenderer.renderChart(AppState, preservedXRange);
             },
 
-            // REQ-MV-007: Start oscillation study on specific container
+            // REQ-MV-007: Start periodicity study on specific container
             async startStudy(containerId) {
                 // If already studying this container, exit instead
                 if (AppState.study.active && AppState.study.containerId === containerId) {
@@ -1000,19 +1074,19 @@
                 // Render chart with preserved range
                 ChartRenderer.renderChart(AppState, preservedXRange);
 
-                // Fetch oscillation data
-                const oscillationResult = await Api.fetchOscillationStudy(
+                // Fetch periodicity data
+                const periodicityResult = await Api.fetchPeriodicityStudy(
                     AppState.selectedMetric,
                     containerId
                 );
 
                 const results = {};
-                if (oscillationResult) {
-                    results[containerId] = oscillationResult;
+                if (periodicityResult) {
+                    results[containerId] = periodicityResult;
                 }
                 updateState({ study: { results: results } });
 
-                // Redraw to show oscillation overlay
+                // Redraw to show periodicity overlay
                 if (AppState._mainPlot) {
                     AppState._mainPlot.redraw();
                 }
@@ -1217,7 +1291,7 @@
                         drag: { x: true, y: false, setScale: true }
                     },
                     hooks: {
-                        draw: [ChartRenderer.drawOscillationOverlay],
+                        draw: [ChartRenderer.drawPeriodicityOverlay],
                         setScale: [ChartRenderer.syncOverview]
                     },
                     axes: [
@@ -1277,8 +1351,8 @@
                 }
             },
 
-            // REQ-MV-008: Draw oscillation overlay
-            drawOscillationOverlay(u) {
+            // REQ-MV-008: Draw periodicity overlay
+            drawPeriodicityOverlay(u) {
                 if (!AppState.study.active) return;
 
                 const ctx = u.ctx;
@@ -1458,8 +1532,8 @@
                 plot.setScale('y', { min: originalY[0], max: originalY[1] });
             },
 
-            // REQ-MV-008: Find oscillation window at a given time value
-            findOscillationWindowAtTime(timeVal) {
+            // REQ-MV-008: Find periodicity window at a given time value
+            findPeriodicityWindowAtTime(timeVal) {
                 if (!AppState.study.active) return null;
 
                 const selectedIds = AppState.selectedContainerIds;
@@ -1478,8 +1552,8 @@
                 return null;
             },
 
-            // REQ-MV-008: Zoom to oscillation window
-            zoomToOscillationWindow(windowData) {
+            // REQ-MV-008: Zoom to periodicity window
+            zoomToPeriodicityWindow(windowData) {
                 const plot = AppState._mainPlot;
                 if (!plot) return;
 
@@ -1728,14 +1802,14 @@
                 }
             });
 
-            // REQ-MV-008: Oscillation interaction handlers
-            setupOscillationInteraction();
+            // REQ-MV-008: Periodicity interaction handlers
+            setupPeriodicityInteraction();
         }
 
-        // REQ-MV-008: Set up oscillation interaction handlers on chart
-        function setupOscillationInteraction() {
+        // REQ-MV-008: Set up periodicity interaction handlers on chart
+        function setupPeriodicityInteraction() {
             const chartDiv = document.getElementById('mainChart');
-            const tooltip = document.getElementById('oscillationTooltip');
+            const tooltip = document.getElementById('periodicityTooltip');
 
             let overWindow = null;
             let isDragging = false;
@@ -1788,7 +1862,7 @@
                 }
 
                 const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findOscillationWindowAtTime(timeVal);
+                const windowData = ChartRenderer.findPeriodicityWindowAtTime(timeVal);
 
                 if (windowData) {
                     overWindow = windowData;
@@ -1800,7 +1874,7 @@
                     const amplitude = w.metrics.amplitude || 0;
 
                     tooltip.innerHTML = `
-                        <div style="font-weight: 600; margin-bottom: 4px;">Oscillation Detected</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Periodic Pattern Detected</div>
                         <div>Period: <strong>${period.toFixed(1)}s</strong></div>
                         <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
                         <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
@@ -1858,11 +1932,11 @@
                 const x = e.clientX - rect.left;
 
                 const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findOscillationWindowAtTime(timeVal);
+                const windowData = ChartRenderer.findPeriodicityWindowAtTime(timeVal);
 
                 if (windowData) {
                     e.stopPropagation();
-                    ChartRenderer.zoomToOscillationWindow(windowData);
+                    ChartRenderer.zoomToPeriodicityWindow(windowData);
                     tooltip.style.display = 'none';
                 }
             }, true);

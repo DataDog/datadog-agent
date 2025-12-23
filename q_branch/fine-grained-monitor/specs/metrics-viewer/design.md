@@ -14,7 +14,7 @@ src/metrics_viewer/
 ├── server.rs        # HTTP server, API handlers
 ├── studies/
 │   ├── mod.rs       # Study trait, registry
-│   └── oscillation.rs  # Oscillation detection study
+│   └── periodicity.rs  # Periodicity detection study
 └── static/          # Embedded frontend assets
 ```
 
@@ -118,11 +118,11 @@ data bounds.
 Start with option 1 (simpler). Use uPlot's `setSeries` hooks to sync selection
 rectangle with main chart zoom state.
 
-## REQ-MV-007: Detect Periodic Oscillations
+## REQ-MV-007: Detect Periodic Patterns
 
 ### Study Abstraction
 
-Oscillation detection is implemented as a `Study` trait, establishing a pattern
+Periodicity detection is implemented as a `Study` trait, establishing a pattern
 for future analysis features:
 
 ```rust
@@ -171,7 +171,7 @@ When user clicks study icon on container X:
 2. Deselect all containers
 3. Select container X
 4. Set `studyActive = true` and `studyContainer = X`
-5. Fetch oscillation data for container X
+5. Fetch periodicity data for container X
 6. Preserve current time range (do not reset zoom/pan)
 
 Frontend state:
@@ -181,9 +181,9 @@ let studyActive = false;
 let studyContainer = null;      // Container ID being studied
 ```
 
-### Oscillation Detection Algorithm
+### Periodicity Detection Algorithm
 
-Sliding window autocorrelation (ported from existing `oscillation_detector.rs`):
+Sliding window autocorrelation:
 
 - Window size: 60 samples
 - Step size: 30 samples (50% overlap)
@@ -199,21 +199,21 @@ Returns available studies:
 ```json
 {
   "studies": [
-    {"id": "oscillation", "name": "Oscillation Study",
+    {"id": "periodicity", "name": "Periodicity Study",
      "description": "Detects periodic patterns using autocorrelation"}
   ]
 }
 ```
 
-### API: GET /api/study/oscillation
+### API: GET /api/study/periodicity
 
 Query params: `metric`, `container` (single container ID).
 
-Returns oscillation detection results:
+Returns periodicity detection results:
 
 ```json
 {
-  "study": "oscillation",
+  "study": "periodicity",
   "container": "abc123",
   "windows": [
     {"start_time_ms": 1000, "end_time_ms": 5000,
@@ -228,16 +228,16 @@ Returns oscillation detection results:
 }
 ```
 
-## REQ-MV-008: Visualize Oscillation Patterns
+## REQ-MV-008: Visualize Periodicity Patterns
 
 ### Results Panel
 
-When oscillation study is active, the Studies section in the sidebar transforms
+When periodicity study is active, the Studies section in the sidebar transforms
 into a results panel:
 
 ```
 ┌─────────────────────────────┐
-│ Oscillation Study     [✕]  │
+│ Periodicity Study     [✕]  │
 │ Container: d7cd12621111    │
 ├─────────────────────────────┤
 │ 52 windows detected        │
@@ -259,7 +259,7 @@ Panel elements:
 When user clicks [✕] or "Restore previous view":
 
 1. Set `studyActive = false`
-2. Clear oscillation overlay data
+2. Clear periodicity overlay data
 3. If restoring: select containers from `previousSelection`
 4. If not restoring: keep current single-container selection
 5. Preserve current time range (critical: do not reset zoom/pan)
@@ -267,10 +267,10 @@ When user clicks [✕] or "Restore previous view":
 
 ### Frontend Visualization Plugin
 
-uPlot hooks API for custom drawing. Oscillation visualization plugin receives
+uPlot hooks API for custom drawing. Periodicity visualization plugin receives
 `StudyResult` and draws overlays during `drawAxes` or `drawSeries` hooks.
 
-### Oscillation Markers
+### Periodicity Markers
 
 Vertical dashed lines at period intervals within each detected window.
 Lines colored to match associated container trace. Semi-transparent to
@@ -279,7 +279,7 @@ shading.
 
 ### Tooltip Interaction
 
-Hover detection on oscillation markers and regions. Tooltip displays:
+Hover detection on periodicity markers and regions. Tooltip displays:
 - Period duration (e.g., "10.2s period")
 - Confidence score (e.g., "85% confidence")
 - Amplitude (e.g., "±25.3 amplitude")
@@ -351,6 +351,6 @@ Study flow:
   1. Click study icon on container Y
   2. Save current selection to previousSelection
   3. Deselect all, select Y -> /api/timeseries?metric=X&containers=Y -> render chart
-  4. /api/study/oscillation?metric=X&container=Y -> display results panel + overlay
+  4. /api/study/periodicity?metric=X&container=Y -> display results panel + overlay
   5. Exit study -> restore previousSelection OR keep Y -> preserve time range
 ```

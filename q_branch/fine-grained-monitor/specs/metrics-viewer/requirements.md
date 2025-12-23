@@ -124,27 +124,27 @@ the overall timeline. The overview provides spatial context and fast navigation.
 
 ---
 
-### REQ-MV-007: Detect Periodic Oscillations
+### REQ-MV-007: Detect Periodic Patterns
 
-WHEN user initiates oscillation study on a specific container
+WHEN user initiates periodicity study on a specific container
 THE SYSTEM SHALL analyze that container's timeseries for periodic patterns
 
-WHEN user initiates oscillation study while multiple containers are selected
+WHEN user initiates periodicity study while multiple containers are selected
 THE SYSTEM SHALL deselect other containers and focus on the target container
 
-WHEN oscillation patterns are detected
+WHEN periodic patterns are detected
 THE SYSTEM SHALL highlight time regions where periodicity was found
 
-WHEN user views oscillation results
+WHEN user views periodicity results
 THE SYSTEM SHALL display the detected period, confidence score, and amplitude
 
 WHEN no periodic patterns meet detection threshold
-THE SYSTEM SHALL indicate that no oscillations were found
+THE SYSTEM SHALL indicate that no periodic patterns were found
 
-WHEN user initiates oscillation study
+WHEN user initiates periodicity study
 THE SYSTEM SHALL preserve the current time range
 
-**Rationale:** Periodic oscillations often indicate throttling, resource
+**Rationale:** Periodic patterns often indicate throttling, resource
 contention, or scheduling issues. Manual detection requires tedious visual
 scanning. Automated detection surfaces these patterns instantly, letting
 engineers focus on root cause rather than pattern hunting. Single-container
@@ -152,33 +152,33 @@ focus eliminates visual noise and makes the study action intentional.
 
 ---
 
-### REQ-MV-008: Visualize Oscillation Patterns
+### REQ-MV-008: Visualize Periodicity Patterns
 
-WHEN oscillation study is active
+WHEN periodicity study is active
 THE SYSTEM SHALL display a results panel showing the target container, window
 count, dominant period, and average confidence
 
-WHEN oscillation regions are detected
+WHEN periodic regions are detected
 THE SYSTEM SHALL overlay period markers on the chart within detected regions
 
 WHEN user zooms or pans
-THE SYSTEM SHALL update oscillation markers to remain aligned with the data
+THE SYSTEM SHALL update periodicity markers to remain aligned with the data
 
-WHEN user hovers over an oscillation region
+WHEN user hovers over a periodic region
 THE SYSTEM SHALL display a tooltip with period duration, confidence, and amplitude
 
-WHEN user exits oscillation study
-THE SYSTEM SHALL remove all oscillation markers and the results panel
+WHEN user exits periodicity study
+THE SYSTEM SHALL remove all periodicity markers and the results panel
 
-WHEN user exits oscillation study
+WHEN user exits periodicity study
 THE SYSTEM SHALL offer to restore the previous container selection
 
 WHEN user restores previous selection
 THE SYSTEM SHALL restore container selection AND preserve the current time range
 
-**Rationale:** Seeing oscillation markers overlaid on raw data confirms the
+**Rationale:** Seeing periodicity markers overlaid on raw data confirms the
 detection and shows exactly when periodic behavior occurs. Engineers can
-correlate oscillation timing with other events or container state changes.
+correlate periodic timing with other events or container state changes.
 The results panel provides a summary without requiring hover interactions.
 Restoration of previous selection supports the explore-then-deep-dive workflow.
 

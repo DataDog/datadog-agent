@@ -2,7 +2,7 @@
 //!
 //! REQ-MV-007: Provides extensible framework for analytical studies.
 
-pub mod oscillation;
+pub mod periodicity;
 
 use crate::metrics_viewer::data::TimeseriesPoint;
 use std::collections::HashMap;
@@ -79,7 +79,7 @@ impl StudyRegistry {
         let mut registry = Self {
             studies: Vec::new(),
         };
-        registry.register(Box::new(oscillation::OscillationStudy::default()));
+        registry.register(Box::new(periodicity::PeriodicityStudy::default()));
         registry
     }
 
