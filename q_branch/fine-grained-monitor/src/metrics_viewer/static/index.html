@@ -411,6 +411,16 @@
             font-family: monospace;
             font-size: 11px;
         }
+        .period-window-item {
+            cursor: pointer;
+            padding: 2px 4px;
+            margin: 1px -4px;
+            border-radius: 3px;
+            transition: background 0.15s;
+        }
+        .period-window-item:hover {
+            background: #cce5ff;
+        }
 
         /* REQ-MV-008: Periodicity tooltip */
         .periodicity-tooltip {
@@ -817,7 +827,10 @@
                             const endTime = formatTime(w.end_time_ms);
                             const confidence = Math.round((w.metrics.score || 0) * 100);
                             const amplitude = (w.metrics.amplitude || 0).toFixed(1);
-                            return `<div>${startTime} - ${endTime} (${confidence}%, amp: ${amplitude})</div>`;
+                            return `<div class="period-window-item"
+                                        data-window-start="${w.start_time_ms}"
+                                        data-window-end="${w.end_time_ms}"
+                                        title="Click to zoom">${startTime} - ${endTime} (${confidence}%, amp: ${amplitude})</div>`;
                         }).join('');
 
                         return `
@@ -1127,6 +1140,22 @@
             // REQ-MV-005: Reset zoom
             resetZoom() {
                 ChartRenderer.resetZoom();
+            },
+
+            // Zoom to a specific time range (in milliseconds)
+            zoomToTimeRange(startMs, endMs) {
+                const plot = AppState._mainPlot;
+                if (!plot) return;
+
+                const startSec = startMs / 1000;
+                const endSec = endMs / 1000;
+                const duration = endSec - startSec;
+                const padding = duration * 0.1;
+
+                plot.setScale('x', {
+                    min: startSec - padding,
+                    max: endSec + padding
+                });
             },
         };
 
@@ -1688,6 +1717,13 @@
                     Actions.exitStudy(false);
                 } else if (e.target.closest('[data-restore-btn]')) {
                     Actions.exitStudy(true);
+                } else if (e.target.closest('.period-window-item')) {
+                    const item = e.target.closest('.period-window-item');
+                    const startMs = parseFloat(item.dataset.windowStart);
+                    const endMs = parseFloat(item.dataset.windowEnd);
+                    if (!isNaN(startMs) && !isNaN(endMs)) {
+                        Actions.zoomToTimeRange(startMs, endMs);
+                    }
                 }
             });
 
