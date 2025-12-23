@@ -627,27 +627,23 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 	}
 	device := partition.Device
 	if device == "" || device == "none" {
-		device = ""
 		if !c.instanceConfig.AllPartitions {
 			return true
 		}
+		device = ""
 	}
 	// Hack for NFS secure mounts
 	// Secure mounts might look like this: '/mypath (deleted)', we should
 	// ignore all the bits not part of the mountpoint name. Take also into
 	// account a space might be in the mountpoint.
 	mountPoint := partition.Mountpoint
-	index := strings.LastIndex(mountPoint, " ")
-	// If a space is found, update mountPoint to be everything before the last space.
-	if index != -1 {
+	if index := strings.LastIndex(mountPoint, " "); index != -1 {
 		mountPoint = mountPoint[:index]
 	}
-	excludePartition := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint)
-	if excludePartition {
+	if c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint) {
 		return true
 	}
-	includePartition := c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint)
-	return !includePartition
+	return !(c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint))
 }
 
 func (c *Check) excludeDevice(device string) bool {

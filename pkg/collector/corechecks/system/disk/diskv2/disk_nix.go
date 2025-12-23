@@ -44,7 +44,7 @@ func baseDeviceName(device string) string {
 }
 
 // normalizeDeviceTag returns the device name for use in the device: tag.
-// On Linux, returns unchanged. On Windows, strips backslashes and lowercases.
+// On Linux/Unix, returns unchanged (Windows version strips backslashes and lowercases).
 func normalizeDeviceTag(deviceName string) string {
 	return deviceName
 }
