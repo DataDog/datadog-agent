@@ -18,7 +18,7 @@ import (
 
 // LogTracePipe logs all messages read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
 // This function will set the environment variable BPF_DEBUG=true for the duration of the test.
-func LogTracePipe(t *testing.T) {
+func LogTracePipe(t *testing.T) { // JMWTEST JMWDOCTHISINMYNOTES
 	logTracePipe(t, nil)
 }
 
@@ -58,7 +58,7 @@ func LogTracePipeProcess(t *testing.T, pid uint32) {
 
 // LogTracePipeFilter logs only messages that pass `filterFn` read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
 // This function will set the environment variable BPF_DEBUG=true for the duration of the test.
-func LogTracePipeFilter(t *testing.T, filterFn func(ev *TraceEvent) bool) {
+func LogTracePipeFilter(t *testing.T, filterFn func(ev *TraceEvent) bool) { // JMWTEST
 	logTracePipe(t, filterFn)
 }
 

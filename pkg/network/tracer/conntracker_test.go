@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"runtime"
 	"strconv"
+
+	//"strings"  // for LogTracePipeFilter
 	"testing"
 	"time"
 
@@ -24,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -34,6 +38,12 @@ import (
 
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
+	// JMWRM before checking in
+	ebpftest.LogTracePipe(t)
+	// JMWRM before checking in
+	//ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+	//	return strings.Contains(ev.Raw, "conntrack")
+	//})
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
@@ -51,12 +61,60 @@ func TestConntrackers(t *testing.T) {
 	})
 }
 
+// JMWREVIEW
+// JMW combine with previous test?
+// JMWNEXT this tests __nf_conntrack_confirm.  What can I do to test nf_conntrack_hash_check_insert?
+// JMWNEXT can I dump conntrack maps in the tests?
+// TestConntrackerAlternateProbes tests the conntracker with the alternate probes
+// (__nf_conntrack_confirm + nf_conntrack_hash_check_insert) by mocking verifyKernelFuncs
+// to report that __nf_conntrack_hash_insert is not available.
+// This forces the CO-RE and RuntimeCompiled modes to use the fallback probes.
+// Note: Prebuilt mode is not tested here as it doesn't support the alternate probes.
+func TestConntrackerAlternateProbes(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
+	// JMWRM before checking in
+	ebpftest.LogTracePipe(t)
+	// JMWRM before checking in
+	//ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+	//	return strings.Contains(ev.Raw, "conntrack")
+	//})
+
+	// Save original verifyKernelFuncs and restore after test
+	origVerifyKernelFuncs := verifyKernelFuncs
+	t.Cleanup(func() {
+		verifyKernelFuncs = origVerifyKernelFuncs
+	})
+
+	// Mock verifyKernelFuncs to report __nf_conntrack_hash_insert as missing
+	// This forces the use of alternate probes (__nf_conntrack_confirm + nf_conntrack_hash_check_insert)
+	verifyKernelFuncs = func(requiredKernelFuncs ...string) (map[string]struct{}, error) {
+		missing := make(map[string]struct{})
+		for _, fn := range requiredKernelFuncs {
+			if fn == "__nf_conntrack_hash_insert" {
+				missing[fn] = struct{}{}
+			}
+		}
+		return missing, nil
+	}
+
+	// Only test CO-RE and RuntimeCompiled modes since Prebuilt doesn't support alternate probes
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		runConntrackerTest(t, "eBPF", setupEBPFConntracker)
+	})
+}
+
 func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
 	t.Run("IPv4", func(t *testing.T) {
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		netlinktestutil.SetupDNAT(t)
 
@@ -67,6 +125,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		netlinktestutil.SetupDNAT6(t)
 
@@ -85,6 +144,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		testConntrackerCrossNamespace(t, ct)
 	})
@@ -94,6 +154,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		testConntrackerCrossNamespaceNATonRoot(t, ct)
 	})
@@ -101,6 +162,34 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 
 func setupEBPFConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg, nil)
+}
+
+// JMWREVIEW JMWMOVE
+// dumpConntrackMap dumps the conntrack map if ct is an ebpfConntracker
+func dumpConntrackMap(t *testing.T, ct netlink.Conntracker) {
+	ebpfCt, ok := ct.(*ebpfConntracker)
+	if !ok {
+		return
+	}
+
+	ctMap, _, err := ebpfCt.m.GetMap(probes.ConntrackMap)
+	if err != nil {
+		t.Logf("Error getting conntrack map: %s", err)
+		return
+	}
+
+	t.Log("Dumping conntrack map:")
+	iter := ctMap.Iterate()
+	var key, value netebpf.ConntrackTuple
+	count := 0
+	for iter.Next(&key, &value) {
+		t.Logf("  [%d] key=%+v value=%+v", count, key, value)
+		count++
+	}
+	if err := iter.Err(); err != nil {
+		t.Logf("Error iterating conntrack map: %s", err)
+	}
+	t.Logf("Total conntrack entries: %d", count)
 }
 
 func setupNetlinkConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {

@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -58,6 +59,7 @@ var conntrackerTelemetry = struct {
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
+	// JMW look at these histograms
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
@@ -82,6 +84,7 @@ type ebpfConntracker struct {
 var ebpfConntrackerCORECreator func(cfg *config.Config) (*manager.Manager, error) = getCOREConntracker
 var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) = getRCConntracker
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
+var verifyKernelFuncs = ddebpf.VerifyKernelFuncs
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
@@ -89,6 +92,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	var m *manager.Manager
 	var err error
 	if cfg.EnableCORE {
+		log.Debug("JMW1 attempting to load CO-RE ebpf conntracker")
 		m, err = ebpfConntrackerCORECreator(cfg)
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
@@ -99,10 +103,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 			} else {
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
+		} else {
+			log.Debug("JMW successfully loaded CO-RE ebpf conntracker")
 		}
 	}
 
 	if m == nil && allowRC {
+		log.Debug("JMW2 attempting to load runtime compiled ebpf conntracker")
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
 			if !cfg.AllowPrebuiltFallback {
@@ -110,15 +117,19 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 			}
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
+		} else {
+			log.Debug("JMW successfully loaded runtime compiled ebpf conntracker")
 		}
 	}
 
 	var isPrebuilt bool
 	if m == nil {
+		log.Debug("JMW3 attempting to load prebuilt ebpf conntracker")
 		m, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
+		log.Debug("JMW successfully loaded prebuilt ebpf conntracker")
 
 		isPrebuilt = true
 	}
@@ -410,28 +421,94 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*manager.Manager, error) {
+// JMWREVIEW changes from cursor
+// from prompt: change the probe attaching strategy?  If prebuilt attach the ConntrackHashInsert probe, do not fallback to the new probes if that fails.  If runtime or CO-RE, first attempt to attach the   ConntrackHashInsert probe, if that is not available or fails then fall back to the ConntrackConfirm and ConntrackHashCheckInsert kprobes/kretprobes.  It was also suggested that You can use ebpf.VerifyKernelFuncs to see if a particular function is available if that helps
+//
+// getManager creates a manager for the conntracker.
+// buildMode determines which probes and maps to configure:
+//   - Prebuilt: Always uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
+//     avoiding the need to extract it from sk_buff->_nfct (which would require offset guessing).
+//     No fallback is attempted if this probe is not available.
+//   - CO-RE and Runtime: First attempts to use __nf_conntrack_hash_insert. If that kernel function
+//     is not available, falls back to using __nf_conntrack_confirm and nf_conntrack_hash_check_insert
+//     kprobes/kretprobes, which can handle the _nfct field access using CO-RE relocations or kernel headers.
+func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode buildmode.Type) (*manager.Manager, error) {
+	// Common maps for all modes
+	maps := []*manager.Map{
+		{Name: probes.ConntrackMap},
+		{Name: probes.ConntrackTelemetryMap},
+	}
+
+	// Common probe for all modes
+	probesList := []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ConntrackFillInfo,
+				UID:          "conntracker",
+			},
+			MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
+		},
+	}
+
+	// Determine which conntrack probe(s) to use based on build mode and availability
+	// - Prebuilt: use __nf_conntrack_hash_insert
+	// - CO-RE/Runtime: use __nf_conntrack_hash_insert if available, otherwise fall back to
+	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
+	useNFConntrackHashInsert := true
+	if mode != buildmode.Prebuilt {
+		missing, err := verifyKernelFuncs("__nf_conntrack_hash_insert")
+		if err != nil {
+			return nil, fmt.Errorf("error verifying kernel function for conntracker: %s", err)
+		}
+		if len(missing) > 0 {
+			useNFConntrackHashInsert = false
+			log.Info("JMW __nf_conntrack_hash_insert not available")
+		}
+	}
+
+	if useNFConntrackHashInsert {
+		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker for build mode ", mode)
+		probesList = append(probesList, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ConntrackHashInsert,
+				UID:          "conntracker",
+			},
+		})
+	} else {
+		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker for build mode ", mode)
+		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
+		probesList = append(probesList,
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmReturn,
+					UID:          "conntracker",
+				},
+			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirm,
+					UID:          "conntracker",
+				},
+			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackHashCheckInsertReturn,
+					UID:          "conntracker",
+				},
+			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackHashCheckInsert,
+					UID:          "conntracker",
+				},
+			},
+		)
+	}
+
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Maps: []*manager.Map{
-			{Name: probes.ConntrackMap},
-			{Name: probes.ConntrackTelemetryMap},
-		},
+		Maps:     maps,
 		PerfMaps: []*manager.PerfMap{},
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashInsert,
-					UID:          "conntracker",
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackFillInfo,
-					UID:          "conntracker",
-				},
-				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
-			},
-		},
+		Probes:   probesList,
 	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
@@ -505,7 +582,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 
 	opts := manager.Options{ConstantEditors: constants}
-	return getManager(cfg, buf, opts)
+	return getManager(cfg, buf, opts, buildmode.Prebuilt)
 }
 
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
@@ -539,7 +616,7 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 	defer buf.Close()
 
-	return getManager(cfg, buf, manager.Options{})
+	return getManager(cfg, buf, manager.Options{}, buildmode.RuntimeCompiled)
 }
 
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
@@ -557,7 +634,7 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", cfg.CollectUDPv6Conns),
 		)
-		m, err = getManager(cfg, ar, o)
+		m, err = getManager(cfg, ar, o, buildmode.CORE)
 		return err
 	})
 	return m, err

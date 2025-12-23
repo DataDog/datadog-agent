@@ -286,18 +286,18 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 	var c netlink.Conntracker
 	var err error
 	if !cfg.EnableEbpfless {
-		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil {
+		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil { // JMW
 			log.Warnf("error initializing ebpf conntracker: %s", err)
 			log.Info("falling back to netlink conntracker")
 		}
 
-		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil {
+		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil { // JMW
 			log.Warnf("cilium lb conntracker is enabled, but failed to load: %s", err)
 		}
 	}
 
 	if c == nil {
-		if c, err = netlink.NewConntracker(cfg, telemetryComponent); err != nil {
+		if c, err = netlink.NewConntracker(cfg, telemetryComponent); err != nil { // JMW
 			if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 				log.Warnf("could not initialize netlink conntracker: %s", err)
 			} else {
@@ -306,7 +306,7 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		}
 	}
 
-	c = chainConntrackers(c, clb)
+	c = chainConntrackers(c, clb) // JMW
 	if c.GetType() == "" {
 		// no-op conntracker
 		log.Warnf("connection tracking is disabled")

@@ -14,6 +14,11 @@
 #include "ipv6.h"
 #include "pid_tgid.h"
 
+// JMW comment here that prebuilt only uses __nf_conntrack_hash_insert, or where we attach the probes?
+// Prebuilt uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
+// avoiding the need to extract it from sk_buff->_nfct (which would require offset guessing).
+// CO-RE and Runtime use __nf_conntrack_confirm instead, which can handle the _nfct field
+// access using CO-RE relocations or kernel headers.
 SEC("kprobe/__nf_conntrack_hash_insert")
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));

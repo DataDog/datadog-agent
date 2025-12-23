@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
-var mainProbes = []probes.ProbeFuncName{
+var mainProbes = []probes.ProbeFuncName{ // JMWNEXT what are mainProbes?  Why aren't conntrack probes here?
 	probes.NetDevQueueTracepoint,
 	probes.DevQueueXmitNitKprobe, // kprobe fallback for net_dev_queue on kernels < 4.15
 	probes.ProtocolClassifierEntrySocketFilter,
@@ -84,6 +84,8 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.TCPSendPageArgsMap},
 		{Name: probes.UDPSendPageArgsMap},
 		{Name: probes.IPMakeSkbArgsMap},
+		// JMW where is ConntrackArgsMap passed to ebpf manager?
+		// JMWNEXT do we need to add ConntrackArgsMap here?
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
