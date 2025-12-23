@@ -30,6 +30,7 @@ cc_library(
     includes = [
         "include",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -44,6 +45,7 @@ cc_shared_library(
         "-Wl,-soname=libselinux.so",
         "-Wl,--version-script=$(location src/libselinux.map)",
     ],
+    visibility = ["//visibility:public"],
 )
 
 expand_template(

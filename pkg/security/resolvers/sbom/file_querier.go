@@ -139,11 +139,5 @@ func (q *fixedSizeQueue[T]) contains(value T) bool {
 		return false
 	}
 
-	for _, v := range q.queue {
-		if v == value {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(q.queue, value)
 }

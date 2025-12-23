@@ -8,6 +8,7 @@
 package cloudfoundry
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -17,6 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// testBBSClient implements bbs.Client for testing
+type testBBSClient struct{}
+
 func (t testBBSClient) ActualLRPs(lager.Logger, models.ActualLRPFilter) ([]*models.ActualLRP, error) {
 	return []*models.ActualLRP{&BBSModelA1, &BBSModelA2}, nil
 }
@@ -25,16 +29,47 @@ func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*mo
 	return []*models.DesiredLRP{&BBSModelD1}, nil
 }
 
+// setupTestBBSCache creates a BBSCache with its CCCache dependency for testing
+func setupTestBBSCache(t *testing.T) *BBSCache {
+	t.Helper()
+
+	// Setup CCCache using the existing helper
+	cc := setupCCCache(t, false)
+
+	bbsConfig := BBSCacheConfig{
+		BBSClient:    testBBSClient{},
+		PollInterval: time.Hour,
+		IncludeList:  []*regexp.Regexp{},
+		ExcludeList:  []*regexp.Regexp{},
+		CCCache:      cc,
+	}
+
+	cache := &BBSCache{
+		cancelContext:      cc.cancelContext,
+		configured:         true,
+		config:             bbsConfig,
+		bbsAPIClientLogger: lager.NewLogger("bbs-test"),
+		updatedOnce:        make(chan struct{}),
+	}
+	cache.readData()
+
+	return cache
+}
+
 func TestBBSCachePolling(t *testing.T) {
+	bc := setupTestBBSCache(t)
 	assert.NotZero(t, bc.LastUpdated())
 }
 
 func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
+	bc := setupTestBBSCache(t)
 	dlrp, _ := bc.GetDesiredLRPFor("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, ExpectedD1, dlrp)
 }
 
 func TestBBSCache_GetActualLRPsForCell(t *testing.T) {
+	bc := setupTestBBSCache(t)
+
 	alrp, _ := bc.GetActualLRPsForCell("cell123")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA1}, alrp)
 	alrp, _ = bc.GetActualLRPsForCell("cell1234")
@@ -42,6 +77,8 @@ func TestBBSCache_GetActualLRPsForCell(t *testing.T) {
 }
 
 func TestBBSCache_GetTagsForNode(t *testing.T) {
+	bc := setupTestBBSCache(t)
+
 	expectedTags := map[string][]string{
 		"0123456789012345678": {
 			"container_name:name_of_app_cc_4",
@@ -91,11 +128,13 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 }
 
 func TestBBSCache_GetActualLRPsForProcessGUID(t *testing.T) {
+	bc := setupTestBBSCache(t)
 	alrps, _ := bc.GetActualLRPsForProcessGUID("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA1, &ExpectedA2}, alrps)
 }
 
 func TestBBSCache_GetAllLRPs(t *testing.T) {
+	bc := setupTestBBSCache(t)
 	a, d := bc.GetAllLRPs()
 	assert.EqualValues(t, map[string]*DesiredLRP{ExpectedD1.ProcessGUID: &ExpectedD1}, d)
 	assert.EqualValues(t, map[string][]*ActualLRP{ExpectedD1.ProcessGUID: {&ExpectedA1, &ExpectedA2}}, a)
