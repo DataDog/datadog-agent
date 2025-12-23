@@ -11,6 +11,7 @@ target:
     DD_HOSTNAME: smp-regression
     DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES: true
     STATSD_URL: "unix:///var/run/datadog/dsd.socket"
+    DD_INTERNAL_PROFILING_CAPTURE_ALL_ALLOCATIONS: true
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000

@@ -21,6 +21,7 @@ target:
     DD_DOGSTATSD_ORIGIN_DETECTION: false
     DD_DOGSTATSD_NO_AGGREGATION_PIPELINE: false
     STATSD_URL: "unix:///var/run/datadog/dsd.socket"
+    DD_INTERNAL_PROFILING_CAPTURE_ALL_ALLOCATIONS: true
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000

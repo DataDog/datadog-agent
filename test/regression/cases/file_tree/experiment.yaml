@@ -13,6 +13,7 @@ target:
     DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED: true
     DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED: true
     STATSD_URL: "unix:///var/run/datadog/dsd.socket"
+    DD_INTERNAL_PROFILING_CAPTURE_ALL_ALLOCATIONS: true
 
   profiling_environment:
     # internal profiling

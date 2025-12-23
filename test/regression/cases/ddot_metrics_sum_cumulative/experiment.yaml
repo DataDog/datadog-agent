@@ -12,6 +12,7 @@ target:
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
     STATSD_URL: "unix:///var/run/datadog/dsd.socket"
+    DD_INTERNAL_PROFILING_CAPTURE_ALL_ALLOCATIONS: true
 
   profiling_environment:
     # internal profiling
