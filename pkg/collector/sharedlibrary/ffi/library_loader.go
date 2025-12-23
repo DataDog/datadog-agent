@@ -39,7 +39,7 @@ const aggregator_t aggregator = {
 	SubmitEventPlatformEvent,
 };
 
-const aggregator_t *get_aggregator() {
+const aggregator_t *get_aggregator(void) {
 	return &aggregator;
 }
 */

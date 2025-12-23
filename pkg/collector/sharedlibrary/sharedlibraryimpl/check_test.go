@@ -50,8 +50,7 @@ func TestCancelCheck(t *testing.T) {
 }
 
 func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	nooLibrary := ffi.GetNoopLibrary()
-	c, err := newCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), &nooLibrary)
+	c, err := newCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

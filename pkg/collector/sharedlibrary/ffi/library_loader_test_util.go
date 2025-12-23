@@ -20,9 +20,10 @@ const char *noop_version(const char **error) {
 	return "";
 }
 
-library_t get_noop_library(void) {
-	library_t library = { NULL, noop_run, noop_version };
-	return library;
+const library_t noop_library = { NULL, noop_run, noop_version };
+
+const library_t *get_noop_library(void) {
+	return &noop_library;
 }
 */
 import "C"
@@ -32,7 +33,7 @@ type NoopSharedLibraryLoader struct{}
 
 // Load does nothing
 func (ml *NoopSharedLibraryLoader) Open(_ string) (*Library, error) {
-	return nil, nil
+	return GetNoopLibrary(), nil
 }
 
 // Close does nothing
@@ -51,10 +52,10 @@ func (ml *NoopSharedLibraryLoader) Version(_ *C.version_function_t) (string, err
 }
 
 // GetNoopLibrary returns a library with functions that do nothing
-func GetNoopLibrary() Library {
+func GetNoopLibrary() *Library {
 	cLib := C.get_noop_library()
 
-	return Library{
+	return &Library{
 		Handle:  cLib.handle,
 		Run:     cLib.run,
 		Version: cLib.version,
