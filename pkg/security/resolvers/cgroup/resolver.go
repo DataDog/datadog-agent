@@ -224,7 +224,7 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	return cacheEntry
 }
 
-func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext, createdAt uint64) *cgroupModel.CacheEntry {
+func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
 	if !cgroupContext.IsResolved() {
 		// path resolution
 		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
@@ -244,7 +244,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" {
 		containerContext = model.ContainerContext{
 			ContainerID: containerID,
-			CreatedAt:   createdAt,
+			CreatedAt:   uint64(createdAt.UnixNano()),
 		}
 	}
 
@@ -311,7 +311,8 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
-func (cr *Resolver) AddPID(pid uint32, execTime uint64, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
+// the cgroup context doesn't have to be resolved, it will be resolved when the cgroup is created.
+func (cr *Resolver) AddPID(pid uint32, execTime time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
 	defer cr.Unlock()
 
