@@ -1159,6 +1159,207 @@
             ctx.restore();
         }
 
+        // REQ-MV-008: Find oscillation window at a given time value
+        function findOscillationWindowAtTime(timeVal) {
+            if (!studyActive) return null;
+
+            const selectedIds = getSelectedContainerIds();
+            for (const id of selectedIds) {
+                const result = oscillationData[id];
+                if (!result || !result.windows) continue;
+
+                for (const w of result.windows) {
+                    const startSec = w.start_time_ms / 1000;
+                    const endSec = w.end_time_ms / 1000;
+                    if (timeVal >= startSec && timeVal <= endSec) {
+                        return { window: w, containerId: id };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // REQ-MV-008: Show tooltip for oscillation window
+        function showOscillationTooltip(e, windowData) {
+            const tooltip = document.getElementById('oscillationTooltip');
+            const w = windowData.window;
+
+            const period = w.metrics.period || 0;
+            const score = w.metrics.score || 0;
+            const amplitude = w.metrics.amplitude || 0;
+
+            tooltip.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 4px;">Oscillation Detected</div>
+                <div>Period: <strong>${period.toFixed(1)}s</strong></div>
+                <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
+                <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
+                <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
+            `;
+
+            // Position tooltip near cursor
+            const offsetX = 15;
+            const offsetY = 15;
+            let x = e.clientX + offsetX;
+            let y = e.clientY + offsetY;
+
+            // Keep tooltip on screen
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // Show briefly to measure
+            tooltip.style.display = 'block';
+            const measuredWidth = tooltip.offsetWidth;
+            const measuredHeight = tooltip.offsetHeight;
+
+            if (x + measuredWidth > viewportWidth - 10) {
+                x = e.clientX - measuredWidth - offsetX;
+            }
+            if (y + measuredHeight > viewportHeight - 10) {
+                y = e.clientY - measuredHeight - offsetY;
+            }
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        }
+
+        function hideOscillationTooltip() {
+            const tooltip = document.getElementById('oscillationTooltip');
+            tooltip.style.display = 'none';
+        }
+
+        // REQ-MV-008: Zoom to oscillation window
+        function zoomToOscillationWindow(windowData) {
+            if (!mainPlot) return;
+
+            const w = windowData.window;
+            const startSec = w.start_time_ms / 1000;
+            const endSec = w.end_time_ms / 1000;
+
+            // Add 10% padding on each side for context
+            const duration = endSec - startSec;
+            const padding = duration * 0.1;
+
+            mainPlot.setScale('x', {
+                min: startSec - padding,
+                max: endSec + padding
+            });
+        }
+
+        // REQ-MV-008: Set up oscillation interaction handlers on chart
+        function setupOscillationInteraction() {
+            const chartDiv = document.getElementById('mainChart');
+
+            // Track if we're over an oscillation window
+            let overWindow = null;
+
+            // Track drag state to prevent click after drag-to-zoom
+            let isDragging = false;
+            let dragStartPos = null;
+
+            chartDiv.addEventListener('mousedown', (e) => {
+                dragStartPos = { x: e.clientX, y: e.clientY };
+                isDragging = false;
+            });
+
+            chartDiv.addEventListener('mousemove', (e) => {
+                // Detect if this is a drag (moved more than 5px from start)
+                if (dragStartPos) {
+                    const dx = Math.abs(e.clientX - dragStartPos.x);
+                    const dy = Math.abs(e.clientY - dragStartPos.y);
+                    if (dx > 5 || dy > 5) {
+                        isDragging = true;
+                    }
+                }
+            });
+
+            chartDiv.addEventListener('mouseup', () => {
+                // Reset drag tracking after a short delay to allow click to be suppressed
+                setTimeout(() => {
+                    dragStartPos = null;
+                    isDragging = false;
+                }, 50);
+            });
+
+            chartDiv.addEventListener('mousemove', (e) => {
+                if (!studyActive || !mainPlot) {
+                    if (overWindow) {
+                        hideOscillationTooltip();
+                        chartDiv.style.cursor = '';
+                        overWindow = null;
+                    }
+                    return;
+                }
+
+                // Get position relative to chart
+                const rect = mainPlot.root.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                // Check if within plot area (CSS pixels)
+                const bbox = mainPlot.bbox;
+                const plotLeft = bbox.left / devicePixelRatio;
+                const plotTop = bbox.top / devicePixelRatio;
+                const plotWidth = bbox.width / devicePixelRatio;
+                const plotHeight = bbox.height / devicePixelRatio;
+
+                if (x < plotLeft || x > plotLeft + plotWidth ||
+                    y < plotTop || y > plotTop + plotHeight) {
+                    if (overWindow) {
+                        hideOscillationTooltip();
+                        chartDiv.style.cursor = '';
+                        overWindow = null;
+                    }
+                    return;
+                }
+
+                // Convert x position to time value
+                const timeVal = mainPlot.posToVal(x, 'x');
+                const windowData = findOscillationWindowAtTime(timeVal);
+
+                if (windowData) {
+                    overWindow = windowData;
+                    chartDiv.style.cursor = 'pointer';
+                    showOscillationTooltip(e, windowData);
+                } else {
+                    if (overWindow) {
+                        hideOscillationTooltip();
+                        chartDiv.style.cursor = '';
+                        overWindow = null;
+                    }
+                }
+            });
+
+            chartDiv.addEventListener('mouseleave', () => {
+                if (overWindow) {
+                    hideOscillationTooltip();
+                    chartDiv.style.cursor = '';
+                    overWindow = null;
+                }
+            });
+
+            // Use capture phase to get click before uPlot's handlers
+            chartDiv.addEventListener('click', (e) => {
+                // Don't zoom if this was a drag operation (user was drag-selecting a region)
+                if (isDragging) return;
+                if (!studyActive || !mainPlot) return;
+
+                // Get position relative to chart
+                const rect = mainPlot.root.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+
+                // Convert to time and find window
+                const timeVal = mainPlot.posToVal(x, 'x');
+                const windowData = findOscillationWindowAtTime(timeVal);
+
+                if (windowData) {
+                    e.stopPropagation();  // Prevent uPlot from handling this click
+                    zoomToOscillationWindow(windowData);
+                    hideOscillationTooltip();
+                }
+            }, true);  // Use capture phase
+        }
+
         // --- Actions ---
 
         function selectTop(n) {
@@ -1420,6 +1621,7 @@
         }, { passive: false });
 
         // Initialize
+        setupOscillationInteraction();
         loadMetrics();
     </script>
 </body>
