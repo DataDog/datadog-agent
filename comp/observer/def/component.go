@@ -52,18 +52,18 @@ type LogView interface {
 	GetHostname() string
 }
 
-// Analysis transforms observed logs into metrics and events.
+// LogAnalysis transforms observed logs into metrics and events.
 // Implementations should be stateless and fast since they run synchronously
 // on every observed log.
-type Analysis interface {
+type LogAnalysis interface {
 	// Name returns the analysis name for debugging and logging.
 	Name() string
 	// Analyze examines a log and returns any detected signals.
-	Analyze(log LogView) AnalysisResult
+	Analyze(log LogView) LogAnalysisResult
 }
 
-// AnalysisResult contains outputs from analyzing a log.
-type AnalysisResult struct {
+// LogAnalysisResult contains outputs from analyzing a log.
+type LogAnalysisResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
 	// Anomalies are detected anomaly events.

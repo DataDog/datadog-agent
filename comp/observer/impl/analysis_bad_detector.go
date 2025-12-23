@@ -21,13 +21,13 @@ func (b *BadDetector) Name() string {
 }
 
 // Analyze checks if a log contains "this is bad" and returns metrics/anomalies if so.
-func (b *BadDetector) Analyze(log observer.LogView) observer.AnalysisResult {
+func (b *BadDetector) Analyze(log observer.LogView) observer.LogAnalysisResult {
 	content := string(log.GetContent())
 	if !strings.Contains(content, "this is bad") {
-		return observer.AnalysisResult{}
+		return observer.LogAnalysisResult{}
 	}
 
-	return observer.AnalysisResult{
+	return observer.LogAnalysisResult{
 		Metrics: []observer.MetricOutput{{
 			Name:  "observer.bad_logs.count",
 			Value: 1,
