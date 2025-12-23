@@ -131,6 +131,7 @@ type Check struct {
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 	fs                        afero.Fs
 	statFn                    statFunc
+	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -445,7 +446,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		return nil
 	}
 	rootDevices := make(map[string]string)
-	if runtime.GOOS == "linux" && !c.instanceConfig.ResolveRootDevice {
+	if c.goos == "linux" && !c.instanceConfig.ResolveRootDevice {
 		rootDevices, err = c.loadRootDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
@@ -582,12 +583,15 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		deviceName = partition.Device
 	}
+	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
+	normalizedDeviceName := normalizeDeviceTag(deviceName)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, "device:"+strings.ToLower(deviceName))
+		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
 	} else {
-		tags = append(tags, "device:"+deviceName)
+		tags = append(tags, "device:"+normalizedDeviceName)
 	}
 	tags = append(tags, "device_name:"+baseDeviceName(partition.Device))
+	// Use original deviceName for regex matching in device_tag_re
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
 	if ok {
@@ -598,10 +602,12 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 
 func (c *Check) getDeviceNameTags(deviceName string) []string {
 	tags := []string{}
+	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
+	normalizedDeviceName := normalizeDeviceTag(deviceName)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, "device:"+strings.ToLower(deviceName))
+		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
 	} else {
-		tags = append(tags, "device:"+deviceName)
+		tags = append(tags, "device:"+normalizedDeviceName)
 	}
 	tags = append(tags, "device_name:"+baseDeviceName(deviceName))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
@@ -719,6 +725,7 @@ func newCheck() check.Check {
 		diskIOCounters:            gopsutil_disk.IOCounters,
 		fs:                        afero.NewOsFs(),
 		statFn:                    defaultStatFn,
+		goos:                      runtime.GOOS,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},

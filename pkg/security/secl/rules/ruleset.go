@@ -674,6 +674,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
+	// call an extra layer of validation
+	if err := evalRule.Model.ValidateRule(evalRule); err != nil {
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
+	}
+
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}

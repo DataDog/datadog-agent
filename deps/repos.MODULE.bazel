@@ -51,7 +51,7 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
-bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 single_version_override(
     module_name = "rules_foreign_cc",
     patch_strip = 1,
@@ -325,4 +325,3 @@ http_archive(
         "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
     },
 )
-
