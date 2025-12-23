@@ -147,6 +147,11 @@
         }
         .container-item:last-child { border-bottom: none; }
         .container-item:hover { background: #f0f0f0; }
+        .container-item.selected {
+            background: #e8f4ff;
+            border-left: 3px solid #007bff;
+            padding-left: 7px;
+        }
         .container-item input[type="checkbox"] {
             flex-shrink: 0;
         }
@@ -196,26 +201,6 @@
             flex-direction: column;
             overflow: hidden;
             background: #f5f5f5;
-        }
-        .main-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: white;
-            border-bottom: 1px solid #ddd;
-            flex-shrink: 0;
-        }
-        .main-header .status {
-            color: #666;
-            font-size: 12px;
-            padding: 4px 8px;
-            background: #f0f0f0;
-            border-radius: 4px;
-        }
-        .chart-controls {
-            display: flex;
-            gap: 8px;
         }
 
         /* Charts container */
@@ -457,9 +442,10 @@
                     <input type="text" id="containerSearch" class="search-input" placeholder="Search containers...">
                     <div class="container-list" id="containerList"></div>
                     <div class="action-buttons">
-                        <button class="btn-primary btn-sm">Top 5</button>
-                        <button class="btn-primary btn-sm">Top 10</button>
-                        <button class="btn-secondary btn-sm">Clear</button>
+                        <button class="btn-primary btn-sm" data-action="top5">Top 5</button>
+                        <button class="btn-primary btn-sm" data-action="top10">Top 10</button>
+                        <button class="btn-secondary btn-sm" data-action="clear">Clear</button>
+                        <button class="btn-warning btn-sm" data-action="reset">Reset Zoom</button>
                     </div>
                 </div>
 
@@ -477,12 +463,6 @@
 
         <!-- Main content -->
         <div class="main-content">
-            <div class="main-header">
-                <span class="status" id="status">Loading...</span>
-                <div class="chart-controls">
-                    <button class="btn-warning">Reset</button>
-                </div>
-            </div>
             <div class="charts-container">
                 <div class="legend" id="legend"></div>
                 <div id="mainChart"></div>
@@ -724,6 +704,7 @@
                     const isSelected = state.selectedContainerIds.includes(containerId);
                     const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
                     const color = getContainerColor(containerId, state.selectedContainerIds);
+                    const selectedClass = isSelected ? 'selected' : '';
 
                     // REQ-MV-007: Study icon - highlight if this container is being studied
                     const isStudied = state.study.active && state.study.containerId === containerId;
@@ -732,7 +713,7 @@
                         : '';
 
                     return `
-                        <label class="container-item">
+                        <label class="container-item ${selectedClass}">
                             <input type="checkbox"
                                    value="${escapeAttr(containerId)}"
                                    ${isSelected ? 'checked' : ''}
@@ -818,24 +799,6 @@
                         </div>
                     `;
                 }).join('');
-            },
-
-            StatusText(state) {
-                const containerCount = state.selectedContainerIds.length;
-                if (containerCount === 0) {
-                    return `${state.containers.length} containers`;
-                }
-
-                let pointCount = 0;
-                state.selectedContainerIds.forEach(id => {
-                    const data = state.timeseries[id];
-                    if (data) {
-                        pointCount += data.length;
-                    }
-                });
-
-                const containerLabel = containerCount === 1 ? 'container' : 'containers';
-                return `${containerCount} ${containerLabel}, ${pointCount.toLocaleString()} points`;
             },
 
             // REQ-MV-003: Filter dropdowns
@@ -1542,6 +1505,12 @@
             // Update metric list
             document.getElementById('metricList').innerHTML = Components.MetricList(state);
 
+            // Scroll selected metric into view
+            const selectedMetric = document.querySelector('#metricList .metric-item.selected');
+            if (selectedMetric) {
+                selectedMetric.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+            }
+
             // Update container list
             document.getElementById('containerList').innerHTML = Components.ContainerList(state);
 
@@ -1559,9 +1528,6 @@
                 state.filters.namespace,
                 'All'
             );
-
-            // Update status bar
-            document.getElementById('status').textContent = Components.StatusText(state);
         }
 
         // ============================================================
@@ -1625,12 +1591,20 @@
                 const btn = e.target.closest('button');
                 if (!btn) return;
 
-                if (btn.textContent.includes('Top 5')) {
-                    Actions.selectTopN(5);
-                } else if (btn.textContent.includes('Top 10')) {
-                    Actions.selectTopN(10);
-                } else if (btn.textContent.includes('Clear')) {
-                    Actions.clearSelection();
+                const action = btn.dataset.action;
+                switch (action) {
+                    case 'top5':
+                        Actions.selectTopN(5);
+                        break;
+                    case 'top10':
+                        Actions.selectTopN(10);
+                        break;
+                    case 'clear':
+                        Actions.clearSelection();
+                        break;
+                    case 'reset':
+                        Actions.resetZoom();
+                        break;
                 }
             });
 
@@ -1640,14 +1614,6 @@
                     Actions.exitStudy(false);
                 } else if (e.target.closest('[data-restore-btn]')) {
                     Actions.exitStudy(true);
-                }
-            });
-
-            // Reset zoom button
-            document.querySelector('.chart-controls').addEventListener('click', (e) => {
-                const btn = e.target.closest('button');
-                if (btn && btn.textContent.includes('Reset')) {
-                    Actions.resetZoom();
                 }
             });
 
