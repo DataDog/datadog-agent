@@ -3,15 +3,15 @@ module github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-rc.6
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-rc.6
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.74.0-rc.6
-	github.com/DataDog/datadog-agent/comp/core/status v0.74.0-rc.6
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-rc.7
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-rc.7
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.74.0-rc.7
+	github.com/DataDog/datadog-agent/comp/core/status v0.74.0-rc.7
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.74.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.74.0-rc.7 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
