@@ -188,6 +188,10 @@ type EBPFProbe struct {
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
 
+	// remediation tracking
+	activeRemediations     map[string]*remediationAction
+	activeRemediationsLock sync.RWMutex
+
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 }
@@ -639,11 +643,11 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	collection := *collectionPtr
 
-	// unload the previews one
+	// unload the previous one
 	if collection != nil {
 		collection.Close()
 		ddebpf.RemoveNameMappingsCollection(collection)
-		collection = nil
+		*collectionPtr = nil
 	}
 
 	if len(progSpecs) > 0 {
@@ -651,6 +655,15 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 			return err
 		}
 	} else {
+		// No programs to load - remove tail call entries from the router map
+		_, routerMap, err := p.getRawPacketMaps()
+		if err == nil && routerMap != nil {
+			// Remove all potential tail call entries for this program key range
+			for i := 0; i < maxProgs; i++ {
+				key := progKey + uint32(i)
+				_ = routerMap.Delete(key)
+			}
+		}
 		return nil
 	}
 
@@ -795,8 +808,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		entry.Retain()
-
 		event := p.newEBPFPooledEventFromPCE(entry)
 		event.Source = model.EventSourceReplay
 
@@ -811,7 +822,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
 		if ok {
 			for _, s := range snapshotBoundSockets {
-				entry.Retain()
 				bindEvent := p.newBindEventFromReplay(entry, s)
 				bindEvent.Source = model.EventSourceReplay
 
@@ -840,6 +850,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		p.DispatchEvent(event, notifyConsumers)
 		p.putBackPoolEvent(event)
 	}
+	// send not triggered remediations
+	p.handleRemediationNotTriggered()
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1043,15 +1055,14 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 
 func (p *EBPFProbe) getPoolEvent() *model.Event {
 	event := p.eventPool.Get()
+	relatedEventZeroer(event)
 	event.FieldHandlers = p.fieldHandlers
 	return event
 }
 
+var relatedEventZeroer = model.NewEventZeroer()
+
 func (p *EBPFProbe) putBackPoolEvent(event *model.Event) {
-	if event.ProcessCacheEntry != nil {
-		event.ProcessCacheEntry.Release()
-	}
-	probeEventZeroer(event)
 	p.eventPool.Put(event)
 }
 
@@ -1376,7 +1387,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
-		resolveTargetProcessContext(event, p, newEntryCb)
+		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1494,7 +1505,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			tags = append(tags, "service:"+service)
 		}
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
 			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 		)
 		return false
@@ -1550,15 +1561,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
-		// resolve target process context
-		var pce *model.ProcessCacheEntry
-		if event.Setrlimit.TargetPid > 0 {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, 0, false, newEntryCb)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
-		}
-		event.Setrlimit.Target = &pce.ProcessContext
+		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p, newEntryCb)
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1749,15 +1752,15 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 	return true
 }
 
-func resolveTargetProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) {
+func resolveTargetProcessContext(pid uint32, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
-	if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
+	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
+		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
 	}
 	if pce == nil {
-		pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
 	}
-	event.Signal.Target = &pce.ProcessContext
+	return &pce.ProcessContext
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1882,7 +1885,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 	for _, newKFilter := range newKFilters {
 		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
 		if err := newKFilter.Apply(p.Manager); err != nil {
-			return err
+			return fmt.Errorf("failed applying new kfilter: %w", err)
 		}
 
 		approverType := newKFilter.GetApproverType()
@@ -2527,6 +2530,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+
+	p.handleRemediationStatus(rs)
 }
 
 // NewEvent returns a new event
@@ -2914,6 +2919,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		activeRemediations:   make(map[string]*remediationAction),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2942,21 +2948,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
-	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
-		if p.supportsBPFSendSignal {
-			err := p.killListMap.Put(uint32(pid), uint32(sig))
-			if err != nil {
-				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
-				return err
-			}
-		}
-		return nil
-	})
-	processKiller, err := NewProcessKiller(config, pkos)
-	if err != nil {
-		return nil, err
-	}
-	p.processKiller = processKiller
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2983,6 +2974,23 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	if err != nil {
 		return nil, err
 	}
+
+	// Create the process killer with the CGroupResolver for container scope support
+	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
+		if p.supportsBPFSendSignal {
+			err := p.killListMap.Put(uint32(pid), uint32(sig))
+			if err != nil {
+				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+				return err
+			}
+		}
+		return nil
+	}, p.Resolvers.CGroupResolver)
+	processKiller, err := NewProcessKiller(config, pkos)
+	if err != nil {
+		return nil, err
+	}
+	p.processKiller = processKiller
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
@@ -3403,6 +3411,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+			p.handleKillRemediaitonAction(rule, ev)
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
@@ -3424,7 +3433,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
-
+			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
@@ -3437,21 +3446,26 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
-
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
+					reportStatus = RawPacketActionStatusError
+				} else {
+					reportStatus = RawPacketActionStatusApplied
 				}
-
-				report := &RawPacketActionReport{
-					Filter: action.Def.NetworkFilter.BPFFilter,
-					Policy: policy.String(),
-					rule:   rule,
-				}
-
-				ev.ActionReports = append(ev.ActionReports, report)
-
-				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
+
+			report := &RawPacketActionReport{
+				Filter: action.Def.NetworkFilter.BPFFilter,
+				Policy: policy.String(),
+				rule:   rule,
+				Status: reportStatus,
+			}
+
+			ev.ActionReports = append(ev.ActionReports, report)
+
+			p.probe.onRuleActionPerformed(rule, action.Def)
+
+			p.handleNetworkRemediaitonAction(rule, ev, policy, string(reportStatus))
 		}
 	}
 }

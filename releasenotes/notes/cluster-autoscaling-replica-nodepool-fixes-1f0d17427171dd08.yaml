@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Creates replica NodePool by copying the target NodePool Spec, rather than creating from scratch
+  - |
+    Update reconcile to requeue when delays in LeaderElection may occur

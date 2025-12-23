@@ -28,6 +28,8 @@ type SafeDevice interface {
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
 	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
+	// GetRunningProcessDetailList returns the list of running processes on the device
+	GetRunningProcessDetailList() (nvml.ProcessDetailList, error)
 	// GetCudaComputeCapability returns the CUDA compute capability of the device
 	GetCudaComputeCapability() (int, int, error)
 	// GetCurrentClocksThrottleReasons returns the current clock throttle reasons bitmask

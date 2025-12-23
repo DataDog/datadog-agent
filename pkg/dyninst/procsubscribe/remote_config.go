@@ -35,12 +35,27 @@ const (
 	rcMaxReconnectDelay     = 30 * time.Second
 
 	defaultScanInterval = 3 * time.Second
-	defaultScannerDelay = 3 * time.Second
 )
+
+// defaultProcessDelays defines the default delays for process discovery.
+//
+// The 3s delay will capture most processes relatively quickly, but should
+// avoid scanning short-lived processes.
+//
+// The 100s delay will catch processes that start their tracer after 100s which
+// will catch processes that start their tracer after 1 minute.
+//
+// The 1000s will catch extreme outliers that start their tracer really quite
+// late.
+var defaultProcessDelays = []time.Duration{
+	3 * time.Second,
+	100 * time.Second,  // a bit more than 1 minute
+	1000 * time.Second, // quite a while after the process started
+}
 
 type config struct {
 	scanInterval   time.Duration
-	scannerDelay   time.Duration
+	processDelays  []time.Duration
 	processScanner processScanner
 	clk            clock.Clock
 	jitterFactor   float64
@@ -48,9 +63,9 @@ type config struct {
 }
 
 var defaultConfig = config{
-	scanInterval: defaultScanInterval,
-	scannerDelay: defaultScannerDelay,
-	clk:          clock.New(),
+	scanInterval:  defaultScanInterval,
+	processDelays: defaultProcessDelays,
+	clk:           clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
 		case <-ctx.Done():
@@ -128,7 +143,7 @@ func NewSubscriber(
 	}
 	scanner := cfg.processScanner
 	if scanner == nil {
-		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.scannerDelay)
+		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.processDelays...)
 	}
 	s := &Subscriber{
 		client:         client,
@@ -215,14 +230,15 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
-		// Add a factor of 5 from how long the scan took to ensure that if
-		// scanning is slow, that we don't scan too frequently.
+		// Add a factor of 100 from how long the scan took to ensure that if
+		// scanning is slow, that we don't scan too frequently. This should
+		// mean we are never scanning for more than 1% of any core time.
 		//
 		// Generally speaking, scanning should be very fast relative to the
 		// interval, so we expect this factor to be small.
 		took := s.clk.Since(start)
 		interval := s.scanInterval
-		interval = interval + 5*took
+		interval = interval + 100*took
 		jittered := jitter(interval, s.jitterFactor)
 		next = jittered
 	}

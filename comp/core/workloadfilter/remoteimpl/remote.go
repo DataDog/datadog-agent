@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -83,7 +84,8 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp workloadfilter.Component
+	Comp          workloadfilter.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent returns a new remote filter client
@@ -96,7 +98,8 @@ func NewComponent(req Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp: remoteFilter,
+		Comp:          remoteFilter,
+		FlareProvider: flaretypes.NewProvider(remoteFilter.FlareCallback),
 	}, nil
 }
 
@@ -218,19 +221,19 @@ var remoteProgramConfig = []struct {
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELMetrics,
+		filterID:    workloadfilter.KubeServiceCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELGlobal,
+		filterID:    workloadfilter.KubeServiceCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELMetrics,
+		filterID:    workloadfilter.KubeEndpointCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELGlobal,
+		filterID:    workloadfilter.KubeEndpointCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{

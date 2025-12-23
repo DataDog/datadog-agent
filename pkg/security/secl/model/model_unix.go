@@ -75,6 +75,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
@@ -382,10 +383,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
 
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid

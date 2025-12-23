@@ -49,9 +49,34 @@ config_setting(
     ],
 )
 
-# The location base dir to install packages in while building.
+# The location that the bulk of the agent gets installed to. Like most *nix tools, this
+# is in /opt. That will hold shared libraries, and python packages.  It is not the
+# complete installation, becuase some things go to /etc or /usr.
+#
+# Migration to bazel warning:
+# The goal we are aiming for is that output base is always passed to build
+# scripts and we install artifacts to output_base + install_dir. Unfortunately,
+# many existing scripts only use install_dir, without regard to a a base. They
+# put etc files under opt/datadog, then move them to /etc in the final part of the
+# build.
+# TODO: We need to learn how people expect to use install dir to create custom
+# builds for local testing that do not wipe out their local installation.
 string_flag(
     name = "install_dir",
-    build_setting_default = "/tmp/opt/datadog-agent",
+    build_setting_default = "/opt/datadog-agent",
     make_variable = "INSTALL_DIR",
+)
+
+# This seems to be the base of where to write config files during
+# the build. That is, if we were creating /etc/foo, it would be
+# the path prepended to /etc to get a safe place to write.
+# We can set this from the omnibus variable OUTPUT_CONFIG_DIR.
+# But, it seems to be empty in CI runs, so we end up writing to /.
+# The default is /tmp so we don't shoot our feet off in local testing.
+# If we end up keeping this flag, let's give it a better name and
+# git it a better value.
+string_flag(
+    name = "output_config_dir",
+    build_setting_default = "/tmp",
+    make_variable = "OUTPUT_CONFIG_DIR",
 )

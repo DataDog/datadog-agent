@@ -1,6 +1,9 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -10,12 +13,29 @@ package(
     default_visibility = ["//packages:__subpackages__"],
 )
 
+VERSION = "1.10.2"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "gpg-error",
+        version = VERSION,
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{version}.tar.bz2",
+    ),
+)
+
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
     license_text = "COPYING.LIB",
     visibility = ["//visibility:public"],
 )
+
+ship_source_offer(name = "ship_source_offer")
 
 copy_file(
     name = "copy_config_h",
