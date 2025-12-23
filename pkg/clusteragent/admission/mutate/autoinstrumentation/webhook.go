@@ -63,11 +63,13 @@ type Webhook struct {
 	wmeta           workloadmeta.Component
 	mutator         mutatecommon.Mutator
 	config          *WebhookConfig
+	labelSelectors  *LabelSelectors
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(config *WebhookConfig, wmeta workloadmeta.Component, mutator mutatecommon.Mutator) (*Webhook, error) {
-	webhook := &Webhook{
+func NewWebhook(config *WebhookConfig, wmeta workloadmeta.Component, mutator mutatecommon.Mutator, labelSelectors *LabelSelectors) (*Webhook, error) {
+	log.Debug("Successfully created SSI webhook")
+	return &Webhook{
 		name:            WebhookName,
 		resources:       WebhookResources,
 		operations:      WebhookOperations,
@@ -75,10 +77,8 @@ func NewWebhook(config *WebhookConfig, wmeta workloadmeta.Component, mutator mut
 		mutator:         mutator,
 		wmeta:           wmeta,
 		config:          config,
-	}
-
-	log.Debug("Successfully created SSI webhook")
-	return webhook, nil
+		labelSelectors:  labelSelectors,
+	}, nil
 }
 
 // Name returns the name of the webhook.
@@ -118,9 +118,7 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook should be invoked.
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
-		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
-	})
+	return w.labelSelectors.Get(useNamespaceSelector)
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained request filtering.

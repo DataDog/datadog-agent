@@ -19,13 +19,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/k8s"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
 )
 
 const agentNamespace = "datadog"
@@ -63,6 +63,7 @@ type suiteCapabilities interface {
 	RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error)
 	GetRestartCount(component agentComponent) int
 	CheckWorkloadErrors(containerID string) error
+	ExpectedWorkloadTags() []string
 }
 
 // hostCapabilities is an implementation of suiteCapabilities for the Host environment
@@ -187,6 +188,11 @@ func (c *hostCapabilities) CheckWorkloadErrors(containerID string) error {
 	}
 
 	return nil
+}
+
+// ExpectedWorkloadTags returns tags that are expected to be present on workloads
+func (c *hostCapabilities) ExpectedWorkloadTags() []string {
+	return []string{"container_id", "container_name", "short_image"}
 }
 
 // kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment
@@ -342,4 +348,10 @@ func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
 	}
 
 	return restartCount
+}
+
+// ExpectedWorkloadTags returns tags that are expected to be present on workloads
+func (c *kubernetesCapabilities) ExpectedWorkloadTags() []string {
+	// Kubernetes tag support not added yet
+	return nil
 }

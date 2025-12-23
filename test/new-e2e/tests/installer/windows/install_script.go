@@ -7,16 +7,17 @@ package installer
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
@@ -75,9 +76,7 @@ func (b *baseInstaller) getInstallerURL(params Params) (string, error) {
 func (b *baseInstaller) getBaseEnvVars() map[string]string {
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
 	envVars["DD_API_KEY"] = installer.GetAPIKey()
-	for k, v := range b.params.extraEnvVars {
-		envVars[k] = v
-	}
+	maps.Copy(envVars, b.params.extraEnvVars)
 	envVars["DD_REMOTE_UPDATES"] = "true"
 	return envVars
 }
@@ -139,9 +138,7 @@ func (b *baseInstaller) prepareInstaller(params Params) (string, error) {
 // This is the base implementation that can be extended by specific installer types.
 func (b *baseInstaller) prepareEnvVars(params Params) map[string]string {
 	envVars := b.getBaseEnvVars()
-	for k, v := range params.extraEnvVars {
-		envVars[k] = v
-	}
+	maps.Copy(envVars, params.extraEnvVars)
 	return envVars
 }
 
@@ -171,9 +168,7 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 	// Start with a copy of the base params
 	params := d.params
 	params.extraEnvVars = make(map[string]string)
-	for k, v := range d.params.extraEnvVars {
-		params.extraEnvVars[k] = v
-	}
+	maps.Copy(params.extraEnvVars, d.params.extraEnvVars)
 
 	// Apply method-specific options
 	err := optional.ApplyOptions(&params, opts)
@@ -240,9 +235,7 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 	// Start with a copy of the base params
 	params := d.params
 	params.extraEnvVars = make(map[string]string)
-	for k, v := range d.params.extraEnvVars {
-		params.extraEnvVars[k] = v
-	}
+	maps.Copy(params.extraEnvVars, d.params.extraEnvVars)
 
 	// Apply method-specific options
 	err := optional.ApplyOptions(&params, opts)

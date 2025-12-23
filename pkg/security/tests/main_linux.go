@@ -116,6 +116,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestMoveMount",
 			"TestMoveMountRecursiveNoPropagation",
 			"TestMoveMountRecursivePropagation",
+			"TestActionKillContainerWithSignature",
+			"TestActionKillContainerWithSignatureBroadRule",
+			"TestActionKillWithSignature",
 		}
 
 		if disableSeccomp {

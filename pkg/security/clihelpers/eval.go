@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 
@@ -226,9 +227,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 	variables := make(map[string]eval.SECLVariable)
 
 	// copy the embedded variables
-	for k, v := range model.SECLVariables {
-		variables[k] = v
-	}
+	maps.Copy(variables, model.SECLVariables)
 
 	varOpts := eval.VariableOpts{
 		TTL: 10000000,
@@ -239,7 +238,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 		switch v := v.(type) {
 		case string:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
+				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
 					return v, true
 				}, nil)
 			} else {
@@ -253,7 +252,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 					values[i] = value.(string)
 				}
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
+					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool) {
 						return values, true
 					}, nil)
 				} else {
@@ -270,7 +269,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				}
 
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
+					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool) {
 						return values, true
 					}, nil)
 				} else {
@@ -285,7 +284,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 			}
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
+				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool) {
 					return int(value), true
 				}, nil)
 			} else {
@@ -293,7 +292,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			}
 		case bool:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
+				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool) {
 					return v, true
 				}, nil)
 			} else {

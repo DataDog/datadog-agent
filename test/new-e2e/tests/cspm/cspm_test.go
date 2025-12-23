@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -22,9 +23,10 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type cspmTestSuite struct {
@@ -172,7 +174,13 @@ var expectedFindingsWorkerNode = findings{
 var values string
 
 func TestCSPM(t *testing.T) {
-	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
+		provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
+			),
+		),
+	))
 }
 
 func (s *cspmTestSuite) TestFindings() {
@@ -262,9 +270,7 @@ func isSubset(a, b map[string]string) bool {
 }
 
 func mergeFindings(a, b findings) findings {
-	for k, v := range b {
-		a[k] = v
-	}
+	maps.Copy(a, b)
 	return a
 }
 

@@ -65,7 +65,7 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 				secretsfx.Module(),
 				logscompressionfx.Module(),
 				statsd.Module(),
-				ipcfx.ModuleReadOnly(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}

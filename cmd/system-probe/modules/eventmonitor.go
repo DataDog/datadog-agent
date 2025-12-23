@@ -15,6 +15,7 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -62,6 +63,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		log.Info("event monitoring cws consumer initialized")
 	}
 
+	netconfig := netconfig.New()
 	// only add the network consumer if the pkg/network/events
 	// module was initialized by the network tracer module
 	// (this will happen only if the network consumer is enabled
@@ -73,9 +75,19 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 		evm.RegisterEventConsumer(network)
 		log.Info("event monitoring network consumer initialized")
+
+		if netconfig.DirectSend {
+			dp, err := sender.NewDockerProxyConsumer(evm, deps.Log)
+			if err != nil {
+				return nil, err
+			}
+			if dp != nil {
+				evm.RegisterEventConsumer(dp)
+				log.Info("event monitoring docker proxy consumer initialized")
+			}
+		}
 	}
 
-	netconfig := netconfig.New()
 	if netconfig.EnableUSMEventStream {
 		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
 			return nil, err
