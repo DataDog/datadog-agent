@@ -36,7 +36,7 @@ func TestCommand(t *testing.T) {
 		})
 }
 
-func TestFilterCheckConfigsByName_CheckWithNameExists(t *testing.T) {
+func TestFilterCheckConfigsByName_HasCheckWithName(t *testing.T) {
 	checkResponse := integration.ConfigCheckResponse{
 		Configs: []integration.ConfigResponse{{
 				Config: integration.Config{Name: "cpu"},
@@ -72,7 +72,7 @@ func TestFilterCheckConfigsByName_NoCheckWithName(t *testing.T) {
 
 func TestConvertConfigToJSON_DefaultValues(t *testing.T) {
 	// convert a config with default value for all its fields
-	jsonConfig := convertCheckConfigToJSON(integration.Config{}, []string{})
+	jsonConfig := convertCheckConfigToJSON(&integration.Config{}, []string{})
 
 	assert.Equal(t, "", jsonConfig.Name)
 	assert.Equal(t, "", jsonConfig.InitConfig)
@@ -94,7 +94,7 @@ func TestConvertConfigToJSON_InitializedValues(t *testing.T) {
 		Provider:     "file",
 		Source:       "file:/path/to/config.yaml",
 	}
-	jsonConfig := convertCheckConfigToJSON(c, []string{"123"})
+	jsonConfig := convertCheckConfigToJSON(&c, []string{"123"})
 
 	assert.Equal(t, "check name", jsonConfig.Name)
 	assert.Equal(t, "init config", jsonConfig.InitConfig)
@@ -109,7 +109,7 @@ func TestConvertConfigToJSON_InitializedValues(t *testing.T) {
 	assert.Equal(t, "file:/path/to/config.yaml", jsonConfig.Source)
 }
 
-func TestPrintJSON(t *testing.T) {
+func TestPrintJSON_RawPrint(t *testing.T) {
 	c := checkConfig{
 		Name:     "check name",
 		Provider: "file",
@@ -143,7 +143,7 @@ value: 456`,
 	assert.Equal(t, expected, b.String())
 }
 
-func TestPrettyPrintJSON(t *testing.T) {
+func TestPrintJSON_PrettyPrint(t *testing.T) {
 	c := checkConfig{
 		Name:     "check name",
 		Provider: "file",

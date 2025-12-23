@@ -113,7 +113,7 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 		// JSON formatted output
 		checkJSONConfigs := make([]checkConfig, len(cr.Configs))
 		for i, config := range cr.Configs {
-			checkJSONConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
+			checkJSONConfigs[i] = convertCheckConfigToJSON(&config.Config, config.InstanceIDs)
 		}
 
 		if err := printJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON); err != nil {
@@ -148,7 +148,7 @@ func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResp
 	return cr, nil
 }
 
-func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) checkConfig {
+func convertCheckConfigToJSON(c *integration.Config, instanceIDs []string) checkConfig {
 	jsonConfig := checkConfig{}
 
 	jsonConfig.Name = c.Name
