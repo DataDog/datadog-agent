@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,29 +50,35 @@ type dependencies struct {
 // metricStat holds how many times a metric has been
 // processed and when was the last time.
 type metricStat struct {
-	Name     string    `json:"name"`
-	Count    uint64    `json:"count"`
-	LastSeen time.Time `json:"last_seen"`
-	Tags     string    `json:"tags"`
-	key      ckey.ContextKey
+	Name      string    `json:"name"`
+	Count     uint64    `json:"count"`
+	LastSeen  time.Time `json:"last_seen"`
+	Tags      string    `json:"tags"`
+	key       ckey.ContextKey
+	error     uint64 // overestimation bound
+	heapIndex int    // position in minHeap for O(1) lookup
 }
 
 // metricStatsShard holds a subset of metric stats with its own lock
 // to allow concurrent access to different shards
 type metricStatsShard struct {
 	sync.RWMutex
-	stats           map[ckey.ContextKey]metricStat
-	tagsAccumulator *tagset.HashingTagsAccumulator
+	stats   map[ckey.ContextKey]*metricStat
+	minHeap []*metricStat
+	//tagsAccumulator *tagset.HashingTagsAccumulator
 }
 
-const defaultNumShards = uint32(16) // Power of 2 for efficient modulo operation
+const (
+	defaultNumShards = uint64(16) // Power of 2 for efficient modulo operation
+	maxItems         = 63
+)
 
 type serverDebugImpl struct {
 	sync.RWMutex
 	log       log.Component
 	enabled   *atomic.Bool
 	shards    []*metricStatsShard
-	numShards uint32
+	numShards uint64
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
 	// keyGen is used to generate hashes of the metrics received by dogstatsd
@@ -111,10 +117,11 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 		numShards: numShards,
 	}
 	// Initialize all shards
-	for i := uint32(0); i < sd.numShards; i++ {
+	for i := uint64(0); i < sd.numShards; i++ {
 		sd.shards[i] = &metricStatsShard{
-			stats:           make(map[ckey.ContextKey]metricStat, 1),
-			tagsAccumulator: tagset.NewHashingTagsAccumulator(),
+			stats:   make(map[ckey.ContextKey]*metricStat),
+			minHeap: make([]*metricStat, 0, maxItems),
+			//tagsAccumulator: tagset.NewHashingTagsAccumulator(),
 		}
 	}
 
@@ -183,64 +190,160 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 
 	// Determine which shard to use based on metric name hash
 	// Using a simple hash function for distribution
-	hash := hashString(sample.Name)
+	hash, tags := MakeKey(sample)
 	shardIdx := hash % d.numShards
 	shard := d.shards[shardIdx]
 
 	// Lock only the specific shard, not the entire structure
 	shard.Lock()
 	defer shard.Unlock()
+	defer func() {
+		// Notify metrics count tracker
+		select {
+		case d.metricsCounts.metricChan <- struct{}{}:
+		default:
+			// Non-blocking send to avoid deadlock if channel is full
+		}
+	}()
 
 	// Reset and populate tags accumulator for this shard
-	shard.tagsAccumulator.Reset()
-	shard.tagsAccumulator.Append(sample.Tags...)
+	//shard.tagsAccumulator.Reset()
+	//shard.tagsAccumulator.Append(sample.Tags...)
 
 	// Generate key for this metric
-	key := d.keyGen.Generate(sample.Name, "", shard.tagsAccumulator)
-
-	ms := metricStat{
-		key:  key,
-		Name: sample.Name,
-		Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
-	}
+	//key := d.keyGen.Generate(sample.Name, "", shard.tagsAccumulator)
+	key := ckey.ContextKey(hash)
 
 	// Get or create metric stat
-	ms, exists := shard.stats[key]
-	if !exists {
-		ms = metricStat{
-			Name: sample.Name,
-			Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
+	if ms, exists := shard.stats[key]; exists {
+		oldCount := ms.Count
+		ms.Count++
+		ms.LastSeen = now
+
+		// Re-heapify since count changed (moved up in rank)
+		if ms.Count > oldCount {
+			shard.heapifyUp(ms.heapIndex)
+		}
+	} else {
+		if len(shard.stats) < maxItems {
+			newMs := &metricStat{
+				key:      key,
+				Name:     sample.Name,
+				Count:    1,
+				error:    0,
+				Tags:     tags,
+				LastSeen: now,
+			}
+			shard.stats[key] = newMs
+			shard.minHeap = append(shard.minHeap, newMs)
+			shard.heapifyUp(len(shard.minHeap) - 1)
+		} else {
+			// At capacity - replace minimum (Space-Saving's key insight)
+			// The new item inherits the min's count + 1 and error = min's count
+			minEntry := shard.minHeap[0]
+			oldKey := minEntry.key
+			inheritedCount := minEntry.Count
+
+			// Remove old key from map
+			delete(shard.stats, oldKey)
+
+			// Reuse the entry object (update in place)
+			minEntry.key = key
+			minEntry.Name = sample.Name
+			minEntry.Tags = tags
+			minEntry.Count = inheritedCount + 1
+			minEntry.error = inheritedCount
+			minEntry.LastSeen = now
+			// heapIndex stays at 0
+
+			// Add new key to map
+			shard.stats[key] = minEntry
+
+			// Re-heapify from root since count increased
+			shard.heapifyDown(0)
 		}
 	}
-
-	// Update stats
-	ms.Count++
-	ms.LastSeen = now
-
-	// Store back to shard
-	shard.stats[key] = ms
 
 	// Log if enabled
 	//if d.dogstatsdDebugLogger != nil {
 	//	logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
 	//	d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
 	//}
+}
 
-	// Notify metrics count tracker
-	select {
-	case d.metricsCounts.metricChan <- struct{}{}:
-	default:
-		// Non-blocking send to avoid deadlock if channel is full
+// Min-heap operations for maintaining items by (count - error)
+// This keeps the most uncertain/lowest-count items at the root
+
+func (mss *metricStatsShard) heapifyUp(idx int) {
+	if idx < 0 || idx >= len(mss.minHeap) {
+		return
+	}
+	for idx > 0 {
+		parent := (idx - 1) / 2
+		// Compare by (count - error) for minimum uncertainty
+		if mss.minHeap[idx].Count-mss.minHeap[idx].error >= mss.minHeap[parent].Count-mss.minHeap[parent].error {
+			break
+		}
+		// Swap and update heap indices
+		mss.minHeap[idx], mss.minHeap[parent] = mss.minHeap[parent], mss.minHeap[idx]
+		mss.minHeap[idx].heapIndex = idx
+		mss.minHeap[parent].heapIndex = parent
+		idx = parent
 	}
 }
 
-// hashString returns a hash value for a string
-func hashString(s string) uint32 {
-	h := uint32(0)
-	for i := 0; i < len(s); i++ {
-		h = h*31 + uint32(s[i])
+func (mss *metricStatsShard) heapifyDown(idx int) {
+	n := len(mss.minHeap)
+	for {
+		smallest := idx
+		left := 2*idx + 1
+		right := 2*idx + 2
+
+		if left < n && mss.minHeap[left].Count-mss.minHeap[left].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+			smallest = left
+		}
+		if right < n && mss.minHeap[right].Count-mss.minHeap[right].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+			smallest = right
+		}
+
+		if smallest == idx {
+			break
+		}
+
+		// Swap and update heap indices
+		mss.minHeap[idx], mss.minHeap[smallest] = mss.minHeap[smallest], mss.minHeap[idx]
+		mss.minHeap[idx].heapIndex = idx
+		mss.minHeap[smallest].heapIndex = smallest
+		idx = smallest
 	}
-	return h
+}
+
+//// GetErrorBound returns the maximum error bound for counts
+//// In Space-Saving, the error for any item is at most n/k where n is total items seen
+//func (mss *metricStatsShard) GetErrorBound() uint64 {
+//	mss.RLock()
+//	defer mss.RUnlock()
+//
+//	if len(mss.minHeap) == 0 {
+//		return 0
+//	}
+//
+//	// The minimum entry's count represents approximately n/k
+//	return mss.minHeap[0].Count
+//}
+
+// MakeKey creates a simple key from the name and tags
+func MakeKey(sample metrics.MetricSample) (key uint64, joinedTags string) {
+	// Sort tags to ensure consistent key
+	sortedTags := make([]string, len(sample.Tags))
+	copy(sortedTags, sample.Tags)
+	sort.Strings(sortedTags)
+	joinedTags = strings.Join(sortedTags, " ")
+	m := murmur3.New64()
+	m.Write([]byte(sample.Name))
+	m.Write([]byte("|"))
+	m.Write([]byte(joinedTags))
+	return m.Sum64(), joinedTags
 }
 
 // SetMetricStatsEnabled enables or disables metric stats
@@ -314,15 +417,20 @@ func (d *serverDebugImpl) hasSpike() bool {
 // GetJSONDebugStats returns jsonified debug statistics.
 func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
 	// Aggregate stats from all shards
-	aggregatedStats := make(map[ckey.ContextKey]metricStat)
+	aggregatedStats := make(map[ckey.ContextKey]*metricStat)
 
-	for i := uint32(0); i < d.numShards; i++ {
-		shard := d.shards[i]
-		shard.RLock()
-		for key, stat := range shard.stats {
+	// Unlock after we convert to json
+	defer func() {
+		for i := uint64(0); i < d.numShards; i++ {
+			d.shards[i].RUnlock()
+		}
+	}()
+
+	for i := uint64(0); i < d.numShards; i++ {
+		d.shards[i].RLock()
+		for key, stat := range d.shards[i].stats {
 			aggregatedStats[key] = stat
 		}
-		shard.RUnlock()
 	}
 
 	return json.Marshal(aggregatedStats)
