@@ -312,3 +312,17 @@ func rootDir(dir string) string {
 	}
 	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
 }
+
+// CreateConntrackEntry creates a conntrack entry using the conntrack -I CLI
+func CreateConntrackEntry(t *testing.T, srcIP, dstIP string, srcPort, dstPort int, replySrcIP, proto string) {
+	var state string
+	if proto == "tcp" {
+		state = "--state ESTABLISHED"
+	}
+	cmd := fmt.Sprintf("conntrack -I -s %s -d %s -p %s --sport %d --dport %d "+
+		"--reply-src %s --reply-dst %s --reply-port-src %d --reply-port-dst %d "+
+		"%s --timeout 120",
+		srcIP, dstIP, proto, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, state)
+
+	nettestutil.RunCommands(t, []string{cmd}, false)
+}
