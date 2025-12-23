@@ -575,6 +575,7 @@ func (m *symdbManager) performUpload(
 
 	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
 		procID.pid, procID.service, procID.version, executablePath)
+	startTime := time.Now()
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
@@ -592,6 +593,7 @@ func (m *symdbManager) performUpload(
 	bufferFuncs := 0
 	uploadID := uuid.New()
 	batchNum := 0
+	var totalPackages, totalFuncs int
 	// Flush every so often in order to not store too many scopes in memory.
 	maybeFlush := func(final bool) error {
 		if ctx.Err() != nil {
@@ -632,13 +634,18 @@ func (m *symdbManager) performUpload(
 
 		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
 		uploadBuffer = append(uploadBuffer, scope)
+		totalPackages++
+		totalFuncs += pkg.Stats().NumFunctions
 		bufferFuncs += pkg.Stats().NumFunctions
 		if err := maybeFlush(pkg.Final); err != nil {
 			return err
 		}
 	}
 
-	log.Infof("SymDB: Successfully uploaded symbols for process %v (service: %s, version: %s, executable: %s)",
-		procID.pid, procID.service, procID.version, executablePath)
+	log.Infof("SymDB: Successfully uploaded symbols for process %v "+
+		"(service: %s, version: %s, executable: %s):"+
+		" %d packages, %d functions, %d chunks in %v",
+		procID.pid, procID.service, procID.version, executablePath,
+		totalPackages, totalFuncs, batchNum, time.Since(startTime))
 	return nil
 }
