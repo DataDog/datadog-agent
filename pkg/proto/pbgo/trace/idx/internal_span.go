@@ -154,24 +154,24 @@ func (tp *InternalTracerPayload) Msgsize() int {
 // RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
 // This should be called before serializing or otherwise exposing the tracer payload to remove any sensitive
 // strings that are no longer referenced
-func (tp *TracerPayload) RemoveUnusedStrings() {
-	usedStrings := make([]bool, len(tp.Strings))
-	usedStrings[tp.ContainerIDRef] = true
-	usedStrings[tp.LanguageNameRef] = true
-	usedStrings[tp.LanguageVersionRef] = true
-	usedStrings[tp.TracerVersionRef] = true
-	usedStrings[tp.RuntimeIDRef] = true
-	usedStrings[tp.EnvRef] = true
-	usedStrings[tp.HostnameRef] = true
-	usedStrings[tp.AppVersionRef] = true
-	markAttributeMapStringsUsed(usedStrings, tp.Attributes)
-	for _, chunk := range tp.Chunks {
+func (x *TracerPayload) RemoveUnusedStrings() {
+	usedStrings := make([]bool, len(x.Strings))
+	usedStrings[x.ContainerIDRef] = true
+	usedStrings[x.LanguageNameRef] = true
+	usedStrings[x.LanguageVersionRef] = true
+	usedStrings[x.TracerVersionRef] = true
+	usedStrings[x.RuntimeIDRef] = true
+	usedStrings[x.EnvRef] = true
+	usedStrings[x.HostnameRef] = true
+	usedStrings[x.AppVersionRef] = true
+	markAttributeMapStringsUsed(usedStrings, x.Attributes)
+	for _, chunk := range x.Chunks {
 		chunk.markUsedStrings(usedStrings)
 	}
 	for i, used := range usedStrings {
 		if !used {
 			// We don't adjust the table itself to avoid changing the indices of the other strings
-			tp.Strings[i] = ""
+			x.Strings[i] = ""
 		}
 	}
 }
@@ -256,21 +256,21 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 
 // NewStringsClone returns a shallow copy of the tracer payload. where the strings are set to a new string table.
 // This can be used to split a payload into multiple payloads and remove unused strings from the new payloads without modifying the original payload.
-func (pbTp *TracerPayload) NewStringsClone() *TracerPayload {
-	newStrings := make([]string, len(pbTp.Strings))
-	copy(newStrings, pbTp.Strings)
+func (x *TracerPayload) NewStringsClone() *TracerPayload {
+	newStrings := make([]string, len(x.Strings))
+	copy(newStrings, x.Strings)
 	return &TracerPayload{
 		Strings:            newStrings,
-		ContainerIDRef:     pbTp.ContainerIDRef,
-		LanguageNameRef:    pbTp.LanguageNameRef,
-		LanguageVersionRef: pbTp.LanguageVersionRef,
-		TracerVersionRef:   pbTp.TracerVersionRef,
-		RuntimeIDRef:       pbTp.RuntimeIDRef,
-		EnvRef:             pbTp.EnvRef,
-		HostnameRef:        pbTp.HostnameRef,
-		AppVersionRef:      pbTp.AppVersionRef,
-		Attributes:         pbTp.Attributes,
-		Chunks:             pbTp.Chunks,
+		ContainerIDRef:     x.ContainerIDRef,
+		LanguageNameRef:    x.LanguageNameRef,
+		LanguageVersionRef: x.LanguageVersionRef,
+		TracerVersionRef:   x.TracerVersionRef,
+		RuntimeIDRef:       x.RuntimeIDRef,
+		EnvRef:             x.EnvRef,
+		HostnameRef:        x.HostnameRef,
+		AppVersionRef:      x.AppVersionRef,
+		Attributes:         x.Attributes,
+		Chunks:             x.Chunks,
 	}
 }
 
