@@ -61,6 +61,7 @@ from tasks import (
     pre_commit,
     process_agent,
     protobuf,
+    python_version,
     quality_gates,
     release,
     rtloader,
@@ -123,7 +124,6 @@ from tasks.install_tasks import (
 from tasks.junit_tasks import junit_upload
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
-from tasks import python_version
 from tasks.windows_resources import build_messagetable
 
 Task.__call__ = custom__call__
