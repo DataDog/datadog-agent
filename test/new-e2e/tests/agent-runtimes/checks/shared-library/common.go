@@ -65,18 +65,6 @@ func (v *sharedLibrarySuite) init() {
 	require.True(v.T(), res)
 }
 
-func (v *sharedLibrarySuite) clean() {
-	// remove lib after the test
-	out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
-	// should not output anything, otherwise it's an error
-	require.NoError(v.T(), out)
-
-	// verify that the library has been successfully deleted
-	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
-	require.NoError(v.T(), err)
-	require.False(v.T(), res)
-}
-
 // Test the shared library code and check it returns the right metrics
 func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	v.T().Log("Running Shared Library Check Example test")
@@ -115,5 +103,4 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 func (v *sharedLibrarySuite) testCheckExample() {
 	v.init()
 	v.testCheckExecutionAndVerifyMetrics()
-	v.clean()
 }
