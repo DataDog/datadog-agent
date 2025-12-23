@@ -44,9 +44,11 @@ LABEL maintainer="Datadog <package@datadoghq.com>"
 ENV DEBIAN_FRONTEND=noninteractive
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt full-upgrade -y && \
-    apt install -y tzdata ca-certificates adduser && \
+    apt install -y tzdata ca-certificates adduser pkg-config libre2-dev libre2-10 && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+
+ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders

@@ -8,10 +8,10 @@ package automaton
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	regexp "github.com/wasilibs/go-re2"
 )
 
 // Priority constants for rule evaluation order
