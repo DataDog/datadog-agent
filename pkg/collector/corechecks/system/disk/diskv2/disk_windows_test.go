@@ -715,3 +715,83 @@ service_check_rw: true
 	assert.Nil(t, err)
 	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`}, "")
 }
+
+func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasCdromInOpts_ThenPartitionIsExcluded(t *testing.T) {
+	// Windows-specific: partitions with "cdrom" in Opts should be excluded
+	// This handles CD-ROM drives with no disk that may cause errors or hangs
+	setupDefaultMocks()
+	diskCheck := createWindowsCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "D:",
+				Mountpoint: "D:\\",
+				Fstype:     "CDFS",
+				Opts:       []string{"cdrom", "ro"}, // cdrom in opts triggers exclusion
+			},
+			{
+				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
+				Mountpoint: "C:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw"},
+			}}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// CD-ROM partition should be excluded due to "cdrom" in opts
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if tag == "device:d:" {
+				return true
+			}
+		}
+		return false
+	}))
+	// Regular partition should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartitionIsExcluded(t *testing.T) {
+	// Windows-specific: partitions with empty Fstype should be excluded
+	// This handles drives that are not ready or have no filesystem
+	setupDefaultMocks()
+	diskCheck := createWindowsCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "E:",
+				Mountpoint: "E:\\",
+				Fstype:     "", // Empty Fstype triggers exclusion
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
+				Mountpoint: "C:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw"},
+			}}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Partition with empty Fstype should be excluded
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if tag == "device:e:" {
+				return true
+			}
+		}
+		return false
+	}))
+	// Regular partition should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+}
