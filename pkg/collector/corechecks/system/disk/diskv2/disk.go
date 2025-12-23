@@ -44,6 +44,9 @@ const (
 	tagFilesystem  = "filesystem:"
 	tagLabel       = "label:"
 	tagDeviceLabel = "device_label:"
+
+	// Unit conversion
+	bytesPerKB = 1024
 )
 
 // diskInitConfig represents initialization configuration shared across instances.
@@ -511,10 +514,10 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 
 func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
 	// Disk metrics
-	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
+	// For legacy reasons, the standard unit is kB
+	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/bytesPerKB, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usage.UsedPercent, "", tags)
 	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
