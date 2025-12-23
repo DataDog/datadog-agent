@@ -50,6 +50,7 @@ type Installer interface {
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
 	SetupInstaller(ctx context.Context, path string) error
+	EnsurePackagesLayout(ctx context.Context) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -288,6 +289,13 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	// Ensure /opt/datadog-packages is set up before installing any package
+	// This is needed for the fleet automation system to work properly with OCI packages
+	if err := i.EnsurePackagesLayout(ctx); err != nil {
+		log.Warnf("Failed to ensure packages layout: %v", err)
+	}
+
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return installerErrors.Wrap(

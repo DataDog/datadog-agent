@@ -29,6 +29,10 @@ func (m *installerMock) IsInstalled(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
+func (m *installerMock) EnsurePackagesLayout(_ context.Context) error {
+	return nil
+}
+
 func (m *installerMock) AvailableDiskSpace() (uint64, error) {
 	return 0, nil
 }

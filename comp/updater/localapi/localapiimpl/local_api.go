@@ -36,6 +36,10 @@ type dependencies struct {
 }
 
 func newLocalAPIComponent(lc fx.Lifecycle, deps dependencies) (localapi.Component, error) {
+	if !deps.Config.GetBool("remote_updates") {
+		return nil, nil
+	}
+
 	localAPI, err := daemon.NewLocalAPI(deps.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)

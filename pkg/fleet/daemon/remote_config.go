@@ -64,7 +64,9 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
-	rc.client.Close()
+	if rc != nil && rc.client != nil {
+		rc.client.Close()
+	}
 }
 
 // GetState gets the state of the remote config client.

@@ -111,6 +111,45 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	}
 }
 
+func (s *packageAgentSuite) TestRemoteUpdatesDirectories() {
+	// Install with remote_updates explicitly set to false
+	s.RunInstallScript("DD_REMOTE_UPDATES=false")
+	defer s.Purge()
+
+	// Verify agent is installed
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	// Verify /opt/datadog-packages does NOT exist when remote_updates is disabled
+	output, err := s.Env().RemoteHost.Execute("sudo test -d /opt/datadog-packages && echo 'EXISTS' || echo 'NOT_EXISTS'")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "NOT_EXISTS", "/opt/datadog-packages should not exist when remote_updates is disabled")
+
+	// Enable remote_updates in config (replace if exists, append if not)
+	s.Env().RemoteHost.MustExecute("sudo sed -i '/^remote_updates:/d' /etc/datadog-agent/datadog.yaml")
+	s.Env().RemoteHost.MustExecute("sudo sh -c 'echo \"remote_updates: true\" >> /etc/datadog-agent/datadog.yaml'")
+
+	// Restart the installer daemon to trigger directory creation
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-installer.service")
+	s.host.WaitForUnitActive(s.T(), installerUnit)
+
+	// Verify /opt/datadog-packages now exists after enabling remote_updates
+	output, err = s.Env().RemoteHost.Execute("sudo test -d /opt/datadog-packages && echo 'EXISTS' || echo 'NOT_EXISTS'")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "EXISTS", "/opt/datadog-packages should exist after enabling remote_updates")
+
+	// Verify the directory structure is correct
+	state := s.host.State()
+	state.AssertDirExists("/opt/datadog-packages/datadog-agent", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/run/datadog-agent", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/tmp", 0755, "dd-agent", "dd-agent")
+
+	// Verify symlinks resolve correctly to /opt/datadog-agent
+	output, err = s.Env().RemoteHost.Execute("sudo readlink -f /opt/datadog-packages/datadog-agent/stable")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), strings.TrimSpace(output), "/opt/datadog-agent", "stable symlink should resolve to /opt/datadog-agent")
+}
+
 func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
@@ -519,9 +558,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install_info", 0644)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
-	agentVersion := s.host.AgentStableVersion()
 	agentDir := "/opt/datadog-agent"
-	agentRunSymlink := "/opt/datadog-packages/run/datadog-agent/" + agentVersion
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
@@ -532,7 +569,6 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
