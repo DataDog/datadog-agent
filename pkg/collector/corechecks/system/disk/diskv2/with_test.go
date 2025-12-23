@@ -52,3 +52,10 @@ func WithStat(c check.Check, f func(string) (StatT, error)) check.Check {
 	c.(*Check).statFn = f
 	return c
 }
+
+// WithGOOS sets a custom GOOS value on the Check and returns the updated Check.
+// This allows testing Linux-specific code paths on non-Linux platforms.
+func WithGOOS(c check.Check, goos string) check.Check {
+	c.(*Check).goos = goos
+	return c
+}

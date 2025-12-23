@@ -131,6 +131,7 @@ type Check struct {
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 	fs                        afero.Fs
 	statFn                    statFunc
+	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -445,7 +446,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		return nil
 	}
 	rootDevices := make(map[string]string)
-	if runtime.GOOS == "linux" && !c.instanceConfig.ResolveRootDevice {
+	if c.goos == "linux" && !c.instanceConfig.ResolveRootDevice {
 		rootDevices, err = c.loadRootDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
@@ -724,6 +725,7 @@ func newCheck() check.Check {
 		diskIOCounters:            gopsutil_disk.IOCounters,
 		fs:                        afero.NewOsFs(),
 		statFn:                    defaultStatFn,
+		goos:                      runtime.GOOS,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
