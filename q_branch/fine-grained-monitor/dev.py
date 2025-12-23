@@ -31,8 +31,8 @@ PID_FILE = DEV_DIR / "server.pid"
 LOG_FILE = DEV_DIR / "server.log"
 STATE_FILE = DEV_DIR / "state.json"
 
-# Default data file (in sibling directory q_branch/out/)
-DEFAULT_DATA = PROJECT_ROOT.parent / "out" / "fixed-dec-22-23.parquet"
+# Default data file (test data in testdata/)
+DEFAULT_DATA = PROJECT_ROOT / "testdata" / "1hr.parquet"
 
 # Binary path
 BINARY = PROJECT_ROOT / "target" / "release" / "fgm-viewer"
