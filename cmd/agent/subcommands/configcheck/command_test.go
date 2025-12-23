@@ -36,21 +36,56 @@ func TestCommand(t *testing.T) {
 		})
 }
 
-func TestConvertConfigToJSON(t *testing.T) {
-	// case 1: default config
-	c1 := integration.Config{}
-	jsonConfig1 := convertCheckConfigToJSON(c1, []string{})
+func TestFilterCheckConfigsByName_CheckWithNameExists(t *testing.T) {
+	checkResponse := integration.ConfigCheckResponse{
+		Configs: []integration.ConfigResponse{{
+				Config: integration.Config{Name: "cpu"},
+			}, {
+				Config: integration.Config{Name: "disk"},
+			},
+		},
+	}
 
-	assert.Equal(t, "", jsonConfig1.Name)
-	assert.Equal(t, "", jsonConfig1.InitConfig)
-	assert.Equal(t, "", jsonConfig1.MetricConfig)
-	assert.Equal(t, "", jsonConfig1.Logs)
-	assert.Empty(t, jsonConfig1.Instances)
-	assert.Equal(t, "Unknown provider", jsonConfig1.Provider)
-	assert.Equal(t, "Unknown configuration source", jsonConfig1.Source)
+	// filter the configs list to only keep the "cpu" config
+	err := filterCheckConfigsByName(&checkResponse, "cpu")
+	assert.NoError(t, err)
 
-	// case 2: realistic check config
-	c2 := integration.Config{
+	require.Len(t, checkResponse.Configs, 1)
+	config := checkResponse.Configs[0].Config
+	assert.Equal(t, "cpu", config.Name)
+}
+
+func TestFilterCheckConfigsByName_NoCheckWithName(t *testing.T) {
+	checkResponse := integration.ConfigCheckResponse{
+		Configs: []integration.ConfigResponse{{
+				Config: integration.Config{Name: "cpu"},
+			}, {
+				Config: integration.Config{Name: "disk"},
+			},
+		},
+	}
+
+	// no filtering is done on the config check response since the "memory" config is not
+	err := filterCheckConfigsByName(&checkResponse, "memory")
+	assert.Error(t, err)
+}
+
+func TestConvertConfigToJSON_DefaultValues(t *testing.T) {
+	// convert a config with default value for all its fields
+	jsonConfig := convertCheckConfigToJSON(integration.Config{}, []string{})
+
+	assert.Equal(t, "", jsonConfig.Name)
+	assert.Equal(t, "", jsonConfig.InitConfig)
+	assert.Equal(t, "", jsonConfig.MetricConfig)
+	assert.Equal(t, "", jsonConfig.Logs)
+	assert.Empty(t, jsonConfig.Instances)
+	assert.Equal(t, "Unknown provider", jsonConfig.Provider)
+	assert.Equal(t, "Unknown configuration source", jsonConfig.Source)
+}
+
+func TestConvertConfigToJSON_InitializedValues(t *testing.T) {
+	// config with initialized values
+	c := integration.Config{
 		Name:         "check name",
 		Instances:    []integration.Data{integration.Data(`{"name":"instance name"}`)},
 		InitConfig:   integration.Data("init config"),
@@ -59,19 +94,19 @@ func TestConvertConfigToJSON(t *testing.T) {
 		Provider:     "file",
 		Source:       "file:/path/to/config.yaml",
 	}
-	jsonConfig2 := convertCheckConfigToJSON(c2, []string{"123"})
+	jsonConfig := convertCheckConfigToJSON(c, []string{"123"})
 
-	assert.Equal(t, "check name", jsonConfig2.Name)
-	assert.Equal(t, "init config", jsonConfig2.InitConfig)
-	assert.Equal(t, "metrics config", jsonConfig2.MetricConfig)
-	assert.Equal(t, "logs config", jsonConfig2.Logs)
+	assert.Equal(t, "check name", jsonConfig.Name)
+	assert.Equal(t, "init config", jsonConfig.InitConfig)
+	assert.Equal(t, "metrics config", jsonConfig.MetricConfig)
+	assert.Equal(t, "logs config", jsonConfig.Logs)
 
-	require.Len(t, jsonConfig2.Instances, 1)
-	assert.Equal(t, "123", jsonConfig2.Instances[0].ID)
-	assert.Equal(t, `{"name":"instance name"}`, jsonConfig2.Instances[0].Config)
+	require.Len(t, jsonConfig.Instances, 1)
+	assert.Equal(t, "123", jsonConfig.Instances[0].ID)
+	assert.Equal(t, `{"name":"instance name"}`, jsonConfig.Instances[0].Config)
 
-	assert.Equal(t, "file", jsonConfig2.Provider)
-	assert.Equal(t, "file:/path/to/config.yaml", jsonConfig2.Source)
+	assert.Equal(t, "file", jsonConfig.Provider)
+	assert.Equal(t, "file:/path/to/config.yaml", jsonConfig.Source)
 }
 
 func TestPrintJSON(t *testing.T) {
