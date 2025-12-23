@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
 go 1.24.0
 
-require github.com/DataDog/datadog-agent/pkg/security/secl v0.68.3
+require github.com/DataDog/datadog-agent/pkg/security/secl v0.67.0-rc.12
 
 require (
 	github.com/alecthomas/participle v0.7.1 // indirect
