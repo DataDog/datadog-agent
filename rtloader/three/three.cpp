@@ -292,7 +292,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     RtLoaderPyObject *&check)
+                     const char *provider_str, RtLoaderPyObject *&check)
 {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
@@ -305,6 +305,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
+    PyObject *provider = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -424,10 +425,30 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
+    if (provider_str != NULL && strlen(provider_str) != 0) {
+        provider = PyUnicode_FromString(provider_str);
+        if (provider == NULL) {
+            std::ostringstream err;
+            err << "error could not set provider: " << provider_str;
+            setError(err.str());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+
+        if (PyObject_SetAttrString(py_check, "provider", provider) != 0) {
+            setError("error could not set 'provider' attr: " + _fetchPythonError());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+    }
+
 done:
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
+    Py_XDECREF(provider);
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);

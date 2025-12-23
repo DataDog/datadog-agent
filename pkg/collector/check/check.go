@@ -33,7 +33,7 @@ type Check interface {
 	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
 	Loader() string
 	// Configure configures the check
-	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
@@ -46,6 +46,8 @@ type Check interface {
 	Version() string
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// ConfigProvider returns the name of the config provider that issued the check config
+	ConfigProvider() string
 	// IsTelemetryEnabled returns if telemetry is enabled for this check
 	IsTelemetryEnabled() bool
 	// InitConfig returns the init_config configuration of the check

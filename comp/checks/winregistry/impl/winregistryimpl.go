@@ -128,10 +128,10 @@ func createSchema() ([]byte, error) {
 }
 
 // Configure configures the check
-func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	c.senderManager = senderManager
 	c.BuildID(integrationConfigDigest, data, initConfig)
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}

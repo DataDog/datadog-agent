@@ -58,7 +58,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	configDigest := config.FastDigest()
 
 	// pass the configuration to the check
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source, config.Provider); err != nil {
 		return c, err
 	}
 

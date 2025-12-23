@@ -250,7 +250,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		configSource = configSource + "[" + strconv.Itoa(instanceIndex) + "]"
 	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource, config.Provider); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
