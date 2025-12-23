@@ -532,4 +532,3 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	wi.receiveRateValid = true
 	return *wi, nil
 }
-
