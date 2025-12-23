@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -1439,21 +1440,11 @@ mount_point_exclude:
 	assert.Nil(t, err)
 	// The partition with "(deleted)" suffix should be excluded
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		for _, tag := range tags {
-			if tag == "device:/dev/sda1" {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(tags, "device:/dev/sda1")
 	}))
 	// The other partition should still be reported
 	m.AssertCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		for _, tag := range tags {
-			if tag == "device:/dev/sda2" {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(tags, "device:/dev/sda2")
 	}))
 }
 
@@ -1498,20 +1489,8 @@ device_tag_re:
 	assert.Nil(t, err)
 	// Verify all three tags are present on the metrics
 	m.AssertCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		hasRole := false
-		hasType := false
-		hasTier := false
-		for _, tag := range tags {
-			if tag == "role:primary" {
-				hasRole = true
-			}
-			if tag == "type:ssd" {
-				hasType = true
-			}
-			if tag == "tier:fast" {
-				hasTier = true
-			}
-		}
-		return hasRole && hasType && hasTier
+		return slices.Contains(tags, "role:primary") &&
+			slices.Contains(tags, "type:ssd") &&
+			slices.Contains(tags, "tier:fast")
 	}))
 }

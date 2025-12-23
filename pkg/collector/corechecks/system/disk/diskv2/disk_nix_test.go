@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"testing"
 
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
@@ -1603,12 +1604,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 	assert.Nil(t, err)
 	// Partition with device "none" should be excluded
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		for _, tag := range tags {
-			if tag == "device:none" {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(tags, "device:none")
 	}))
 	// Regular partition should still be reported
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})

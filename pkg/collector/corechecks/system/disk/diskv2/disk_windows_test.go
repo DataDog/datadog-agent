@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
@@ -745,12 +746,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasCdromInOpts_ThenPartit
 	assert.Nil(t, err)
 	// CD-ROM partition should be excluded due to "cdrom" in opts
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		for _, tag := range tags {
-			if tag == "device:d:" {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(tags, "device:d:")
 	}))
 	// Regular partition should still be reported
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
@@ -785,12 +781,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartit
 	assert.Nil(t, err)
 	// Partition with empty Fstype should be excluded
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
-		for _, tag := range tags {
-			if tag == "device:e:" {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(tags, "device:e:")
 	}))
 	// Regular partition should still be reported
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
