@@ -583,35 +583,30 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		deviceName = partition.Device
 	}
-	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
-	normalizedDeviceName := normalizeDeviceTag(deviceName)
-	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
-	} else {
-		tags = append(tags, "device:"+normalizedDeviceName)
-	}
-	tags = append(tags, "device_name:"+baseDeviceName(partition.Device))
-	// Use original deviceName for regex matching in device_tag_re
-	tags = append(tags, c.getDeviceTags(deviceName)...)
-	label, ok := c.deviceLabels[partition.Device]
-	if ok {
-		tags = append(tags, "label:"+label, "device_label:"+label)
-	}
+	tags = append(tags, c.buildDeviceTags(deviceName, partition.Device)...)
 	return tags
 }
 
 func (c *Check) getDeviceNameTags(deviceName string) []string {
+	return c.buildDeviceTags(deviceName, deviceName)
+}
+
+// buildDeviceTags creates common device-related tags.
+// tagDevice is used for the device: tag and regex matching (device_tag_re).
+// baseDevice is used for the device_name: tag and label lookup.
+func (c *Check) buildDeviceTags(tagDevice, baseDevice string) []string {
 	tags := []string{}
 	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
-	normalizedDeviceName := normalizeDeviceTag(deviceName)
+	normalizedDeviceName := normalizeDeviceTag(tagDevice)
 	if c.instanceConfig.LowercaseDeviceTag {
 		tags = append(tags, "device:"+strings.ToLower(normalizedDeviceName))
 	} else {
 		tags = append(tags, "device:"+normalizedDeviceName)
 	}
-	tags = append(tags, "device_name:"+baseDeviceName(deviceName))
-	tags = append(tags, c.getDeviceTags(deviceName)...)
-	label, ok := c.deviceLabels[deviceName]
+	tags = append(tags, "device_name:"+baseDeviceName(baseDevice))
+	// Use original tagDevice for regex matching in device_tag_re
+	tags = append(tags, c.getDeviceTags(tagDevice)...)
+	label, ok := c.deviceLabels[baseDevice]
 	if ok {
 		tags = append(tags, "label:"+label, "device_label:"+label)
 	}
