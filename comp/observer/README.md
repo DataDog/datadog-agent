@@ -27,6 +27,13 @@ Analyze(Series) → TimeSeriesAnalysisResult{Anomalies[]}
 ```
 Receives a series of aggregated points. Implementations should be stateless and just do math on the points.
 
+**AnomalyConsumer** receives and accumulates anomaly events from all analyses:
+```
+Consume(AnomalyOutput)
+Report()
+```
+Unlike analyses, consumers are stateful. They accumulate events and process them when `Report()` is called.
+
 ## Writing a New Analysis
 
 Implement `LogAnalysis` or `TimeSeriesAnalysis`:
@@ -63,6 +70,43 @@ obs := &observerImpl{
 }
 ```
 
-## Missing
+## Writing a New Consumer
 
-Anomaly events are detected but not forwarded anywhere. The TODOs in `observer.go` mark where anomaly output needs to be wired to a consumer.
+Implement `AnomalyConsumer`:
+
+```go
+type MyConsumer struct {
+    mu     sync.Mutex
+    events []observer.AnomalyOutput
+}
+
+func (c *MyConsumer) Name() string { return "my_consumer" }
+
+func (c *MyConsumer) Consume(anomaly observer.AnomalyOutput) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.events = append(c.events, anomaly)
+}
+
+func (c *MyConsumer) Report() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    // Do something with accumulated events
+    for _, e := range c.events {
+        fmt.Printf("Anomaly: %s\n", e.Title)
+    }
+    c.events = nil
+}
+```
+
+Register in `observer.go`:
+
+```go
+obs := &observerImpl{
+    consumers: []observerdef.AnomalyConsumer{
+        &MemoryConsumer{},
+        &MyConsumer{},  // add here
+    },
+    // ...
+}
+```
