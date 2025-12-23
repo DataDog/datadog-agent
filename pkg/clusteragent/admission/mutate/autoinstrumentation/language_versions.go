@@ -13,8 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,56 +63,6 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string) 
 		registry:   registry,
 		repository: fmt.Sprintf("dd-lib-%s-init", l),
 		tag:        version,
-	}
-}
-
-const (
-	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
-	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
-	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
-	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
-)
-
-func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo("", image), nil
-		},
-	}
-}
-
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver("", registry, version), nil
-		},
-	}
-}
-
-func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo(ctr, image), nil
-		},
-	}
-}
-
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver(ctr, registry, version), nil
-		},
-	}
-}
-
-func (l language) libConfigAnnotationExtractor() annotationExtractor[common.LibConfig] {
-	return annotationExtractor[common.LibConfig]{
-		key: fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l),
-		do:  parseConfigJSON,
 	}
 }
 
@@ -188,8 +136,9 @@ func (i *libInfo) podMutator(opts libRequirementOptions, imageResolver ImageReso
 		}
 
 		reqs.libRequirementOptions = opts
+
 		if i.canonicalVersion != "" {
-			mutatecommon.AddAnnotation(pod, fmt.Sprintf("internal.apm.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
+			SetAnnotation(pod, AnnotationLibraryCanonicalVersion.Format(string(i.lang)), i.canonicalVersion)
 		}
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {

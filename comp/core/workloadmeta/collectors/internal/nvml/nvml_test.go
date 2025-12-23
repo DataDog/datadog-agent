@@ -65,6 +65,12 @@ func TestPull(t *testing.T) {
 	for _, uuid := range testutil.GPUUUIDs {
 		require.True(t, foundIDs[uuid], "GPU with UUID %s not found", uuid)
 	}
+
+	for _, migChildrenUUIDs := range testutil.MIGChildrenUUIDs {
+		for _, migChildUUID := range migChildrenUUIDs {
+			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
+		}
+	}
 }
 
 func TestGpuArchToString(t *testing.T) {
@@ -302,4 +308,98 @@ func TestProcessEntityMerging(t *testing.T) {
 	})
 	processes := wmetaMock.ListProcesses()
 	require.Equal(t, 0, len(processes))
+}
+
+func TestPullWithMIGDevices(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMock()
+
+	c := newCollector(wmetaMock, nil)
+
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	c.Pull(context.Background())
+
+	gpus := wmetaMock.ListGPUs()
+	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
+
+	// Build a map of parent UUID to child UUIDs for validation
+	parentToChildren := make(map[string][]string)
+	for deviceIdx, childUUIDs := range testutil.MIGChildrenUUIDs {
+		parentUUID := testutil.GPUUUIDs[deviceIdx]
+		parentToChildren[parentUUID] = childUUIDs
+	}
+
+	// Separate physical and MIG devices
+	physicalDevices := make(map[string]*workloadmeta.GPU)
+	migDevices := make(map[string]*workloadmeta.GPU)
+
+	for _, gpu := range gpus {
+		if gpu.DeviceType == workloadmeta.GPUDeviceTypePhysical {
+			physicalDevices[gpu.ID] = gpu
+		} else if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+			migDevices[gpu.ID] = gpu
+		}
+	}
+
+	// Verify we have the expected number of physical and MIG devices
+	expectedPhysicalCount := len(testutil.GPUUUIDs)
+	expectedMIGCount := 0
+	for _, count := range testutil.MIGChildrenPerDevice {
+		expectedMIGCount += count
+	}
+	require.Equal(t, expectedPhysicalCount, len(physicalDevices), "unexpected number of physical devices")
+	require.Equal(t, expectedMIGCount, len(migDevices), "unexpected number of MIG devices")
+
+	// Verify each MIG device has the correct parent and properties
+	for parentUUID, childUUIDs := range parentToChildren {
+		parentGPU, ok := physicalDevices[parentUUID]
+		require.True(t, ok, "parent GPU %s not found", parentUUID)
+
+		// Verify parent device properties
+		require.Equal(t, workloadmeta.GPUDeviceTypePhysical, parentGPU.DeviceType)
+		require.Empty(t, parentGPU.ParentGPUUUID, "physical device should not have a parent")
+
+		// Verify each child MIG device
+		for _, childUUID := range childUUIDs {
+			migGPU, ok := migDevices[childUUID]
+			require.True(t, ok, "MIG device %s not found", childUUID)
+
+			// Verify MIG device properties
+			require.Equal(t, workloadmeta.GPUDeviceTypeMIG, migGPU.DeviceType)
+			require.Equal(t, parentUUID, migGPU.ParentGPUUUID, "MIG device %s should have parent %s", childUUID, parentUUID)
+			require.Equal(t, "MIG "+testutil.DefaultGPUName, migGPU.Name)
+			require.Equal(t, "MIG "+testutil.DefaultGPUName, migGPU.Device)
+			require.Equal(t, testutil.DefaultNvidiaDriverVersion, migGPU.DriverVersion)
+			require.Equal(t, nvidiaVendor, migGPU.Vendor)
+			require.Equal(t, "hopper", migGPU.Architecture)
+			require.Equal(t, testutil.DefaultGPUComputeCapMajor, migGPU.ComputeCapability.Major)
+			require.Equal(t, testutil.DefaultGPUComputeCapMinor, migGPU.ComputeCapability.Minor)
+
+			// Verify MIG device has cores (should be a fraction of parent's cores)
+			require.Greater(t, migGPU.TotalCores, 0, "MIG device should have cores")
+			require.Less(t, migGPU.TotalCores, parentGPU.TotalCores, "MIG device should have fewer cores than parent")
+
+			// Verify MIG device has memory (should be a fraction of parent's memory)
+			require.Greater(t, migGPU.TotalMemory, uint64(0), "MIG device should have memory")
+			require.Less(t, migGPU.TotalMemory, parentGPU.TotalMemory, "MIG device should have less memory than parent")
+
+			// Verify MIG device has process info
+			var expectedActivePIDs []int
+			for _, proc := range testutil.DefaultProcessInfo {
+				expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
+			}
+			require.Equal(t, expectedActivePIDs, migGPU.ActivePIDs)
+		}
+	}
+
+	// Verify all physical devices without MIG children have no MIG devices
+	for _, uuid := range testutil.GPUUUIDs {
+		if _, hasMIGChildren := parentToChildren[uuid]; !hasMIGChildren {
+			physicalGPU, ok := physicalDevices[uuid]
+			require.True(t, ok, "physical GPU %s not found", uuid)
+			require.Equal(t, workloadmeta.GPUDeviceTypePhysical, physicalGPU.DeviceType)
+			require.Empty(t, physicalGPU.ParentGPUUUID)
+		}
+	}
 }

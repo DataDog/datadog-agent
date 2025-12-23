@@ -63,6 +63,7 @@ func GetDefaultLegacyFieldsKeys() []eval.Field {
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	ExtraValidateRule     func(rule *eval.Rule) error
 	legacyFields          map[eval.Field]eval.Field
 }
 
