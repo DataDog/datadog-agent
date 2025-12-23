@@ -708,4 +708,3 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 		phyMode:          wi.phy,
 	}, nil
 }
-
