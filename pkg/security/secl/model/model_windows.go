@@ -11,7 +11,6 @@ package model
 
 import (
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -55,6 +54,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 		return m.ExtraValidateFieldFnc(field, fieldValue)
 	}
 
+	return nil
+}
+
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(_ *eval.Rule) error {
 	return nil
 }
 
@@ -244,8 +248,10 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return strconv.Itoa(int(pc.Pid))
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Integer: pc.Pid,
+	}
 }
 
 // ParentScope returns the parent entity scope

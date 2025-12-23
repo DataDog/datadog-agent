@@ -13,7 +13,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -28,20 +27,20 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.CGroupContext, pids ...uint32) *CacheEntry {
+func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pids ...uint32) *CacheEntry {
 	newCGroup := CacheEntry{
-		Deleted: atomic.NewBool(false),
-		ContainerContext: model.ContainerContext{
-			ContainerID: containerID,
-		},
-		CGroupContext: model.CGroupContext{
-			Releasable: &model.Releasable{},
-		},
-		PIDs: make(map[uint32]bool, 10),
+		Deleted:          atomic.NewBool(false),
+		ContainerContext: containerContext,
+		CGroupContext:    cgroupContext,
+		PIDs:             make(map[uint32]bool, 10),
 	}
 
-	if cgroupContext != nil {
-		newCGroup.CGroupContext = *cgroupContext
+	// should not happen but added as a safe-guard to avoid overriding
+	// a Releasable pointer which would cause Releasable callbacks to not be called
+	if newCGroup.ContainerContext.Releasable == nil {
+		// we need this here because the newCGroup entry will be propagated back to both the cgroup resolver
+		// and the process cache entry upon context context resolution
+		newCGroup.ContainerContext.Releasable = &model.Releasable{}
 	}
 
 	for _, pid := range pids {

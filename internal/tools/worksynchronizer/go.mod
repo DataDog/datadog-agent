@@ -1,9 +1,9 @@
 module github.com/DataDog/datadog-agent/internal/tools/worksynchronizer
 
-go 1.24.0
+go 1.25.0
 
 require (
-	golang.org/x/mod v0.30.0
+	golang.org/x/mod v0.31.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

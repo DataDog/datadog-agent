@@ -17,6 +17,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
@@ -42,7 +43,9 @@ func TestUnmarshalConfig(t *testing.T) {
 	want := factory.CreateDefaultConfig().(*ExporterConfig)
 	want.TimeoutConfig.Timeout = 10 * time.Second
 	want.HTTPConfig.Timeout = 10 * time.Second
-	want.QueueBatchConfig.QueueSize = 100
+	queueConfig := *want.QueueBatchConfig.Get()
+	queueConfig.QueueSize = 100
+	want.QueueBatchConfig = configoptional.Some(queueConfig)
 	want.Metrics.APMStatsReceiverAddr = "localhost:1234"
 	want.Metrics.Tags = "tag"
 	want.Metrics.Metrics.DeltaTTL = 200

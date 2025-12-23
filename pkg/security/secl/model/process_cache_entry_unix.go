@@ -22,37 +22,32 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
-	pc.hasValidLineage = nil
+	pc.validLineageResult = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	parent.Retain()
 }
 
-func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
-		err       error
 	)
 
 	for pc != nil {
-		if pc.hasValidLineage != nil {
-			return *pc.hasValidLineage, pc.lineageError
+		if pc.validLineageResult != nil {
+			return pc.validLineageResult.valid, pc.validLineageResult.err
 		}
+		pc.validLineageResult = result
 
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.IsParentMissing {
-			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
+			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
-				return err == nil, err
+				return true, nil
 			}
 			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: string(ctrID)}
 		}
@@ -64,8 +59,18 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
 func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	res, err := hasValidLineage(pc)
-	pc.hasValidLineage, pc.lineageError = &res, err
+	vlres := &validLineageResult{
+		valid: false,
+		// if this error is returned, it means that we saw this cache entry in
+		// an ancestor of the current pce, hence a cycle
+		err: ErrCycleInProcessLineage,
+	}
+
+	res, err := hasValidLineage(pc, vlres)
+
+	vlres.valid = res
+	vlres.err = err
+
 	return res, err
 }
 
@@ -82,9 +87,15 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerContext.ContainerID) > 0 && len(child.ContainerContext.ContainerID) == 0 {
+		// TODO should not copy only the container ID, but the entire container context
+		// and also the created at of the parent. In order to do that, we need to fix the container context
+		// creation to make sure that we always have all the attributes available.
 		child.ContainerContext.ContainerID = parent.ContainerContext.ContainerID
 	}
 
+	// TODO should use the IsNull method to check if the cgroup context is empty. In order
+	// to do that, we need to fix the cgroup context creation to make sure that we always
+	// have all the attributes available.
 	if len(parent.CGroup.CGroupID) > 0 && len(child.CGroup.CGroupID) == 0 {
 		child.CGroup = parent.CGroup
 	}
@@ -141,9 +152,11 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 		if pc.ContainerContext.ContainerID == "" {
 			break
 		}
-		pids = append(pids, pc.Pid)
-		paths = append(paths, pc.FileEvent.PathnameStr)
-
+		if !slices.Contains(pids, pc.Pid) {
+			// add only LAST exec of an unique pid
+			pids = append(pids, pc.Pid)
+			paths = append(paths, pc.FileEvent.PathnameStr)
+		}
 		pc = pc.Ancestor
 	}
 
@@ -178,6 +191,9 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
+	// TODO should not copy only the container ID, but the entire container context
+	// and also the created at of the parent. In order to do that, we need to fix the container context
+	// creation to make sure that we always have all the attributes available.
 	childEntry.ContainerContext.ContainerID = pc.ContainerContext.ContainerID
 	childEntry.CGroup = pc.CGroup
 	childEntry.ExecTime = pc.ExecTime

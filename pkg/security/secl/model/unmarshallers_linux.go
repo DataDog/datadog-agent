@@ -1126,17 +1126,17 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		// this is an IMDS response
-		e.Type = IMDSResponseType
 		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
-		e.fillFromIMDSHeader(resp.Header, "")
-
 		if resp.StatusCode != http.StatusOK {
 			return len(data), ErrNoUsefulData
 		}
+
+		// this is an IMDS response
+		e.Type = IMDSResponseType
+		e.fillFromIMDSHeader(resp.Header, "")
 
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
@@ -1162,12 +1162,13 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		// this is an IMDS request
-		e.Type = IMDSRequestType
 		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
+
+		// this is an IMDS request
+		e.Type = IMDSRequestType
 		e.URL = req.URL.String()
 		e.fillFromIMDSHeader(req.Header, e.URL)
 		e.Host = req.Host
