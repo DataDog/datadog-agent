@@ -95,6 +95,8 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 	if series := o.storage.GetSeries(source, m.name, m.tags, AggregateAverage); series != nil {
 		o.runTSAnalyses(*series)
 	}
+
+	o.reportAll()
 }
 
 // processLog handles a log observation.
@@ -118,6 +120,8 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			o.consumeAnomaly(anomaly)
 		}
 	}
+
+	o.reportAll()
 }
 
 // runTSAnalyses runs all time series analyses on a series.
@@ -134,6 +138,13 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series) {
 func (o *observerImpl) consumeAnomaly(anomaly observerdef.AnomalyOutput) {
 	for _, consumer := range o.consumers {
 		consumer.Consume(anomaly)
+	}
+}
+
+// reportAll calls Report() on all consumers.
+func (o *observerImpl) reportAll() {
+	for _, consumer := range o.consumers {
+		consumer.Report()
 	}
 }
 
