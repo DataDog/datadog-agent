@@ -28,6 +28,8 @@ type SafeDevice interface {
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
 	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
+	// GetRunningProcessDetailList returns the list of running processes on the device
+	GetRunningProcessDetailList() (nvml.ProcessDetailList, error)
 	// GetCudaComputeCapability returns the CUDA compute capability of the device
 	GetCudaComputeCapability() (int, int, error)
 	// GetCurrentClocksThrottleReasons returns the current clock throttle reasons bitmask
@@ -114,10 +116,11 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
+	SMVersion    uint32
+	UUID         string
+	Name         string
+	CoreCount    int
+	Architecture nvml.DeviceArchitecture
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -182,11 +185,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
 	}
 
-	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
-	if err != nil {
-		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
+	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling physical device data: %w", err)
 	}
-	device.SMVersion = uint32(major*10 + minor)
 
 	migEnabled, _, err := safeDev.GetMigMode()
 	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
@@ -249,6 +250,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		// for MIG devices.
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
+		migChildDevice.Architecture = d.Architecture
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
@@ -304,6 +306,23 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// fillPhysicalDeviceData fills the device info for a physical device using NVML APIs
+func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
+	arch, err := dev.GetArchitecture()
+	if err != nil {
+		return fmt.Errorf("error getting physical device architecture: %w", err)
+	}
+	d.Architecture = arch
+
+	major, minor, err := dev.GetCudaComputeCapability()
+	if err != nil {
+		return fmt.Errorf("error getting CUDA compute capability: %w", err)
+	}
+	d.SMVersion = uint32(major*10 + minor)
 
 	return nil
 }
