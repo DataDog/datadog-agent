@@ -167,7 +167,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 		timestamp = time.Now().Unix()
 	}
 
-	h.ch <- observation{
+	obs := observation{
 		source: h.source,
 		metric: &metricObs{
 			name:      sample.GetName(),
@@ -176,11 +176,18 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 			timestamp: timestamp,
 		},
 	}
+
+	// Non-blocking send - drop if channel is full.
+	// TODO: Add telemetry to track dropped observations.
+	select {
+	case h.ch <- obs:
+	default:
+	}
 }
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
-	h.ch <- observation{
+	obs := observation{
 		source: h.source,
 		log: &logObs{
 			content:   copyBytes(msg.GetContent()),
@@ -189,6 +196,13 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			hostname:  msg.GetHostname(),
 			timestamp: time.Now().Unix(),
 		},
+	}
+
+	// Non-blocking send - drop if channel is full.
+	// TODO: Add telemetry to track dropped observations.
+	select {
+	case h.ch <- obs:
+	default:
 	}
 }
 
