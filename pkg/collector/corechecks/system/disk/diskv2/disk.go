@@ -505,7 +505,7 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
-		tags := c.getDeviceNameTags(deviceName)
+		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
 
@@ -596,10 +596,6 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	}
 	tags = append(tags, c.buildDeviceTags(deviceName, partition.Device)...)
 	return tags
-}
-
-func (c *Check) getDeviceNameTags(deviceName string) []string {
-	return c.buildDeviceTags(deviceName, deviceName)
 }
 
 // buildDeviceTags creates common device-related tags.
