@@ -7,15 +7,14 @@ package observerimpl
 
 import (
 	"fmt"
-	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // MemoryConsumer is a simple anomaly consumer that accumulates events in memory.
 // It serves as an example implementation and for testing.
+// No locks needed - all calls come from the single observer dispatch goroutine.
 type MemoryConsumer struct {
-	mu        sync.Mutex
 	anomalies []observer.AnomalyOutput
 }
 
@@ -26,16 +25,11 @@ func (m *MemoryConsumer) Name() string {
 
 // Consume adds an anomaly to the in-memory list.
 func (m *MemoryConsumer) Consume(anomaly observer.AnomalyOutput) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.anomalies = append(m.anomalies, anomaly)
 }
 
 // Report logs all accumulated anomalies and clears the list.
 func (m *MemoryConsumer) Report() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if len(m.anomalies) == 0 {
 		return
 	}
@@ -48,11 +42,7 @@ func (m *MemoryConsumer) Report() {
 	m.anomalies = nil
 }
 
-// GetAnomalies returns a copy of accumulated anomalies (for testing).
+// GetAnomalies returns accumulated anomalies (for testing).
 func (m *MemoryConsumer) GetAnomalies() []observer.AnomalyOutput {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]observer.AnomalyOutput, len(m.anomalies))
-	copy(result, m.anomalies)
-	return result
+	return m.anomalies
 }
