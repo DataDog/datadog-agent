@@ -31,6 +31,9 @@ func NewComponent(deps Requires) Provides {
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			&SpikeDetector{},
 		},
+		consumers: []observerdef.AnomalyConsumer{
+			&MemoryConsumer{},
+		},
 		storage: newTimeSeriesStorage(),
 	}
 	return Provides{Comp: obs}
@@ -40,6 +43,7 @@ func NewComponent(deps Requires) Provides {
 type observerImpl struct {
 	logAnalyses []observerdef.LogAnalysis
 	tsAnalyses  []observerdef.TimeSeriesAnalysis
+	consumers   []observerdef.AnomalyConsumer
 	storage     *timeSeriesStorage
 }
 
@@ -87,8 +91,10 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			}
 		}
 
-		// TODO: forward anomalies to appropriate destination
-		_ = result.Anomalies
+		// Forward anomalies to consumers
+		for _, anomaly := range result.Anomalies {
+			h.consumeAnomaly(anomaly)
+		}
 	}
 }
 
@@ -96,7 +102,16 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 func (h *handle) runTSAnalyses(series observerdef.Series) {
 	for _, tsAnalysis := range h.observer.tsAnalyses {
 		result := tsAnalysis.Analyze(series)
-		// TODO: forward anomalies to appropriate destination
-		_ = result.Anomalies
+		// Forward anomalies to consumers
+		for _, anomaly := range result.Anomalies {
+			h.consumeAnomaly(anomaly)
+		}
+	}
+}
+
+// consumeAnomaly sends an anomaly to all registered consumers.
+func (h *handle) consumeAnomaly(anomaly observerdef.AnomalyOutput) {
+	for _, consumer := range h.observer.consumers {
+		consumer.Consume(anomaly)
 	}
 }

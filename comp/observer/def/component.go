@@ -112,3 +112,14 @@ type TimeSeriesAnalysis interface {
 type TimeSeriesAnalysisResult struct {
 	Anomalies []AnomalyOutput
 }
+
+// AnomalyConsumer receives and accumulates anomaly events.
+// Unlike analyses, consumers are stateful and accumulate events for later reporting.
+type AnomalyConsumer interface {
+	// Name returns the consumer name for debugging.
+	Name() string
+	// Consume receives an anomaly event.
+	Consume(anomaly AnomalyOutput)
+	// Report processes accumulated anomalies (e.g., logs them, sends them somewhere).
+	Report()
+}
