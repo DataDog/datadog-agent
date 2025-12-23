@@ -11,6 +11,7 @@ target:
     DD_HOSTNAME: smp-regression
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
+    STATSD_URL: "unix:///var/run/datadog/dsd.socket"
 
   profiling_environment:
     # internal profiling
