@@ -292,8 +292,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     const char *provider_str,
-                     RtLoaderPyObject *&check)
+                     const char *provider_str, RtLoaderPyObject *&check)
 {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);

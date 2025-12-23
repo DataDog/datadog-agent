@@ -140,9 +140,10 @@ DATADOG_AGENT_RTLOADER_API int get_attr_bool(rtloader_t *rtloader, rtloader_pyob
                                              bool *value);
 
 /*! \fn int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char
-   *instance, const char *check_id, const char *check_name, const char *provider, rtloader_pyobject_t **check) \brief Attempts to instantiate
-   a datadog python check with the supplied configuration parameters. \param rtloader_t A rtloader_t * pointer to the
-   RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to instantiate.
+   *instance, const char *check_id, const char *check_name, const char *provider, rtloader_pyobject_t **check) \brief
+   Attempts to instantiate a datadog python check with the supplied configuration parameters. \param rtloader_t A
+   rtloader_t * pointer to the RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check
+   class we wish to instantiate.
     \param init_config A constant C-string with the init config for the check instance.
     \param instance A constant C-string with the instance-specific config for the check instance.
     \param check_id A constant C-string unique identifier for the check instance.
@@ -157,8 +158,8 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
                                          const char *provider, rtloader_pyobject_t **check);
 
 /*! \fn int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
-                                               const char *instance, const char *check_id, const char *check_name, const char *provider,
-                                               const char *agent_config, rtloader_pyobject_t **check)
+                                               const char *instance, const char *check_id, const char *check_name, const
+   char *provider, const char *agent_config, rtloader_pyobject_t **check)
     \brief Attempts to instantiate a datadog python check with the supplied configuration
     parameters.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
@@ -177,8 +178,8 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
 */
 DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class,
                                                     const char *init_config, const char *instance, const char *check_id,
-                                                    const char *check_name, const char *agent_config, const char *provider,
-                                                    rtloader_pyobject_t **check);
+                                                    const char *check_name, const char *agent_config,
+                                                    const char *provider, rtloader_pyobject_t **check);
 
 /*! \fn char *run_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Runs a check instance.
