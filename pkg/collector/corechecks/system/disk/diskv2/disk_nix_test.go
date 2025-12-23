@@ -1572,3 +1572,82 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndInodesIsZero_ThenInode
 	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsNoneDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	// The code treats device == "none" the same as empty device (excluded by default unless all_partitions: true)
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "none", // Special "none" device (e.g., some virtual filesystems)
+				Mountpoint: "/sys/fs/cgroup",
+				Fstype:     "cgroup2",
+				Opts:       []string{"rw", "nosuid", "nodev", "noexec"},
+			},
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Partition with device "none" should be excluded
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if tag == "device:none" {
+				return true
+			}
+		}
+		return false
+	}))
+	// Regular partition should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsNoneDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	// With all_partitions: true, even "none" devices should be included
+	// Note: We need a non-zero Total size, otherwise it's filtered out by the min_disk_size logic
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        path,
+			Fstype:      "tmpfs",
+			Total:       100000000, // Non-zero to avoid min_disk_size filtering
+			Free:        50000000,
+			Used:        50000000,
+			UsedPercent: 50.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "none",
+				Mountpoint: "/run/user/1000",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// With all_partitions: true, the "none" device should be included
+	// The device tag keeps the original value "none"
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:none", "device_name:none"})
+}
