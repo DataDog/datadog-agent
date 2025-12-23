@@ -25,8 +25,3 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 
 	return wifiInfo{}, errors.New("wifi info only supported on macOS and Windows")
 }
-
-// createIPCResponseSchema is a stub for non-darwin platforms
-func createIPCResponseSchema() (interface{}, error) {
-	return nil, errors.New("IPC schema validation only needed on macOS")
-}
