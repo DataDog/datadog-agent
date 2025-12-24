@@ -20,12 +20,6 @@
 #include "conntrack/maps.h"
 #include "conntrack/helpers.h"
 
-static __always_inline bool is_conn_nat(const conntrack_tuple_t* orig, const conntrack_tuple_t* reply) {
-    return orig->daddr_l != reply->saddr_l || orig->dport != reply->sport ||
-        orig->saddr_l != reply->daddr_l || orig->sport != reply->dport ||
-        orig->daddr_h != reply->saddr_h;
-}
-
 // JMWREVIEW
 // CO-RE: Define old sk_buff structure for kernels < 4.7 where field was named 'nfct' instead of '_nfct'
 // The field was renamed in kernel 4.7 to discourage direct access.

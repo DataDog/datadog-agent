@@ -35,10 +35,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-
-    if (!is_conn_nat(&orig, &reply)) {
-        return 0;
-    }
+    RETURN_IF_NOT_NAT(&orig, &reply);
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
@@ -62,11 +59,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-
-    if (!is_conn_nat(&orig, &reply)) {
-        log_debug("kprobe/__nf_conntrack_confirm: not NAT ct=%p", ct);
-        return 0;
-    }
+    RETURN_IF_NOT_NAT(&orig, &reply);
 
     // Store ct pointer using pid_tgid for correlation with kretprobe
     bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, (u64)ct, BPF_ANY);
@@ -140,10 +133,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-
-    if (!is_conn_nat(&orig, &reply)) {
-        return 0;
-    }
+    RETURN_IF_NOT_NAT(&orig, &reply);
 
     // Store ct pointer using pid_tgid for correlation with kretprobe
     bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, (u64)ct, BPF_ANY);
