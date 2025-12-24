@@ -83,6 +83,7 @@ const (
 	http2Port      = "9090"
 	httpsPort      = "8443"
 	kafkaPort      = "9092"
+	kafkaTLSPort   = "9093"
 	mongoPort      = "27017"
 	mysqlPort      = "3306"
 	postgresPort   = "5432"
@@ -611,6 +612,7 @@ func testTLSClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHo
 			{"mysql", testMySQLProtocolClassificationTLS},
 			{"postgres", testPostgresProtocolClassificationWrapper(protocolsUtils.TLSEnabled)},
 			{"redis", testTLSRedisProtocolClassification},
+			{"kafka", testKafkaProtocolClassificationTLS},
 		}
 
 		for _, tt := range tests {
@@ -626,7 +628,6 @@ func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, target
 	skipFunc := composeSkips(skipIfHTTPSNotSupported, skipIfGoTLSNotSupported)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    httpsPort,
 		targetAddress: targetHost,
 	})
 
@@ -651,7 +652,6 @@ func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, target
 		{
 			name: "HTTPs request",
 			context: testContext{
-				serverPort:    httpsPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -738,7 +738,6 @@ func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targe
 		{
 			name: "unsupported TCP protocol",
 			context: testContext{
-				serverPort:    rawTrafficPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -824,7 +823,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    mysqlPort,
 		targetAddress: targetHost,
 	})
 
@@ -865,7 +863,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "connect",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -888,7 +885,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "create db",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -912,7 +908,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "create table",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -937,7 +932,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "insert",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -963,7 +957,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "delete",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -990,7 +983,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "select",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1019,7 +1011,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "update",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1046,7 +1037,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "drop table",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1072,7 +1062,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "alter",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1100,7 +1089,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			// splitted between multiple packets correctly
 			name: "long query",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1128,7 +1116,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			// splitted between multiple packets correctly
 			name: "long response",
 			context: testContext{
-				serverPort:    mysqlPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1193,7 +1180,6 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 	skipFunc := composeSkips(skippers...)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    postgresPort,
 		targetAddress: targetHost,
 	})
 
@@ -1399,7 +1385,6 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 				}
 			}
 			tt.context = testContext{
-				serverPort:    postgresPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1413,7 +1398,6 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    mongoPort,
 		targetAddress: targetHost,
 	})
 
@@ -1439,7 +1423,6 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "classify by connect",
 			context: testContext{
-				serverPort:    mongoPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 			},
@@ -1456,7 +1439,6 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "classify by collection creation",
 			context: testContext{
-				serverPort:    mongoPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1482,7 +1464,6 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "classify by insertion",
 			context: testContext{
-				serverPort:    mongoPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1514,7 +1495,6 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "classify by find",
 			context: testContext{
-				serverPort:    mongoPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -1588,7 +1568,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    redisPort,
 		targetAddress: targetHost,
 	})
 
@@ -1631,7 +1610,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "set",
 			context: testContext{
-				serverPort:    redisPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1656,7 +1634,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "get",
 			context: testContext{
-				serverPort:    redisPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1684,7 +1661,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "get unknown key",
 			context: testContext{
-				serverPort:    redisPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1710,7 +1686,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "err response",
 			context: testContext{
-				serverPort:    redisPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1728,7 +1703,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "client id",
 			context: testContext{
-				serverPort:    redisPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1799,7 +1773,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 	spec := amqpTestSpecsMap[withTLS]
 	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    spec.port,
 		targetAddress: targetHost,
 	})
 
@@ -1846,7 +1819,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "connect",
 			context: testContext{
-				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1862,7 +1834,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "declare channel",
 			context: testContext{
-				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1882,7 +1853,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "publish",
 			context: testContext{
-				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1903,7 +1873,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "consume",
 			context: testContext{
-				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -1971,7 +1940,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	t.Cleanup(grpcServer.Stop)
 
 	grpcContext := testContext{
-		serverPort:    grpcPort,
 		serverAddress: grpcServerAddress,
 		targetAddress: grpcTargetAddress,
 	}
@@ -1980,7 +1948,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "http2 traffic without grpc",
 			context: testContext{
-				serverPort:    http2Port,
 				serverAddress: http2ServerAddress,
 				targetAddress: http2TargetAddress,
 			},
@@ -2036,7 +2003,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			// headers that are not useful to determine if gRPC is used.
 			name: "http2 traffic using gRPC - irrelevant literal headers",
 			context: testContext{
-				serverPort:    http2Port,
 				serverAddress: http2ServerAddress,
 				targetAddress: http2TargetAddress,
 			},
@@ -2072,7 +2038,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			// gRPC traffic without a prior classification as HTTP2.
 			name: "GRPC without prior HTTP2 classification",
 			context: testContext{
-				serverPort:    http2Port,
 				serverAddress: net.JoinHostPort(serverHost, rawTrafficPort),
 				targetAddress: net.JoinHostPort(serverHost, rawTrafficPort),
 				extras:        map[string]interface{}{},
@@ -2129,7 +2094,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "GRPC with prior HTTP2 classification",
 			context: testContext{
-				serverPort:    http2Port,
 				serverAddress: net.JoinHostPort(serverHost, rawTrafficPort),
 				targetAddress: net.JoinHostPort(targetHost, rawTrafficPort),
 				extras:        map[string]interface{}{},
@@ -2407,7 +2371,7 @@ const (
 
 func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	serverAddress := net.JoinHostPort(localhost, kafkaPort)
-	require.NoError(t, kafka.RunServer(t, localhost, kafkaPort))
+	require.NoError(t, kafka.RunServer(t, localhost))
 
 	topicName1 := fmt.Sprintf("test-topic-1-%d", time.Now().UnixNano())
 	topicName2 := fmt.Sprintf("test-topic-2-%d", time.Now().UnixNano())
