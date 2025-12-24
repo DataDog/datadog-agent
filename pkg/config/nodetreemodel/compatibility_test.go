@@ -882,7 +882,8 @@ func TestGetViperCombineInvalidFileData(t *testing.T) {
 	// The setting in the yaml file has the wrong shape
 	// It is a list of an object, but it is supposed to not be a list
 	// The implementation should handle this predictabily and compatibly with Viper
-	// The rule when merging conflicts is that higher layers have branches kept
+	// The rule when merging conflicts is that higher layers have branches kept, so
+	// the invalid file data will be kept rather than the default values.
 	configData := `network_path:
   collector:
     - input_chan_size: 23456
