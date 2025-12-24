@@ -443,7 +443,8 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		},
 	}
 
-	// JMW check if available and do fallback logic here
+	// JMWNEXT check if available and do fallback logic here
+	// JMW Bryce says You can use ebpf.VerifyKernelFuncs to see if a particular function is available
 	if isPrebuilt { // JMWREVIEW
 		// Prebuilt uses __nf_conntrack_hash_insert
 		probesList = append(probesList, &manager.Probe{
@@ -458,7 +459,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		probesList = append(probesList,
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmEntry,
+					EBPFFuncName: probes.ConntrackConfirm,
 					UID:          "conntracker",
 				},
 			},

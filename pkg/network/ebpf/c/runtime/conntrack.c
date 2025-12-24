@@ -27,10 +27,6 @@
 #include "ipv6.h"
 #endif
 
-// JMW OLD PROBE - kept for reference. This probe directly receives struct nf_conn*,
-// but __nf_conntrack_hash_insert doesn't exist on all kernel versions.
-// JMW use this probe if available, otherwise use __nf_conntrack_confirm AND nf_conntrack_hash_check_insert kprobe/kretprobe pairs
-// Prebuilt uses this probe (in prebuilt/conntrack.c).
 SEC("kprobe/__nf_conntrack_hash_insert")
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
@@ -51,14 +47,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
     return 0;
 }
 
-// JMW Runtime/CO-RE uses __nf_conntrack_confirm which requires extracting nf_conn from sk_buff->_nfct.
-// This is handled by the get_nfct() helper in conntrack.h which uses:
-// - COMPILE_RUNTIME: kernel headers with LINUX_VERSION_CODE check for _nfct vs nfct
-// - COMPILE_CORE: bpf_core_field_exists() for runtime field detection
-// Prebuilt uses __nf_conntrack_hash_insert instead (in prebuilt/conntrack.c).
-
-// Track conntrack confirmations (entry) - correlation approach
-// Entry probe: Store NAT connection info for correlation with return probe
 SEC("kprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -133,6 +121,9 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     return 0;
 }
+
+// JMWNEXT add kprobe for nf_conntrack_hash_check_insert
+// JMWNEXT add kretprobe for nf_conntrack_hash_check_insert
 
 SEC("kprobe/ctnetlink_fill_info")
 int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
