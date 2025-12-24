@@ -1093,3 +1093,13 @@ func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *mode
 	evtCtx.Identity = sessionIdentity
 	return sessionIdentity
 }
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err == nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
+}

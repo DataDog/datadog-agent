@@ -53,7 +53,7 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    - export DD_CIVISIBILITY_ENABLED=true
+    # - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
@@ -207,8 +207,6 @@ go_e2e_test_binaries:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
-    - agent_deb-x64-a7-fips
-    - windows_msi_and_bosh_zip_x64-a7-fips
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
@@ -298,7 +296,6 @@ new-e2e-containers-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -599,6 +596,21 @@ new-e2e-cws:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+
+new-e2e-sbom:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.on_sbom_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/sbom
+    TEAM: csm-threats-agent
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+
+
 new-e2e-discovery:
   extends: .new_e2e_template
   needs:
@@ -616,6 +628,11 @@ new-e2e-discovery:
 
 new-e2e-process-ecs:
   extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
@@ -644,8 +661,7 @@ new-e2e-process:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator-ecs:
-  extends:
-    - .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.manual]
@@ -657,7 +673,7 @@ new-e2e-orchestrator-ecs:
   timeout: 55m
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -952,6 +968,20 @@ new-e2e-otel:
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
+
+new-e2e-ssi:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_full
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
 
 .new-e2e_package_signing:
   variables:

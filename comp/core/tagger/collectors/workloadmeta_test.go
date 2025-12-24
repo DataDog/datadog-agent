@@ -1315,6 +1315,93 @@ func TestHandleKubeMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleKubeCRD(t *testing.T) {
+	const (
+		crdNamespace = "datadog"
+		crdName      = "datadogagent.datadoghq.com"
+		crdGroup     = "datadoghq.com"
+		crdKind      = "DatadogAgent"
+		crdVersion   = "v1alpha1"
+	)
+
+	kubeCRDID := string(util.GenerateKubeMetadataEntityID(crdGroup, crdKind, crdNamespace, crdName))
+
+	kubeCRDEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindCRD,
+		ID:   kubeCRDID,
+	}
+
+	taggerEntityID := types.NewEntityID(types.Crd, kubeCRDEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store.Set(&workloadmeta.CRD{
+		EntityID: kubeCRDEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      crdName,
+			Namespace: crdNamespace,
+		},
+		Group:   crdGroup,
+		Kind:    crdKind,
+		Version: crdVersion,
+	})
+
+	tests := []struct {
+		name     string
+		kubeCRD  workloadmeta.CRD
+		expected []*types.TagInfo
+	}{
+		{
+			name: "CRD entity",
+			kubeCRD: workloadmeta.CRD{
+				EntityID: kubeCRDEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      crdName,
+					Namespace: crdNamespace,
+				},
+				Version: crdVersion,
+				Group:   crdGroup,
+				Kind:    crdKind,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               crdSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					StandardTags:         []string{},
+					LowCardTags: []string{
+						"crd_group:" + crdGroup,
+						"crd_kind:" + crdKind,
+						"crd_version:" + crdVersion,
+						"crd_namespace:" + crdNamespace,
+						"crd_name:" + crdName,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleCRD(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeCRD,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
 func TestHandleKubeDeployment(t *testing.T) {
 	const deploymentName = "fooapp"
 
@@ -2446,6 +2533,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
 					},
 					StandardTags: []string{},
 				},
@@ -2474,6 +2563,85 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG device",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "MIG-432",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "MIG-432",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "MIG-432"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig",
+						"gpu_uuid:mig-432",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG parent",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_uuid:gpu-1234",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
 					},
 					StandardTags: []string{},
 				},
@@ -2835,6 +3003,7 @@ func TestHandleProcess(t *testing.T) {
 		gpuDevice         = "Tesla V100"
 		gpuDriverVersion  = "525.60.13"
 		gpuVirtMode       = "none"
+		gpuSlicingMode    = "none"
 	)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -3185,6 +3354,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
@@ -3225,6 +3396,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},

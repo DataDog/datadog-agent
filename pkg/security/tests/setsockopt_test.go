@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func TestSetSockOpt(t *testing.T) {
+func TestSetSockOptRaw(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -32,36 +32,6 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
 			&& setsockopt.is_filter_truncated == false
 			&& 12 in setsockopt.used_immediates`,
-		},
-		{
-			ID: "test_rule_setsockopt_udp",
-			Expression: `setsockopt.level == SOL_SOCKET 
-			&& setsockopt.optname == SO_ATTACH_FILTER 
-			&& setsockopt.socket_type == SOCK_DGRAM 
-			&& setsockopt.socket_protocol == IPPROTO_UDP
-			&& setsockopt.socket_family == AF_INET 
-			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
-			&& setsockopt.is_filter_truncated == false
-			&& 12 in setsockopt.used_immediates`,
-		},
-		{
-			ID: "test_rule_setsockopt_tcp",
-			Expression: `setsockopt.level == SOL_SOCKET 
-			&& setsockopt.optname == SO_ATTACH_FILTER 
-			&& setsockopt.socket_type == SOCK_STREAM 
-			&& setsockopt.socket_protocol == IPPROTO_TCP
-			&& setsockopt.socket_family == AF_INET 
-			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
-			&& setsockopt.is_filter_truncated == false
-			&& 12 in setsockopt.used_immediates`,
-		},
-		{
-			ID: "test_rule_setsockopt_reuseaddr",
-			Expression: `setsockopt.level == SOL_SOCKET
-			&& setsockopt.optname == SO_REUSEADDR
-			&& setsockopt.socket_type == SOCK_STREAM
-			&& setsockopt.socket_protocol == IPPROTO_TCP
-			&& setsockopt.socket_family == AF_INET`,
 		},
 	}
 
@@ -135,6 +105,31 @@ func TestSetSockOpt(t *testing.T) {
 		})
 	})
 
+}
+
+func TestSetSockOptUDP(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID: "test_rule_setsockopt_udp",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_DGRAM 
+			&& setsockopt.socket_protocol == IPPROTO_UDP
+			&& setsockopt.socket_family == AF_INET 
+			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
 	t.Run("setsockopt-DGRAM-socket", func(t *testing.T) {
 		var fd int
 
@@ -201,6 +196,30 @@ func TestSetSockOpt(t *testing.T) {
 		})
 	})
 
+}
+func TestSetSockOptTCP(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID: "test_rule_setsockopt_tcp",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_STREAM 
+			&& setsockopt.socket_protocol == IPPROTO_TCP
+			&& setsockopt.socket_family == AF_INET 
+			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
 	t.Run("setsockopt-STREAM-socket", func(t *testing.T) {
 		var fd int
 
@@ -266,6 +285,28 @@ func TestSetSockOpt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt_tcp")
 		})
 	})
+
+}
+func TestSetSockOptReuseaddr(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID: "test_rule_setsockopt_reuseaddr",
+			Expression: `setsockopt.level == SOL_SOCKET
+			&& setsockopt.optname == SO_REUSEADDR
+			&& setsockopt.socket_type == SOCK_STREAM
+			&& setsockopt.socket_protocol == IPPROTO_TCP
+			&& setsockopt.socket_family == AF_INET`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
 	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
 		var fd int
 
