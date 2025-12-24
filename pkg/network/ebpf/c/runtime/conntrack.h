@@ -31,6 +31,7 @@ static __always_inline bool is_conn_nat(const conntrack_tuple_t* orig, const con
 // The field was renamed in kernel 4.7 to discourage direct access.
 // RHEL7 (kernel 3.10) may or may not have backported this change.
 #ifdef COMPILE_CORE
+// JMW what's this for and how does it work?
 struct sk_buff___nfct_old {
     unsigned long nfct;
 };
@@ -40,6 +41,7 @@ struct sk_buff___nfct_old {
 // The conntrack info is stored in skb->_nfct (or skb->nfct on older kernels).
 // The lower 3 bits contain ctinfo, upper bits contain the nf_conn pointer.
 // This function handles kernel version differences:
+// JMW 
 // - Kernel >= 4.7: field is named '_nfct'
 // - Kernel < 4.7 (including potentially RHEL7 3.10): field is named 'nfct'
 static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
@@ -48,7 +50,7 @@ static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
 #ifdef COMPILE_RUNTIME
     // Runtime compilation: kernel headers determine which field exists.
     // For kernels >= 4.7, _nfct exists. For older kernels, nfct exists.
-    // Since minimum supported kernel for conntracker is 4.14, _nfct should always exist.
+    // Since minimum supported kernel for conntracker is 4.14, _nfct should always exist. // JMW???
     // However, RHEL7 (3.10) is also supported via IsRH7Kernel() check, and may have
     // the old 'nfct' field name if Red Hat didn't backport the rename.
 #if defined(LINUX_VERSION_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
@@ -60,6 +62,7 @@ static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
 #endif // COMPILE_RUNTIME
 
 #ifdef COMPILE_CORE
+    // JMW
     // CO-RE: Use bpf_core_field_exists to check which field name is present at runtime.
     // This handles both modern kernels (_nfct) and older/RHEL7 kernels (nfct).
     if (bpf_core_field_exists(skb->_nfct)) {
