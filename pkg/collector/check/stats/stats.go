@@ -311,9 +311,9 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	)
 
 	if reportErr != nil {
-		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
+		log.Warnf("Failed to report check failure to health platform for %s: %v", cs.CheckName, reportErr)
 	} else {
-		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)
+		log.Debugf("Reported check failure to health platform for %s", cs.CheckName)
 	}
 }
 
@@ -331,9 +331,9 @@ func (cs *Stats) clearHealthPlatformIssue() {
 	)
 
 	if err != nil {
-		log.Warnf("Failed to clear health platform issue for check %s: %v", cs.CheckName, err)
+		log.Warnf("Failed to clear health platform issue for %s: %v", cs.CheckName, err)
 	} else {
-		log.Debugf("Cleared health platform issue for check %s (check succeeded)", cs.CheckName)
+		log.Debugf("Cleared health platform issue for %s", cs.CheckName)
 	}
 }
 

@@ -7,9 +7,19 @@
 package checkfailure
 
 import (
-	"fmt"
-
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+)
+
+const (
+	issueID    = "check-execution-failure"
+	issueName  = "check_execution_failure"
+	category   = "check-execution"
+	location   = "collector"
+	severity   = "medium"
+	source     = "collector"
+	unknownVal = "unknown"
+	failedMsg  = "Check execution failed"
+	impactMsg  = "Metrics, events, or service checks from this integration may not be collected"
 )
 
 // CheckFailureIssue provides complete issue template for check failures
@@ -24,78 +34,90 @@ func NewCheckFailureIssue() *CheckFailureIssue {
 func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatform.Issue {
 	checkName := context["checkName"]
 	if checkName == "" {
-		checkName = "unknown"
+		checkName = unknownVal
 	}
 
 	errorMessage := context["errorMessage"]
 	if errorMessage == "" {
-		errorMessage = "Check execution failed"
+		errorMessage = failedMsg
 	}
 
 	totalErrors := context["totalErrors"]
 	if totalErrors == "" {
-		totalErrors = "unknown"
+		totalErrors = unknownVal
 	}
 
 	configSource := context["configSource"]
 	if configSource == "" {
-		configSource = "unknown"
+		configSource = unknownVal
 	}
 
 	checkVersion := context["checkVersion"]
 
-	// Build description
-	description := fmt.Sprintf("The check '%s' has encountered an error during execution: %s", checkName, errorMessage)
-	if totalErrors != "unknown" && totalErrors != "1" {
-		description += fmt.Sprintf(" (Total errors: %s)", totalErrors)
+	// Build description efficiently
+	var desc []byte
+	desc = append(desc, "Check '"...)
+	desc = append(desc, checkName...)
+	desc = append(desc, "' error: "...)
+	desc = append(desc, errorMessage...)
+	if totalErrors != unknownVal && totalErrors != "1" {
+		desc = append(desc, " (errors: "...)
+		desc = append(desc, totalErrors...)
+		desc = append(desc, ')')
 	}
 
-	// Build title
-	title := fmt.Sprintf("Check '%s' Failed", checkName)
+	// Build title efficiently
+	var title []byte
+	title = append(title, "Check '"...)
+	title = append(title, checkName...)
+	title = append(title, "' Failed"...)
 
 	// Build remediation steps
-	remediationSteps := []healthplatform.RemediationStep{
-		{Order: 1, Text: "Check the agent logs for more detailed error information: 'datadog-agent status' or 'tail -f /var/log/datadog/agent.log'"},
-		{Order: 2, Text: "Review the check configuration at: " + configSource},
-		{Order: 3, Text: "Verify that all required permissions and dependencies are in place for this check"},
-		{Order: 4, Text: "Check if the monitored service/resource is accessible and running correctly"},
-		{Order: 5, Text: "Consult the integration documentation: https://docs.datadoghq.com/integrations/"},
-	}
+	steps := make([]healthplatform.RemediationStep, 0, 7)
+	steps = append(steps,
+		healthplatform.RemediationStep{Order: 1, Text: "Check logs: 'datadog-agent status' or 'tail -f /var/log/datadog/agent.log'"},
+		healthplatform.RemediationStep{Order: 2, Text: "Review config at: " + configSource},
+		healthplatform.RemediationStep{Order: 3, Text: "Verify permissions and dependencies"},
+		healthplatform.RemediationStep{Order: 4, Text: "Verify monitored service is accessible"},
+		healthplatform.RemediationStep{Order: 5, Text: "See docs: https://docs.datadoghq.com/integrations/"},
+	)
 
-	// Add version-specific step if version is available
 	if checkVersion != "" {
-		remediationSteps = append(remediationSteps, healthplatform.RemediationStep{
-			Order: len(remediationSteps) + 1,
-			Text:  fmt.Sprintf("Check if there are known issues with version %s of the integration", checkVersion),
+		var verStep []byte
+		verStep = append(verStep, "Check known issues for version "...)
+		verStep = append(verStep, checkVersion...)
+		steps = append(steps, healthplatform.RemediationStep{
+			Order: len(steps) + 1,
+			Text:  string(verStep),
 		})
 	}
 
-	remediationSteps = append(remediationSteps, healthplatform.RemediationStep{
-		Order: len(remediationSteps) + 1,
-		Text:  "If the issue persists, enable debug logging: set 'log_level: debug' in datadog.yaml and restart the agent",
+	steps = append(steps, healthplatform.RemediationStep{
+		Order: len(steps) + 1,
+		Text:  "Enable debug: set 'log_level: debug' in datadog.yaml and restart",
 	})
 
 	return &healthplatform.Issue{
-		ID:          "check-execution-failure",
-		IssueName:   "check_execution_failure",
-		Title:       title,
-		Description: description,
-		Category:    "check-execution",
-		Location:    "collector",
-		Severity:    "medium",
-		DetectedAt:  "", // Will be filled by health platform
-		Source:      "collector",
+		ID:          issueID,
+		IssueName:   issueName,
+		Title:       string(title),
+		Description: string(desc),
+		Category:    category,
+		Location:    location,
+		Severity:    severity,
+		DetectedAt:  "",
+		Source:      source,
 		Extra: map[any]any{
 			"check_name":    checkName,
 			"error_message": errorMessage,
 			"total_errors":  totalErrors,
 			"config_source": configSource,
 			"check_version": checkVersion,
-			"impact":        "Metrics, events, or service checks from this integration may not be collected",
+			"impact":        impactMsg,
 		},
 		Remediation: &healthplatform.Remediation{
-			Summary: "Review check configuration and logs to diagnose the failure",
-			Steps:   remediationSteps,
+			Summary: "Review config and logs to diagnose",
+			Steps:   steps,
 		},
 		Tags: []string{"check-failure", "collector", checkName},
 	}
