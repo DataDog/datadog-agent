@@ -1,6 +1,6 @@
 server = "https://docker.io"
 
-[host."https://https://mirror.gcr.io"]
+[host."https://mirror.gcr.io"]
   capabilities = ["pull", "resolve"]
 [host."https://registry-1.docker.io"]
   capabilities = ["pull", "resolve"]
