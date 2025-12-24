@@ -726,7 +726,11 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				Patch:             operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, ops, params.EncryptedSecrets)
+		encryptedSecrets := make(map[string]string)
+		for _, secret := range params.EncryptedSecrets {
+			encryptedSecrets[secret.Key] = secret.EncryptedValue
+		}
+		return d.startConfigExperiment(ctx, request.Package, ops, encryptedSecrets)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)

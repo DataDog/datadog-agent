@@ -282,10 +282,15 @@ type expectedState struct {
 	ClientID         string `json:"client_id"`
 }
 
+type encryptedSecret struct {
+	Key            string `json:"key"`
+	EncryptedValue string `json:"encrypted_value"`
+}
+
 type experimentTaskParams struct {
 	Version          string            `json:"version"`
 	InstallArgs      []string          `json:"install_args"`
-	EncryptedSecrets map[string]string `json:"encrypted_secrets"`
+	EncryptedSecrets []encryptedSecret `json:"encrypted_secrets"`
 }
 
 type installPackageTaskParams struct {
