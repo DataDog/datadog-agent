@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.73.1:
+
+7.73.1
+======
+
+.. _Release Notes_7.73.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-17
+
+- Please refer to the `7.73.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7731>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.11``.
+
+
 .. _Release Notes_7.73.0:
 
 7.73.0

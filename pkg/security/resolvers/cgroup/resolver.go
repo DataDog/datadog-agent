@@ -102,8 +102,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-
-		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
+		if value.ContainerContext.Releasable != nil {
 			value.ContainerContext.CallReleaseCallback()
 		}
 		if value.CGroupContext.Releasable != nil {
@@ -335,15 +334,11 @@ func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry) bool) {
 }
 
 func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
-	for _, cgroup := range cr.hostWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.hostWorkloads.Values(), cb) {
+		return
 	}
-	for _, cgroup := range cr.containerWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.containerWorkloads.Values(), cb) {
+		return
 	}
 }
 

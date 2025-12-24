@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -36,7 +35,6 @@ func StartCompliance(log log.Component,
 	stopper startstop.Stopper,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
-	filterStore workloadfilter.Component,
 	compression compression.Component,
 	ipc ipc.Component,
 	sysProbeClient SysProbeClient,
@@ -71,11 +69,14 @@ func StartCompliance(log log.Component,
 	enabledConfigurationsExporters := []ConfigurationExporter{
 		KubernetesExporter,
 	}
+	if config.GetBool("compliance_config.database_benchmarks.enabled") {
+		enabledConfigurationsExporters = append(enabledConfigurationsExporters, DBExporter)
+	}
 
 	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := NewAgent(telemetrySender, wmeta, ipc, filterStore, AgentOptions{
+	agent := NewAgent(telemetrySender, wmeta, ipc, AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

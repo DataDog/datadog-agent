@@ -117,6 +117,15 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(rule *eval.Rule) error {
+	if m.ExtraValidateRule != nil {
+		return m.ExtraValidateRule(rule)
+	}
+
+	return nil
+}
+
 // IsFakeInode returns whether the given inode is a fake inode
 func IsFakeInode(inode uint64) bool {
 	return inode>>32 == fakeInodeMSW

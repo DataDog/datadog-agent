@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/sysvinit"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -83,13 +84,20 @@ var (
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
 
-	// agentPackageUninstallPaths are the paths that are deleted during an uninstall
+	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
 		".diff_python_installed_packages.txt",
+	}
+
+	// installerPackageUninstallPaths are the installer paths that are deleted during an uninstall
+	// The only one left is packages.db, which is owned by root and will cause no issue during reinstallation.
+	installerPackageUninstallPaths = file.Paths{
+		"run", // Includes RC DB & Task DB
+		"tmp",
 	}
 
 	// agentConfigUninstallPaths are the files that are deleted during an uninstall
@@ -181,6 +189,10 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 	err = agentPackageUninstallPaths.EnsureAbsent(ctx, ctx.PackagePath)
 	if err != nil {
 		return fmt.Errorf("failed to remove package paths: %w", err)
+	}
+	err = installerPackageUninstallPaths.EnsureAbsent(ctx, paths.PackagesPath)
+	if err != nil {
+		return fmt.Errorf("failed to remove installer package paths: %w", err)
 	}
 	err = agentConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 	if err != nil {
