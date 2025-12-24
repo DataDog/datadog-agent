@@ -9,8 +9,10 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 )
 
 // Opts defines some probe options
@@ -29,6 +31,9 @@ type Opts struct {
 
 	// this option for test purposes only; should never be true in main code
 	disableProcmon bool
+
+	// FilterStore provides the workload filtering component
+	FilterStore workloadfilter.Component
 }
 
 func (o *Opts) normalize() {
