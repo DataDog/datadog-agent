@@ -23,7 +23,7 @@ type podParser struct {
 
 // NewPodParser creates and returns a pod parser based on annotations exclusion list
 func NewPodParser(annotationsExclude []string) (ObjectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
+	filters, err := ParseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
-			Annotations: filterMapStringKey(pod.Annotations, p.annotationsFilter),
+			Annotations: FilterMapStringKey(pod.Annotations, p.annotationsFilter),
 			Labels:      pod.Labels,
 		},
 		Phase:                      string(pod.Status.Phase),
