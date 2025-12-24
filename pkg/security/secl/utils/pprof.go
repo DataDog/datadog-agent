@@ -34,3 +34,16 @@ func PprofDoWithoutContext(labelSet LabelSet, f func()) {
 	pprof.SetGoroutineLabels(labelSet.innerCtx)
 	f()
 }
+
+// SetPprofGoroutineLabels sets the current goroutine labels from the provided LabelSet.
+// This is a lower-level helper that can be used directly in hot paths to avoid the
+// closure and defer overhead of PprofDoWithoutContext when the caller manages reset.
+func SetPprofGoroutineLabels(labelSet LabelSet) {
+	pprof.SetGoroutineLabels(labelSet.innerCtx)
+}
+
+// ResetPprofGoroutineLabels resets the current goroutine labels to the background context.
+// Callers of SetPprofGoroutineLabels are responsible for invoking this once they are done.
+func ResetPprofGoroutineLabels() {
+	pprof.SetGoroutineLabels(context.Background())
+}
