@@ -224,7 +224,7 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 		*patternDefineParamCount = pd.ParamCount
 	}
 
-	bytesAdded := float64(proto.Size(patternDatum))
+	bytesAdded := float64(patternDatum.SizeVT())
 	tlmPipelinePatternAdded.Inc(mt.pipelineName)
 	tlmPipelinePatternBytesAdded.Add(bytesAdded, mt.pipelineName)
 	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
@@ -240,7 +240,7 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Message, outputChan chan *message.StatefulMessage) {
 	deleteDatum := buildPatternDelete(patternID)
 
-	bytesRemoved := float64(proto.Size(deleteDatum))
+	bytesRemoved := float64(deleteDatum.SizeVT())
 	tlmPipelinePatternRemoved.Inc(mt.pipelineName)
 	tlmPipelinePatternBytesRemoved.Add(bytesRemoved, mt.pipelineName)
 	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
@@ -255,7 +255,7 @@ func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Me
 func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64, value string) {
 	dictDatum := buildDictEntryDefine(id, value)
 
-	bytesAdded := float64(proto.Size(dictDatum))
+	bytesAdded := float64(dictDatum.SizeVT())
 	tlmPipelineTokenAdded.Inc(mt.pipelineName)
 	tlmPipelineTokenBytesAdded.Add(bytesAdded, mt.pipelineName)
 	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
@@ -271,7 +271,7 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 	logDatum := buildRawLog(contentStr, ts, tagSet)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
+	tlmPipelineRawLogsProcessedBytes.Add(float64(logDatum.SizeVT()), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
@@ -284,7 +284,7 @@ func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.Stateful
 	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
+	tlmPipelinePatternLogsProcessedBytes.Add(float64(logDatum.SizeVT()), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
