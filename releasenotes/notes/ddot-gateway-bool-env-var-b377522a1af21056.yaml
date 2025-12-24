@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Added a new boolean environment variable DD_OTELCOLLECTOR_GATEWAY_MODE for precise identification of the DDOT operating mode.
+    The variable automatically configured via the Helm chart, the Operator, or set manually.
+    Acceptable string values are (case insensitive): "true", "false", "1", "0" 
+
