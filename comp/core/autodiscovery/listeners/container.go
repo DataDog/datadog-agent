@@ -10,7 +10,6 @@ package listeners
 import (
 	"errors"
 	"maps"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -21,30 +20,16 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/dockerpermissions"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
 	newIdentifierLabel    = "com.datadoghq.ad.check.id"
 	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
-)
-
-const (
-	// containerListenerCheckID is the health check ID for the container listener
-	containerListenerCheckID = "autodiscovery-container-listener"
-	// containerListenerCheckName is the human-readable name for the health check
-	containerListenerCheckName = "Autodiscovery Container Listener"
-	// defaultDockerSocket is the default path to the Docker socket on Linux
-	defaultDockerSocket = "/var/run/docker.sock"
-	// socketTimeout is the timeout for checking socket accessibility
-	socketTimeout = 500 * time.Millisecond
 )
 
 // ContainerListener listens to container creation through a subscription to the
@@ -69,11 +54,8 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
-	l.checkDockerSocketAccess()
 	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
-		// Workloadmeta not available - check if Docker socket has permission issues
-		l.checkDockerSocketAccess()
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
@@ -83,37 +65,6 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	}
 
 	return l, nil
-}
-
-// checkDockerSocketAccess checks if the Docker socket is accessible and registers a health check if not
-func (l *ContainerListener) checkDockerSocketAccess() {
-	socketPath := defaultDockerSocket
-	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-
-	if !exists || reachable {
-		return
-	}
-
-	log.Warnf("Docker socket exists at %s but is not accessible (permission denied)", socketPath)
-
-	// Register a periodic health check to monitor Docker socket accessibility
-	health.RegisterHealthCheck(
-		containerListenerCheckID,
-		containerListenerCheckName,
-		func() (string, map[string]string) {
-			// Re-check socket accessibility
-			exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-			if exists && !reachable {
-				return dockerpermissions.IssueIDSocket, map[string]string{
-					"type":       "socket",
-					"socketPath": socketPath,
-					"os":         runtime.GOOS,
-				}
-			}
-			// Issue resolved
-			return "", nil
-		},
-	)
 }
 
 func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
