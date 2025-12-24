@@ -1709,7 +1709,7 @@ fruit:
 	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
 	// env var is defined
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
-	// default setting will be overriden by invalid file data
+	// default setting will be overridden by invalid file data
 	cfg.BindEnvAndSetDefault("fruit.egg.yoke", "yellow")
 	cfg.BuildSchema()
 
