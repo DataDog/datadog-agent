@@ -240,7 +240,7 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 				splitPayload := pbTracerPayload.NewStringsClone()
 				splitPayload.Chunks = pbTracerPayload.Chunks[i : i+1]
 				splitPayload.RemoveUnusedStrings()
-				log.Debugf("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
 				agentPayload := append(w.tracerPayloadsV1, splitPayload)
 				toFlush = append(toFlush, agentPayload)
 				w.resetBufferV1()
@@ -258,7 +258,7 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 				}
 				splitPayload.Chunks = pbTracerPayload.Chunks[i*chunksPerPayload : endIdx]
 				splitPayload.RemoveUnusedStrings() // We must remove unused strings again from these new split payloads to reduce the size of each payload
-				log.Debugf("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				log.Tracef("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
 				agentPayload := append(w.tracerPayloadsV1, splitPayload)
 				toFlush = append(toFlush, agentPayload)
 				w.resetBufferV1()

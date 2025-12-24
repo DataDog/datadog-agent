@@ -32,6 +32,17 @@ func NewStringTable() *StringTable {
 	}
 }
 
+// NewStringTable creates a new string table, always starts with an empty string at index 0
+func NewStringTableWithCapacity(capacity int) *StringTable {
+	st := &StringTable{
+		strings: make([]string, 0, capacity),
+		lookup:  make(map[string]uint32, capacity),
+	}
+	st.strings = append(st.strings, "")
+	st.lookup[""] = 0
+	return st
+}
+
 // StringTableFromArray creates a new string table from an array of already de-duplicated strings, the first string must always be the empty string
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{

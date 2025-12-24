@@ -900,7 +900,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, er
 		tp.Attributes = make(map[uint32]*AnyValue, 1)
 	}
 	if tp.Strings == nil {
-		tp.Strings = NewStringTable()
+		tp.Strings = NewStringTableWithCapacity(1024) // 1024 is a good default capacity
 	}
 	var numChunks uint32
 	numChunks, o, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
