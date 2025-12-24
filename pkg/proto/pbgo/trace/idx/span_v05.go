@@ -250,7 +250,7 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	s.SetAttributeFromString("_dd.convertedv1", "v05")
+	s.SetStringAttribute("_dd.convertedv1", "v05")
 	return bts, nil
 }
 

@@ -1298,7 +1298,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			}
 		}
 	}
-	s.SetAttributeFromString("_dd.convertedv1", "v04")
+	s.SetStringAttribute("_dd.convertedv1", "v04")
 	o = bts
 	return
 }

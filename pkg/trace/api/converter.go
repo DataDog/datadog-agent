@@ -171,7 +171,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			}
 			idxSpans[spanIndex] = idx.NewInternalSpan(stringTable, protoSpan)
 			if originPayloadVersion != "" {
-				idxSpans[spanIndex].SetAttributeFromString("_dd.convertedv1", originPayloadVersion)
+				idxSpans[spanIndex].SetStringAttribute("_dd.convertedv1", originPayloadVersion)
 			}
 		}
 		idxChunks[chunkIndex] = &idx.InternalTraceChunk{

@@ -1253,7 +1253,7 @@ func (av *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
 }
 
 // FromString creates an AnyValue from a string, attempting to use the most backwards compatible type possible
-// Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+// Meaning we will prefer IntValue > DoubleValue > StringValue to match the previous metrics vs meta behavior
 func FromString(strTable *StringTable, s string) *AnyValue {
 	if intVal, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return &AnyValue{
