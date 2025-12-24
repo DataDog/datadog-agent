@@ -81,7 +81,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
 SEC("kretprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct nf_conn **ctpp = (struct nf_conn **) = bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
+    struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {
         return 0;
     }
@@ -124,8 +124,74 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     return 0;
 }
 
-// JMWNEXT add kprobe for nf_conntrack_hash_check_insert
-// JMWNEXT add kretprobe for nf_conntrack_hash_check_insert
+// Track nf_conntrack_hash_check_insert - used for early conntrack insertion
+// This function takes struct nf_conn *ct directly and returns 0 on success
+SEC("kprobe/nf_conntrack_hash_check_insert")
+int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn *ct) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/nf_conntrack_hash_check_insert: pid_tgid: %llu ct=%p", pid_tgid, ct);
+
+    if (!ct) {
+        return 0;
+    }
+
+    // Check if this is a NAT connection before storing
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+
+    if (!is_conn_nat(&orig, &reply)) {
+        return 0;
+    }
+
+    // Store ct pointer using pid_tgid for correlation with kretprobe
+    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, (u64)ct, BPF_ANY);
+    log_debug("kprobe/nf_conntrack_hash_check_insert: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
+
+    return 0;
+}
+
+// Return probe for nf_conntrack_hash_check_insert
+// Only update conntrack map if return value is 0 (success)
+SEC("kretprobe/nf_conntrack_hash_check_insert")
+int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
+    if (!ctpp) {
+        return 0;
+    }
+
+    struct nf_conn *ct = *ctpp;
+    bpf_map_delete_elem(&conntrack_args, &pid_tgid);
+    if (!ct) {
+        log_debug("kretprobe/nf_conntrack_hash_check_insert: ct pointer missing for pid_tgid=%llu", pid_tgid);
+        return 0;
+    }
+
+    // Only process if returned 0 (success)
+    int retval = PT_REGS_RC(ctx);
+    if (retval != 0) {
+        log_debug("kretprobe/nf_conntrack_hash_check_insert: failed ct=%p ret=%d", ct, retval);
+        return 0;
+    }
+
+    // Successfully inserted - add to conntrack map
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        log_debug("kretprobe/nf_conntrack_hash_check_insert: failed to extract tuples ct=%p", ct);
+        return 0;
+    }
+
+    // Add both directions to conntrack map
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
+    increment_telemetry_registers_count();
+
+    log_debug("kretprobe/nf_conntrack_hash_check_insert: added to conntrack map ct=%p", ct);
+
+    return 0;
+}
 
 SEC("kprobe/ctnetlink_fill_info")
 int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
