@@ -469,6 +469,18 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 					UID:          "conntracker",
 				},
 			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackHashCheckInsert,
+					UID:          "conntracker",
+				},
+			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackHashCheckInsertReturn,
+					UID:          "conntracker",
+				},
+			},
 		)
 	}
 

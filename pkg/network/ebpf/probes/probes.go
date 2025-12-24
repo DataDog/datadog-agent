@@ -193,10 +193,10 @@ const (
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
 
-	// JMWNEXT add kprobe/kretprobe for nf_conntrack_hash_check_insert
-	// JMW add an env var to be able to disable these since they're not as well understood/tested
-	// JMW ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
-	// JMW ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert
+	// ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
+	ConntrackHashCheckInsert ProbeFuncName = "kprobe_nf_conntrack_hash_check_insert"
+	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert
+	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
