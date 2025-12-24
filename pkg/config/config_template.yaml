@@ -3480,18 +3480,6 @@ api_key:
 #     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{ if .DockerTagging }}
-#########################
-## Container detection ##
-#########################
-
-## @param container_cgroup_prefix - string - optional - default: /docker/
-## @env DD_CONTAINER_CGROUP_PREFIX - string - optional - default: /docker/
-## On hosts with mixed workloads, non-containernized processes can
-## mistakenly be detected as containerized. Use this parameter to
-## tune the detection logic to your system and avoid false-positives.
-#
-# container_cgroup_prefix: "/docker/"
-
 ###########################
 ## Docker tag extraction ##
 ###########################
