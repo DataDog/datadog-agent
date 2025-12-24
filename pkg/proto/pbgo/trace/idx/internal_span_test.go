@@ -271,6 +271,32 @@ func TestInternalSpan_MapStringAttributes_BasicValueTransformation(t *testing.T)
 	assert.Equal(t, "QUUX", qux)
 }
 
+func TestMapFilterAttributes(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("foo.bar"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("baz")}},
+				stringTable.Add("qux"):     {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("quux")}},
+			},
+		},
+	}
+	span.MapFilteredAttributes(func(k string) bool {
+		return k == "foo.bar"
+	}, func(_k, _v string) string {
+		return "new value!!"
+	})
+
+	fooBar, found := span.GetAttributeAsString("foo.bar")
+	assert.True(t, found)
+	assert.Equal(t, "new value!!", fooBar)
+
+	qux, found := span.GetAttributeAsString("qux")
+	assert.True(t, found)
+	assert.Equal(t, "quux", qux)
+}
+
 func TestInternalSpan_MapStringAttributes_KeyTransformation(t *testing.T) {
 	stringTable := NewStringTable()
 	span := &InternalSpan{

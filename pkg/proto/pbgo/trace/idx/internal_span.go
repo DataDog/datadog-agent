@@ -1030,15 +1030,19 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
-// MapAttributesAsStrings maps over all string attributes and applies the given function to each attribute
+// MapFilterAttributes maps over all attributes where shouldMap returns true and applies the given function to each attribute
 // Note that this will only act on true attributes, fields like env, version, component, etc are not considered
 // The provided function will receive all attributes as strings, and should return the new value for the attribute
-func (s *InternalSpan) MapAttributesAsStrings(f func(k, v string) string) {
+func (s *InternalSpan) MapFilteredAttributes(shouldMap func(k string) bool, mapper func(k, v string) string) {
 	for k, v := range s.span.Attributes {
-		// TODO: we could cache the results of these transformations
+		kStr := s.Strings.Get(k)
+		if !shouldMap(kStr) {
+			continue
+		}
+		// TODO: we could cache the results of these transformations?
 		// TODO: This is only used for CC obfuscation today, we could optimize this to reduce the overhead here
 		vString := v.AsString(s.Strings)
-		newV := f(s.Strings.Get(k), vString)
+		newV := mapper(kStr, vString)
 		if newV != vString {
 			s.span.Attributes[k] = &AnyValue{
 				Value: &AnyValue_StringValueRef{

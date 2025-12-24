@@ -26,8 +26,9 @@ func newCCObfuscator(config *CreditCardsConfig) *creditCard {
 	}
 }
 
-// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value for keys not in the allow-list
-func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
+// ShouldObfuscateKey returns true if the value for the given key should be obfuscated
+// This is used to skip known safe attributes and specifically configured safe tags
+func (cc *Obfuscator) ShouldObfuscateCCKey(key string) bool {
 	switch key {
 	case "_sample_rate",
 		"_sampling_priority_v1",
@@ -58,14 +59,19 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		"sql.query",
 		"version":
 		// these tags are known to not be credit card numbers
-		return val
+		return false
 	}
 	if strings.HasPrefix(key, "_") {
-		return val
+		return false
 	}
-	if _, ok := o.ccObfuscator.keepValues[key]; ok {
-		return val
+	if _, ok := cc.ccObfuscator.keepValues[key]; ok {
+		return false
 	}
+	return true
+}
+
+// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value
+func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 	if o.ccObfuscator.IsCardNumber(val) {
 		return "?"
 	}

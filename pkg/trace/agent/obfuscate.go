@@ -79,7 +79,7 @@ func obfuscateValkeySpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, remove
 func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
-		span.MapAttributesAsStrings(func(k, v string) string {
+		span.MapFilteredAttributes(o.ShouldObfuscateCCKey, func(k, v string) string {
 			newV := o.ObfuscateCreditCardNumber(k, v)
 			if newV != v {
 				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service())
