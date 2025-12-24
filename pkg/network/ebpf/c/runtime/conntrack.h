@@ -31,6 +31,9 @@ struct sk_buff___nfct_old {
 };
 #endif
 
+// JMW comment crom .c
+// Extract ct from skb using get_nfct() helper which handles _nfct vs nfct field name
+//
 // get_nfct extracts the nf_conn pointer from an sk_buff.
 // The conntrack info is stored in skb->_nfct (or skb->nfct on older kernels).
 // The lower 3 bits contain ctinfo, upper bits contain the nf_conn pointer.
@@ -38,6 +41,7 @@ struct sk_buff___nfct_old {
 // JMW 
 // - Kernel >= 4.7: field is named '_nfct'
 // - Kernel < 4.7 (including potentially RHEL7 3.10): field is named 'nfct'
+
 static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
     u64 nfct = 0;
 
