@@ -110,8 +110,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     }
 
     // Add both directions to conntrack map
-    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
-    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count(); // JMW what is this, do we need separate counters for new probes?
 
     return 0;
@@ -174,9 +174,9 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
     }
 
     // Add both directions to conntrack map
-    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
-    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
-    increment_telemetry_registers_count();
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
+    increment_telemetry_registers_count(); // JMW same one ok?
 
     log_debug("kretprobe/nf_conntrack_hash_check_insert: added to conntrack map ct=%p", ct);
 
