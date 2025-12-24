@@ -2010,7 +2010,12 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				if ppid == myPid {
 					// Found a zombie process with our PID as its parent
-					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+					if err != nil {
+						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+					}
+					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
 				}
 			}
 		}

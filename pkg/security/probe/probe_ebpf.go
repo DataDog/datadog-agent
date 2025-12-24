@@ -643,11 +643,11 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	collection := *collectionPtr
 
-	// unload the previews one
+	// unload the previous one
 	if collection != nil {
 		collection.Close()
 		ddebpf.RemoveNameMappingsCollection(collection)
-		collection = nil
+		*collectionPtr = nil
 	}
 
 	if len(progSpecs) > 0 {
@@ -655,6 +655,15 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 			return err
 		}
 	} else {
+		// No programs to load - remove tail call entries from the router map
+		_, routerMap, err := p.getRawPacketMaps()
+		if err == nil && routerMap != nil {
+			// Remove all potential tail call entries for this program key range
+			for i := 0; i < maxProgs; i++ {
+				key := progKey + uint32(i)
+				_ = routerMap.Delete(key)
+			}
+		}
 		return nil
 	}
 
@@ -1005,6 +1014,11 @@ func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 		p.profileManager.SyncTracedCgroups()
 	}
+}
+
+func (p *EBPFProbe) triggerNopEvent() error {
+	req := erpc.NewERPCRequest(erpc.NopEventOp)
+	return p.Erpc.Request(req)
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
@@ -1626,6 +1640,10 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.NopEventType:
+		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
+		seclog.Debugf("nop event received, skipping further event handling")
+		return false
 	case model.MountReleasedEventType:
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
@@ -1876,7 +1894,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 	for _, newKFilter := range newKFilters {
 		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
 		if err := newKFilter.Apply(p.Manager); err != nil {
-			return err
+			return fmt.Errorf("failed applying new kfilter: %w", err)
 		}
 
 		approverType := newKFilter.GetApproverType()
@@ -2013,20 +2031,14 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	} else {
 		// ActivityDumps
 		if p.config.RuntimeSecurity.ActivityDumpEnabled {
-			for _, e := range p.config.RuntimeSecurity.ActivityDumpTracedEventTypes {
-				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-					break
-				}
+			if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
+				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 			}
 		}
 		// SecurityProfiles
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-			for _, e := range p.config.RuntimeSecurity.AnomalyDetectionEventTypes {
-				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-					break
-				}
+			if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
+				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 			}
 		}
 	}
@@ -2515,6 +2527,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 	p.ruleSetVersion++
 
+	// trigger a nop event to ensure that the replayed events are processed
+	if err := p.triggerNopEvent(); err != nil {
+		seclog.Warnf("unable to trigger nop event: %v", err)
+	}
+
 	return filterReport, nil
 }
 
@@ -2839,21 +2856,15 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	if p.config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.config.RuntimeSecurity.ActivityDumpTracedEventTypes {
-			if e == model.SyscallsEventType {
-				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-				break
-			}
+		if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
+			// Add syscall monitor probes
+			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
 	if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-		for _, e := range p.config.RuntimeSecurity.AnomalyDetectionEventTypes {
-			if e == model.SyscallsEventType {
-				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-				break
-			}
+		if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
+			// Add syscall monitor probes
+			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
@@ -2939,21 +2950,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
-	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
-		if p.supportsBPFSendSignal {
-			err := p.killListMap.Put(uint32(pid), uint32(sig))
-			if err != nil {
-				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
-				return err
-			}
-		}
-		return nil
-	})
-	processKiller, err := NewProcessKiller(config, pkos)
-	if err != nil {
-		return nil, err
-	}
-	p.processKiller = processKiller
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2980,6 +2976,23 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	if err != nil {
 		return nil, err
 	}
+
+	// Create the process killer with the CGroupResolver for container scope support
+	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
+		if p.supportsBPFSendSignal {
+			err := p.killListMap.Put(uint32(pid), uint32(sig))
+			if err != nil {
+				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+				return err
+			}
+		}
+		return nil
+	}, p.Resolvers.CGroupResolver)
+	processKiller, err := NewProcessKiller(config, pkos)
+	if err != nil {
+		return nil, err
+	}
+	p.processKiller = processKiller
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 

@@ -19,3 +19,318 @@ var (
 	_ *jwriter.Writer
 	_ easyjson.Marshaler
 )
+
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RemediationEvent) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "date":
+			out.Date = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.Container = nil
+			} else {
+				if out.Container == nil {
+					out.Container = new(RemediationContainerContext)
+				}
+				(*out.Container).UnmarshalEasyJSON(in)
+			}
+		case "agent":
+			(out.Agent).UnmarshalEasyJSON(in)
+		case "event_type":
+			out.EventType = string(in.String())
+		case "service":
+			out.Service = string(in.String())
+		case "scope":
+			out.Scope = string(in.String())
+		case "remediation_action":
+			out.RemediationAction = string(in.String())
+		case "status":
+			out.Status = string(in.String())
+		case "timestamp":
+			out.Timestamp = int64(in.Int64())
+		case "rule_tags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				if !in.IsDelim('}') {
+					out.RuleTags = make(RuleTags)
+				} else {
+					out.RuleTags = nil
+				}
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v1 string
+					v1 = string(in.String())
+					(out.RuleTags)[key] = v1
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RemediationEvent) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"date\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Date))
+	}
+	if in.Container != nil {
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		(*in.Container).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"agent\":"
+		out.RawString(prefix)
+		(in.Agent).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"event_type\":"
+		out.RawString(prefix)
+		out.String(string(in.EventType))
+	}
+	{
+		const prefix string = ",\"service\":"
+		out.RawString(prefix)
+		out.String(string(in.Service))
+	}
+	{
+		const prefix string = ",\"scope\":"
+		out.RawString(prefix)
+		out.String(string(in.Scope))
+	}
+	{
+		const prefix string = ",\"remediation_action\":"
+		out.RawString(prefix)
+		out.String(string(in.RemediationAction))
+	}
+	{
+		const prefix string = ",\"status\":"
+		out.RawString(prefix)
+		out.String(string(in.Status))
+	}
+	{
+		const prefix string = ",\"timestamp\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.Timestamp))
+	}
+	if len(in.RuleTags) != 0 {
+		const prefix string = ",\"rule_tags\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('{')
+			v2First := true
+			for v2Name, v2Value := range in.RuleTags {
+				if v2First {
+					v2First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v2Name))
+				out.RawByte(':')
+				out.String(string(v2Value))
+			}
+			out.RawByte('}')
+		}
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RemediationEvent) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RemediationEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *RemediationContainerContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "created_at":
+			out.CreatedAt = uint64(in.Uint64())
+		case "id":
+			out.ID = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in RemediationContainerContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.CreatedAt != 0 {
+		const prefix string = ",\"created_at\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.Uint64(uint64(in.CreatedAt))
+	}
+	if in.ID != "" {
+		const prefix string = ",\"id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ID))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RemediationContainerContext) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RemediationContainerContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
+}
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jlexer.Lexer, out *RemediationAgentContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "rule_id":
+			out.RuleID = string(in.String())
+		case "os":
+			out.OS = string(in.String())
+		case "kernel_version":
+			out.KernelVersion = string(in.String())
+		case "origin":
+			out.Origin = string(in.String())
+		case "arch":
+			out.Arch = string(in.String())
+		case "distribution":
+			out.Distribution = string(in.String())
+		case "version":
+			out.Version = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jwriter.Writer, in RemediationAgentContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"rule_id\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.RuleID))
+	}
+	{
+		const prefix string = ",\"os\":"
+		out.RawString(prefix)
+		out.String(string(in.OS))
+	}
+	{
+		const prefix string = ",\"kernel_version\":"
+		out.RawString(prefix)
+		out.String(string(in.KernelVersion))
+	}
+	{
+		const prefix string = ",\"origin\":"
+		out.RawString(prefix)
+		out.String(string(in.Origin))
+	}
+	{
+		const prefix string = ",\"arch\":"
+		out.RawString(prefix)
+		out.String(string(in.Arch))
+	}
+	{
+		const prefix string = ",\"distribution\":"
+		out.RawString(prefix)
+		out.String(string(in.Distribution))
+	}
+	{
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.String(string(in.Version))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RemediationAgentContext) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RemediationAgentContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
+}
