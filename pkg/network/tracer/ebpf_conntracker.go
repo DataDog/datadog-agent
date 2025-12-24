@@ -69,11 +69,11 @@ var conntrackerTelemetry = struct {
 }
 
 type ebpfConntracker struct {
-	m                         *manager.Manager
-	ctMap                     *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64]
-	telemetryMap              *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
-	rootNS                    uint32
+	m                *manager.Manager
+	ctMap            *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
+	conntrackArgsMap *maps.GenericMap[uint64, uint64]
+	telemetryMap     *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
+	rootNS           uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 
@@ -144,13 +144,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	// nfConntrackConfirmArgsMap is only used by CO-RE/Runtime conntracker (not prebuilt) // JMWREVIEW
-	var nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64]
+	// conntrackArgsMap is only used by CO-RE/Runtime conntracker (not prebuilt) // JMWREVIEW
+	var conntrackArgsMap *maps.GenericMap[uint64, uint64]
 	if !isPrebuilt {
-		nfConntrackConfirmArgsMap, err = maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
+		conntrackArgsMap, err = maps.GetMap[uint64, uint64](m, probes.ConntrackArgsMap)
 		if err != nil {
 			_ = m.Stop(manager.CleanAll)
-			return nil, fmt.Errorf("unable to get nfConntrackConfirmArgsMap: %w", err)
+			return nil, fmt.Errorf("unable to get conntrackArgsMap: %w", err)
 		}
 	}
 
@@ -166,13 +166,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	e := &ebpfConntracker{
-		m:                         m,
-		ctMap:                     ctMap,
-		nfConntrackConfirmArgsMap: nfConntrackConfirmArgsMap,
-		telemetryMap:              telemetryMap,
-		rootNS:                    rootNS,
-		stop:                      make(chan struct{}),
-		isPrebuilt:                isPrebuilt,
+		m:                m,
+		ctMap:            ctMap,
+		conntrackArgsMap: conntrackArgsMap,
+		telemetryMap:     telemetryMap,
+		rootNS:           rootNS,
+		stop:             make(chan struct{}),
+		isPrebuilt:       isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -455,7 +455,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		})
 	} else {
 		// CO-RE and Runtime use __nf_conntrack_confirm (entry and return)
-		maps = append(maps, &manager.Map{Name: probes.NFConntrackConfirmArgsMap})
+		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
 		probesList = append(probesList,
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -498,7 +498,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
 	if !isPrebuilt {
-		opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number
+		opts.MapSpecEditors[probes.ConntrackArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number - it there a config option w/ default?  what do other arg maps do?
 	}
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)

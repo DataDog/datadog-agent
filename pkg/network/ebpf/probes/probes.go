@@ -231,10 +231,11 @@ const (
 	TCPFailureTelemetry BPFMapName = "tcp_failure_telemetry"
 	// ConnCloseBatchMap is the map storing connection close batch events
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
+	// ConntrackArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
+	// JMWNAME ConntrackConfirmArgsMap?  JMWNEXT can the map be used by both nf_conntrack_confirm and nf_conntrack_hash_insert?  if so pick better name - maybe ConntrackArgsMap = "conntrack_args"
+	ConntrackArgsMap = "conntrack_args"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
-	// NFConntrackConfirmArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
-	NFConntrackConfirmArgsMap = "nf_conntrack_confirm_args"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call

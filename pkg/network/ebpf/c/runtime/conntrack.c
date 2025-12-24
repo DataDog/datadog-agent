@@ -68,7 +68,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
 
     // Store ct pointer using pid_tgid for correlation with kretprobe
     u64 ct_ptr = (u64)ct;
-    bpf_map_update_with_telemetry(nf_conntrack_confirm_args, &pid_tgid, &ct_ptr, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct_ptr, BPF_ANY);
     log_debug("kprobe/__nf_conntrack_confirm: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
 
     return 0;
@@ -81,7 +81,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Look up the ct pointer from entry probe
-    u64 *ct_ptr = bpf_map_lookup_elem(&nf_conntrack_confirm_args, &pid_tgid);
+    u64 *ct_ptr = bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ct_ptr) {
         // No matching entry probe - this can happen if entry was filtered out (not NAT)
         return 0;
@@ -90,7 +90,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     struct nf_conn *ct = (struct nf_conn *)*ct_ptr;
 
     // Clean up the pending entry regardless of success/failure
-    bpf_map_delete_elem(&nf_conntrack_confirm_args, &pid_tgid);
+    bpf_map_delete_elem(&conntrack_args, &pid_tgid);
 
     // Only process if returned NF_ACCEPT (1)
     int retval = PT_REGS_RC(ctx);
