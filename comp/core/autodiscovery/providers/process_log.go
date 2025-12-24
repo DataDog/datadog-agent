@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -288,13 +289,7 @@ var agentProcessNames = []string{
 func isAgentProcess(process *workloadmeta.Process) bool {
 	// Check if the process name matches any of the known agent process names;
 	// we may not be able to make assumptions about the executable paths.
-	for _, agentName := range agentProcessNames {
-		if process.Name == agentName {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(agentProcessNames, process.Name)
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {

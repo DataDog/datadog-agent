@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -77,13 +78,7 @@ func getMicroVMGroupSubnetPattern(subnet string) string {
 }
 
 func subnetIsTaken(taken []string, subnet string) bool {
-	for _, t := range taken {
-		if t == subnet {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(taken, subnet)
 }
 
 func getMicroVMGroupSubnet(taken []string) (string, error) {

@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
@@ -43,6 +44,22 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 
 				if _, err := rawpacket.FilterToInsts(0, filter, rawpacket.DefaultProgOpts()); err != nil {
 					return err
+				}
+			}
+
+			return nil
+		},
+		ExtraValidateRule: func(rule *eval.Rule) error {
+			eventType, err := rule.GetEventType()
+			if err != nil {
+				return fmt.Errorf("unable to detect event type: %w", err)
+			}
+
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				// the filter field is mandatory
+				if len(rule.GetFieldValues("packet.filter")) == 0 {
+					return errors.New("rules for the `packet` event type must use `packet.filter`")
 				}
 			}
 

@@ -675,37 +675,37 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 	tests := []struct {
 		name       string
 		tagOffsets []uint32
-		serviceTag string
+		serviceTag []string
 		expected   []string
 	}{
 		{
 			name:       "no tags",
 			tagOffsets: nil,
-			serviceTag: "",
-			expected:   []string{},
+			serviceTag: nil,
+			expected:   nil,
 		},
 		{
 			name:       "convert tags only",
 			tagOffsets: []uint32{0, 2},
-			serviceTag: "",
+			serviceTag: nil,
 			expected:   []string{"tag0", "tag2"},
 		},
 		{
 			name:       "convert service tag only",
 			tagOffsets: nil,
-			serviceTag: "process_context:dogfood",
+			serviceTag: []string{"process_context:dogfood"},
 			expected:   []string{"process_context:dogfood"},
 		},
 		{
 			name:       "convert tags with service tag",
 			tagOffsets: []uint32{0, 2},
-			serviceTag: "process_context:doge",
+			serviceTag: []string{"process_context:doge"},
 			expected:   []string{"tag0", "tag2", "process_context:doge"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag))
+			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag...))
 		})
 	}
 }
