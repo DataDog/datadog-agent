@@ -34,25 +34,32 @@ service_monitoring_config:
 
 ### `usm sysinfo`
 
-Shows system information relevant to USM debugging.
+Shows system information relevant to USM debugging, including detected services and programming languages.
 
 **Usage:**
 ```bash
 sudo ./system-probe usm sysinfo
 sudo ./system-probe usm sysinfo --max-cmdline-length 100  # Extended command line display
 sudo ./system-probe usm sysinfo --max-name-length 50      # Extended process name display
-sudo ./system-probe usm sysinfo --max-cmdline-length 0 --max-name-length 0  # Unlimited
+sudo ./system-probe usm sysinfo --max-service-length 30   # Extended service name display
+sudo ./system-probe usm sysinfo --max-cmdline-length 0 --max-name-length 0 --max-service-length 0  # Unlimited
 ```
 
 **Options:**
 - `--max-cmdline-length` - Maximum command line length to display (default: 50, 0 for unlimited)
 - `--max-name-length` - Maximum process name length to display (default: 25, 0 for unlimited)
+- `--max-service-length` - Maximum service name length to display (default: 20, 0 for unlimited)
 
 **Output:**
 - Kernel version
 - OS type and architecture
 - Hostname
-- List of all running processes with PIDs, PPIDs, names, and command lines
+- List of all running processes with:
+  - PIDs and PPIDs
+  - Process names
+  - Detected service names (using the same logic as the process-agent)
+  - Detected programming language and version
+  - Command lines
 
 **Output Example:**
 ```
@@ -65,10 +72,11 @@ Hostname:       agent-dev-ubuntu-22
 
 Running Processes: 127
 
-PID     | PPID    | Name                      | Command
---------|---------|---------------------------|--------------------------------------------------
-1       | 0       | systemd                   | /sbin/init
-156     | 1       | sshd                      | /usr/sbin/sshd -D
+PID     | PPID    | Name                      | Service              | Language     | Command
+--------|---------|---------------------------|----------------------|--------------|--------------------------------------------------
+1       | 0       | systemd                   | systemd              | -            | /sbin/init autoinstall
+774     | 1       | containerd                | containerd           | go/go1.23.7  | /usr/bin/containerd
+1046    | 1       | dockerd                   | dockerd              | go/go1.23.8  | /usr/bin/dockerd -H fd:// --containerd=/run/con...
 ...
 ```
 
@@ -140,6 +148,8 @@ This provides complete context about the USM configuration and system environmen
 Use `usm sysinfo` to see what processes are running that USM might be monitoring, helping to:
 - Verify target applications are running
 - Check if applications are running with expected command line arguments
+- Identify detected service names for processes (e.g., "nginx", "postgres", "node")
+- See which programming languages are detected and their versions
 - Identify processes by PID for further investigation
 
 ### Inspecting eBPF Maps
@@ -164,10 +174,11 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 ### Sysinfo Command
 - Collects process information using `procutil.NewProcessProbe()` (same as process-agent)
 - Uses `kernel.Release()` for kernel version detection
+- Detects service names using `parser.NewServiceExtractor()` (same logic as process-agent service discovery)
 - Processes are sorted by PID
-- Output truncates long process names (default 25 chars) and command lines (default 50 chars) for readability
-- Both truncation limits are configurable via flags
-- Use `--max-cmdline-length 0` and `--max-name-length 0` for unlimited display
+- Output truncates long process names (default 25 chars), service names (default 20 chars), and command lines (default 50 chars) for readability
+- All truncation limits are configurable via flags
+- Use `--max-cmdline-length 0`, `--max-name-length 0`, and `--max-service-length 0` for unlimited display
 
 ### Symbols Ls Command
 - Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading

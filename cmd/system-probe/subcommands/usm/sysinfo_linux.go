@@ -21,6 +21,7 @@ import (
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -28,6 +29,7 @@ import (
 const (
 	defaultMaxCmdlineLength = 50
 	defaultMaxNameLength    = 25
+	defaultMaxServiceLength = 20
 	maxLanguageLength       = 12 // Maximum width for language column to maintain table alignment
 )
 
@@ -35,13 +37,14 @@ const (
 func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var maxCmdlineLength int
 	var maxNameLength int
+	var maxServiceLength int
 
 	cmd := makeOneShotCommand(
 		globalParams,
 		"sysinfo",
 		"Show system information relevant to USM",
 		func(sysprobeconfig sysconfigcomponent.Component, params *command.GlobalParams) error {
-			return runSysinfoWithConfig(sysprobeconfig, params, maxCmdlineLength, maxNameLength)
+			return runSysinfoWithConfig(sysprobeconfig, params, maxCmdlineLength, maxNameLength, maxServiceLength)
 		},
 	)
 
@@ -49,6 +52,8 @@ func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 		"Maximum command line length to display (0 for unlimited)")
 	cmd.Flags().IntVar(&maxNameLength, "max-name-length", defaultMaxNameLength,
 		"Maximum process name length to display (0 for unlimited)")
+	cmd.Flags().IntVar(&maxServiceLength, "max-service-length", defaultMaxServiceLength,
+		"Maximum service name length to display (0 for unlimited)")
 
 	return cmd
 }
@@ -69,7 +74,7 @@ type SystemInfo struct {
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
-func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength int) error {
+func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -117,9 +122,22 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 		}
 		languages := detector.DetectWithPrivileges(languageProcs)
 
-		// Combine processes with their detected languages
+		// Extract service information for all processes
+		serviceExtractor := parser.NewServiceExtractor(true, false, true)
+		serviceExtractor.Extract(procs)
+
+		// Combine processes with their detected languages and populate service info
 		sysInfo.Processes = make([]*ProcessInfo, len(procList))
 		for i, proc := range procList {
+			// Populate the Service field in the Process struct
+			if serviceContext := serviceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
+				// Service context is in format "process_context:servicename", extract just the name
+				serviceName := strings.TrimPrefix(serviceContext[0], "process_context:")
+				proc.Service = &procutil.Service{
+					GeneratedName: serviceName,
+				}
+			}
+
 			sysInfo.Processes[i] = &ProcessInfo{
 				Process:  proc,
 				Language: languages[i],
@@ -127,7 +145,7 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 		}
 	}
 
-	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
+	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength, maxServiceLength)
 }
 
 // formatLanguage formats a language for display
@@ -142,7 +160,7 @@ func formatLanguage(lang languagemodels.Language) string {
 }
 
 // outputSysinfoHumanReadable prints system info in a text-based format.
-func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLength int) error {
+func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
 	fmt.Println("=== USM System Information ===")
 	fmt.Println()
 	fmt.Printf("Kernel Version: %s\n", info.KernelVersion)
@@ -153,8 +171,8 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 
 	fmt.Printf("Running Processes: %d\n", len(info.Processes))
 	fmt.Println()
-	fmt.Println("PID     | PPID    | Name                      | Language     | Command")
-	fmt.Println("--------|---------|---------------------------|--------------|--------------------------------------------------")
+	fmt.Println("PID     | PPID    | Name                      | Service              | Language     | Command")
+	fmt.Println("--------|---------|---------------------------|----------------------|--------------|--------------------------------------------------")
 
 	for _, procInfo := range info.Processes {
 		proc := procInfo.Process
@@ -175,7 +193,16 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 			langStr = langStr[:maxLanguageLength]
 		}
 
-		fmt.Printf("%-7d | %-7d | %-25s | %-12s | %s\n", proc.Pid, proc.Ppid, name, langStr, cmdline)
+		// Format the service name from Process.Service field
+		serviceStr := "-"
+		if proc.Service != nil && proc.Service.GeneratedName != "" {
+			serviceStr = proc.Service.GeneratedName
+		}
+		if len(serviceStr) > maxServiceLength {
+			serviceStr = serviceStr[:maxServiceLength-3] + "..."
+		}
+
+		fmt.Printf("%-7d | %-7d | %-25s | %-20s | %-12s | %s\n", proc.Pid, proc.Ppid, name, serviceStr, langStr, cmdline)
 	}
 
 	return nil
