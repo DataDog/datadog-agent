@@ -138,25 +138,25 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         char b[7];
         pktbuf_load_bytes_from_current_offset(pkt, b, 7);
 
-        // Detect :path header (5 bytes)
+        // Detect :path header
         // Plain: ':path' with str_len=5
-        // Huffman: 0xb9, 0x58, 0x86, 0xa8 with str_len=4
+        // Huffman: first 2 bytes are 0xb9, 0x58 with str_len=4
         if ((b[0] == ':' && b[1] == 'p' && b[2] == 'a' && b[3] == 't' && b[4] == 'h' && str_len == 5) ||
-            (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x58 && b[2] == (char)0x86 && b[3] == (char)0xa8 && str_len == 4)) {
+            (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x58 && str_len == 4)) {
             index = 4; // :path maps to static table index 4
         }
-        // Detect :method header (7 bytes)
+        // Detect :method header
         // Plain: ':method' with str_len=7
-        // Huffman: 0xb9, 0x64, 0x65, 0x95, 0x40 with str_len=5
+        // Huffman: first 2 bytes are 0xb9, 0x64 with str_len=5
         else if ((b[0] == ':' && b[1] == 'm' && b[2] == 'e' && b[3] == 't' && b[4] == 'h' && b[5] == 'o' && b[6] == 'd' && str_len == 7) ||
-                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x64 && b[2] == (char)0x65 && b[3] == (char)0x95 && b[4] == (char)0x40 && str_len == 5)) {
+                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x64 && str_len == 5)) {
             index = 2; // :method maps to static table index 2 (GET)
         }
-        // Detect :status header (7 bytes)
+        // Detect :status header
         // Plain: ':status' with str_len=7
-        // Huffman: 0xb9, 0x74, 0x97, 0x90 with str_len=4
+        // Huffman: first 2 bytes are 0xb9, 0x74 with str_len=4
         else if ((b[0] == ':' && b[1] == 's' && b[2] == 't' && b[3] == 'a' && b[4] == 't' && b[5] == 'u' && b[6] == 's' && str_len == 7) ||
-                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x74 && b[2] == (char)0x97 && b[3] == (char)0x90 && str_len == 4)) {
+                 (is_huffman_encoded && b[0] == (char)0xb9 && b[1] == (char)0x74 && str_len == 4)) {
             index = 8; // :status maps to static table index 8 (200)
         }
 
