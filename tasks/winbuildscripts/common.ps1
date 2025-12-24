@@ -308,6 +308,11 @@ function Invoke-BuildScript {
 
         Enable-DevEnv
 
+        # Initialize CI identity if running in CI environment
+        if ($env:CI) {
+            Initialize-CIIdentity
+        }
+
         # Expand modcache
         if ($InstallDeps) {
             Expand-ModCache -modcache modcache
@@ -348,15 +353,29 @@ function Invoke-BuildScript {
     }
 }
 
-Write-Host "Downloading CI identity client..."
-aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to download CI identity client (exit code: $LASTEXITCODE)"
-    exit 1
+<#
+.SYNOPSIS
+Downloads the CI identity client and assumes the CI Identity IAM role.
+
+.DESCRIPTION
+This function downloads the CI identity client from S3 and uses it to assume the CI Identity IAM role.
+It is typically called in CI environments to authenticate with AWS services.
+
+.NOTES
+This function requires AWS CLI to be available and properly configured.
+#>
+function Initialize-CIIdentity() {
+    Write-Host "Downloading CI identity client..."
+    aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to download CI identity client (exit code: $LASTEXITCODE)"
+        exit 1
+    }
+    Write-Host "Assuming CI role..."
+    .\ci-identities-gitlab-job-client.exe assume-role
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to assume CI role (exit code: $LASTEXITCODE)"
+        exit 1
+    }
 }
-Write-Host "Assuming CI role..."
-.\ci-identities-gitlab-job-client.exe assume-role
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to assume CI role (exit code: $LASTEXITCODE)"
-    exit 1
-}
+
