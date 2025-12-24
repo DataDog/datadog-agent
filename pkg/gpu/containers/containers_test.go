@@ -275,6 +275,52 @@ func TestMatchContainerDevices(t *testing.T) {
 			assert.Equal(t, expectedIndex, actualIndex, "Device at position %d should have index %d, got %d", i, expectedIndex, actualIndex)
 		}
 	})
+
+	t.Run("KubernetesContainerWithMIGDevices", func(t *testing.T) {
+		// Get test devices with MIG enabled
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+
+		// Test with MIG devices
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-mig",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.MIGChildrenUUIDs[5][0],
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.MIGChildrenUUIDs[5][1],
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.MIGChildrenUUIDs[6][0],
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.MIGChildrenUUIDs[6][1],
+				},
+			},
+		}
+
+		physicalDevice1, ok := devices[0].(*ddnvml.PhysicalDevice)
+		require.True(t, ok)
+		physicalDevice2, ok := devices[1].(*ddnvml.PhysicalDevice)
+		require.True(t, ok)
+		mig1 := physicalDevice1.MIGChildren[0]
+		mig2 := physicalDevice1.MIGChildren[1]
+		mig3 := physicalDevice2.MIGChildren[0]
+		mig4 := physicalDevice2.MIGChildren[1]
+		expectedDevices := []ddnvml.Device{mig1, mig2, mig3, mig4}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 4)
+		assert.ElementsMatch(t, filteredDevices, expectedDevices)
+	})
 }
 
 func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices string) {
