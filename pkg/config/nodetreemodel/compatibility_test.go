@@ -676,7 +676,7 @@ c: 1234
 	assert.Equal(t, 1234, cvalue)
 
 	dvalue = ntmConf.Get("c.d")
-	assert.Equal(t, nil, dvalue)
+	assert.Equal(t, false, dvalue)
 }
 
 func TestCompareTimeDuration(t *testing.T) {

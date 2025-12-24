@@ -170,13 +170,7 @@ func (c *ntmConfig) Get(key string) interface{} {
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
-	nodeval := c.getNodeValue(key)
-	if nodeval == nil {
-		// If the setting is missing, don't try to convert it to any other type
-		// This handles invalid file data overriding defaults
-		return nil
-	}
-	val, err := c.inferTypeFromDefault(key, nodeval)
+	val, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}

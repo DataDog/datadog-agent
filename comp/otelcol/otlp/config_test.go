@@ -246,7 +246,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Logs: map[string]interface{}{
-					"enabled": nil,
+					"enabled": false,
 					"batch": map[string]interface{}{
 						"min_size":      8192,
 						"max_size":      0,
