@@ -66,12 +66,11 @@ type ProcessInfo struct {
 
 // SystemInfo holds system information relevant to USM
 type SystemInfo struct {
-	KernelVersion    string
-	OSType           string
-	Architecture     string
-	Hostname         string
-	Processes        []*ProcessInfo
-	ServiceExtractor *parser.ServiceExtractor
+	KernelVersion string
+	OSType        string
+	Architecture  string
+	Hostname      string
+	Processes     []*ProcessInfo
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
@@ -126,7 +125,17 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 		// Extract service information for all processes
 		serviceExtractor := parser.NewServiceExtractor(true, false, true)
 		serviceExtractor.Extract(procs)
-		sysInfo.ServiceExtractor = serviceExtractor
+
+		// Populate Service field for each process
+		for _, proc := range procList {
+			if serviceContext := serviceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
+				// Service context is in format "process_context:servicename", extract just the name
+				serviceName := strings.TrimPrefix(serviceContext[0], "process_context:")
+				proc.Service = &procutil.Service{
+					GeneratedName: serviceName,
+				}
+			}
+		}
 
 		// Combine processes with their detected languages
 		sysInfo.Processes = make([]*ProcessInfo, len(procList))
@@ -186,13 +195,10 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 			langStr = langStr[:maxLanguageLength]
 		}
 
-		// Format the service name using ServiceExtractor
+		// Format the service name from Process.Service field
 		serviceStr := "-"
-		if info.ServiceExtractor != nil {
-			if serviceContext := info.ServiceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
-				// Service context is in format "process_context:servicename", extract just the name
-				serviceStr = strings.TrimPrefix(serviceContext[0], "process_context:")
-			}
+		if proc.Service != nil && proc.Service.GeneratedName != "" {
+			serviceStr = proc.Service.GeneratedName
 		}
 		if maxServiceLength > 0 && len(serviceStr) > maxServiceLength {
 			serviceStr = serviceStr[:maxServiceLength-3] + "..."
