@@ -5,6 +5,7 @@ Agent namespaced tasks
 import ast
 import glob
 import os
+from pickle import FALSE
 import platform
 import re
 import shutil
@@ -144,6 +145,8 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    enable_re2_cgo=False,
+    pkg_config_path=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -167,6 +170,8 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        force_cgo=enable_re2_cgo,
+        pkg_config_path=pkg_config_path,
     )
 
     bundled_agents = ["agent"]
@@ -209,6 +214,9 @@ def build(
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
+
+    if enable_re2_cgo and "re2_cgo" not in build_tags:
+        build_tags.append("re2_cgo")
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
@@ -495,11 +503,23 @@ def hacky_dev_image_build(
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
+        fallback_pkgconfig = [
+            "/usr/lib/x86_64-linux-gnu/pkgconfig",
+            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+            "/usr/lib/arm-linux-gnueabihf/pkgconfig",
+            "/usr/lib/pkgconfig",
+            "/usr/local/lib/pkgconfig",
+            "/opt/homebrew/lib/pkgconfig",
+        ]
+        pkg_config_path = os.environ.get("PKG_CONFIG_PATH") or ":".join(fallback_pkgconfig)
+
         build(
             ctx,
             race=race,
             development=development,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            enable_re2_cgo=True,
+            pkg_config_path=pkg_config_path,
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
@@ -569,7 +589,7 @@ FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y bash-completion less vim tshark && \
+    apt-get install -y bash-completion less vim tshark pkg-config libre2-dev libre2-10 build-essential && \
     apt-get clean
 
 ENV DELVE_PAGER=less

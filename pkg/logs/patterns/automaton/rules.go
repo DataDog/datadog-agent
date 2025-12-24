@@ -8,10 +8,10 @@ package automaton
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	regexp "github.com/wasilibs/go-re2"
 )
 
 // Priority constants for rule evaluation order
@@ -259,142 +259,19 @@ func GetPredefinedRules() []*TerminalRule {
 	rules := []*TerminalRule{
 
 		// =============================================================================
-		// DATE & TIME PATTERNS (Priority: High to Medium)
-		// Based on multiline aggregation patterns for comprehensive coverage
+		// DATE & TIME PATTERNS (Combined)
 		// =============================================================================
-
-		// High Priority - Modern Standards with Timezone Support
 		{
-			Name:        "RFC3339DateTime",
-			Pattern:     regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[\+\-]\d{2}:?\d{2})?`),
+			Name:        "DateTime",
+			Pattern:     regexp.MustCompile(`^(?:(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[\+\-]\d{2}:?\d{2})?|(\d+)-(\d+)-(\d+)([A-Za-z_]+)(\d+):(\d+):(\d+)\.(\d+)([A-Za-z_]+)(\d+):(\d+)|(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(,\d+)?|([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)|([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) (-\d+)|([A-Za-z_]+), (\d+)-([A-Za-z_]+)-(\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)|(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) ([A-Za-z_]+)|(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) (-\d+)|([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+) (\d+)|([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+)( [A-Za-z_]+ (\d+))?|([A-Za-z_]+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([\-\+]\d+) (\d+)|([A-Za-z_]+) (\d+), (\d{4}) (\d+):(\d+):(\d+) (AM|PM)|(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})|(\d{4})-(1[012]|0?[1-9])-([12][0-9]|3[01]|0?[1-9])$)`),
 			TokenType:   token.TokenDate,
 			Priority:    PriorityHigh,
 			Category:    "time",
-			Description: "Matches RFC3339 datetime format with timezone",
-			Examples:    []string{"2024-01-15T10:30:45Z", "2024-01-15T10:30:45.123Z", "2024-01-15T10:30:45+02:00"},
-		},
-		{
-			Name:        "RFC3339NanoDateTime",
-			Pattern:     regexp.MustCompile(`^(\d+)-(\d+)-(\d+)([A-Za-z_]+)(\d+):(\d+):(\d+)\.(\d+)([A-Za-z_]+)(\d+):(\d+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityHigh,
-			Category:    "time",
-			Description: "Supplementary pattern from multiline handler for edge-case RFC3339 formats",
-			Examples:    []string{"2024-12-25T14:30:00.123456789Z07:00"},
-		},
-		{
-			Name:        "StandardTimestamp",
-			Pattern:     regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(,\d+)?`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityHigh,
-			Category:    "time",
-			Description: "Matches standard timestamp format with optional milliseconds",
-			Examples:    []string{"2024-01-15 10:30:45", "2024-01-15 10:30:45,123"},
-		},
-
-		// Medium Priority - Legacy RFC Standards
-		{
-			Name:        "RFC1123DateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches RFC1123 datetime format",
-			Examples:    []string{"Mon, 02 Jan 2006 15:04:05 MST", "Wed, 25 Dec 2024 14:30:00 UTC"},
-		},
-		{
-			Name:        "RFC1123ZDateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) (-\d+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Supplementary pattern from multiline handler for RFC1123Z edge cases",
-			Examples:    []string{"Mon, 02 Jan 2006 15:04:05 -0700", "Wed, 25 Dec 2024 14:30:00 -0800"},
-		},
-		{
-			Name:        "RFC850DateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+), (\d+)-([A-Za-z_]+)-(\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches RFC850 datetime format",
-			Examples:    []string{"Monday, 02-Jan-06 15:04:05 MST", "Wednesday, 25-Dec-24 14:30:00 UTC"},
-		},
-		{
-			Name:        "RFC822DateTime",
-			Pattern:     regexp.MustCompile(`^(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) ([A-Za-z_]+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches RFC822 datetime format",
-			Examples:    []string{"02 Jan 06 15:04 MST", "25 Dec 24 14:30 UTC"},
-		},
-		{
-			Name:        "RFC822ZDateTime",
-			Pattern:     regexp.MustCompile(`^(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) (-\d+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Supplementary pattern from multiline handler for RFC822Z edge cases",
-			Examples:    []string{"02 Jan 06 15:04 -0700", "25 Dec 24 14:30 -0800"},
-		},
-
-		// Medium Priority - Unix/System Formats
-		{
-			Name:        "ANSICDateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+) (\d+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches ANSIC datetime format",
-			Examples:    []string{"Mon Jan 2 15:04:05 2006", "Wed Dec 25 14:30:00 2024"},
-		},
-		{
-			Name:        "UnixDateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+)( [A-Za-z_]+ (\d+))?`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches Unix datetime format with optional timezone",
-			Examples:    []string{"Mon Jan 2 15:04:05 2006", "Mon Jan 2 15:04:05 MST 2006"},
-		},
-		{
-			Name:        "RubyDateTime",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([\-\+]\d+) (\d+)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches Ruby datetime format with timezone offset",
-			Examples:    []string{"Mon Jan 02 15:04:05 -0700 2006", "Wed Dec 25 14:30:00 +0200 2024"},
-		},
-
-		// Medium Priority - Application-Specific Formats
-		{
-			Name:        "JavaSimpleFormatter",
-			Pattern:     regexp.MustCompile(`^([A-Za-z_]+) (\d+), (\d{4}) (\d+):(\d+):(\d+) (AM|PM)`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches Java SimpleFormatter date format",
-			Examples:    []string{"January 15, 2024 2:30:45 PM", "December 31, 2023 11:59:59 AM"},
-		},
-		{
-			Name:        "SlashDateTime",
-			Pattern:     regexp.MustCompile(`^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches slash-separated datetime format",
-			Examples:    []string{"2024/01/15 10:30:45", "2024/12/31 23:59:59"},
-		},
-		{
-			Name:        "SimpleDate",
-			Pattern:     regexp.MustCompile(`^(\d{4})-(1[012]|0?[1-9])-([12][0-9]|3[01]|0?[1-9])$`),
-			TokenType:   token.TokenDate,
-			Priority:    PriorityMedium,
-			Category:    "time",
-			Description: "Matches YYYY-MM-DD date format with validation",
-			Examples:    []string{"2024-01-15", "2024-12-31", "2024-02-29"},
+			Description: "Matches many types of date times",
+			Examples: []string{
+				"2024-01-15T10:30:45Z",
+				"Mon, 02 Jan 2006 15:04:05 MST",
+			},
 		},
 
 		// =============================================================================

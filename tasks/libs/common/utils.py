@@ -216,6 +216,8 @@ def get_build_flags(
     python_home_3=None,
     headless_mode=False,
     arch: Arch | None = None,
+    force_cgo: bool = False,
+    pkg_config_path: str | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -231,6 +233,13 @@ def get_build_flags(
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
+
+    # Some call sites need to force CGO on (e.g. re2_cgo builds).
+    if force_cgo:
+        env["CGO_ENABLED"] = "1"
+
+    if pkg_config_path:
+        env["PKG_CONFIG_PATH"] = pkg_config_path
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"

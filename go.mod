@@ -985,6 +985,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
+	github.com/wasilibs/go-re2 v1.10.0 // indirect
+	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
 )
 
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
