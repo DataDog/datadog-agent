@@ -6,9 +6,10 @@
 package procutil
 
 import (
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/gopsutil/cpu"
 
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
@@ -77,6 +78,7 @@ func (p *Process) DeepCopy() *Process {
 		Name:           p.Name,
 		Cwd:            p.Cwd,
 		Exe:            p.Exe,
+		Comm:           p.Comm,
 		Username:       p.Username,
 		PortsCollected: p.PortsCollected,
 	}
@@ -151,6 +153,9 @@ type Service struct {
 
 	// APMInstrumentation indicates the APM instrumentation status
 	APMInstrumentation bool
+
+	// LogFiles contains paths to log files associated with this service
+	LogFiles []string
 }
 
 // DeepCopy creates a deep copy of Stats

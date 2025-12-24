@@ -81,12 +81,13 @@ func TestAutoMultilineEnabled(t *testing.T) {
 
 }
 
+func decode(cfg string) *LogsConfig {
+	lc := LogsConfig{}
+	json.Unmarshal([]byte(cfg), &lc)
+	return &lc
+}
+
 func TestLegacyAutoMultilineEnabled(t *testing.T) {
-	decode := func(cfg string) *LogsConfig {
-		lc := LogsConfig{}
-		json.Unmarshal([]byte(cfg), &lc)
-		return &lc
-	}
 	mockConfig := config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
@@ -134,6 +135,13 @@ func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	mockConfig = config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_threshold", 501)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
+}
+
+func TestEncoding(t *testing.T) {
+	assert.Equal(t, UTF16BE, decode(`{"encoding":"utf-16-be"}`).Encoding)
+	assert.Equal(t, UTF16LE, decode(`{"encoding":"utf-16-le"}`).Encoding)
+	assert.Equal(t, SHIFTJIS, decode(`{"encoding":"shift-jis"}`).Encoding)
+	assert.Equal(t, "", decode(`{}`).Encoding)
 }
 
 func TestConfigDump(t *testing.T) {

@@ -80,7 +80,7 @@ func (d Directory) Ensure(ctx context.Context) (err error) {
 	span.SetTag("group", d.Group)
 	span.SetTag("mode", d.Mode)
 
-	uid, gid, err := getUserAndGroup(d.Owner, d.Group)
+	uid, gid, err := getUserAndGroup(ctx, d.Owner, d.Group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
@@ -155,7 +155,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := Chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -208,11 +208,11 @@ func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
 	return nil
 }
 
-func getUserAndGroup(username, group string) (uid, gid int, err error) {
+func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int, err error) {
 	// Use internal user package GetUserID and GetGroupID, caching as before for efficiency
 	uidRaw, uidOk := userCache.Load(username)
 	if !uidOk {
-		uidRaw, err = userpkg.GetUserID(username)
+		uidRaw, err = userpkg.GetUserID(ctx, username)
 		if err != nil {
 			return 0, 0, fmt.Errorf("error getting user ID for %s: %w", username, err)
 		}
@@ -221,7 +221,7 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 
 	gidRaw, gidOk := groupCache.Load(group)
 	if !gidOk {
-		gidRaw, err = userpkg.GetGroupID(group)
+		gidRaw, err = userpkg.GetGroupID(ctx, group)
 		if err != nil {
 			return 0, 0, fmt.Errorf("error getting group ID for %s: %w", group, err)
 		}
@@ -240,8 +240,9 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	return uid, gid, nil
 }
 
-func chown(path string, username string, group string) (err error) {
-	uid, gid, err := getUserAndGroup(username, group)
+// Chown changes the ownership of a file to the specified owner and group.
+func Chown(ctx context.Context, path string, username string, group string) (err error) {
+	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
@@ -254,7 +255,7 @@ func chown(path string, username string, group string) (err error) {
 
 func filesInDir(dir string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("error walking path: %w", err)
 		}

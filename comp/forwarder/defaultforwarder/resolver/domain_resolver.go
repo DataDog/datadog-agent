@@ -46,6 +46,9 @@ type DomainResolver = *domainResolver
 
 // SingleDomainResolver will always return the same host
 type domainResolver struct {
+	// configName is the url as it was configured by the user.
+	configName string
+	// domain is the url base to be used for network requests, it is modified by the forwarder.
 	domain          string
 	apiKeys         []utils.APIKeys
 	keyVersion      int
@@ -164,6 +167,7 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
 	return &domainResolver{
+		configName:     descriptor.BaseURL,
 		domain:         descriptor.BaseURL,
 		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,
@@ -321,6 +325,7 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &domainResolver{
+		configName:          domain,
 		domain:              domain,
 		apiKeys:             apiKeys,
 		keyVersion:          0,
@@ -377,6 +382,7 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 // For example, the internal cluster-agent endpoint
 func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 	return &domainResolver{
+		configName:      domain,
 		domain:          domain,
 		authToken:       authToken,
 		destinationType: Local,
@@ -412,7 +418,7 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	if r.IsLocal() {
 		res = append(res, authHeader{
 			key:   "Authorization",
-			value: fmt.Sprintf("Bearer %s", r.authToken),
+			value: "Bearer " + r.authToken,
 		})
 	} else {
 		for _, key := range r.GetAPIKeys() {
@@ -423,4 +429,9 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 		}
 	}
 	return
+}
+
+// GetConfigName returns the base url as it was originally written in the config.
+func (r *domainResolver) GetConfigName() string {
+	return r.configName
 }

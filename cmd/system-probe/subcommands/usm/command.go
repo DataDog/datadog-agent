@@ -27,5 +27,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		usmCmd.AddCommand(sysinfoCmd)
 	}
 
+	// Add check-maps command if available on this platform
+	if checkMapsCmd := makeCheckMapsCommand(globalParams); checkMapsCmd != nil {
+		usmCmd.AddCommand(checkMapsCmd)
+	}
+
+	// Add symbols command if available on this platform
+	if symbolsLsCmd := makeSymbolsLsCommand(globalParams); symbolsLsCmd != nil {
+		symbolsCmd := &cobra.Command{
+			Use:          "symbols",
+			Short:        "Symbol inspection commands",
+			SilenceUsage: true,
+		}
+		symbolsCmd.AddCommand(symbolsLsCmd)
+		usmCmd.AddCommand(symbolsCmd)
+	}
+
 	return []*cobra.Command{usmCmd}
 }

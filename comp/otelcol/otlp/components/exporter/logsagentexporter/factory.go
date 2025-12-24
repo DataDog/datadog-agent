@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -19,6 +20,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -38,10 +40,21 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+	QueueSettings configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
 
 	// HostMetadata defines the host metadata specific configuration
 	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
+
+	OrchestratorConfig OrchestratorConfig
+}
+
+// OrchestratorConfig contains configuration for sending orchestrator data to Datadog.
+type OrchestratorConfig struct {
+	Enabled  bool
+	Hostname hostnameinterface.Component
+	Key      string
+	Site     string
+	Endpoint string
 }
 
 type factory struct {
@@ -60,7 +73,7 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 			return &Config{
 				OtelSource:    otelSource,
 				LogSourceName: LogSourceName,
-				QueueSettings: exporterhelper.NewDefaultQueueConfig(),
+				QueueSettings: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),

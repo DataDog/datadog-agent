@@ -1,9 +1,12 @@
 :: Retrieve the directory from the given input file
 for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
-:: Make sure the destdir is a proper Windows path
+:: Make sure input paths are proper Windows paths as needed
 for %%F in (%OUTDIR%) do set destdir=%%~fF\\
+for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
+
+set script_errorlevel=0
 
 :: Start from a clean state
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
@@ -41,15 +44,30 @@ echo "/p:libffiDir=%LIBFFI_DIR%" >> %response_file%
 echo "/p:opensslOutDir=%OPENSSL_DIR%" >> %response_file%
 echo "/p:tcltkdir=%TCLTK_DIR%" >> %response_file%
 echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
+:: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
+:: This simplifies the requirements on the input files and their names and gives us more control
+echo "/p:SkipCopySSLDLL=1" >> %response_file%
 
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
 :: won't be built.
 call %sourcedir%\PCbuild\build.bat -e --pgo
 
-if ERRORLEVEL 1 exit /b %ERRORLEVEL%
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
 
 @echo on
+
+:: Needed to avoid xcopy from failing when copying files out of this dir
+for %%F in (%OPENSSL_DIR%) do set OPENSSL_DIR=%%~fF
+
+:: Copy OpenSSL files to where the layout script expects them.
+:: The Python build would do this itself when SkipCopySSLDLL is not set,
+:: since we enabled that, we need to now copy them manually
+xcopy /f %OPENSSL_DIR%*.lib %build_outdir%\
+xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 
 :: Create final layout from the build
 :: --include-dev - include include/ and libs/ directories
@@ -57,11 +75,20 @@ if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 :: --include-stable - adds python3.dll
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
 
-if ERRORLEVEL 1 exit /b %ERRORLEVEL%
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
 
 :: Bootstrap pip
 %destdir%\python.exe -m ensurepip
 
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
+
+:cleanup
 :: Clean so that no artifacts produced by the build remain
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
 rmdir /q /s %build_outdir%
@@ -69,3 +96,7 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
+
+if %script_errorlevel% neq 0 (
+   exit /b %script_errorlevel%
+)

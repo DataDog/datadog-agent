@@ -1,0 +1,55 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_filegroup(
+    name = "embedded",
+    srcs = [
+        "//deps/gstatus:bin_files",
+    ] + select({
+        "@platforms//os:linux": [
+            "//deps/compile_policy:bin_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_filegroup(
+    name = "licenses",
+    srcs = [
+        "//compliance:license_copies",
+        "//compliance:offer_copies",
+        "//deps/gstatus:license_file",
+    ] + select({
+        "@platforms//os:linux": [
+            "//deps/compile_policy:license_file",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# All the things that belong in /etc
+# This is not strictly in install_dir but it is a cousin.
+# TODO: split this cleanly.  The way the omnibus script works
+# is to install everything into install_dir (/opt/datadog-agent)
+# and then bulk move things to {output_dir}/etc/ in the finalizer.
+# We need to fix that so we just generate to the right place. For
+# now, let's just try to keep etc things separate.
+pkg_filegroup(
+    name = "etc",
+    srcs = [
+        "//deps/snmp_traps:all_files",
+    ],
+)
+
+# Gather everything that goes in /opt/datadog-agent/...
+pkg_install(
+    name = "install",
+    srcs = [
+        ":embedded",
+        ":etc",
+        ":licenses",
+    ],
+    destdir_flag = "//:install_dir",
+)

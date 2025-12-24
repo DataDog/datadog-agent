@@ -44,9 +44,8 @@ type Installer interface {
 
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+	ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -91,7 +90,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -123,11 +122,6 @@ func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, 
 	return i.packages.GetState(pkg)
 }
 
-// States returns the states of all packages.
-func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
-	return i.packages.GetStates()
-}
-
 // ConfigState returns the state of a package.
 func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.State, error) {
 	state, err := i.config.GetState()
@@ -140,8 +134,8 @@ func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.Sta
 	}, nil
 }
 
-// ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
+// configStates returns the config states of all supported packages (only datadog-agent is supported today).
+func (i *installerImpl) configStates(_ context.Context) (map[string]repository.State, error) {
 	state, err := i.config.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get config state: %w", err)
@@ -155,6 +149,22 @@ func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.S
 			Stable:     stableDeploymentID,
 			Experiment: state.ExperimentDeploymentID,
 		},
+	}, nil
+}
+
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+	configStates, err := i.configStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	packageStates, err := i.packages.GetStates()
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		ConfigStates: configStates,
+		States:       packageStates,
 	}, nil
 }
 
@@ -206,7 +216,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	defer i.m.Unlock()
 
 	// make sure data directory is set up correctly
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
 	}
@@ -482,7 +492,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -614,7 +624,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
@@ -693,7 +704,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -702,7 +713,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 
@@ -726,7 +737,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -735,7 +746,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 
@@ -801,14 +812,22 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	// TODO: should we call paths.EnsureInstallerDataDir() here?
-	//       It should probably be anywhere that the below directories must be
-	//       created, but it feels wrong to have the constructor perform work
-	//       like this. For example, "read only" subcommands like `get-states`
-	//       will end up iterating the filesystem tree to apply permissions,
-	//       and every subprocess during experiments will repeat the work,
-	//       even though it should only be needed at install/setup time.
-	err := os.MkdirAll(paths.PackagesPath, 0755)
+	// Enforce permissions on the installer data directory
+	//
+	// TODO: Avoid setup-like work in the installer constructor.
+	// These directories should be created properly at install/setup time, however
+	// the installer constructor is called before install/setup runs, and will fail if
+	// these directories do not exist, so we must do some minimal creation/validation here.
+	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
+	// because the constructor is called for every subprocess, even "read only"
+	// subcommands like `get-states`.
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	// create subdirectories
+	err = os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}

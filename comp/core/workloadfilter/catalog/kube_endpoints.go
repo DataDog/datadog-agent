@@ -14,14 +14,12 @@ import (
 
 // EndpointCELMetricsProgram creates a program for filtering endpoints metrics via CEL rules
 func EndpointCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "EndpointCELMetricsProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.EndpointType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.KubeEndpointType)
+	return createCELExcludeProgram(string(workloadfilter.KubeEndpointCELMetrics), rule, workloadfilter.KubeEndpointType, logger)
 }
 
 // EndpointCELGlobalProgram creates a program for filtering endpoints globally via CEL rules
 func EndpointCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "EndpointCELGlobalProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.EndpointType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.KubeEndpointType)
+	return createCELExcludeProgram(string(workloadfilter.KubeEndpointCELGlobal), rule, workloadfilter.KubeEndpointType, logger)
 }

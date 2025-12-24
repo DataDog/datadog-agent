@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -42,7 +42,6 @@ var (
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
-		e2eos.WindowsServer2022,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
@@ -50,10 +49,10 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
-		{t: testAgent, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
-		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testUpgradeScenario, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
+		{t: testAgent},
+		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testUpgradeScenario},
 	}
 )
 
@@ -109,8 +108,10 @@ func TestPackages(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				opts := []awshost.ProvisionerOption{
-					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
-					awshost.WithoutAgent(),
+					awshost.WithRunOptions(
+						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						ec2.WithoutAgent(),
+					),
 				}
 				opts = append(opts, suite.ProvisionerOptions()...)
 				e2e.Run(t, suite,
@@ -201,12 +202,12 @@ func (s *packageBaseSuite) updateCurlOnUbuntu() {
 func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, s.arch)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(env))
 	return err
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -220,18 +221,15 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	case InstallMethodAnsible:
+		if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+			s.T().Skip("Ansible doesn't install support Python2 anymore")
+		}
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
-			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
-				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
-				s.T().Skip("Ansible doesn't install support Python2 anymore")
-			} else {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
-			}
-			if err == nil {
+			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd"); err == nil {
 				break
 			}
 			if i == 2 {
@@ -265,15 +263,15 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP} {
-		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
+		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
 	}
 
 	// Unfortunately no guarantee that the datadog-installer symlink exists
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent|| sudo yum remove -y datadog-installer datadog-agent || sudo zypper remove -y datadog-installer datadog-agent")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
@@ -419,10 +417,12 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		playbookStringSuffix += fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], archi)
 	}
 	if len(environments) > 0 {
-		playbookStringPrefix += "      environment:\n"
+		var envBuilder strings.Builder
+		envBuilder.WriteString("      environment:\n")
 		for _, env := range environments {
-			playbookStringPrefix += fmt.Sprintf("        %s\n", env)
+			fmt.Fprintf(&envBuilder, "        %s\n", env)
 		}
+		playbookStringPrefix += envBuilder.String()
 	}
 
 	playbookString := playbookStringPrefix + playbookStringSuffix

@@ -153,7 +153,7 @@ b:
 func TestUnknownVarsWarning(t *testing.T) {
 	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
-			env := []string{fmt.Sprintf("%s=foo", v)}
+			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
@@ -655,9 +655,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1130,9 +1130,9 @@ func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (inte
 			if err != nil {
 				return nil, err
 			}
-			if leaf, match := node.(nodetreemodel.LeafNode); match {
+			if node.IsLeafNode() {
 				// if we find a leaf, can't get a child of it
-				leafValue := leaf.Get()
+				leafValue := node.Get()
 				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
 					remain := strings.Join(parts[i:], ".")
 					return leafMap[remain], nil
@@ -1265,7 +1265,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1275,7 +1275,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 

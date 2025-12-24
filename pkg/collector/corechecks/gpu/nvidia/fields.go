@@ -48,7 +48,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	fieldValues, err := c.getFieldValues()
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
-		if ddnvml.IsUnsupported(err) {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -89,7 +89,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 
 	metrics := make([]Metric, 0, len(c.fieldMetrics))
 	for i, val := range fields {
-		name := metricNameToFieldID[i].name
+		name := c.fieldMetrics[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
 			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
 			continue
@@ -103,7 +103,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 		metrics = append(metrics, Metric{
 			Name:  name,
 			Value: value,
-			Type:  metricNameToFieldID[i].metricType},
+			Type:  c.fieldMetrics[i].metricType},
 		)
 	}
 

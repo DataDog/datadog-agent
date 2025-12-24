@@ -8,7 +8,7 @@
 package procutil
 
 import (
-	"fmt"
+	"errors"
 	"runtime"
 	"time"
 	"unsafe"
@@ -91,7 +91,7 @@ func (p *windowsToolhelpProbe) StatsForPIDs(_ []int32, now time.Time) (map[int32
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
 func (p *windowsToolhelpProbe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
+	return nil, errors.New("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
 func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Process, error) {
@@ -211,6 +211,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 			Stats:    stats,
 			Exe:      cp.executablePath,
 			Username: cp.userName,
+			Comm:     cp.comm,
 		}
 	}
 	for pid := range knownPids {
@@ -226,6 +227,7 @@ type cachedProcess struct {
 	userName       string
 	executablePath string
 	commandLine    string
+	comm           string
 	procHandle     windows.Handle
 	parsedArgs     []string
 }
@@ -243,7 +245,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	}
 	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 	cp.commandLine = cp.executablePath
-
+	cp.comm = getFileDescriptionCached(cp.executablePath)
 	// we cannot read the command line if the process is protected
 	if !isProtected {
 		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)

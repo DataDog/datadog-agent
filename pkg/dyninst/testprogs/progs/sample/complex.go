@@ -203,21 +203,24 @@ func testStringType2(a **stringType2) {}
 //go:noinline
 func testLongFunctionWithChangingState() {
 	s := 3
-	a := 0
+	// This variable is going to have different captured value
+	// based on the architecture. Give it explicit name for easier
+	// workaround using a dedicated snapshot redactor.
+	aPerArch := 0
 	b := 1
-	fmt.Println(s, a, b)
+	fmt.Println(s, aPerArch, b)
 	// This loop and the following print statement reproduce
 	// https://github.com/golang/go/issues/75615
-	for _ = range 10 {
-		a, b = b, a+b
+	for range 10 {
+		aPerArch, b = b, aPerArch+b
 	}
-	s += a
-	fmt.Println(s, a, b)
-	for _ = range 10 {
-		a, b = b-a, a
+	s += aPerArch
+	fmt.Println(s, aPerArch, b)
+	for range 10 {
+		aPerArch, b = b-aPerArch, aPerArch
 	}
 	s += b
-	fmt.Println(s, a, b)
+	fmt.Println(s, aPerArch, b)
 }
 
 //nolint:all

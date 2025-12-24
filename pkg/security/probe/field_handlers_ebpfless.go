@@ -10,6 +10,7 @@ package probe
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -144,19 +145,6 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *mod
 // ResolveProcessIsThread returns true is the process is a thread
 func (fh *EBPFLessFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
 	return !process.IsExec
-}
-
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
-		Pid:  ev.PIDContext.Pid,
-		NSID: ev.PIDContext.NSID,
-	})
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -299,17 +287,17 @@ func (fh *EBPFLessFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.UserSessionContext) []string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.K8SSessionContext) []string {
 	return e.K8SGroups
 }
 
 // ResolveK8SUID resolves the k8s UID of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SUID(_ *model.Event, e *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SUID(_ *model.Event, e *model.K8SSessionContext) string {
 	return e.K8SUID
 }
 
 // ResolveK8SUsername resolves the k8s username of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SUsername(_ *model.Event, e *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SUsername(_ *model.Event, e *model.K8SSessionContext) string {
 	return e.K8SUsername
 }
 
@@ -438,8 +426,8 @@ func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *mode
 	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
 }
 
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.Event, _ *model.UserSessionContext) {
+// ResolveK8SUserSessionContext resolves and updates the provided user session context
+func (fh *EBPFLessFieldHandlers) ResolveK8SUserSessionContext(_ *model.Event, _ *model.K8SSessionContext) {
 }
 
 // ResolveProcessCmdArgv resolves the command line
@@ -569,7 +557,7 @@ func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *
 		h := sha256.New()
 		h.Write(e.RawFilter)
 		bs := h.Sum(nil)
-		e.FilterHash = fmt.Sprintf("%x", bs)
+		e.FilterHash = hex.EncodeToString(bs)
 		return e.FilterHash
 	}
 	return e.FilterHash
@@ -624,11 +612,36 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.SSHSessionContext) net.IPNet {
 	return net.IPNet{} // EBPFLess mode does not support SSH
 }
 
-// ResolveSSHPort resolves the public key of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
-	return 0 //EBPFLess mode does not support SSH port
+// ResolveSSHClientPort resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientPort(_ *model.Event, _ *model.SSHSessionContext) int {
+	return 0 // EBPFLess mode does not support SSH port
+}
+
+// ResolveSessionType resolves the session type of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionType(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0
+}
+
+// ResolveSessionID resolves the session id of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserSessionContext) string {
+	return ""
+}
+
+// ResolveSessionIdentity resolves the user of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
+	return ""
+}
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFLessFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err != nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
 }

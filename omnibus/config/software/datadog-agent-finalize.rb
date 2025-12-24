@@ -24,6 +24,11 @@ build do
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
+        # Push all the pieces built with Bazel.
+
+        # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
+        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
@@ -55,8 +60,13 @@ build do
             delete "#{install_dir}/embedded/lib/cmake"
             # and for libtool files
             delete "#{install_dir}/embedded/lib/*.la"
+
+            # Delete the leftovers of static linking.
+            delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/include/dbus-1.0"
         end
 
+        # TODO: Rather than move these, let's install them to the right place to start
         if linux_target?
             # Move configuration files
             mkdir "#{output_config_dir}/etc/datadog-agent"

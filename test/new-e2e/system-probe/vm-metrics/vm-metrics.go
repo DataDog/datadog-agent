@@ -114,7 +114,7 @@ func (d *domainMetrics) collectDomainMemoryStatInfo(l libvirtInterface) error {
 		return fmt.Errorf("failed to get memory stats: %w", err)
 	}
 
-	tags := []string{fmt.Sprintf("os:%s", d.osID)}
+	tags := []string{"os:" + d.osID}
 	for _, stat := range memStats {
 		if statString, ok := memStatTagToName[libvirt.DomainMemoryStatTags(stat.Tag)]; ok {
 			if stat.Tag == int32(libvirt.DomainMemoryStatMajorFault) {

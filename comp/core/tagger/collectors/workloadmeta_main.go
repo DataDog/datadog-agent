@@ -30,15 +30,17 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource         = workloadmetaCollectorName + "-static"
-	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
-	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
-	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
-	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
-	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	staticSource           = workloadmetaCollectorName + "-static"
+	podSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+	kubeMetadataSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	deploymentSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	gpuSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	crdSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
+	kubeCapabilitiesSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )

@@ -137,12 +137,12 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
 		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
 		// * password string: alphanum + special chars except quotes and semicolon
-		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Regex: regexp.MustCompile(`(?i)([\"\']?(?:pass(?:word)?|pswd|pwd)[\"\']?)((?:=| = |: )[\"\']?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 
-		// https://github.com/DataDog/datadog-agent/pull/28144
-		LastUpdated: parseVersion("7.57.0"),
+		// https://github.com/DataDog/datadog-agent/pull/43188
+		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
@@ -167,8 +167,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	consumerKeyAndTokenIDReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
 
 	snmpReplacer := matchYAMLKey(
-		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		`(community_string|auth_?[Kk]ey|priv_?[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "authkey", "auth_key", "privKey", "privkey", "priv_key", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer.LastUpdated = parseVersion("7.64.0") // https://github.com/DataDog/datadog-agent/pull/33742

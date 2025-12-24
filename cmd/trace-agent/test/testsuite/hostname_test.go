@@ -21,6 +21,7 @@ func TestMain(m *testing.M) {
 		log.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
 		os.Exit(0)
 	}
+	defer test.CleanupCachedBinaries()
 	os.Exit(m.Run())
 }
 

@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -38,7 +37,7 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	}
 
 	pythonCmd := append([]string{"-B", scriptPath}, args...)
-	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
+	cmd := telemetry.CommandContext(ctx, pythonPath, pythonCmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -93,7 +92,7 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 // It walks through the installPath and collects paths that match the './embedded/lib/python*/site-packages/datadog_*' pattern.
 func getAllIntegrations(installPath string) ([]string, error) {
 	allIntegrations := make([]string, 0)
-	err := filepath.Walk(installPath, func(path string, _ os.FileInfo, err error) error {
+	err := filepath.WalkDir(installPath, func(path string, _ os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -181,18 +180,18 @@ func RemoveCompiledFiles(installPath string) error {
 		}
 	}
 	// Remove files in {installPath}/bin/agent/dist
-	err = filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil
 			}
 			return err
 		}
-		if info.IsDir() && info.Name() == "__pycache__" {
+		if d.IsDir() && d.Name() == "__pycache__" {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
@@ -203,18 +202,18 @@ func RemoveCompiledFiles(installPath string) error {
 		return fmt.Errorf("failed to remove compiled files: %w", err)
 	}
 	// Remove files in {installPath}/python-scripts
-	err = filepath.Walk(filepath.Join(installPath, "python-scripts"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(filepath.Join(installPath, "python-scripts"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil
 			}
 			return err
 		}
-		if info.IsDir() && info.Name() == "__pycache__" {
+		if d.IsDir() && d.Name() == "__pycache__" {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}

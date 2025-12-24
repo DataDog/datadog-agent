@@ -23,10 +23,6 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
-	// MetricProcessEventsServerExpired is the name of the metric used to count the number of process events that
-	// expired because the process-agent was not processing them fast enough
-	// Tags: -
-	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
 
 	// Rate limiter metrics
 
@@ -165,10 +161,6 @@ var (
 	// process cache
 	// Tags: -
 	MetricProcessResolverCacheSize = newRuntimeMetric(".process_resolver.cache_size")
-	// MetricProcessResolverReferenceCount is the name of the metric used to report the number of entry cache still
-	// referenced in the process tree
-	// Tags: -
-	MetricProcessResolverReferenceCount = newRuntimeMetric(".process_resolver.reference_count")
 	// MetricProcessResolverMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
 	MetricProcessResolverMiss = newRuntimeMetric(".process_resolver.miss")

@@ -36,7 +36,7 @@ func makeConnections(n int) []*model.Connection {
 	conns := make([]*model.Connection, 0)
 	for i := 1; i <= n; i++ {
 		c := makeConnection(int32(i))
-		c.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", c.Pid)}
+		c.Laddr = &model.Addr{ContainerId: strconv.Itoa(int(c.Pid))}
 		c.RouteIdx = int32(-1)
 
 		conns = append(conns, c)
@@ -148,7 +148,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 			assert.Equal(t, "nid", connections.NetworkId)
 			for _, conn := range connections.Connections {
 				assert.Contains(t, connections.ContainerForPid, conn.Pid)
-				assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+				assert.Equal(t, strconv.Itoa(int(conn.Pid)), connections.ContainerForPid[conn.Pid])
 			}
 
 			// ensure only first chunk has telemetry
@@ -200,7 +200,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		assert.Equal(t, "nid", connections.NetworkId)
 		for _, conn := range connections.Connections {
 			assert.Contains(t, connections.ContainerForPid, conn.Pid)
-			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+			assert.Equal(t, strconv.Itoa(int(conn.Pid)), connections.ContainerForPid[conn.Pid])
 		}
 	}
 	assert.Equal(t, 4, total)
@@ -675,37 +675,37 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 	tests := []struct {
 		name       string
 		tagOffsets []uint32
-		serviceTag string
+		serviceTag []string
 		expected   []string
 	}{
 		{
 			name:       "no tags",
 			tagOffsets: nil,
-			serviceTag: "",
-			expected:   []string{},
+			serviceTag: nil,
+			expected:   nil,
 		},
 		{
 			name:       "convert tags only",
 			tagOffsets: []uint32{0, 2},
-			serviceTag: "",
+			serviceTag: nil,
 			expected:   []string{"tag0", "tag2"},
 		},
 		{
 			name:       "convert service tag only",
 			tagOffsets: nil,
-			serviceTag: "process_context:dogfood",
+			serviceTag: []string{"process_context:dogfood"},
 			expected:   []string{"process_context:dogfood"},
 		},
 		{
 			name:       "convert tags with service tag",
 			tagOffsets: []uint32{0, 2},
-			serviceTag: "process_context:doge",
+			serviceTag: []string{"process_context:doge"},
 			expected:   []string{"tag0", "tag2", "process_context:doge"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag))
+			assert.Equal(t, tt.expected, convertAndEnrichWithServiceCtx(tags, tt.tagOffsets, tt.serviceTag...))
 		})
 	}
 }
@@ -771,4 +771,107 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	// Check tags for fourth connection (PID 4, no tags configured)
 	conn3Tags := connections1.GetConnectionsTags(connections1.Connections[1].TagsIdx)
 	assert.Empty(t, conn3Tags, "Connection with no configured process tags should have no tags")
+}
+
+func Test_getDNSNameForIP(t *testing.T) {
+	tests := []struct {
+		name     string
+		conns    *model.Connections
+		ip       string
+		expected string
+	}{
+		{
+			name: "IP exists with single DNS name",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"1.2.3.4": {
+						Names: []string{"example.com"},
+					},
+				},
+			},
+			ip:       "1.2.3.4",
+			expected: "example.com",
+		},
+		{
+			name: "IP exists with multiple DNS names - returns first",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"1.2.3.4": {
+						Names: []string{"example.com", "example.org", "example.net"},
+					},
+				},
+			},
+			ip:       "1.2.3.4",
+			expected: "example.com",
+		},
+		{
+			name: "IP exists but DNSEntry has no names",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"1.2.3.4": {
+						Names: []string{},
+					},
+				},
+			},
+			ip:       "1.2.3.4",
+			expected: "",
+		},
+		{
+			name: "IP exists but DNSEntry is nil",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"1.2.3.4": nil,
+				},
+			},
+			ip:       "1.2.3.4",
+			expected: "",
+		},
+		{
+			name: "IP does not exist in DNS map",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"1.2.3.4": {
+						Names: []string{"example.com"},
+					},
+				},
+			},
+			ip:       "5.6.7.8",
+			expected: "",
+		},
+		{
+			name: "DNS map is nil",
+			conns: &model.Connections{
+				Dns: nil,
+			},
+			ip:       "1.2.3.4",
+			expected: "",
+		},
+		{
+			name: "DNS map is empty",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{},
+			},
+			ip:       "1.2.3.4",
+			expected: "",
+		},
+		{
+			name: "IPv6 address with DNS name",
+			conns: &model.Connections{
+				Dns: map[string]*model.DNSEntry{
+					"2001:db8::1": {
+						Names: []string{"ipv6.example.com"},
+					},
+				},
+			},
+			ip:       "2001:db8::1",
+			expected: "ipv6.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getDNSNameForIP(tt.conns, tt.ip)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

@@ -150,7 +150,6 @@
 /.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-onboarding @DataDog/windows-products
 
 /.gitlab/common/                                     @DataDog/agent-devx
-/.gitlab/common/test_infra_version.yml               @DataDog/agent-devx
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
@@ -341,7 +340,7 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
-/comp/forwarder/orchestrator @DataDog/container-app
+/comp/forwarder/orchestrator @DataDog/kubernetes-experiences
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
@@ -425,11 +424,11 @@
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
-/pkg/clusteragent/orchestrator/         @DataDog/container-app
+/pkg/clusteragent/orchestrator/         @DataDog/kubernetes-experiences
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-runtimes
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
-/pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
+/pkg/collector/corechecks/cluster/orchestrator  @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
@@ -443,7 +442,7 @@
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
-/pkg/collector/corechecks/orchestrator/   @DataDog/container-app
+/pkg/collector/corechecks/orchestrator/   @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
@@ -522,7 +521,7 @@
 /pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/slices/                       @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
-/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/port/                         @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go    @DataDog/windows-products
@@ -556,7 +555,6 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
@@ -576,7 +574,7 @@
 /pkg/proto/pbgo/core/remoteconfig_gen_test.go @DataDog/remote-config
 /pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
-/pkg/orchestrator/                      @DataDog/container-app
+/pkg/orchestrator/                      @DataDog/kubernetes-experiences
 /pkg/network/                           @DataDog/cloud-network-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-products
@@ -659,7 +657,6 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-products
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products
@@ -720,7 +717,7 @@
 /test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
-/test/new-e2e/tests/orchestrator              @DataDog/container-app
+/test/new-e2e/tests/orchestrator              @DataDog/kubernetes-experiences
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry-agent
 /test/new-e2e/tests/process                   @DataDog/container-experiences
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-products

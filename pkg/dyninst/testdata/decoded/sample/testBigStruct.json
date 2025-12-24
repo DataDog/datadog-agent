@@ -23,7 +23,7 @@
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 238
+            "lineNumber": 241
           },
           {
             "function": "main.main",
@@ -85,6 +85,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}"
   }
 ]

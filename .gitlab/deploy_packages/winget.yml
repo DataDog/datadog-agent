@@ -20,9 +20,10 @@ publish_winget_7_x64:
     - >
       docker run --rm
       -v "$(Get-Location):c:\mnt"
+      -e CI
       -e WINGET_GITHUB_ACCESS_TOKEN=${wingetPat}
-      -e CI_JOB_ID=${CI_JOB_ID}
-      -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
+      -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL
+      -e CI_JOB_ID
       ${WINBUILDIMAGE}
       Powershell
       -C "C:\mnt\tasks\winbuildscripts\Update-Winget.ps1"

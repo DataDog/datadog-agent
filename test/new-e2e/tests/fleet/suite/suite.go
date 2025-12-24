@@ -10,14 +10,15 @@ import (
 	"regexp"
 	"testing"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
+	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
 )
 
 var (
@@ -47,6 +48,7 @@ type FleetSuite struct {
 
 	Agent   *agent.Agent
 	Backend *backend.Backend
+	Host    *fleethost.Host
 }
 
 // SetupSuite sets up the fleet suite.
@@ -57,6 +59,7 @@ func (s *FleetSuite) SetupSuite() {
 
 	s.Agent = agent.New(s.T, s.Env())
 	s.Backend = backend.New(s.T, s.Env())
+	s.Host = fleethost.New(s.Env())
 }
 
 // Run runs the fleet suite for the given platforms.
@@ -66,7 +69,7 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 		t.Run(platform.String(), func(t *testing.T) {
 			t.Parallel()
 			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
-			opts = append(opts, awshost.WithEC2InstanceOptions(ec2.WithOS(platform)), awshost.WithoutAgent())
+			opts = append(opts, awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform)), ec2.WithoutAgent()))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}

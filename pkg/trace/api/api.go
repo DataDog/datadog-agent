@@ -304,6 +304,15 @@ func (r *HTTPReceiver) Start() {
 			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
 			ln, err = loader.GetTCPListener(addr)
 		}
+		if clientFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_CLIENT_FD"); ok {
+			clientConn, err := loader.GetConnFromFD(clientFDStr, "tcp_client_conn")
+			if err == nil {
+				log.Debugf("Using initial TCP client connection from file descriptor %s", clientFDStr)
+				ln = loader.NewListenerInitialConn(ln, clientConn)
+			} else {
+				log.Errorf("Error creating TCP connection from initial client file descriptor %s: %v", clientFDStr, err)
+			}
+		}
 		if err == nil {
 			ln, err = r.listenTCPListener(ln)
 		}
@@ -847,7 +856,7 @@ func isHeaderTrue(key, value string) bool {
 	}
 	bval, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Debug("Non-boolean value %s found in header %s, defaulting to true", value, key)
+		log.Debugf("Non-boolean value %s found in header %s, defaulting to true", value, key)
 		return true
 	}
 	return bval

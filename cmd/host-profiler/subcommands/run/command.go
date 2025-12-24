@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
@@ -65,7 +66,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 }
 
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
-	var opts []fx.Option = []fx.Option{
+	var opts = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
@@ -73,6 +74,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	if cliParams.GlobalParams.CoreConfPath != "" {
 		opts = append(opts,
 			core.Bundle(),
+			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),

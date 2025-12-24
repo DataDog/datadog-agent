@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
@@ -249,7 +250,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	for _, config := range configs {
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
-			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+			log.Debugf("Config %v is not tracked by autodiscovery", config.Name)
 			continue
 		}
 
@@ -303,9 +304,7 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 	defer cm.m.Unlock()
 
 	res := make(map[string]integration.Config, len(cm.activeConfigs))
-	for k, v := range cm.activeConfigs {
-		res[k] = v
-	}
+	maps.Copy(res, cm.activeConfigs)
 	return res
 }
 

@@ -70,7 +70,6 @@ def go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -125,7 +124,6 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        include_sds=include_sds,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
     )
@@ -154,7 +152,7 @@ def update_go(_):
 
 
 # === PYTHON === #
-@task
+@task()
 def python(ctx, show_versions=False):
     """Lints Python files.
 
@@ -162,6 +160,7 @@ def python(ctx, show_versions=False):
     running locally, you probably want to use the pre-commit instead.
 
     Args:
+        files: Optional list of files to lint (space-separated). If not provided, lints all files.
         show_versions: Show the versions of the linters that are being used.
     """
 
@@ -176,14 +175,15 @@ def python(ctx, show_versions=False):
         print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
-        # We want to the CI to fail if there are any issues
+        # We want to the CI to fail if there are any issues, lint everything in CI
         ctx.run("ruff format --check --diff .")
         ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
-        ctx.run("ruff format .")
-        ctx.run("ruff check --fix .")
+        ctx.run("ruff format --diff .")
+        ctx.run("ruff check --diff --fix .")
 
+    # vulture and mypy don't work well with individual files, run on full codebase
     ctx.run("vulture")
     ctx.run("mypy --warn-unused-configs")
 
@@ -482,7 +482,7 @@ def list_parameters(_, type):
 
 
 @task
-def ssm_parameters(ctx, mode="all", folders=None):
+def ssm_parameters(ctx, mode="all", folders=None, exclude_folders=None):
     """Lints SSM parameters in the datadog-agent repository."""
 
     modes = ["env", "wrapper", "all"]
@@ -490,12 +490,16 @@ def ssm_parameters(ctx, mode="all", folders=None):
         raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
     if folders is None:
         lint_folders = [".github", ".gitlab", "test"]
+    if exclude_folders is None:
+        exclude_folders = ["test/e2e-framework"]
     else:
         lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
-        if any(filename.startswith(f) for f in lint_folders):
+        if any(filename.startswith(f) for f in lint_folders) and not any(
+            filename.startswith(f) for f in exclude_folders
+        ):
             calls = list_get_parameter_calls(filename)
             if calls:
                 error_files.extend(calls)
@@ -731,7 +735,7 @@ def filenames(ctx):
 
     print("Checking filename length")
     # Approximated length of the prefix of the repo during the windows release build
-    prefix_length = 160
+    prefix_length = 159
     # Maximum length supported by the win32 API
     max_length = 255
     for filename in files:

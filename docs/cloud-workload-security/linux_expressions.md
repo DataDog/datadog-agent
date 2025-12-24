@@ -186,6 +186,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.signature`](#event-signature-doc) | Signature of the process pid and its cgroup with agent secret key |
 | [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -285,15 +286,18 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.ancestors.user`](#common-credentials-user-doc) | User of the process |
-| [`process.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`process.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`process.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`process.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`process.ancestors.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`process.ancestors.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.ancestors.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`process.ancestors.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.ancestors.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`process.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`process.ancestors.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`process.ancestors.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`process.ancestors.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`process.ancestors.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.ancestors.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`process.ancestors.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`process.ancestors.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`process.ancestors.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.ancestors.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -480,30 +484,36 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.parent.user`](#common-credentials-user-doc) | User of the process |
-| [`process.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`process.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`process.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`process.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`process.parent.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`process.parent.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.parent.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`process.parent.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.parent.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`process.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`process.parent.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`process.parent.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`process.parent.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`process.parent.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.parent.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`process.parent.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`process.parent.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`process.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.user`](#common-credentials-user-doc) | User of the process |
-| [`process.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`process.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`process.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`process.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`process.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`process.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`process.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`process.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`process.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`process.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`process.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`process.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`process.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 
 ### Event `accept`
 
@@ -873,15 +883,18 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exec.user`](#common-credentials-user-doc) | User of the process |
-| [`exec.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`exec.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`exec.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exec.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`exec.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`exec.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exec.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`exec.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exec.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`exec.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`exec.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`exec.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`exec.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`exec.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`exec.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`exec.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`exec.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`exec.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`exec.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 
 ### Event `exit`
 
@@ -987,15 +1000,18 @@ A process was terminated
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exit.user`](#common-credentials-user-doc) | User of the process |
-| [`exit.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exit.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`exit.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`exit.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exit.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`exit.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exit.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`exit.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`exit.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`exit.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`exit.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`exit.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`exit.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`exit.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`exit.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`exit.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`exit.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 
 ### Event `imds`
 
@@ -1443,15 +1459,18 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.ancestors.user`](#common-credentials-user-doc) | User of the process |
-| [`ptrace.tracee.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`ptrace.tracee.ancestors.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`ptrace.tracee.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`ptrace.tracee.ancestors.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`ptrace.tracee.ancestors.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`ptrace.tracee.ancestors.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`ptrace.tracee.ancestors.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.ancestors.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`ptrace.tracee.ancestors.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.ancestors.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1638,30 +1657,36 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.parent.user`](#common-credentials-user-doc) | User of the process |
-| [`ptrace.tracee.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`ptrace.tracee.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`ptrace.tracee.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`ptrace.tracee.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`ptrace.tracee.parent.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`ptrace.tracee.parent.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`ptrace.tracee.parent.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`ptrace.tracee.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`ptrace.tracee.parent.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`ptrace.tracee.parent.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`ptrace.tracee.parent.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.parent.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`ptrace.tracee.parent.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.user`](#common-credentials-user-doc) | User of the process |
-| [`ptrace.tracee.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`ptrace.tracee.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`ptrace.tracee.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`ptrace.tracee.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`ptrace.tracee.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`ptrace.tracee.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`ptrace.tracee.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`ptrace.tracee.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`ptrace.tracee.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`ptrace.tracee.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`ptrace.tracee.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`ptrace.tracee.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`ptrace.tracee.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 
 ### Event `removexattr`
 
@@ -1931,15 +1956,18 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
-| [`setrlimit.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`setrlimit.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`setrlimit.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`setrlimit.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`setrlimit.target.ancestors.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`setrlimit.target.ancestors.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`setrlimit.target.ancestors.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`setrlimit.target.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`setrlimit.target.ancestors.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`setrlimit.target.ancestors.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`setrlimit.target.ancestors.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`setrlimit.target.ancestors.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.ancestors.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`setrlimit.target.ancestors.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.ancestors.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`setrlimit.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`setrlimit.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2126,30 +2154,36 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.parent.user`](#common-credentials-user-doc) | User of the process |
-| [`setrlimit.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`setrlimit.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`setrlimit.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`setrlimit.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`setrlimit.target.parent.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`setrlimit.target.parent.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`setrlimit.target.parent.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`setrlimit.target.parent.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`setrlimit.target.parent.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`setrlimit.target.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`setrlimit.target.parent.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`setrlimit.target.parent.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`setrlimit.target.parent.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`setrlimit.target.parent.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.parent.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`setrlimit.target.parent.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`setrlimit.target.parent.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`setrlimit.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.user`](#common-credentials-user-doc) | User of the process |
-| [`setrlimit.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`setrlimit.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`setrlimit.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`setrlimit.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`setrlimit.target.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`setrlimit.target.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`setrlimit.target.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`setrlimit.target.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`setrlimit.target.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`setrlimit.target.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`setrlimit.target.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`setrlimit.target.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`setrlimit.target.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`setrlimit.target.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`setrlimit.target.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`setrlimit.target.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`setrlimit.target.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`setrlimit.target.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 
 ### Event `setsockopt`
 
@@ -2157,17 +2191,17 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter using sha256 |
-| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
-| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
-| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
+| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
+| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER` |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
-| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER` |
 
 ### Event `setuid`
 
@@ -2324,15 +2358,18 @@ A signal was sent
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
-| [`signal.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`signal.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`signal.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`signal.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`signal.target.ancestors.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`signal.target.ancestors.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`signal.target.ancestors.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.target.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`signal.target.ancestors.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`signal.target.ancestors.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`signal.target.ancestors.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`signal.target.ancestors.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.ancestors.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`signal.target.ancestors.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`signal.target.ancestors.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`signal.target.ancestors.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.ancestors.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2519,30 +2556,36 @@ A signal was sent
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.parent.user`](#common-credentials-user-doc) | User of the process |
-| [`signal.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`signal.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`signal.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`signal.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`signal.target.parent.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`signal.target.parent.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`signal.target.parent.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.target.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`signal.target.parent.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`signal.target.parent.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`signal.target.parent.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`signal.target.parent.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.parent.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`signal.target.parent.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`signal.target.parent.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`signal.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.user`](#common-credentials-user-doc) | User of the process |
-| [`signal.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
-| [`signal.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
-| [`signal.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
-| [`signal.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type |
+| [`signal.target.user_session.identity`](#common-usersessioncontext-identity-doc) | User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type |
+| [`signal.target.user_session.k8s_groups`](#common-k8ssessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.user_session.k8s_session_id`](#common-k8ssessioncontext-k8s_session_id-doc) | Unique identifier of the kubernetes session |
+| [`signal.target.user_session.k8s_uid`](#common-k8ssessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.user_session.k8s_username`](#common-k8ssessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.target.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
-| [`signal.target.user_session.ssh_auth_method`](#common-usersessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
-| [`signal.target.user_session.ssh_client_ip`](#common-usersessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
-| [`signal.target.user_session.ssh_port`](#common-usersessioncontext-ssh_port-doc) | SSH port of the user that executed the process |
-| [`signal.target.user_session.ssh_public_key`](#common-usersessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.user_session.ssh_auth_method`](#common-sshsessioncontext-ssh_auth_method-doc) | SSH authentication method used by the user |
+| [`signal.target.user_session.ssh_client_ip`](#common-sshsessioncontext-ssh_client_ip-doc) | SSH client IP of the user that executed the process |
+| [`signal.target.user_session.ssh_client_port`](#common-sshsessioncontext-ssh_client_port-doc) | SSH client port of the user that executed the process |
+| [`signal.target.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
+| [`signal.target.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `splice`
@@ -3084,11 +3127,20 @@ Definition: ID of the container
 
 
 ### `*.id` {#common-usersessioncontext-id-doc}
-Type: int
+Type: string
 
-Definition: Unique identifier of the user session on the host
+Definition: Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type
 
 `*.id` has 14 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.identity` {#common-usersessioncontext-identity-doc}
+Type: string
+
+Definition: User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type
+
+`*.identity` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
@@ -3164,7 +3216,7 @@ Definition: Indicates whether the process is considered a thread (that is, a chi
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
-### `*.k8s_groups` {#common-usersessioncontext-k8s_groups-doc}
+### `*.k8s_groups` {#common-k8ssessioncontext-k8s_groups-doc}
 Type: string
 
 Definition: Kubernetes groups of the user that executed the process
@@ -3173,7 +3225,16 @@ Definition: Kubernetes groups of the user that executed the process
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
-### `*.k8s_uid` {#common-usersessioncontext-k8s_uid-doc}
+### `*.k8s_session_id` {#common-k8ssessioncontext-k8s_session_id-doc}
+Type: int
+
+Definition: Unique identifier of the kubernetes session
+
+`*.k8s_session_id` has 14 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.k8s_uid` {#common-k8ssessioncontext-k8s_uid-doc}
 Type: string
 
 Definition: Kubernetes UID of the user that executed the process
@@ -3182,7 +3243,7 @@ Definition: Kubernetes UID of the user that executed the process
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
-### `*.k8s_username` {#common-usersessioncontext-k8s_username-doc}
+### `*.k8s_username` {#common-k8ssessioncontext-k8s_username-doc}
 Type: string
 
 Definition: Kubernetes username of the user that executed the process
@@ -3459,9 +3520,6 @@ Definition: Type of the user session
 `*.session_type` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
-Constants: [UserSessionTypes](#usersessiontypes)
-
-
 
 ### `*.size` {#common-networkcontext-size-doc}
 Type: int
@@ -3472,7 +3530,7 @@ Definition: Size in bytes of the network packet
 `network` `packet`
 
 
-### `*.ssh_auth_method` {#common-usersessioncontext-ssh_auth_method-doc}
+### `*.ssh_auth_method` {#common-sshsessioncontext-ssh_auth_method-doc}
 Type: int
 
 Definition: SSH authentication method used by the user
@@ -3484,7 +3542,7 @@ Constants: [SSHAuthMethod](#sshauthmethod)
 
 
 
-### `*.ssh_client_ip` {#common-usersessioncontext-ssh_client_ip-doc}
+### `*.ssh_client_ip` {#common-sshsessioncontext-ssh_client_ip-doc}
 Type: IP/CIDR
 
 Definition: SSH client IP of the user that executed the process
@@ -3493,21 +3551,30 @@ Definition: SSH client IP of the user that executed the process
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
-### `*.ssh_port` {#common-usersessioncontext-ssh_port-doc}
+### `*.ssh_client_port` {#common-sshsessioncontext-ssh_client_port-doc}
 Type: int
 
-Definition: SSH port of the user that executed the process
+Definition: SSH client port of the user that executed the process
 
-`*.ssh_port` has 14 possible prefixes:
+`*.ssh_client_port` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
-### `*.ssh_public_key` {#common-usersessioncontext-ssh_public_key-doc}
+### `*.ssh_public_key` {#common-sshsessioncontext-ssh_public_key-doc}
 Type: string
 
 Definition: SSH public key used for authentication (if applicable)
 
 `*.ssh_public_key` has 14 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.ssh_session_id` {#common-sshsessioncontext-ssh_session_id-doc}
+Type: int
+
+Definition: Unique identifier of the SSH user session on the host
+
+`*.ssh_session_id` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
@@ -3958,6 +4025,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.signature` {#event-signature-doc}
+Type: string
+
+Definition: Signature of the process pid and its cgroup with agent secret key
 
 
 
@@ -4530,28 +4604,28 @@ Definition: Maximum (hard) limit value
 ### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
 Type: string
 
-Definition: Hash of the socket filter using sha256
+Definition: Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.filter_instructions` {#setsockopt-filter_instructions-doc}
 Type: string
 
-Definition: Filter instructions
+Definition: Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.filter_len` {#setsockopt-filter_len-doc}
 Type: int
 
-Definition: Length of the filter
+Definition: Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
 ### `setsockopt.is_filter_truncated` {#setsockopt-is_filter_truncated-doc}
 Type: bool
 
-Definition: Indicates that the filter is truncated
+Definition: Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 
@@ -4593,7 +4667,7 @@ Definition: Socket type
 ### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
 Type: int
 
-Definition: List of immediate values used in the filter
+Definition: List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`
 
 
 

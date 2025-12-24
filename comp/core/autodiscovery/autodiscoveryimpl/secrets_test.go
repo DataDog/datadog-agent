@@ -35,7 +35,7 @@ var _ secrets.Component = (*MockSecretResolver)(nil)
 
 func (m *MockSecretResolver) Configure(_ secrets.ConfigParams) {}
 
-func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ string) ([]byte, error) {
+func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ string, _ bool) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil
 	}
@@ -49,9 +49,11 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
+func (m *MockSecretResolver) RemoveOrigin(_ string) {}
+
 func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
 
-func (m *MockSecretResolver) Refresh() (string, error) {
+func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
 }
 

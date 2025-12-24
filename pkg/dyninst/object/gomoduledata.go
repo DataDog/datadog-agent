@@ -17,16 +17,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
+type version int
+
+const (
+	version125 version = iota
+	version126
+)
+
 // Module data offsets
 const (
-	ModuledataMinPCOffset       = 160
-	ModuledataTextOffset        = ModuledataMinPCOffset + 16
-	ModuledataBssOffset         = ModuledataTextOffset + 48
-	ModuledataGcdataOffset      = ModuledataBssOffset + 56
-	ModuledataTypesOffset       = ModuledataGcdataOffset + 16
-	ModuledataGofuncOffset      = ModuledataTypesOffset + 24
-	ModuledataTextsectMapOffset = ModuledataTypesOffset + 32
+	moduledataMinPCOffset  = 160
+	moduledataTextOffset   = moduledataMinPCOffset + 16
+	moduledataBssOffset    = moduledataTextOffset + 48
+	moduledataGcdataOffset = moduledataBssOffset + 56
+	moduledataTypesOffset  = moduledataGcdataOffset + 16
+	moduledataGofuncOffset = moduledataTypesOffset + 24
 )
+
+func moduledataTextsectMapOffset(v version) int {
+	if v == version126 {
+		return moduledataGofuncOffset + 16
+	}
+	return moduledataGofuncOffset + 8
+}
 
 // ModuleData represents module data parsed from a Go object file
 type ModuleData struct {
@@ -94,31 +107,46 @@ func (m *GoDebugSections) Close() error {
 }
 
 // GoDebugSections returns the go debug sections
-func (m *ModuleData) GoDebugSections(mef File) (*GoDebugSections, error) {
+func (m *ModuleData) GoDebugSections(mef File) (_ *GoDebugSections, retErr error) {
 	pclntabSection := mef.Section(".gopclntab")
 	if pclntabSection == nil {
-		return nil, fmt.Errorf("no pclntab section")
+		return nil, errors.New("no pclntab section")
 	}
 
 	pclntab, err := mef.SectionDataRange(pclntabSection, 0, pclntabSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pclntab: %w", err)
 	}
+	defer func() {
+		if retErr != nil {
+			_ = pclntab.Close()
+		}
+	}()
 
 	var gofunc SectionData
-	if m.GoFunc != 0 && m.GcData != 0 {
+	if m.GoFunc != 0 && pclntabSection.Addr < m.GoFunc && pclntabSection.Addr+pclntabSection.Size > m.GoFunc {
+		// Since Go 1.26 the gofunc is stored in the pclntab section.
+		gofunc, err = mef.SectionDataRange(pclntabSection, m.GoFunc-pclntabSection.Addr, pclntabSection.Addr+pclntabSection.Size-m.GoFunc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load gofunc: %w", err)
+		}
+	} else if m.GoFunc != 0 && m.GcData != 0 {
 		rodataSection := mef.Section(".rodata")
 		if rodataSection.Addr > m.GoFunc || m.GcData > rodataSection.Addr+rodataSection.Size {
-			return nil, fmt.Errorf("gofunc outside rodata section")
+			return nil, errors.New("gofunc outside rodata section")
 		}
 		offset := m.GoFunc - rodataSection.Addr
 		size := m.GcData - m.GoFunc
 		gofunc, err = mef.SectionDataRange(rodataSection, offset, size)
 		if err != nil {
-			_ = pclntab.Close()
 			return nil, fmt.Errorf("failed to load gofunc: %w", err)
 		}
 	}
+	defer func() {
+		if err != nil {
+			_ = gofunc.Close()
+		}
+	}()
 
 	return &GoDebugSections{
 		PcLnTab: pclntab,
@@ -129,22 +157,22 @@ func (m *ModuleData) GoDebugSections(mef File) (*GoDebugSections, error) {
 func parseModuleData(obj SectionLoader) (*ModuleData, error) {
 	pclntabSection := obj.Section(".gopclntab")
 	if pclntabSection == nil {
-		return nil, fmt.Errorf("no pclntab section")
+		return nil, errors.New("no pclntab section")
 	}
 
 	noptrdataSection := obj.Section(".noptrdata")
 	if noptrdataSection == nil {
-		return nil, fmt.Errorf("no noptrdata section")
+		return nil, errors.New("no noptrdata section")
 	}
 
 	rodataSection := obj.Section(".rodata")
 	if rodataSection == nil {
-		return nil, fmt.Errorf("no rodata section")
+		return nil, errors.New("no rodata section")
 	}
 
 	textSection := obj.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("no text section")
+		return nil, errors.New("no text section")
 	}
 
 	noptrdataSectionData, err := obj.SectionDataRange(noptrdataSection, 0, noptrdataSection.Size)
@@ -158,20 +186,34 @@ func parseModuleData(obj SectionLoader) (*ModuleData, error) {
 		return nil, fmt.Errorf("failed to load rodata: %w", err)
 	}
 	defer rodataSectionData.Close()
+	rodataData := rodataSectionData.Data()
 
 	textRange := [2]uint64{textSection.Addr, textSection.Addr + textSection.Size}
 	rodataRange := [2]uint64{rodataSection.Addr, rodataSection.Addr + rodataSection.Size}
+
+	goModuleSection := obj.Section(".go.module")
+	if goModuleSection != nil {
+		// Since Go 1.26 the moduledata is stored in its own section.
+		goModuleSectionData, err := obj.SectionDataRange(goModuleSection, 0, goModuleSection.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load go.module: %w", err)
+		}
+		defer goModuleSectionData.Close()
+		return tryParseModuleDataAt(
+			version126,
+			goModuleSectionData.Data(), rodataData, 0, textRange, rodataRange, noptrdataSection, rodataSection, textSection)
+	}
 
 	// Search for the moduledata structure
 	addrBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(addrBytes, pclntabSection.Addr)
 
 	noptrdataData := noptrdataSectionData.Data()
-	rodataData := rodataSectionData.Data()
 	offsets := findAll(noptrdataData, addrBytes)
 	for _, offset := range offsets {
 		// Try to parse moduledata at this offset
 		moduleData, err := tryParseModuleDataAt(
+			version125,
 			noptrdataData, rodataData, offset, textRange, rodataRange,
 			noptrdataSection, rodataSection, textSection,
 		)
@@ -180,10 +222,11 @@ func parseModuleData(obj SectionLoader) (*ModuleData, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no valid moduledata found")
+	return nil, errors.New("no valid moduledata found")
 }
 
 func tryParseModuleDataAt(
+	version version,
 	noptrdataData, rodataData []byte,
 	offset int,
 	textRange, rodataRange [2]uint64,
@@ -191,39 +234,39 @@ func tryParseModuleDataAt(
 ) (*ModuleData, error) {
 
 	// Parse types range
-	typesStart := offset + ModuledataTypesOffset
+	typesStart := offset + moduledataTypesOffset
 	if typesStart+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("types data out of bounds")
+		return nil, errors.New("types data out of bounds")
 	}
 	types := binary.LittleEndian.Uint64(noptrdataData[typesStart:])
 	etypes := binary.LittleEndian.Uint64(noptrdataData[typesStart+8:])
 
 	// Parse text range
-	textStart := offset + ModuledataTextOffset
+	textStart := offset + moduledataTextOffset
 	if textStart+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("text data out of bounds")
+		return nil, errors.New("text data out of bounds")
 	}
 	text := binary.LittleEndian.Uint64(noptrdataData[textStart:])
 	etext := binary.LittleEndian.Uint64(noptrdataData[textStart+8:])
 
 	// Validate ranges
 	if types > etypes || types < rodataRange[0] || etypes > rodataRange[1] {
-		return nil, fmt.Errorf("invalid types range")
+		return nil, errors.New("invalid types range")
 	}
 	if text > etext || text < textRange[0] || etext > textRange[1] {
-		return nil, fmt.Errorf("invalid text range")
+		return nil, errors.New("invalid text range")
 	}
 
 	// Parse textsect map
-	textsectMapOffset := offset + ModuledataTextsectMapOffset
+	textsectMapOffset := offset + moduledataTextsectMapOffset(version)
 	if textsectMapOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("textsect map data out of bounds")
+		return nil, errors.New("A textsect map data out of bounds")
 	}
 	textsectMapPtr := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset:])
 	textsectMapLen := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset+8:])
 
 	if textsectMapPtr < rodataSection.Addr {
-		return nil, fmt.Errorf("textsect map pointer out of range")
+		return nil, errors.New("textsect map pointer out of range")
 	}
 
 	textsectSize := uint64(unsafe.Sizeof(TextSect{}))
@@ -231,7 +274,7 @@ func tryParseModuleDataAt(
 	textsectMapDataLen := int(textsectMapLen * textsectSize)
 
 	if textsectMapDataOffset < 0 || textsectMapDataOffset+textsectMapDataLen > len(rodataData) {
-		return nil, fmt.Errorf("textsect map data out of bounds")
+		return nil, errors.New("B textsect map data out of bounds")
 	}
 
 	textsectMapData := rodataData[textsectMapDataOffset : textsectMapDataOffset+textsectMapDataLen]
@@ -248,31 +291,31 @@ func tryParseModuleDataAt(
 	}
 
 	// Parse BSS range
-	bssOffset := offset + ModuledataBssOffset
+	bssOffset := offset + moduledataBssOffset
 	if bssOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("bss data out of bounds")
+		return nil, errors.New("bss data out of bounds")
 	}
 	bss := binary.LittleEndian.Uint64(noptrdataData[bssOffset:])
 	ebss := binary.LittleEndian.Uint64(noptrdataData[bssOffset+8:])
 
 	// Parse gofunc offset
-	gofuncOffset := offset + ModuledataGofuncOffset
+	gofuncOffset := offset + moduledataGofuncOffset
 	if gofuncOffset+8 > len(noptrdataData) {
-		return nil, fmt.Errorf("gofunc data out of bounds")
+		return nil, errors.New("gofunc data out of bounds")
 	}
 	gofunc := binary.LittleEndian.Uint64(noptrdataData[gofuncOffset:])
 
 	// Parse gcdata offset
-	gcdataOffset := offset + ModuledataGcdataOffset
+	gcdataOffset := offset + moduledataGcdataOffset
 	if gcdataOffset+8 > len(noptrdataData) {
-		return nil, fmt.Errorf("gcdata data out of bounds")
+		return nil, errors.New("gcdata data out of bounds")
 	}
 	gcdata := binary.LittleEndian.Uint64(noptrdataData[gcdataOffset:])
 
 	// Parse min/max PC
-	minPCOffset := offset + ModuledataMinPCOffset
+	minPCOffset := offset + moduledataMinPCOffset
 	if minPCOffset+16 > len(noptrdataData) {
-		return nil, fmt.Errorf("minPC data out of bounds")
+		return nil, errors.New("minPC data out of bounds")
 	}
 	minPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset:])
 	maxPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset+8:])

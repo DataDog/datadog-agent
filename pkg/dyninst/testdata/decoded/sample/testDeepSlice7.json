@@ -23,7 +23,7 @@
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 278
+            "lineNumber": 281
           },
           {
             "function": "main.main",
@@ -100,6 +100,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{a: [{a: [{a: [{interface: unknown type *main.deepSlice1}]}]}]}"
   }
 ]

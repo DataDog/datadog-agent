@@ -46,11 +46,14 @@ func init() {
 	registerFeature(ECSManagedInstances)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
+	registerFeature(KubeletConfigOrchestratorCheck)
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
 	registerFeature(PodResources)
+	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(NonstandardCRIRuntime)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -65,7 +68,8 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(ECSManagedInstances) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
-		IsFeaturePresent(Podman)
+		IsFeaturePresent(Podman) ||
+		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
@@ -76,6 +80,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
+	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
 }
 
@@ -84,6 +89,9 @@ func detectKubernetes(features FeatureMap, cfg model.Reader) {
 		features[Kubernetes] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") {
 			features[KubeOrchestratorExplorer] = struct{}{}
+		}
+		if cfg.GetBool("orchestrator_explorer.kubelet_config_check.enabled") {
+			features[KubeletConfigOrchestratorCheck] = struct{}{}
 		}
 	}
 }
@@ -144,6 +152,8 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 			mergeContainerdNamespaces(cfg)
 		} else if strings.Contains(criSocket, "crio") {
 			features[Crio] = struct{}{}
+		} else {
+			features[NonstandardCRIRuntime] = struct{}{}
 		}
 	}
 }
@@ -257,6 +267,32 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
 	}
+}
+
+func detectDevicePlugins(features FeatureMap, cfg model.Reader) {
+	// We only check the path from config if the path from config exists (does not have unix:// prefix)
+	socketDir := cfg.GetString("kubernetes_kubelet_deviceplugins_socketdir")
+	if socketDir == "" {
+		return
+	}
+
+	configured := cfg.IsConfigured("kubernetes_kubelet_deviceplugins_socketdir")
+	stat, err := os.Stat(socketDir)
+	if err != nil {
+		if configured {
+			log.Infof("Agent did not find device plugins socket path dir %s: %v", socketDir, err)
+		}
+		return
+	}
+	if !stat.IsDir() {
+		if configured {
+			log.Infof("Agent did not find valid device plugins socket path dir %s", socketDir)
+		}
+		return
+	}
+
+	features[KubernetesDevicePlugins] = struct{}{}
+	log.Infof("Agent found device plugins socket path dir %s", socketDir)
 }
 
 func detectNVML(features FeatureMap, _ model.Reader) {

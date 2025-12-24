@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -53,6 +54,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -98,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("")),
+				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
 				// Force FX to load Datadog configuration before System Probe config.
 				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
@@ -106,7 +108,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
 				}),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 				secretsnoopfx.Module(),
 				statsd.Module(),
@@ -157,6 +159,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				remotehostnameimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
+				localtraceroute.Module(),
 			)
 		},
 	}
@@ -291,7 +295,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 			return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))
 		}),
-		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
 		rcclientimpl.Module(),
@@ -337,6 +341,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
+		localtraceroute.Module(),
 	)
 }
 

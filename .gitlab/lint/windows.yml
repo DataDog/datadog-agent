@@ -16,10 +16,12 @@
       -m 24576M
       --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e AWS_NETWORKING=true
-      -e CI_JOB_ID=${CI_JOB_ID}
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_JOB_ID
       -e GOMODCACHE="c:\modcache"
       -e RUST_LOG="uv=trace"
       ${WINBUILDIMAGE}

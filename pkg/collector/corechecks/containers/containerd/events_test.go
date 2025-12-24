@@ -9,12 +9,13 @@ package containerd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/events"
 	"github.com/containerd/typeurl/v2"
 	"github.com/stretchr/testify/assert"
@@ -75,7 +76,7 @@ func TestCheckEvents(t *testing.T) {
 		},
 	}
 	// Test the basic listener
-	sub := createEventSubscriber("subscriberTest1", containerdutil.ContainerdItf(itf), nil)
+	sub := createEventSubscriber("subscriberTest1", containerdutil.ContainerdItf(itf), nil, nil)
 	sub.CheckEvents()
 
 	tp := &containerdevents.TaskPaused{
@@ -101,12 +102,12 @@ func TestCheckEvents(t *testing.T) {
 	ev := sub.Flush(time.Now().Unix())
 	assert.Len(t, ev, 1)
 	assert.Equal(t, ev[0].Topic, "/tasks/paused")
-	errorsCh <- fmt.Errorf("chan breaker")
+	errorsCh <- errors.New("chan breaker")
 
 	require.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
 
 	// Test the multiple events one unsupported
-	sub = createEventSubscriber("subscriberTest2", containerdutil.ContainerdItf(itf), nil)
+	sub = createEventSubscriber("subscriberTest2", containerdutil.ContainerdItf(itf), nil, nil)
 	sub.CheckEvents()
 
 	tk := &containerdevents.TaskOOM{
@@ -199,10 +200,26 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 			return nil, nil
 		},
+		MockInfo: func(_ string, ctn containerd.Container) (containers.Container, error) {
+			if ctn.ID() == existingPauseContainerID || ctn.ID() == newPauseContainerID {
+				return containers.Container{
+					Image: "k8s.gcr.io/pause:3.7",
+				}, nil
+			}
+			if ctn.ID() == existingNonPauseContainerID {
+				return containers.Container{
+					Image: "nginx:latest",
+				}, nil
+			}
+			return containers.Container{}, errors.New("container not found")
+		},
 		MockIsSandbox: func(namespace string, ctn containerd.Container) (bool, error) {
 			return namespace == testNamespace && (ctn.ID() == existingPauseContainerID || ctn.ID() == newPauseContainerID), nil
 		},
 	}
+
+	fakeFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+	pauseFilter := fakeFilterStore.GetContainerPausedFilters()
 
 	tests := []struct {
 		name                   string
@@ -248,7 +265,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			mockConfig.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			// Create a new subscriber for each test case so it picks up the correct config value
-			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil)
+			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil, pauseFilter)
 			sub.CheckEvents()
 			assert.Eventually(t, sub.isRunning, testTimeout, testTicker) // Wait until it's processing events
 
@@ -267,7 +284,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			cha <- &eventContainerDelete
 
 			// Stop the subscriber before checking events to avoid race condition
-			errorsCh <- fmt.Errorf("stop subscriber")
+			errorsCh <- errors.New("stop subscriber")
 			assert.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
 
 			flushed := sub.Flush(time.Now().Unix())

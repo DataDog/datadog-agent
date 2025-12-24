@@ -229,7 +229,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.ID = binary.NativeEndian.Uint64(data[32:40])
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := UnmarshalBinary(data[40:], &e.Credentials)
@@ -437,7 +437,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -455,16 +455,20 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 	m.Device = binary.NativeEndian.Uint32(data[0:4])
 	m.BindSrcMountID = binary.NativeEndian.Uint32(data[4:8])
-	m.FSType, err = UnmarshalString(data[8:], 16)
+	m.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
+	m.ParentMountIDUnique = binary.NativeEndian.Uint64(data[16:24])
+	m.BindSrcMountIDUnique = binary.NativeEndian.Uint64(data[24:32])
+	m.FSType, err = UnmarshalString(data[32:], 16)
 	if err != nil {
 		return 0, err
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
-	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
+	m.Visible = binary.NativeEndian.Uint16(data[48:50]) != 0
+	m.Detached = binary.NativeEndian.Uint16(data[50:52]) != 0
 
-	return 64, nil
+	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1122,17 +1126,17 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		// this is an IMDS response
-		e.Type = IMDSResponseType
 		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
-		e.fillFromIMDSHeader(resp.Header, "")
-
 		if resp.StatusCode != http.StatusOK {
 			return len(data), ErrNoUsefulData
 		}
+
+		// this is an IMDS response
+		e.Type = IMDSResponseType
+		e.fillFromIMDSHeader(resp.Header, "")
 
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
@@ -1158,12 +1162,13 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		// this is an IMDS request
-		e.Type = IMDSRequestType
 		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
+
+		// this is an IMDS request
+		e.Type = IMDSRequestType
 		e.URL = req.URL.String()
 		e.fillFromIMDSHeader(req.Header, e.URL)
 		e.Host = req.Host

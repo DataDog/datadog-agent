@@ -36,7 +36,7 @@ func buildNetworkStats(procPath string, pids []int) (*provider.ContainerNetworkS
 		}
 	}
 
-	return nil, fmt.Errorf("no process found inside this cgroup, impossible to gather network stats")
+	return nil, errors.New("no process found inside this cgroup, impossible to gather network stats")
 }
 
 // collectNetworkStats retrieves the network statistics for a given pid.

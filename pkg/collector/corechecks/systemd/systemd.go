@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -514,10 +515,8 @@ func getServiceCheckStatus(state string, mapping map[string]string) servicecheck
 
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
-	for _, name := range c.config.instance.UnitNames {
-		if name == unitName {
-			return true
-		}
+	if slices.Contains(c.config.instance.UnitNames, unitName) {
+		return true
 	}
 	for _, pattern := range c.unitPatterns {
 		if pattern.MatchString(unitName) {
@@ -528,12 +527,7 @@ func (c *SystemdCheck) isMonitored(unitName string) bool {
 }
 
 func isValidServiceCheckStatus(serviceCheckStatus string) bool {
-	for _, validStatus := range validServiceCheckStatus {
-		if serviceCheckStatus == validStatus {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validServiceCheckStatus, serviceCheckStatus)
 }
 
 // Configure configures the systemd checks
@@ -556,7 +550,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	}
 
 	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexes) == 0 {
-		return fmt.Errorf("please set either `unit_names` or `unit_regexes` in the instance config")
+		return errors.New("please set either `unit_names` or `unit_regexes` in the instance config")
 	}
 
 	for _, regex := range c.config.instance.UnitRegexes {

@@ -43,10 +43,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -110,6 +112,7 @@ func testDyninst(
 	testProgConfig testprogs.Config,
 	servicePath string,
 	probes []ir.ProbeDefinition,
+	resultNames map[string]string,
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
@@ -144,7 +147,6 @@ func testDyninst(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
 		real module.ProcessSubscriber,
@@ -154,6 +156,12 @@ func testDyninst(
 	}
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
+	}
+	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
+	cfg.TestingKnobs.TombstoneSleepKnobs = tombstone.WaitTestingKnobs{
+		BackoffPolicy: &backoff.ExpBackoffPolicy{
+			MaxBackoffTime: time.Millisecond.Seconds(),
+		},
 	}
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
@@ -212,7 +220,7 @@ func testDyninst(
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
-	t.Logf("Triggering function calls")
+	t.Logf("Triggering function calls at %s", time.Now().Format(time.RFC3339))
 	sampleStdin.Write([]byte("\n"))
 
 	var totalExpectedEvents int
@@ -220,7 +228,7 @@ func testDyninst(
 		totalExpectedEvents = math.MaxInt
 	} else {
 		for _, p := range probes {
-			totalExpectedEvents += len(expOut[p.GetID()])
+			totalExpectedEvents += len(expOut[resultNames[p.GetID()]])
 		}
 	}
 
@@ -229,7 +237,7 @@ func testDyninst(
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in
 		// the happy path, it's fine to let this be quite long.
-		timeout = 5*time.Second + 5*time.Since(start)
+		timeout = 30*time.Second + 10*time.Since(start)
 	}
 	deadline := time.Now().Add(timeout)
 	var n int
@@ -240,6 +248,7 @@ func testDyninst(
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !rewriteEnabled {
+		t.Logf("function calls completed at %s", time.Now().Format(time.RFC3339))
 		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())
@@ -253,7 +262,8 @@ func testDyninst(
 	retMap := make(map[string][]json.RawMessage)
 	debugEnabled := os.Getenv("DEBUG") != ""
 	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
-		makeRedactorForManyFloats(testProgConfig.GOARCH))
+		makeRedactorForManyFloats(testProgConfig.GOARCH),
+		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
 		if debugEnabled {
@@ -261,14 +271,15 @@ func testDyninst(
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
 		expIdx := len(retMap[log.id])
-		retMap[log.id] = append(retMap[log.id], redacted)
+		id := resultNames[log.id]
+		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
-			expOut, ok := expOut[log.id]
-			assert.True(t, ok, "expected output for probe %s not found", log.id)
+			expOut, ok := expOut[id]
+			assert.True(t, ok, "expected output for probe %s not found", id)
 			if assert.Less(
 				t, expIdx, len(expOut),
 				"expected at least %d events for probe %s, got %d",
-				expIdx+1, log.id, len(expOut),
+				expIdx+1, id, len(expOut),
 			) {
 				assert.Equal(t, string(expOut[expIdx]), string(redacted))
 			}
@@ -300,7 +311,6 @@ func runIntegrationTestSuite(
 			validateAndSaveOutputs(t, service, outputs.byTest)
 		})
 	}
-	probes := testprogs.MustGetProbeDefinitions(t, service)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error
@@ -313,6 +323,49 @@ func runIntegrationTestSuite(
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
 	for _, cfg := range cfgs {
+		probes := testprogs.MustGetProbeDefinitions(t, service)
+		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
+		// Some probes have different output in different versions, due to
+		// compiler changes. We rename the probes to organize output into different files.
+		resultNames := make(map[string]string)
+		otherVersionNames := make(map[string]struct{})
+		for _, p := range probes {
+			var versions []string
+			for _, tag := range p.GetTags() {
+				if strings.HasPrefix(tag, "version_diff:") {
+					versionDiff := strings.TrimPrefix(tag, "version_diff:")
+					versions = append(versions, versionDiff)
+					if cfg.GOTOOLCHAIN >= versionDiff {
+						resultNames[p.GetID()] = p.GetID() + "_geq_" + versionDiff
+						break
+					}
+				}
+			}
+			if versions == nil {
+				resultNames[p.GetID()] = p.GetID()
+				continue
+			}
+			// Find the largest version diff tag that applies to the version we are running with.
+			// Save other variants to recognize unexpected outputs.
+			slices.Sort(versions)
+			slices.Reverse(versions)
+			versions = append(versions, "")
+			found := false
+			for _, version := range versions {
+				var resultName string
+				if version == "" {
+					resultName = p.GetID()
+				} else {
+					resultName = p.GetID() + "_geq_" + version
+				}
+				if !found && cfg.GOTOOLCHAIN >= version {
+					resultNames[p.GetID()] = resultName
+					found = true
+				} else {
+					otherVersionNames[resultName] = struct{}{}
+				}
+			}
+		}
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
@@ -324,7 +377,7 @@ func runIntegrationTestSuite(
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, cfg, bin, probeSlice, rewrite, expectedOutput,
+						t, service, cfg, bin, probeSlice, resultNames, rewrite, expectedOutput,
 						debug, sem,
 					)
 					if t.Failed() {
@@ -349,7 +402,15 @@ func runIntegrationTestSuite(
 						// disk.
 						unexpectedProbes := slices.DeleteFunc(
 							slices.Collect(maps.Keys(expectedOutput)),
-							func(id string) bool { _, ok := got[id]; return ok },
+							func(id string) bool {
+								if _, ok := got[id]; ok {
+									return true
+								}
+								if _, ok := otherVersionNames[id]; ok {
+									return true
+								}
+								return false
+							},
 						)
 						require.Empty(
 							t, unexpectedProbes,
@@ -701,5 +762,14 @@ func makeRedactorForManyFloats(arch string) jsonRedactor {
 			}
 			return jsontext.Value(`"[onlyOnAmd64]"`)
 		}),
+	)
+}
+
+func makeRedactorForFunctionWithChangingState() jsonRedactor {
+	return redactor(
+		matchRegexp(
+			"/debugger/snapshot/captures/lines/.*/locals/aPerArch/value",
+		),
+		replacement(`"[per-arch-value]"`),
 	)
 }

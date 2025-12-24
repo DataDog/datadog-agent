@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -62,6 +63,7 @@ func GetDefaultLegacyFieldsKeys() []eval.Field {
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	ExtraValidateRule     func(rule *eval.Rule) error
 	legacyFields          map[eval.Field]eval.Field
 }
 
@@ -86,24 +88,25 @@ func (r *Releasable) CallReleaseCallback() {
 
 // AppendReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) AppendReleaseCallback(callback func()) {
-	if callback != nil {
+	if callback != nil && r != nil {
 		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
 }
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	Releasable
+	*Releasable
 	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool                       `field:"-"`
 }
 
-// Key returns a unique key for the entity
-func (c *ContainerContext) Key() (string, bool) {
-	cID := string(c.ContainerID)
-	return cID, cID != ""
+// Hash returns a unique key for the entity
+func (c *ContainerContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(c.ContainerID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -243,9 +246,15 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
+func (e *Event) initProcessEventTypes() {
+	e.Exec.Process = &e.BaseEvent.ProcessContext.Process
+	e.Exit.Process = &e.BaseEvent.ProcessContext.Process
+}
+
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
+	e.initProcessEventTypes()
 }
 
 // IsSavedByActivityDumps return whether saved by AD
@@ -273,9 +282,9 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
-// IsSnapshotEvent returns true if the event is generated from a snapshot replay
-func (e *Event) IsSnapshotEvent() bool {
-	return e.Flags&EventFlagsIsSnapshot > 0
+// IsEventFromReplay returns true if the event is generated from a replay
+func (e *Event) IsEventFromReplay() bool {
+	return e.Flags&EventFlagsFromReplay > 0
 }
 
 // AddToFlags adds a flag to the event
@@ -350,21 +359,32 @@ func (e *Event) GetProcessTracerTags() []string {
 }
 
 // UserSessionContext describes the user session context
-// Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
-	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session` Constants:`UserSessionTypes`
-	Resolved    bool   `field:"-"`
-	// Kubernetes User Session context
-	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
-	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
-	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
-	K8SExtra    map[string][]string `json:"extra,omitempty"`
-	// SSH User Session context
-	SSHPort       int       `field:"ssh_port,handler:ResolveSSHPort" json:"port,omitempty"`               // SECLDoc[ssh_port] Definition:`SSH port of the user that executed the process`
-	SSHClientIP   net.IPNet `field:"ssh_client_ip,handler:ResolveSSHClientIP" json:"client_ip,omitempty"` // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
-	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`                        // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
-	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`                          // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
+	SessionType int    `field:"session_type,handler:ResolveSessionType" json:"session_type,omitempty"` // SECLDoc[session_type] Definition:`Type of the user session`
+	ID          string `field:"id,handler:ResolveSessionID" json:"id,omitempty"`                       // SECLDoc[id] Definition:`Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type`
+	Identity    string `field:"identity,handler:ResolveSessionIdentity" json:"identity,omitempty"`     // SECLDoc[identity] Definition:`User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type`
+	K8SSessionContext
+	SSHSessionContext
+}
+
+// K8SSessionContext describes the kubernetes session context
+// Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
+type K8SSessionContext struct {
+	K8SSessionID uint64              `field:"k8s_session_id" json:"k8s_session_id,omitempty"`                    // SECLDoc[k8s_session_id] Definition:`Unique identifier of the kubernetes session`
+	K8SUsername  string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
+	K8SUID       string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
+	K8SGroups    []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
+	K8SExtra     map[string][]string `json:"extra,omitempty"`
+	K8SResolved  bool                `field:"-"`
+}
+
+// SSHSessionContext describes the SSH session context
+type SSHSessionContext struct {
+	SSHSessionID  uint64    `field:"ssh_session_id" json:"ssh_session_id,omitempty"` // SECLDoc[ssh_session_id] Definition:`Unique identifier of the SSH user session on the host`
+	SSHClientPort int       `field:"ssh_client_port" json:"client_port,omitempty"`   // SECLDoc[ssh_client_port] Definition:`SSH client port of the user that executed the process`
+	SSHClientIP   net.IPNet `field:"ssh_client_ip" json:"client_ip,omitempty"`       // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
+	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`   // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
+	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`     // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
 }
 
 // MatchedRule contains the identification of one rule that has match
@@ -487,10 +507,6 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-
-	refCount    uint64                     `field:"-"`
-	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
-	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -501,46 +517,22 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	// `coreRelease` function should not be cleared on reset
-	// it's used for pool and cache size management
-	pc.onRelease = nil
 }
 
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
+type cleanupKey struct{}
 
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, callback)
+		runtime.AddCleanup(pc, func(_ cleanupKey) {
+			callback()
+		}, cleanupKey{})
 	}
-}
-
-func (pc *ProcessCacheEntry) callReleaseCallbacks() {
-	for _, cb := range pc.onRelease {
-		cb()
-	}
-	if pc.coreRelease != nil {
-		pc.coreRelease(pc)
-	}
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	if pc.refCount > 1 {
-		pc.refCount--
-		return
-	}
-
-	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{coreRelease: coreRelease}
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

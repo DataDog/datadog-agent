@@ -1,0 +1,11 @@
+log_level: DEBUG
+
+# Enable the process listener for autodiscovery
+listeners:
+  - name: process
+
+# Enable file-based config provider
+config_providers:
+  - name: file
+    polling: true
+

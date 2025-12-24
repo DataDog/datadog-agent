@@ -113,7 +113,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -168,7 +168,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 void destroy(rtloader_t *rtloader)
@@ -187,9 +187,9 @@ void destroy(rtloader_t *rtloader)
 }
 #endif
 
-void set_memory_tracker_cb(cb_memory_tracker_t cb)
+void enable_memory_tracker(void)
 {
-    _set_memory_tracker_cb(cb);
+    _enable_memory_tracker();
 }
 
 int init(rtloader_t *rtloader)
@@ -403,7 +403,7 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         __sync_synchronize();
         if (alt_stack == nullptr) {
             // Note: this memory is never freed, but it is necessary for the duration of the program
-            alt_stack = malloc(alt_stack_size);
+            alt_stack = _malloc(alt_stack_size);
             stack_t new_stack{ .ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size };
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
