@@ -299,7 +299,7 @@ func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecre
 		// 1. Check if any file operation in the config contains SEC[key]
 		found := false
 		for _, operation := range operations.FileOperations {
-			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s:%s]", operations.DeploymentID, key)) {
+			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s]", key)) {
 				found = true
 				break
 			}

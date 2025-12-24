@@ -64,11 +64,11 @@ type Operations struct {
 	FileOperations []FileOperation `json:"file_operations"`
 }
 
-// ReplaceSecrets replaces SEC[deployment_id:key] placeholders with decrypted values in the operations.
+// ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
 func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
 	for key, decryptedValue := range decryptedSecrets {
-		// Build the full key: SEC[deployment_id:key]
-		fullKey := fmt.Sprintf("SEC[%s:%s]", operations.DeploymentID, key)
+		// Build the full key: SEC[key]
+		fullKey := fmt.Sprintf("SEC[%s]", key)
 
 		// Replace in all file operations
 		for i := range operations.FileOperations {

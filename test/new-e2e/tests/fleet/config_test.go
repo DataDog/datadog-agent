@@ -248,7 +248,7 @@ func (s *configSuite) TestConfigWithSecrets() {
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[123:log_level]"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[log_level]"}`)}},
 	}, map[string]string{
 		"log_level": "WARN",
 	})

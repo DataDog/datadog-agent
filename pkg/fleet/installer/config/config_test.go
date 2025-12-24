@@ -734,10 +734,10 @@ func TestReplaceSecrets(t *testing.T) {
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[test-config:apikey]`),
+					Patch: []byte(`api_key: SEC[apikey]`),
 				},
 				{
-					Patch: []byte(`app_key: SEC[test-config:appkey]`),
+					Patch: []byte(`app_key: SEC[appkey]`),
 				},
 			},
 		}
@@ -773,7 +773,7 @@ func TestReplaceSecrets(t *testing.T) {
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[test-config:apikey]`),
+					Patch: []byte(`api_key: SEC[apikey]`),
 				},
 			},
 		}
