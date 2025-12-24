@@ -76,6 +76,7 @@ func NewExporterWithGatewayUsage(
 		coatGwUsageMetric:  coatGwUsageMetric,
 		buildInfo:          buildInfo,
 		orchestratorConfig: cfg.OrchestratorConfig,
+		hosts:              make(map[string]struct{}),
 		cfg:                cfg,
 	}, nil
 }
