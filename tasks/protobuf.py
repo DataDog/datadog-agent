@@ -31,14 +31,53 @@ CLI_EXTRAS = {
     'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
 }
 
-# maybe put this in a separate function
-PKG_PLUGINS = {
-    'trace': '--go-vtproto_out=',
+VTPROTO_PACKAGES = {'stateful'}
+
+VTPROTO_CLI_EXTRAS = {
+    # Limit vtproto to marshal/unmarshal/size to avoid re-emitting gRPC stubs.
+    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size',
 }
 
-PKG_CLI_EXTRAS = {
-    'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
-}
+
+def _go_bin_dir():
+    """
+    Resolve the Go bin directory used by install_tasks.go installs.
+    Preference order: GOBIN, GOPATH/bin, then ~/go/bin.
+    """
+    gobin = os.getenv("GOBIN")
+    if gobin:
+        return gobin
+    gopath = os.getenv("GOPATH")
+    if gopath:
+        return os.path.join(gopath, "bin")
+    return os.path.join(Path.home(), "go", "bin")
+
+
+def _plugin_path(env_var: str, default_name: str) -> str:
+    """
+    Allow an absolute override via env; otherwise use the default binary
+    name resolved under the Go bin directory.
+    """
+    override = os.getenv(env_var)
+    if override:
+        return override
+    candidate = os.path.join(_go_bin_dir(), default_name)
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+        return candidate
+    # Fallback: let protoc resolve from PATH using the default_name.
+    return default_name
+
+
+# Allow selecting specific protoc-gen-go binaries for legacy vs. new API.
+# Default legacy plugin falls back to the standard name if the legacy-named
+# binary is not present to avoid execution errors.
+GO_PLUGIN_LEGACY = _plugin_path("PROTOC_GEN_GO_V1", "protoc-gen-go-legacy")
+GO_PLUGIN_V2 = _plugin_path("PROTOC_GEN_GO_V2", "protoc-gen-go")
+GO_PLUGIN_GRPC = _plugin_path("PROTOC_GEN_GO_GRPC", "protoc-gen-go-grpc")
+
+GO_PLUGIN_OPTS = ""
+GO_GRPC_PLUGIN_OPTS = ""
+VTPROTO_PLUGIN_OPTS = ""
 
 # protoc-go-inject-tag targets
 INJECT_TAG_TARGETS = {
@@ -85,21 +124,54 @@ def generate(ctx, pre_commit=False):
 
             targets = ' '.join(files)
 
-            # output_generator could potentially change for some packages
-            # so keep it in a variable for sanity.
-            output_generator = "--go_out=plugins=grpc:"
-            cli_extras = ''
-            if pkg in CLI_EXTRAS:
-                cli_extras = CLI_EXTRAS[pkg]
-            ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
+            # Generate Go/grpc stubs (protobuf API v2) and optional vtproto helpers.
+            go_cli_extras = CLI_EXTRAS.get(pkg, '')
+            include_args = [f"-I{proto_root}", f"-I{protodep_root}"]
+            go_opt_args = []
+            if "module=" not in go_cli_extras and GO_PLUGIN_OPTS:
+                go_opt_args.append(GO_PLUGIN_OPTS)
+            if go_cli_extras:
+                go_opt_args.append(go_cli_extras)
 
-            if pkg in PKG_PLUGINS:
-                output_generator = PKG_PLUGINS[pkg]
+            if pkg in VTPROTO_PACKAGES:
+                # New API v2 flow: separate go and go-grpc outputs.
+                go_arg_list = [
+                    "protoc",
+                    *include_args,
+                    f"--plugin=protoc-gen-go={GO_PLUGIN_V2}",
+                    f"--plugin=protoc-gen-go-grpc={GO_PLUGIN_GRPC}",
+                    f"--go_out={repo_root}",
+                    *go_opt_args,
+                    f"--go-grpc_out={repo_root}",
+                ]
+                if GO_GRPC_PLUGIN_OPTS:
+                    go_arg_list.append(GO_GRPC_PLUGIN_OPTS)
+            else:
+                # Legacy grpc plugin for non-vtproto packages.
+                go_arg_list = [
+                    "protoc",
+                    *include_args,
+                    f"--plugin=protoc-gen-go={GO_PLUGIN_LEGACY}",
+                    f"--go_out=plugins=grpc:{repo_root}",
+                    *go_opt_args,
+                ]
 
-                if pkg in PKG_CLI_EXTRAS:
-                    cli_extras = PKG_CLI_EXTRAS[pkg]
+            go_arg_list.append(targets)
+            ctx.run(" ".join(go_arg_list))
 
-                ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
+            if pkg in VTPROTO_PACKAGES:
+                vt_cli_extras = VTPROTO_CLI_EXTRAS.get(pkg, '')
+                vt_arg_list = [
+                    "protoc",
+                    *include_args,
+                    f"--go-vtproto_out={repo_root}",
+                ]
+                if VTPROTO_PLUGIN_OPTS:
+                    vt_arg_list.append(VTPROTO_PLUGIN_OPTS)
+                if vt_cli_extras:
+                    vt_arg_list.append(vt_cli_extras)
+                vt_arg_list.append(targets)
+                ctx.run(" ".join(vt_arg_list))
 
             if inject_tags:
                 inject_path = os.path.join(proto_root, "pbgo", pkg)

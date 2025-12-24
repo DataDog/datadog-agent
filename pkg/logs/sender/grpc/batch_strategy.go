@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -287,7 +286,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		Data: grpcDatums,
 	}
 
-	serialized, err := proto.Marshal(datumSeq)
+	serialized, err := datumSeq.MarshalVT()
 	if err != nil {
 		log.Errorf("Failed to marshal DatumSequence: %v", err)
 		return
