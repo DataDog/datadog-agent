@@ -148,9 +148,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
         return 0;
     }
 
-    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
-    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
-
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
     return 0;
