@@ -56,7 +56,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect

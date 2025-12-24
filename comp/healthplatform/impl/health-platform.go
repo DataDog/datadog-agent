@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/checks"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
 	"github.com/DataDog/datadog-agent/pkg/util/health"
 )
@@ -138,9 +139,26 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// This will flush any health checks that were registered before the component was created
 	health.SetCollector(comp)
 
+	// Register built-in health checks
+	comp.registerBuiltInChecks()
+
 	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
 	return provides, nil
+}
+
+// ============================================================================
+// Built-in Checks Registration
+// ============================================================================
+
+// registerBuiltInChecks registers all built-in health checks
+func (h *healthPlatformImpl) registerBuiltInChecks() {
+	// Docker socket access check
+	h.RegisterHealthCheck(
+		checks.DockerSocketCheckID,
+		checks.DockerSocketCheckName,
+		checks.CheckDockerSocket,
+	)
 }
 
 // ============================================================================
