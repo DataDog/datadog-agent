@@ -80,7 +80,7 @@ func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		span.MapFilteredAttributes(o.ShouldObfuscateCCKey, func(k, v string) string {
-			newV := o.ObfuscateCreditCardNumber(k, v)
+			newV := o.ObfuscateCreditCardNumber(v)
 			if newV != v {
 				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service())
 				return newV
@@ -161,6 +161,9 @@ func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled && spanEvent != nil {
 		for k, v := range spanEvent.Attributes {
+			if !a.obfuscator.ShouldObfuscateCCKey(k) {
+				continue
+			}
 			var strValue string
 			switch v.Type {
 			case pb.AttributeAnyValue_STRING_VALUE:
@@ -172,9 +175,9 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 			case pb.AttributeAnyValue_BOOL_VALUE:
 				continue // Booleans can't be credit cards
 			case pb.AttributeAnyValue_ARRAY_VALUE:
-				a.ccObfuscateAttributeArray(v, k, strValue)
+				a.ccObfuscateAttributeArray(v, strValue)
 			}
-			newVal := a.obfuscator.ObfuscateCreditCardNumber(k, strValue)
+			newVal := a.obfuscator.ObfuscateCreditCardNumber(strValue)
 			if newVal != strValue {
 				*v = pb.AttributeAnyValue{Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: newVal}
 			}
@@ -182,7 +185,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	}
 }
 
-func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, k string, strValue string) {
+func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue string) {
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
 		switch vElement.Type {
@@ -195,7 +198,7 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, k string, str
 		case pb.AttributeArrayValue_BOOL_VALUE:
 			continue // Booleans can't be credit cards
 		}
-		newVal := a.obfuscator.ObfuscateCreditCardNumber(k, arrStrValue)
+		newVal := a.obfuscator.ObfuscateCreditCardNumber(arrStrValue)
 		if newVal != strValue {
 			*vElement = pb.AttributeArrayValue{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: newVal}
 		}
