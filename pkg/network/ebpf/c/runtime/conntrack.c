@@ -57,14 +57,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
         return 0;
     }
 
-    u32 status = 0;
-    // JMW need to handle CORE and runtime here
-    BPF_CORE_READ_INTO(&status, ct, status);
+    // Check if this is a NAT connection using tuple comparison
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
 
-    // JMW better check for NAT?
-    // JMW __nf_conntrack_hash_insert uses is_conn_nat, should we here instead of checking status?
-    if (!(status & IPS_NAT_MASK)) {
-        log_debug("kprobe/__nf_conntrack_confirm: not IPS_NAT_MASK ct=%p status=%x", ct, status);
+    if (!is_conn_nat(&orig, &reply)) {
+        log_debug("kprobe/__nf_conntrack_confirm: not NAT ct=%p", ct);
         return 0;
     }
 
