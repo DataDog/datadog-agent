@@ -62,7 +62,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
     RETURN_IF_NOT_NAT(&orig, &reply);
 
     // Store ct pointer using pid_tgid for correlation with kretprobe
-    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, (u64)ct, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
     log_debug("kprobe/__nf_conntrack_confirm: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
 
     return 0;
@@ -136,7 +136,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
     RETURN_IF_NOT_NAT(&orig, &reply);
 
     // Store ct pointer using pid_tgid for correlation with kretprobe
-    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, (u64)ct, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
     log_debug("kprobe/nf_conntrack_hash_check_insert: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
 
     return 0;

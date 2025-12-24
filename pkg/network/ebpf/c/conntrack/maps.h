@@ -11,7 +11,7 @@
 /* This map is used for tracking JMW pending confirmations (pid_tgid -> ct pointer) to allow correlation between kprobe and kretprobe of
  * nf_conntrack_confirm JMW
  */
-BPF_HASH_MAP(conntrack_args, u64, u64, 10240) // JMW size?  add config and resize like for conntrack map?
+BPF_HASH_MAP(conntrack_args, u64, struct nf_conn *, 10240) // JMW size?  add config and resize like for conntrack map?
 
 /* This map is used for tracking conntrack entries
  */
