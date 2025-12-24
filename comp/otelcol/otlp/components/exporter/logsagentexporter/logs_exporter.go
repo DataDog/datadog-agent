@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
@@ -34,6 +35,9 @@ type Exporter struct {
 	orchestratorConfig OrchestratorConfig
 	reporter           *inframetadata.Reporter
 	cfg                *Config
+	coatGwUsageMetric  telemetry.Gauge
+	buildInfo          component.BuildInfo
+	hosts              map[string]struct{}
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -44,7 +48,7 @@ func NewExporter(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 ) (*Exporter, error) {
-	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage())
+	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage(), nil, component.BuildInfo{})
 }
 
 // NewExporterWithGatewayUsage initializes a new logs agent exporter with the given parameters
@@ -55,6 +59,8 @@ func NewExporterWithGatewayUsage(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
+	coatGwUsageMetric telemetry.Gauge,
+	buildInfo component.BuildInfo,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
@@ -67,6 +73,8 @@ func NewExporterWithGatewayUsage(
 		logSource:          logSource,
 		translator:         translator,
 		gatewaysUsage:      gatewaysUsage,
+		coatGwUsageMetric:  coatGwUsageMetric,
+		buildInfo:          buildInfo,
 		orchestratorConfig: cfg.OrchestratorConfig,
 		cfg:                cfg,
 	}, nil
@@ -145,9 +153,17 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		message := message.NewMessage(content, origin, status, ingestionTs)
 		if ddLog.Hostname != nil {
 			message.Hostname = *ddLog.Hostname
+			e.hosts[*ddLog.Hostname] = struct{}{}
 		}
 
 		e.logsAgentChannel <- message
+	}
+
+	if e.coatGwUsageMetric != nil {
+		value, _ := e.gatewaysUsage.Gauge()
+		for host := range e.hosts {
+			e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command, host, "")
+		}
 	}
 
 	return nil
