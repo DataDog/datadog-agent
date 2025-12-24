@@ -138,6 +138,22 @@ typedef struct {
 // Max length of the method is 7.
 #define HTTP2_METHOD_MAX_LEN 7
 
+// HTTP2 pseudo-header names
+#define HTTP2_HEADER_PATH ":path"
+#define HTTP2_HEADER_PATH_LEN 5
+#define HTTP2_HEADER_PATH_HUFFMAN "\xb9\x58\xd3\x3f"
+#define HTTP2_HEADER_PATH_HUFFMAN_LEN 4
+
+#define HTTP2_HEADER_METHOD ":method"
+#define HTTP2_HEADER_METHOD_LEN 7
+#define HTTP2_HEADER_METHOD_HUFFMAN "\xb9\x49\x53\x39\xe4"
+#define HTTP2_HEADER_METHOD_HUFFMAN_LEN 5
+
+#define HTTP2_HEADER_STATUS ":status"
+#define HTTP2_HEADER_STATUS_LEN 7
+#define HTTP2_HEADER_STATUS_HUFFMAN "\xb8\x84\x8d\x36\xa3"
+#define HTTP2_HEADER_STATUS_HUFFMAN_LEN 5
+
 typedef struct {
     __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
     bool is_huffman_encoded;
