@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -48,6 +49,15 @@ func NewMock(req MockRequires) MockProvides {
 	if err != nil {
 		log.Errorf("Failed to create local tagger: %v", err)
 	}
+
+	// Initialize static global tags
+	// Note: do not run the collector
+	collectors.NewWorkloadMetaCollector(
+		localTagger.ctx,
+		localTagger.cfg,
+		localTagger.workloadStore,
+		localTagger.tagStore,
+	)
 
 	return MockProvides{
 		Comp: &fakeTagger{
