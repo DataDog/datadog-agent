@@ -50,13 +50,13 @@ type dependencies struct {
 // metricStat holds how many times a metric has been
 // processed and when was the last time.
 type metricStat struct {
-	Name      string    `json:"name"`
-	Count     uint64    `json:"count"`
-	LastSeen  time.Time `json:"last_seen"`
-	Tags      string    `json:"tags"`
-	key       ckey.ContextKey
-	error     uint64 // overestimation bound
-	heapIndex int    // position in minHeap for O(1) lookup
+	Name     string    `json:"name"`
+	Count    uint64    `json:"count"`
+	LastSeen time.Time `json:"last_seen"`
+	Tags     string    `json:"tags"`
+	key      ckey.ContextKey
+	//error     uint32 // overestimation bound
+	heapIndex int // position in minHeap for O(1) lookup
 }
 
 // metricStatsShard holds a subset of metric stats with its own lock
@@ -237,10 +237,10 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	} else {
 		if len(shard.stats) < d.maxItems {
 			newMs := &metricStat{
-				key:      key,
-				Name:     sample.Name,
-				Count:    1,
-				error:    0,
+				key:   key,
+				Name:  sample.Name,
+				Count: 1,
+				//error:    0,
 				Tags:     tags,
 				LastSeen: now,
 			}
@@ -262,7 +262,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 			minEntry.Name = sample.Name
 			minEntry.Tags = tags
 			minEntry.Count = inheritedCount + 1
-			minEntry.error = inheritedCount
+			//minEntry.error = inheritedCount
 			minEntry.LastSeen = now
 			// heapIndex stays at 0
 
@@ -291,7 +291,8 @@ func (mss *metricStatsShard) heapifyUp(idx int) {
 	for idx > 0 {
 		parent := (idx - 1) / 2
 		// Compare by (count - error) for minimum uncertainty
-		if mss.minHeap[idx].Count-mss.minHeap[idx].error >= mss.minHeap[parent].Count-mss.minHeap[parent].error {
+		//if mss.minHeap[idx].Count-mss.minHeap[idx].error >= mss.minHeap[parent].Count-mss.minHeap[parent].error {
+		if mss.minHeap[idx].Count >= mss.minHeap[parent].Count {
 			break
 		}
 		// Swap and update heap indices
@@ -309,10 +310,12 @@ func (mss *metricStatsShard) heapifyDown(idx int) {
 		left := 2*idx + 1
 		right := 2*idx + 2
 
-		if left < n && mss.minHeap[left].Count-mss.minHeap[left].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+		//if left < n && mss.minHeap[left].Count-mss.minHeap[left].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+		if left < n && mss.minHeap[left].Count < mss.minHeap[smallest].Count {
 			smallest = left
 		}
-		if right < n && mss.minHeap[right].Count-mss.minHeap[right].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+		//if right < n && mss.minHeap[right].Count-mss.minHeap[right].error < mss.minHeap[smallest].Count-mss.minHeap[smallest].error {
+		if right < n && mss.minHeap[right].Count < mss.minHeap[smallest].Count {
 			smallest = right
 		}
 
