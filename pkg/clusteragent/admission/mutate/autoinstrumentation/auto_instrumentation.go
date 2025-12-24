@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -28,7 +29,7 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	imageResolver := NewImageResolver(rcClient, datadogConfig)
+	imageResolver := NewImageResolver(imageresolver.NewConfig(datadogConfig, rcClient))
 	apm, err := NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
