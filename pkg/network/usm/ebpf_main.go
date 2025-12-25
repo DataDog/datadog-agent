@@ -81,9 +81,10 @@ const (
 
 type ebpfProgram struct {
 	*ddebpf.Manager
-	cfg                   *config.Config
-	tailCallRouter        []manager.TailCallRoute
-	connectionProtocolMap *ebpf.Map
+	cfg                          *config.Config
+	tailCallRouter               []manager.TailCallRoute
+	connectionProtocolMap        *ebpf.Map
+	connectionTerminationManager *ConnectionTerminationManager
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
@@ -119,6 +120,11 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		},
 	}
 
+	// Create connection termination manager and register its infrastructure
+	connTermMgr := NewConnectionTerminationManager(c, mgr)
+	mgr.Maps = append(mgr.Maps, connTermMgr.GetMaps()...)
+	mgr.Probes = append(mgr.Probes, connTermMgr.GetProbes()...)
+
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		missing, err := ddebpf.VerifyKernelFuncs("sockfd_lookup_light")
 		if err == nil && len(missing) == 0 {
@@ -140,9 +146,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	}
 
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
-		cfg:                   c,
-		connectionProtocolMap: connectionProtocolMap,
+		Manager:                      ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
+		cfg:                          c,
+		connectionProtocolMap:        connectionProtocolMap,
+		connectionTerminationManager: connTermMgr,
 	}
 
 	if err := program.initProtocols(c); err != nil {
@@ -242,6 +249,13 @@ func (e *ebpfProgram) Start() error {
 		return errNoProtocols
 	}
 
+	// Start connection termination manager after protocols are started
+	if e.connectionTerminationManager != nil {
+		if err := e.connectionTerminationManager.Start(); err != nil {
+			log.Warnf("failed to start connection termination manager: %s", err)
+		}
+	}
+
 	for _, protocolName := range e.enabledProtocols {
 		log.Infof("enabled USM protocol: %s", protocolName.Instance.Name())
 	}
@@ -261,6 +275,12 @@ func (e *ebpfProgram) Close() error {
 	for _, rb := range e.RingBuffers {
 		err = errors.Join(err, rb.Stop(manager.CleanAll))
 	}
+
+	// Stop connection termination manager
+	if e.connectionTerminationManager != nil {
+		e.connectionTerminationManager.Stop()
+	}
+
 	stopProtocolWrapper := func(protocol protocols.Protocol) error {
 		protocol.Stop()
 		return nil
@@ -447,6 +467,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.BypassEnabled = e.cfg.BypassEnabled
+
+	// Configure connection termination manager
+	if e.connectionTerminationManager != nil {
+		e.connectionTerminationManager.ConfigureOptions(&options)
+	}
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -655,6 +680,10 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 			if mp, ok := protocol.(protocols.ModifierProvider); ok {
 				modifiers := mp.Modifiers()
 				e.Manager.EnabledModifiers = append(e.Manager.EnabledModifiers, modifiers...)
+			}
+
+			if mp, ok := protocol.(Registerer); ok {
+				mp.RegisterConnectionClosedCB(e.connectionTerminationManager)
 			}
 
 			log.Infof("%v monitoring enabled", protocol.Name())
