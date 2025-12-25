@@ -26,6 +26,5 @@ bazel:tests:macos-arm64:
 
 bazel:tests:windows-amd64:
   extends: [ .bazel:tests, .bazel:runner:windows-amd64 ]
-  variables:
-    POWERSHELL_SCRIPT: |-
-      bazel test //bazel/tests/...
+  script:
+    - bazelisk test //bazel/tests/...
