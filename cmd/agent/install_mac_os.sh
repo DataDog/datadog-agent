@@ -235,12 +235,15 @@ $systemwide_servicefile_name exists, suggesting a
 systemwide Agent installation is present. Individual users
 can't install the Agent when systemwide installation exists.
 
-If no systemwide installation is present or you want to remove it, run:
+To proceed, either:
+  1. Uninstall the system-wide agent first:
+     sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
+     sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
 
-    sudo launchctl unload -wF $systemwide_servicefile_name
-    sudo rm $systemwide_servicefile_name
+  2. Use system-wide installation instead:
+     DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=<user>:staff bash install_mac_os.sh
 
-Then rerun this script to install the Agent for your user account.
+Then rerun this script.
 \033[0m\n"
 
     exit 1;
@@ -463,6 +466,17 @@ else
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
     fi
+
+    # Clean up any pre-existing per-user GUI LaunchAgent
+    # These are installer-generated files (not user configs), safe to remove
+    per_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
+    if [ -f "$per_user_gui_plist" ]; then
+        printf "\033[34m    - Removing per-user GUI LaunchAgent (switching to system-wide)...\n\033[0m"
+        # Stop and unload if running
+        $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
+        rm -f "$per_user_gui_plist"
+    fi
+
     # move the plist file to the system location
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
     # make sure the daemon launches under proper user/group and that it has access
