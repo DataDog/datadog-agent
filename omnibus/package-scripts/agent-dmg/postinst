@@ -60,6 +60,42 @@ show_installation_error() {
     fi
 }
 
+# Stop any running GUI instances before installation/upgrade
+# This prevents "Load failed" errors when KeepAlive=true
+echo "# Stopping GUI app if running"
+INSTALL_USER_UID=$(id -u "$INSTALL_USER" 2>/dev/null)
+
+if [ -n "$INSTALL_USER_UID" ]; then
+    # Stop GUI for current user
+    launchctl bootout "gui/$INSTALL_USER_UID/com.datadoghq.gui" 2>/dev/null || true
+
+    # Stop GUI for all other logged-in users (system-wide installations)
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null)
+        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$INSTALL_USER_UID" ]; then
+            launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+        fi
+    done
+
+    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
+    max_wait=100  # 100 * 0.1s = 10 seconds
+    count=0
+    while [ $count -lt $max_wait ]; do
+        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+            echo "GUI app processes terminated"
+            break
+        fi
+        sleep 0.1
+        count=$((count + 1))
+    done
+
+    if [ $count -ge $max_wait ]; then
+        echo "Warning: GUI processes still running after 10s, proceeding anyway"
+    fi
+else
+    echo "Could not determine user UID, skipping GUI stop"
+fi
+
 echo "# Preparing log dir"
 chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
 
@@ -132,6 +168,9 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
   chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 
+  # Clean up marker file (no longer needed after configuration)
+  rm -rf /tmp/install-ddagent
+
   # Inform about GUI and location permission
   echo ""
   echo "=========================================="
@@ -166,6 +205,10 @@ To fix:
    Then reinstall DMG."
       exit 1
   fi
+
+  # Clean up stale system-wide marker if present (prevents headless mode in per-user install)
+  # Only reached if no system-wide installation detected above
+  rm -rf /tmp/install-ddagent
 
   # Error if app not properly installed or root
   if [ "$INSTALL_USER" = "root" ]; then

@@ -404,6 +404,38 @@ if [ -f "$sysprobe_servicefile_name" ]; then
     $sudo_cmd rm -f "${sysprobe_servicefile_name}"
 fi
 
+# Stop GUI app before installation/upgrade (handles both per-user and system-wide modes)
+# In system-wide mode, GUI runs for each logged-in user; we need to stop all instances
+if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
+    printf "\033[34m\n    - Stopping GUI app ...\n\033[0m"
+
+    # Method 1: Try current user (most common case)
+    $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
+
+    # Method 2: Try all logged-in users (multi-user system-wide installations)
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null)
+        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$user_uid" ]; then
+            $sudo_cmd launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+        fi
+    done
+
+    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
+    max_wait=100  # 100 * 0.1s = 10 seconds
+    count=0
+    while [ $count -lt $max_wait ]; do
+        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+        count=$((count + 1))
+    done
+
+    if [ $count -ge $max_wait ]; then
+        printf "\033[33m    Warning: GUI processes still running after 10s, proceeding anyway\033[0m\n"
+    fi
+fi
+
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
