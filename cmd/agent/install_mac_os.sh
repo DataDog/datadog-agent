@@ -457,10 +457,12 @@ function cleanup_all_per_user_installations() {
             continue
         fi
 
-        local username=$(basename "$user_home")
+        local username
+        username=$(basename "$user_home")
 
         # Get user UID
-        local user_uid_check=$(id -u "$username" 2>/dev/null)
+        local user_uid_check
+        user_uid_check=$(id -u "$username" 2>/dev/null)
 
         # Skip if:
         # - User doesn't exist
