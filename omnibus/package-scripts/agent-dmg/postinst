@@ -42,6 +42,24 @@ if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
 fi
 echo "INSTALL_USER: $INSTALL_USER"
 
+# Function to show error based on installation method
+show_installation_error() {
+    local message="$1"
+    
+    # Always log to postinstall.log
+    echo "ERROR: $message"
+    
+    # Check if this is a GUI installation (CoreServices/Installer running)
+    if ps aux | grep "CoreServices/Installer" | grep -v grep > /dev/null 2>&1; then
+        # GUI installation - show dialog box
+        # Run as INSTALL_USER to display in their session
+        sudo -u "$INSTALL_USER" osascript -e "display dialog \"$message\" buttons {\"OK\"} default button \"OK\" with title \"Datadog Agent Installation Error\" with icon stop" 2>/dev/null || true
+    else
+        # Command-line installation - print to stderr for console visibility
+        echo "$message" >&2
+    fi
+}
+
 echo "# Preparing log dir"
 chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
 
@@ -130,6 +148,24 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
 else
   # Per-user installation: Install GUI for current user
   echo "# Configuring GUI for per-user installation"
+
+  # Check if system-wide installation exists
+  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
+      show_installation_error "System-wide Datadog Agent detected.
+
+Cannot install per-user agent over system-wide installation.
+
+To fix:
+1. Uninstall system-wide agent:
+   sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
+   sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
+
+2. Or install as system-wide:
+   mkdir -p /tmp/install-ddagent
+   touch /tmp/install-ddagent/system-wide
+   Then reinstall DMG."
+      exit 1
+  fi
 
   # Error if app not properly installed or root
   if [ "$INSTALL_USER" = "root" ]; then
