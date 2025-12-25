@@ -784,9 +784,28 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
+		var cmd *exec.Cmd
+		defer func() {
+			if cmd != nil && cmd.Process != nil {
+				// Kill the entire process group to avoid zombies
+				pgid := cmd.Process.Pid
+				_ = syscall.Kill(-pgid, syscall.SIGKILL)
+				// Wait to clean up the main process
+				_ = cmd.Wait()
+			}
+		}()
+
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
-			return cmd.Run()
+			cmd = exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
+			// Create a new process group so we can kill all children
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setpgid: true,
+			}
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+			// Don't wait here, let the defer handle cleanup
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_tty")
 			assertFieldEqual(t, event, "process.file.path", syscallTester)
