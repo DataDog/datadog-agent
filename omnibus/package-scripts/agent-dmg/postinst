@@ -50,7 +50,7 @@ show_installation_error() {
     echo "ERROR: $message"
     
     # Check if this is a GUI installation (CoreServices/Installer running)
-    if ps aux | grep "CoreServices/Installer" | grep -v grep > /dev/null 2>&1; then
+    if pgrep -f "CoreServices/Installer" > /dev/null 2>&1; then
         # GUI installation - show dialog box
         # Run as INSTALL_USER to display in their session
         sudo -u "$INSTALL_USER" osascript -e "display dialog \"$message\" buttons {\"OK\"} default button \"OK\" with title \"Datadog Agent Installation Error\" with icon stop" 2>/dev/null || true
