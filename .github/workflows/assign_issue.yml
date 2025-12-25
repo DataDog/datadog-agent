@@ -97,7 +97,7 @@ jobs:
     - name: Intelligent Issue Triage
       if: steps.check-secret.outputs.found == 'false'
       id: claude
-      uses: anthropics/claude-code-action@ac1a3207f3f00b4a37e2f3a6f0935733c7c64651 # v1.0.0
+      uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.0
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         claude_args : --allowedTools "Read,Write"
