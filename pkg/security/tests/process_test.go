@@ -1446,7 +1446,7 @@ func TestProcessExecExit(t *testing.T) {
 	var execPid uint32
 	var nsID uint64
 
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 		return cmd.Run()
 	}, func(event *model.Event) bool {

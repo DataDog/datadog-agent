@@ -71,7 +71,7 @@ func TestNetDevice(t *testing.T) {
 	// those tests are dependend on each other, they can't be run in isolation
 
 	// register_netdevice
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		cmd := exec.Command(executable, "netns", "add", "test_netns")
 		if err = cmd.Run(); err != nil {
 			return err
@@ -102,7 +102,7 @@ func TestNetDevice(t *testing.T) {
 	}
 
 	// veth_newlink
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -124,7 +124,7 @@ func TestNetDevice(t *testing.T) {
 	}
 
 	// veth_newlink_dev_change_netns
-	err = test.GetProbeEvent(func() error {
+	err = test.GetProbeEvent(t, func() error {
 		cmd := exec.Command(executable, "link", "add", "host-eth1", "type", "veth", "peer", "name", "ns-eth1")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("couldn't create veth pair (out=%s): %w", string(out), err)

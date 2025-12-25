@@ -147,7 +147,7 @@ func TestDNSResponseDiscarder(t *testing.T) {
 	defer justBind().Close()
 
 	t.Run("noerror-packet-is-discarded", func(_ *testing.T) {
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			// Send packet with rcode NOERROR, but the rule expects NODOMAIN, therefore it should be discarded
 			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
 			err = injectHexDump("lo", hexDump)

@@ -94,7 +94,7 @@ func TestMoveMount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("move-detached-no-propagation", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			err = unix.MoveMount(fsmountfd, "", unix.AT_FDCWD, submountDir, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err != nil {
 				t.Fatal("Could not move mount: ", err)
@@ -256,7 +256,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	defer test.Close()
 
 	t.Run("moved-attached-recursive-no-propagation", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			err = unix.MoveMount(te.fsmountfd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 			if err == nil {
 				for i := 0; i != len(te.tounmount); i++ {
@@ -323,13 +323,13 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		defer unix.Close(fd)
 
 		// Drain any pending probe events (across all types)
-		if err := test.GetProbeEvent(nil, func(_ *model.Event) bool { return false }, 1000*time.Millisecond); err != nil {
+		if err := test.GetProbeEvent(t, nil, func(_ *model.Event) bool { return false }, 1000*time.Millisecond); err != nil {
 			if _, ok := err.(ErrTimeout); !ok {
 				t.Fatal(err)
 			}
 		}
 
-		err = test.GetProbeEvent(func() error {
+		err = test.GetProbeEvent(t, func() error {
 			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 
 			if err != nil {
