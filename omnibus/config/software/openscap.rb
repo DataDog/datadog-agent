@@ -22,6 +22,7 @@ build do
     " #{install_dir}/embedded/lib/libacl.so"
 end
 
+# Next step, fold the migrated steps into pkg_install ones in the build_block
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
