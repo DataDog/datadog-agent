@@ -8,7 +8,6 @@ package stats
 
 import (
 	"maps"
-	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +26,22 @@ const (
 	runCheckFailureTag = "fail"
 	runCheckSuccessTag = "ok"
 )
+
+// formatUint64 formats a uint64 as a decimal string without importing strconv
+// to reduce binary size. This is a minimal implementation for the common case.
+func formatUint64(n uint64) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte // max uint64 is 20 digits
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
 
 // EventPlatformNameTranslations contains human readable translations for event platform event types
 var EventPlatformNameTranslations = map[string]string{
@@ -291,10 +306,12 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	}
 
 	// Build context for the issue report
+	// Format totalErrors without importing strconv to reduce binary size
+	totalErrorsStr := formatUint64(cs.TotalErrors)
 	context := map[string]string{
 		"checkName":    cs.CheckName,
 		"errorMessage": err.Error(),
-		"totalErrors":  strconv.FormatUint(cs.TotalErrors, 10),
+		"totalErrors":  totalErrorsStr,
 		"configSource": cs.CheckConfigSource,
 		"checkVersion": cs.CheckVersion,
 	}

@@ -83,12 +83,11 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 	)
 
 	if checkVersion != "" {
-		var verStep []byte
-		verStep = append(verStep, "Check known issues for version "...)
-		verStep = append(verStep, checkVersion...)
+		// Build version step string directly without intermediate byte slice
+		verStepText := "Check known issues for version " + checkVersion
 		steps = append(steps, healthplatform.RemediationStep{
 			Order: len(steps) + 1,
-			Text:  string(verStep),
+			Text:  verStepText,
 		})
 	}
 
