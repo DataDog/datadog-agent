@@ -56,6 +56,7 @@ func (p *dockerStreamFormat) SupportsPartialLine() bool {
 
 func parseDockerStream(msg *message.Message, containerID string) (*message.Message, error) {
 	content := msg.GetContent()
+	stream := ""
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
@@ -75,6 +76,13 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 		status = message.StatusInfo
 
 	} else {
+		// Derive stream tag from header byte: 1 -> stdout, 2 -> stderr
+		switch content[0] {
+		case 1:
+			stream = "stdout"
+		case 2:
+			stream = "stderr"
+		}
 
 		// remove partial headers that are added by docker when the message gets too long
 		if len(content) > dockerBufferSize {
@@ -102,6 +110,10 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	msg.SetContent(content[idx+1:])
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = false
+	// Add a tag for the stream when deducible from the header byte
+	if stream != "" {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+	}
 	return msg, nil
 }
 
