@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -261,40 +262,48 @@ func parseTCPState(hexState string) string {
 }
 
 // mapInodestoProcesses maps socket inodes to PIDs
+// Optimized to iterate processes first, then their FDs (instead of globbing all FDs at once)
 func mapInodestoProcesses() map[uint64]int32 {
 	inodeMap := make(map[uint64]int32)
 
-	// Iterate through /proc/*/fd/*
-	procs, err := filepath.Glob("/proc/[0-9]*/fd/*")
+	// Get all process directories
+	procDirs, err := filepath.Glob(kernel.HostProc("[0-9]*"))
 	if err != nil {
 		return inodeMap
 	}
 
-	for _, fdPath := range procs {
-		// Read symlink target
-		target, err := os.Readlink(fdPath)
+	for _, procDir := range procDirs {
+		// Extract PID from directory name
+		pidStr := filepath.Base(procDir)
+		pid, err := strconv.ParseInt(pidStr, 10, 32)
 		if err != nil {
 			continue
 		}
 
-		// Check if it's a socket
-		if strings.HasPrefix(target, "socket:[") {
-			// Extract inode
-			inodeStr := strings.TrimPrefix(target, "socket:[")
-			inodeStr = strings.TrimSuffix(inodeStr, "]")
-			inode, err := strconv.ParseUint(inodeStr, 10, 64)
+		// Read FDs for this process
+		fdDir := filepath.Join(procDir, "fd")
+		fds, err := os.ReadDir(fdDir)
+		if err != nil {
+			continue
+		}
+
+		for _, fd := range fds {
+			fdPath := filepath.Join(fdDir, fd.Name())
+			target, err := os.Readlink(fdPath)
 			if err != nil {
 				continue
 			}
 
-			// Extract PID from path
-			parts := strings.Split(fdPath, "/")
-			if len(parts) >= 3 {
-				pidStr := parts[2]
-				pid, err := strconv.ParseInt(pidStr, 10, 32)
-				if err == nil {
-					inodeMap[inode] = int32(pid)
+			// Check if it's a socket
+			if strings.HasPrefix(target, "socket:[") {
+				// Extract inode
+				inodeStr := strings.TrimPrefix(target, "socket:[")
+				inodeStr = strings.TrimSuffix(inodeStr, "]")
+				inode, err := strconv.ParseUint(inodeStr, 10, 64)
+				if err != nil {
+					continue
 				}
+				inodeMap[inode] = int32(pid)
 			}
 		}
 	}
@@ -304,7 +313,8 @@ func mapInodestoProcesses() map[uint64]int32 {
 
 // getProcessName reads the process name from /proc/PID/comm
 func getProcessName(pid int32) string {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid))
+	commPath := kernel.HostProc(strconv.Itoa(int(pid)), "comm")
+	data, err := os.ReadFile(commPath)
 	if err != nil {
 		return "?"
 	}
