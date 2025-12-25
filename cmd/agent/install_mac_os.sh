@@ -229,19 +229,60 @@ if [ ! "$apikey" ]; then
     fi
 fi
 
+# Deprecation warning for per-user installations
+if [ "$systemdaemon_install" = false ] && [ ! "$upgrade" ]; then
+    printf "\033[33m
+================================================================================
+WARNING: Per-User Installation Mode
+================================================================================
+Per-user installations may be deprecated in the future.
+We recommend using system-wide installation instead going forward.
+
+    DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=<user>:staff \\
+        bash install_mac_os.sh
+
+System-wide installation provides:
+  - Better multi-user support
+  - Consistent behavior across user sessions
+  - Improved security and resource management
+
+Continuing with per-user installation in 10 seconds...
+Press Ctrl+C to cancel and switch to system-wide installation.
+================================================================================
+\033[0m\n"
+    sleep 10
+fi
+
 if [ "$systemdaemon_install" == false ] && [ -f "$systemwide_servicefile_name" ]; then
     printf "\033[31m
 $systemwide_servicefile_name exists, suggesting a
 systemwide Agent installation is present. Individual users
 can't install the Agent when systemwide installation exists.
 
-To proceed, either:
-  1. Uninstall the system-wide agent first:
-     sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
-     sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
+To proceed, uninstall the system-wide agent first:
+    sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 
-  2. Use system-wide installation instead:
-     DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=<user>:staff bash install_mac_os.sh
+Then rerun this script.
+\033[0m\n"
+
+    exit 1;
+fi
+
+# Check for system-wide GUI installation (from partial/failed installations)
+if [ "$systemdaemon_install" == false ] && [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
+    printf "\033[31m
+System-wide GUI installation detected at:
+    /Library/LaunchAgents/com.datadoghq.gui.plist
+
+This may be from a partial or incomplete system-wide installation.
+Cannot proceed with per-user installation.
+
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 
 Then rerun this script.
 \033[0m\n"
@@ -358,6 +399,117 @@ function plist_modify_user_group() {
     $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
 
+# Function: cleanup_per_user_installation
+# Description: Removes per-user Datadog Agent and GUI LaunchAgent plists
+# Arguments:
+#   $1 - username (the user whose installation to clean up)
+#   $2 - user_home (the user's home directory path)
+#   $3 - user_uid (the user's UID)
+# Returns: 0 on success
+function cleanup_per_user_installation() {
+    local username="$1"
+    local user_home="$2"
+    local uid="$3"
+    local cleaned=false
+
+    # Check and remove per-user agent plist
+    local agent_plist="$user_home/Library/LaunchAgents/com.datadoghq.agent.plist"
+    if [ -f "$agent_plist" ]; then
+        printf "\033[33m      - Removing per-user agent for user '%s'...\n\033[0m" "$username"
+        # Try to bootout if user is logged in (graceful stop)
+        $sudo_cmd launchctl bootout "gui/$uid/com.datadoghq.agent" 2>/dev/null || true
+        rm -f "$agent_plist"
+        cleaned=true
+    fi
+
+    # Check and remove per-user GUI plist
+    local gui_plist="$user_home/Library/LaunchAgents/com.datadoghq.gui.plist"
+    if [ -f "$gui_plist" ]; then
+        printf "\033[33m      - Removing per-user GUI for user '%s'...\n\033[0m" "$username"
+        # Try to bootout if user is logged in (graceful stop)
+        $sudo_cmd launchctl bootout "gui/$uid/com.datadoghq.gui" 2>/dev/null || true
+        rm -f "$gui_plist"
+        cleaned=true
+    fi
+
+    if [ "$cleaned" = true ]; then
+        printf "\033[32m      ✓ Cleaned up per-user installation for user '%s'\n\033[0m" "$username"
+    fi
+
+    return 0
+}
+
+# Function: cleanup_all_per_user_installations
+# Description: Iterates through all user home directories and removes per-user installations
+# This prevents conflicts when system-wide installation is performed
+# Arguments: None
+# Returns: 0 on success
+function cleanup_all_per_user_installations() {
+    printf "\033[34m    - Cleaning up per-user installations for all users...\n\033[0m"
+
+    local found_installations=false
+    local current_install_uid="$user_uid"
+
+    # Iterate through all user home directories
+    for user_home in /Users/*; do
+        # Skip if not a directory or doesn't have Library folder
+        if [ ! -d "$user_home" ] || [ ! -d "$user_home/Library" ]; then
+            continue
+        fi
+
+        local username=$(basename "$user_home")
+
+        # Get user UID
+        local user_uid_check=$(id -u "$username" 2>/dev/null)
+
+        # Skip if:
+        # - User doesn't exist
+        # - UID < 500 (system accounts)
+        # - Is the currently installing user (their plist will be moved to system location)
+        if [ -z "$user_uid_check" ] || [ "$user_uid_check" -lt 500 ] || [ "$user_uid_check" = "$current_install_uid" ]; then
+            continue
+        fi
+
+        # Check if this user has per-user installations
+        if [ -f "$user_home/Library/LaunchAgents/com.datadoghq.agent.plist" ] || \
+           [ -f "$user_home/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
+            found_installations=true
+            cleanup_per_user_installation "$username" "$user_home" "$user_uid_check"
+        fi
+    done
+
+    if [ "$found_installations" = false ]; then
+        printf "\033[34m    - No per-user installations found in other user accounts\n\033[0m"
+    else
+        printf "\033[32m    ✓ All per-user installations cleaned up\n\033[0m"
+    fi
+
+    return 0
+}
+
+# Function: cleanup_stale_sockets
+# Description: Removes stale GUI socket files from the run directory
+# This prevents "Address already in use" errors during reinstallation
+# Should be called after GUI processes are confirmed stopped
+# Arguments: None
+# Returns: 0 on success
+function cleanup_stale_sockets() {
+    if [ ! -d "$run_dir" ]; then
+        # Run directory doesn't exist, nothing to clean
+        return 0
+    fi
+
+    # Check if any socket files exist
+    local socket_files=("$run_dir"/gui-*.sock)
+    if [ -e "${socket_files[0]}" ]; then
+        printf "\033[34m    - Cleaning up stale socket files...\n\033[0m"
+        $sudo_cmd rm -f "$run_dir"/gui-*.sock
+        printf "\033[32m      ✓ Stale sockets removed\n\033[0m"
+    fi
+
+    return 0
+}
+
 # Determine agent flavor to install
 if [ -z "$agent_dist_channel" ]; then
     dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
@@ -434,6 +586,9 @@ if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.pl
     if [ $count -ge $max_wait ]; then
         printf "\033[33m    Warning: GUI processes still running after 10s, proceeding anyway\033[0m\n"
     fi
+
+    # Clean up stale socket files to prevent binding conflicts
+    cleanup_stale_sockets
 fi
 
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
@@ -499,15 +654,17 @@ else
         $cmd_launchctl unload "$user_plist_file"
     fi
 
-    # Clean up any pre-existing per-user GUI LaunchAgent
-    # These are installer-generated files (not user configs), safe to remove
-    per_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
-    if [ -f "$per_user_gui_plist" ]; then
-        printf "\033[34m    - Removing per-user GUI LaunchAgent (switching to system-wide)...\n\033[0m"
-        # Stop and unload if running
-        $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-        rm -f "$per_user_gui_plist"
+    # Clean up installing user's per-user GUI plist (if exists from previous per-user installation)
+    installing_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
+    if [ -f "$installing_user_gui_plist" ]; then
+        printf "\033[34m    - Removing installing user's per-user GUI plist...\n\033[0m"
+        rm -f "$installing_user_gui_plist"
+        printf "\033[32m      ✓ Per-user GUI plist removed\n\033[0m"
     fi
+
+    # Clean up per-user installations for ALL users on the system
+    # This prevents conflicts when other users log in after system-wide installation
+    cleanup_all_per_user_installations
 
     # move the plist file to the system location
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/

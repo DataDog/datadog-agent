@@ -190,19 +190,17 @@ else
 
   # Check if system-wide installation exists
   if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
-      show_installation_error "System-wide Datadog Agent detected.
+      show_installation_error "System-wide agent installation detected at:
+    /Library/LaunchDaemons/com.datadoghq.agent.plist
 
-Cannot install per-user agent over system-wide installation.
+Cannot proceed with per-user installation.
 
-To fix:
-1. Uninstall system-wide agent:
-   sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
-   sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 
-2. Or install as system-wide:
-   mkdir -p /tmp/install-ddagent
-   touch /tmp/install-ddagent/system-wide
-   Then reinstall DMG."
+Then rerun this installation."
       exit 1
   fi
 
