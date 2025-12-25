@@ -8,11 +8,12 @@
 package usm
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -32,6 +34,20 @@ const (
 	defaultMaxNameLength    = 25
 	defaultMaxServiceLength = 20
 	maxLanguageLength       = 12 // Maximum width for language column to maintain table alignment
+
+	// Environment variable names
+	envDDService = "DD_SERVICE"
+	envDDTags    = "DD_TAGS"
+	tagService   = "service:"
+
+	// Proc filesystem paths
+	procEnviron = "environ"
+
+	// Service context prefix
+	processContextPrefix = "process_context:"
+
+	// Special characters
+	nullByte = '\x00'
 )
 
 // makeSysinfoCommand returns the "usm sysinfo" cobra command.
@@ -141,7 +157,7 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 			// Then get the generated service name from ServiceExtractor
 			if serviceContext := serviceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
 				// Service context is in format "process_context:servicename", extract just the name
-				serviceName := strings.TrimPrefix(serviceContext[0], "process_context:")
+				serviceName := strings.TrimPrefix(serviceContext[0], processContextPrefix)
 				if svc == nil {
 					svc = &procutil.Service{}
 				}
@@ -246,42 +262,74 @@ func formatCmdline(args []string) string {
 	return builder.String()
 }
 
-// extractDDServiceFromProc reads DD_SERVICE from /proc/PID/environ
-// Optimized to only search for DD_SERVICE and DD_TAGS without loading all env vars
+// extractDDServiceFromProc reads DD_SERVICE from /proc/PID/environ using the service discovery infrastructure
+// This mirrors the approach from pkg/collector/corechecks/servicediscovery/module/envs.go
 func extractDDServiceFromProc(pid int32) string {
-	environPath := fmt.Sprintf("/proc/%d/environ", pid)
-	data, err := os.ReadFile(environPath)
+	targetEnvs, err := getTargetEnvs(pid)
 	if err != nil {
 		return ""
 	}
 
-	// Search directly in the byte slice for DD_SERVICE= or DD_TAGS=
-	ddServicePrefix := []byte("DD_SERVICE=")
-	ddTagsPrefix := []byte("DD_TAGS=")
-	servicePrefix := []byte("service:")
+	// Check DD_SERVICE first
+	if ddService, ok := targetEnvs.Get(envDDService); ok && ddService != "" {
+		return ddService
+	}
 
-	// Split on null bytes and search for our env vars
-	envVars := bytes.Split(data, []byte{0})
-	for _, env := range envVars {
-		if bytes.HasPrefix(env, ddServicePrefix) {
-			svc := string(bytes.TrimPrefix(env, ddServicePrefix))
-			if len(svc) > 0 {
-				return svc
-			}
-		}
-		if bytes.HasPrefix(env, ddTagsPrefix) && bytes.Contains(env, servicePrefix) {
-			// Parse DD_TAGS=...,service:value,...
-			tagsValue := bytes.TrimPrefix(env, ddTagsPrefix)
-			parts := bytes.Split(tagsValue, []byte{','})
-			for _, p := range parts {
-				if bytes.HasPrefix(p, servicePrefix) {
-					svc := string(bytes.TrimPrefix(p, servicePrefix))
-					if len(svc) > 0 {
-						return svc
-					}
+	// Check DD_TAGS for service:value
+	if ddTags, ok := targetEnvs.Get(envDDTags); ok {
+		parts := strings.Split(ddTags, ",")
+		for _, p := range parts {
+			if strings.HasPrefix(p, tagService) {
+				svc := strings.TrimPrefix(p, tagService)
+				if svc != "" {
+					return svc
 				}
 			}
 		}
 	}
+
 	return ""
+}
+
+// zeroSplitter is a bufio.SplitFunc that splits on null bytes
+func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i := 0; i < len(data); i++ {
+		if data[i] == nullByte {
+			return i + 1, data[:i], nil
+		}
+	}
+	if !atEOF {
+		return 0, nil, nil
+	}
+	return 0, data, bufio.ErrFinalToken
+}
+
+// getTargetEnvs reads target environment variables from /proc/PID/environ
+// This follows the pattern from pkg/collector/corechecks/servicediscovery/module/envs.go
+func getTargetEnvs(pid int32) (envs.Variables, error) {
+	// Use kernel.HostProc for proper path construction (handles different proc filesystem mounts)
+	environPath := kernel.HostProc(strconv.Itoa(int(pid)), procEnviron)
+	file, err := os.Open(environPath)
+	if err != nil {
+		return envs.Variables{}, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(zeroSplitter)
+
+	var targetEnvs envs.Variables
+	for scanner.Scan() {
+		env := scanner.Text()
+		name, val, found := strings.Cut(env, "=")
+		if found {
+			targetEnvs.Set(name, val)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return envs.Variables{}, err
+	}
+
+	return targetEnvs, nil
 }

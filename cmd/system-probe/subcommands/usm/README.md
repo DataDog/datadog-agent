@@ -81,6 +81,48 @@ PID     | PPID    | Name                      | Service              | Language 
 ```
 
 
+### `usm netstat`
+
+Shows network connections similar to `netstat -antpu`. Displays TCP and UDP connections with process information.
+
+**Usage:**
+```bash
+sudo ./system-probe usm netstat                    # Show all TCP and UDP connections
+sudo ./system-probe usm netstat --tcp=false        # Show only UDP connections
+sudo ./system-probe usm netstat --udp=false        # Show only TCP connections
+sudo ./system-probe usm netstat --listening        # Show only listening sockets
+sudo ./system-probe usm netstat -l                 # Short form for --listening
+```
+
+**Options:**
+- `--tcp` / `-t` - Show TCP connections (default: true)
+- `--udp` / `-u` - Show UDP connections (default: true)
+- `--listening` / `-l` - Show only listening sockets (default: false)
+
+**Output:**
+- Protocol (tcp, tcp6, udp, udp6)
+- Local address and port
+- Remote address and port
+- Connection state (ESTABLISHED, LISTEN, etc. for TCP)
+- PID and process name
+
+**Output Example:**
+```
+Proto | Local Address           | Foreign Address         | State       | PID/Program
+------|-------------------------|-------------------------|-------------|------------------
+tcp   | 0.0.0.0:22             | 0.0.0.0:0              | LISTEN      | 1234/sshd
+tcp   | 127.0.0.1:8080         | 127.0.0.1:45678        | ESTABLISHED | 5678/python
+tcp6  | :::80                  | :::0                   | LISTEN      | 9012/nginx
+udp   | 0.0.0.0:53             | 0.0.0.0:0              |             | 3456/systemd-resolved
+```
+
+**Use Cases:**
+- Debug USM connectivity issues
+- Verify which processes are listening on ports
+- Check established connections for monitored services
+- Identify which processes own specific network connections
+- Troubleshoot port conflicts
+
 ### `usm symbols ls`
 
 Lists symbols from ELF binaries, similar to the Unix `nm` utility. Useful for analyzing symbol visibility, library versions, and linkage in monitored applications.
@@ -179,6 +221,16 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 - Output truncates long process names (default 25 chars), service names (default 20 chars), and command lines (default 50 chars) for readability
 - All truncation limits are configurable via flags
 - Use `--max-cmdline-length 0`, `--max-name-length 0`, and `--max-service-length 0` for unlimited display
+
+### Netstat Command
+- Reads connection information from `/proc/net/tcp`, `/proc/net/tcp6`, `/proc/net/udp`, `/proc/net/udp6`
+- Maps socket inodes to processes by reading `/proc/*/fd/*` symlinks
+- Parses hexadecimal IP addresses and ports to human-readable format
+- Shows TCP connection states (ESTABLISHED, LISTEN, TIME_WAIT, etc.)
+- Filters connections based on protocol flags (`--tcp`, `--udp`)
+- Supports filtering for listening sockets only (`--listening`)
+- Connections sorted by protocol and local port
+- Linux-only implementation (returns nil on other platforms)
 
 ### Symbols Ls Command
 - Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading
