@@ -72,7 +72,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProbe(enabled, netDevQueue)
+			if !c.DontAttachNetDevQueueProbe {
+				enableProbe(enabled, netDevQueue)
+			}
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
@@ -82,8 +84,10 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 			enableProbe(enabled, probes.TCPSendPageReturn)
 		}
 		// 5.19: remove noblock parameter in *_recvmsg https://github.com/torvalds/linux/commit/ec095263a965720e1ca39db1d9c5cd47846c789b
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre5190, kv5190), probes.TCPRecvMsgPre410, kv410))
-		enableProbe(enabled, probes.TCPRecvMsgReturn)
+		if !c.DontAttachTCPRecvMsgProbes {
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre5190, kv5190), probes.TCPRecvMsgPre410, kv410))
+			enableProbe(enabled, probes.TCPRecvMsgReturn)
+		}
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)

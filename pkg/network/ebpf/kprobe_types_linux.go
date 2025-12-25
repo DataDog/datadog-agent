@@ -59,20 +59,39 @@ type Batch struct {
 	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_sent_miscounts              uint64
-	Unbatched_tcp_close             uint64
-	Unbatched_udp_close             uint64
-	Udp_sends_processed             uint64
-	Udp_sends_missed                uint64
-	Udp_dropped_conns               uint64
-	Tcp_done_missing_pid            uint64
-	Tcp_connect_failed_tuple        uint64
-	Tcp_done_failed_tuple           uint64
-	Tcp_finish_connect_failed_tuple uint64
-	Tcp_close_target_failures       uint64
-	Tcp_done_connection_flush       uint64
-	Tcp_close_connection_flush      uint64
-	Tcp_syn_retransmit              uint64
+	Tcp_sent_miscounts                        uint64
+	Unbatched_tcp_close                       uint64
+	Unbatched_udp_close                       uint64
+	Udp_sends_processed                       uint64
+	Udp_sends_missed                          uint64
+	Udp_dropped_conns                         uint64
+	Tcp_done_missing_pid                      uint64
+	Tcp_connect_failed_tuple                  uint64
+	Tcp_done_failed_tuple                     uint64
+	Tcp_finish_connect_failed_tuple           uint64
+	Tcp_close_target_failures                 uint64
+	Tcp_done_connection_flush                 uint64
+	Tcp_close_connection_flush                uint64
+	Tcp_syn_retransmit                        uint64
+	Tcp_recvmsg_kprobe_args_calls             uint64
+	Tcp_recvmsg_kprobe_args_time_ns           uint64
+	Tcp_recvmsg_kprobe_map_update_calls       uint64
+	Tcp_recvmsg_kprobe_map_update_time_ns     uint64
+	Tcp_recvmsg_kretprobe_map_lookup_calls    uint64
+	Tcp_recvmsg_kretprobe_map_lookup_time_ns  uint64
+	Tcp_recvmsg_kretprobe_map_delete_calls    uint64
+	Tcp_recvmsg_kretprobe_map_delete_time_ns  uint64
+	Tcp_recvmsg_kretprobe_handle_recv_calls   uint64
+	Tcp_recvmsg_kretprobe_handle_recv_time_ns uint64
+	Net_dev_queue_calls                       uint64
+	Net_dev_queue_skb_to_tuple_calls          uint64
+	Net_dev_queue_skb_to_tuple_time_ns        uint64
+	Net_dev_queue_read_conn_tuple_calls       uint64
+	Net_dev_queue_read_conn_tuple_time_ns     uint64
+	Net_dev_queue_is_equal_calls              uint64
+	Net_dev_queue_is_equal_time_ns            uint64
+	Net_dev_queue_not_equal_calls             uint64
+	Net_dev_queue_not_equal_time_ns           uint64
 }
 type PortBinding struct {
 	Netns     uint32

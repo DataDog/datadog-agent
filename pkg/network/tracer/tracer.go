@@ -170,13 +170,15 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if err != nil {
 		return nil, err
 	}
-	telemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
+	log.Debugf("[TELEMETRY-DEBUG] Registering ebpfTracer collector with telemetryComponent")
+	telemetryComponent.RegisterCollector(tr.ebpfTracer)
+	log.Debugf("[TELEMETRY-DEBUG] ebpfTracer collector registered successfully")
 
 	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
-	telemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
+	telemetryComponent.RegisterCollector(tr.conntracker)
 
 	if cfg.EnableGatewayLookup {
 		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
@@ -208,7 +210,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
+		telemetryComponent.RegisterCollector(tr.processCache)
 
 		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
@@ -411,7 +413,7 @@ func (t *Tracer) Stop() {
 	}
 	if t.ebpfTracer != nil {
 		t.ebpfTracer.Stop()
-		telemetry.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
+		t.telemetryComp.UnregisterCollector(t.ebpfTracer)
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
@@ -421,12 +423,12 @@ func (t *Tracer) Stop() {
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
-		telemetry.GetCompatComponent().UnregisterCollector(t.conntracker)
+		t.telemetryComp.UnregisterCollector(t.conntracker)
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
-		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
+		t.telemetryComp.UnregisterCollector(t.processCache)
 	}
 	if t.containerStore != nil {
 		events.UnregisterHandler(t.containerStore)
