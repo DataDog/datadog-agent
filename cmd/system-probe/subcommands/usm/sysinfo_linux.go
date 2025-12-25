@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"runtime"
@@ -128,12 +129,27 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 
 		// Populate Service field for each process
 		for _, proc := range procList {
+			var svc *procutil.Service
+
+			// First, try to extract DD_SERVICE from process environment variables
+			if ddService := extractDDServiceFromProc(proc.Pid); ddService != "" {
+				svc = &procutil.Service{
+					DDService: ddService,
+				}
+			}
+
+			// Then get the generated service name from ServiceExtractor
 			if serviceContext := serviceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
 				// Service context is in format "process_context:servicename", extract just the name
 				serviceName := strings.TrimPrefix(serviceContext[0], "process_context:")
-				proc.Service = &procutil.Service{
-					GeneratedName: serviceName,
+				if svc == nil {
+					svc = &procutil.Service{}
 				}
+				svc.GeneratedName = serviceName
+			}
+
+			if svc != nil {
+				proc.Service = svc
 			}
 		}
 
@@ -196,9 +212,14 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 		}
 
 		// Format the service name from Process.Service field
+		// Prioritize DDService (from DD_SERVICE env var) over GeneratedName
 		serviceStr := "-"
-		if proc.Service != nil && proc.Service.GeneratedName != "" {
-			serviceStr = proc.Service.GeneratedName
+		if proc.Service != nil {
+			if proc.Service.DDService != "" {
+				serviceStr = proc.Service.DDService
+			} else if proc.Service.GeneratedName != "" {
+				serviceStr = proc.Service.GeneratedName
+			}
 		}
 		if maxServiceLength > 0 && len(serviceStr) > maxServiceLength {
 			serviceStr = serviceStr[:maxServiceLength-3] + "..."
@@ -223,4 +244,44 @@ func formatCmdline(args []string) string {
 		builder.WriteString(arg)
 	}
 	return builder.String()
+}
+
+// extractDDServiceFromProc reads DD_SERVICE from /proc/PID/environ
+// Optimized to only search for DD_SERVICE and DD_TAGS without loading all env vars
+func extractDDServiceFromProc(pid int32) string {
+	environPath := fmt.Sprintf("/proc/%d/environ", pid)
+	data, err := os.ReadFile(environPath)
+	if err != nil {
+		return ""
+	}
+
+	// Search directly in the byte slice for DD_SERVICE= or DD_TAGS=
+	ddServicePrefix := []byte("DD_SERVICE=")
+	ddTagsPrefix := []byte("DD_TAGS=")
+	servicePrefix := []byte("service:")
+
+	// Split on null bytes and search for our env vars
+	envVars := bytes.Split(data, []byte{0})
+	for _, env := range envVars {
+		if bytes.HasPrefix(env, ddServicePrefix) {
+			svc := string(bytes.TrimPrefix(env, ddServicePrefix))
+			if len(svc) > 0 {
+				return svc
+			}
+		}
+		if bytes.HasPrefix(env, ddTagsPrefix) && bytes.Contains(env, servicePrefix) {
+			// Parse DD_TAGS=...,service:value,...
+			tagsValue := bytes.TrimPrefix(env, ddTagsPrefix)
+			parts := bytes.Split(tagsValue, []byte{','})
+			for _, p := range parts {
+				if bytes.HasPrefix(p, servicePrefix) {
+					svc := string(bytes.TrimPrefix(p, servicePrefix))
+					if len(svc) > 0 {
+						return svc
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
