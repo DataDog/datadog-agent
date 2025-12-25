@@ -61,7 +61,7 @@ func makeNetstatCommand(globalParams *command.GlobalParams) *cobra.Command {
 		globalParams,
 		"netstat",
 		"Show network connections similar to netstat -antpu",
-		func(sysprobeconfig sysconfigcomponent.Component, params *command.GlobalParams) error {
+		func(_ sysconfigcomponent.Component, _ *command.GlobalParams) error {
 			return runNetstat(showTCP, showUDP, showListening)
 		},
 	)
@@ -170,9 +170,7 @@ func readProcNet(path, protocol string) ([]*NetConnection, error) {
 	scanner := bufio.NewScanner(file)
 
 	// Skip header line
-	if scanner.Scan() {
-		// header
-	}
+	scanner.Scan()
 
 	for scanner.Scan() {
 		line := scanner.Text()
