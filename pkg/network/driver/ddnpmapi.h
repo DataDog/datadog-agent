@@ -381,11 +381,6 @@ typedef struct filterPacketHeader
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP_BUFFER_SIZE 25
 
-// This controls the number of HTTP transactions read from userspace at a time
-#define HTTP_BATCH_SIZE 15
-
-#define HTTPS_PORT 443
-
 typedef enum _HttpPacketType {
     HTTP_PACKET_UNKNOWN = 0,
     HTTP_REQUEST,
