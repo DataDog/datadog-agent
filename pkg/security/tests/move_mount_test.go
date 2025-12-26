@@ -68,6 +68,9 @@ func TestMoveMount(t *testing.T) {
 	defer unix.Close(fsmountfd)
 
 	mountid, err := getMountID(mountDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
@@ -270,9 +273,9 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	})
 }
 
-func testMoveMountRecursivePropagation(t *testing.T) {
+func TestMoveMountRecursivePropagation(t *testing.T) {
 	t.Helper()
-	//SkipIfNotAvailable(t)
+	SkipIfNotAvailable(t)
 
 	// Docker messes up with the propagation
 	if testEnvironment == DockerEnvironment {
@@ -335,15 +338,14 @@ func testMoveMountRecursivePropagation(t *testing.T) {
 		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-		for i, _ := range allMounts {
-			path, src, origin, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+		for i := range allMounts {
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
 
 			if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
-			fmt.Printf("MountID: %d. Source=%d. Origin=%d\n", i, src, origin)
 
 			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
 		}
