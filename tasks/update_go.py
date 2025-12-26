@@ -67,16 +67,21 @@ def update_go(
     """
     import semver
 
+    original_version = version
+    if re.match(r'^\d+\.\d+rc\d+$', version):
+        version = version.split("rc", 1)[0]
+        version += ".0"
+
     if not semver.VersionInfo.isvalid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
-    current_version = _get_repo_go_version()
-    current_major_minor = _get_major_minor_version(current_version)
-    new_major_minor = _get_major_minor_version(version)
+    # current_version = _get_repo_go_version()
+    # current_major_minor = _get_major_minor_version(current_version)
+    # new_major_minor = _get_major_minor_version(version)
 
-    is_minor_update = current_major_minor != new_major_minor
-    if is_minor_update:
-        print(color_message("WARNING: this is a change of minor version\n", "orange"))
+    # is_minor_update = current_major_minor != new_major_minor
+    # if is_minor_update:
+    #     print(color_message("WARNING: this is a change of minor version\n", "orange"))
 
     if image_tag:
         try:
@@ -87,12 +92,12 @@ def update_go(
             else:
                 raise
 
-    _update_references(warn, version)
-    _update_go_mods(warn, version, include_otel_modules)
+    # _update_references(warn, original_version)
+    # _update_go_mods(warn, version, include_otel_modules)
 
     # check the installed go version before running tasks requiring the correct version
     res = ctx.run("go version")
-    if res and res.stdout.startswith(f"go version go{version} "):
+    if res and res.stdout.startswith(f"go version go{original_version} "):
         print("Updating the code in pkg/template...")
         generate(ctx)
         print("Running the tidy task...")
@@ -110,11 +115,11 @@ def update_go(
         print(
             f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
         )
-    if is_minor_update:
-        # Examples of minor updates with long descriptions:
-        # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
-        # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
-        print("In particular as this is a minor update, the release note should describe user-facing changes.")
+    # if is_minor_update:
+    #     # Examples of minor updates with long descriptions:
+    #     # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
+    #     # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
+    #     print("In particular as this is a minor update, the release note should describe user-facing changes.")
 
     print(
         color_message(
