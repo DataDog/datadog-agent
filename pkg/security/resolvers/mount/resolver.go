@@ -235,7 +235,7 @@ func (mr *Resolver) getAllChildren(mount *model.Mount) (map[uint32]*model.Mount,
 
 func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, mountList map[uint32]*model.Mount) error {
 	if _, existed := mountList[mount.MountID]; existed {
-		return fmt.Errorf("mount ID %d already visited – potential cycle detected", mount.MountID)
+		return nil
 	}
 	mountList[mount.MountID] = mount
 
