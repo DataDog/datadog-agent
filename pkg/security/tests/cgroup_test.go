@@ -478,3 +478,48 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	assert.NotNil(t, variables)
 	assert.Len(t, variables, 0)
 }
+
+func TestCGroupWriteEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_write_rule",
+			Expression: `cgroup_write.file.path != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	testFile, _, err := test.Path("test-cgroup-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerWrapper.Run(t, "cgroup-write-event", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_write_rule")
+			validateProcessContext(t, event)
+		})
+	})
+}

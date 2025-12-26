@@ -1593,6 +1593,14 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
 		// Second handle for exec event because the context is required to detect a ssh session
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		}
 	case model.ExecEventType:
 		p.HandleSSHUserSession(event)
 
@@ -1681,15 +1689,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			}
 
 			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-		}
-		return false
-	case model.CgroupWriteEventType:
-		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return false
-		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return false
 	case model.UnshareMountNsEventType:
