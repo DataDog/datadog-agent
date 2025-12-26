@@ -193,10 +193,10 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		AzureServerlessTags: azureTags.String(),
-		FunctionTags:        functionTags,
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		AdditionalProfileTags: azureTags.String(),
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

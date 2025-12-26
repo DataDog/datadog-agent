@@ -86,8 +86,9 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tags.WriteString(",orchestrator:fargate_" + strings.ToLower(string(orch)))
 	}
-	if r.conf.AzureServerlessTags != "" {
-		tags.WriteString(r.conf.AzureServerlessTags)
+	// Add any additional environment-identifying tags
+	if r.conf.AdditionalProfileTags != "" {
+		tags.WriteString(r.conf.AdditionalProfileTags)
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)

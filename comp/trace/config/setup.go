@@ -682,9 +682,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 
-	// Populate AzureServerlessTags when running in Azure App Services extension on Windows
+	// Populate AdditionalProfileTags when running in Azure App Services extension on Windows
 	if serverlessenv.IsAzureAppServicesExtension() {
-		c.AzureServerlessTags = traceutil.BuildAppServiceOriginTagForProfiles()
+		tags := traceutil.BuildAdditionalAppServiceProfileTags()
+		var sb strings.Builder
+		for k, v := range tags {
+			sb.WriteString(fmt.Sprintf(",%s:%s", k, v))
+		}
+		c.AdditionalProfileTags = sb.String()
 	}
 
 	return nil
