@@ -2,7 +2,6 @@
   needs: [ ]
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
-    BAZELISK_BASE_URL: "https://github.com/bazelbuild/bazel/releases/download" # Use GitHub as mirror for releases.bazel.build
 
 .bazel:defs:cache:ephemeral:
   extends: .bazel:defs
