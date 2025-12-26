@@ -99,12 +99,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface, dent
 	}
 
 	cleanup := func(cacheEntry *cgroupModel.CacheEntry) {
-		if cacheEntry.ContainerContext.Releasable != nil {
-			cacheEntry.ContainerContext.CallReleaseCallback()
-		}
-		if cacheEntry.CGroupContext.Releasable != nil {
-			cacheEntry.CGroupContext.CallReleaseCallback()
-		}
+		cacheEntry.CallReleaseCallbacks()
 		cacheEntry.SetAsDeleted()
 
 		cr.NotifyListeners(CGroupDeleted, cacheEntry)
@@ -143,10 +138,9 @@ func (cr *Resolver) Start(_ context.Context) {
 }
 
 func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
-	//cr.cgroups.Remove(cacheEntry.CGroupContext.CGroupFile.Inode)
-	cr.hostCacheEntries.Remove(cacheEntry.CGroupContext.CGroupID)
-	if !cacheEntry.ContainerContext.IsNull() {
-		cr.containerCacheEntries.Remove(cacheEntry.ContainerContext.ContainerID)
+	cr.hostCacheEntries.Remove(cacheEntry.GetCGroupID())
+	if !cacheEntry.IsContainerContextNull() {
+		cr.containerCacheEntries.Remove(cacheEntry.GetContainerID())
 	}
 	cr.deletedCgroups.Inc()
 }
@@ -157,7 +151,7 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 // Otherwise, sync it with new values.
 func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
 	// check if the cgroup still contains pids
-	pids, err := cr.cgroupFS.GetCGroupPids(string(cacheEntry.CGroupContext.CGroupID))
+	pids, err := cr.cgroupFS.GetCGroupPids(string(cacheEntry.GetCGroupID()))
 	if err != nil {
 		cr.removeCacheEntry(cacheEntry)
 		return
@@ -279,7 +273,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
 			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
 
-			return cr.pushNewCacheEntry(pid, cacheEntry.ContainerContext, cacheEntry.CGroupContext)
+			return cr.pushNewCacheEntry(pid, cacheEntry.GetContainerContext(), cacheEntry.GetCGroupContext())
 		}
 	}
 
@@ -316,7 +310,7 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, execTime time.Time, cgroupCo
 	var cacheEntryFound *cgroupModel.CacheEntry
 
 	cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
-		if cacheEntry.CGroupContext.Equals(&cgroupContext) {
+		if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
 			// if the cgroup context is the same, add the pid to the cache entry
 			cacheEntry.AddPID(pid)
 			cacheEntryFound = cacheEntry

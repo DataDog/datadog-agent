@@ -1661,8 +1661,8 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
-		event.CgroupTracing.CGroupContext = cacheEntry.CGroupContext
-		event.CgroupTracing.ContainerContext = cacheEntry.ContainerContext
+		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
+		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
 
 		p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 
@@ -1687,7 +1687,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, pce.ExecTime, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
-			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.CGroupContext, cacheEntry.ContainerContext)
+			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
 		}
 
 		return false
