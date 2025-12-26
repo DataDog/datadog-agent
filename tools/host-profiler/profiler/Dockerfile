@@ -1,20 +1,18 @@
-FROM golang:1.25-bookworm
+FROM golang:1.25.5-bookworm@sha256:5117d68695f57faa6c2b3a49a6f3187ec1f66c75d5b080e4360bfe4c1ada398c
 
-# Install required packages
 RUN apt-get update -y && apt-get dist-upgrade -y && \
     apt-get install -y sudo && \
     apt-get clean autoclean && \
     apt-get autoremove --yes
 
-# Create build user with matching UID/GID
-ARG UID=1000
-ARG GID=1000
+ARG UID
+ARG GID
 
-RUN groupadd -g ${GID} build || groupmod -n build $(getent group ${GID} | cut -d: -f1) && \
-    useradd -ms /bin/bash build -u ${UID} -g ${GID} || usermod -l build -d /home/build -m $(getent passwd ${UID} | cut -d: -f1) && \
-    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
-    usermod -aG sudo build && \
-    chown -R build:build /go
+RUN addgroup --gid ${GID} build
+RUN useradd -ms /bin/bash build -u ${UID} -g ${GID}
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN adduser build sudo
+RUN chown -R build:build /go
 
 USER build
 
