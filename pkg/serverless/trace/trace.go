@@ -99,7 +99,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 type StartServerlessTraceAgentArgs struct {
 	Enabled               bool
 	LoadConfig            Load
-	AdditionalProfileTags string
+	AdditionalProfileTags map[string]string
 	FunctionTags          string
 	RCService             *remoteconfig.CoreAgentService
 }

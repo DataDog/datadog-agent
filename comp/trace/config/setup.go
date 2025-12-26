@@ -684,12 +684,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	// Populate AdditionalProfileTags when running in Azure App Services extension on Windows
 	if serverlessenv.IsAzureAppServicesExtension() {
-		tags := traceutil.BuildAdditionalAppServiceProfileTags()
-		var sb strings.Builder
-		for k, v := range tags {
-			sb.WriteString(fmt.Sprintf(",%s:%s", k, v))
-		}
-		c.AdditionalProfileTags = sb.String()
+		c.AdditionalProfileTags = traceutil.BuildAdditionalAppServiceProfileTags()
 	}
 
 	return nil
