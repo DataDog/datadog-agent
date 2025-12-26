@@ -5,14 +5,14 @@ Package: main
 		Arg: x: []int (declared at line 12, available: [12-12])
 	Function: executeArrayFuncs (main.executeArrayFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [102:129] injectible: [102-117], [119-122], [124-124], [128-129]
 	Function: executeBasicFuncs (main.executeBasicFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go [76:95] injectible: [76-80], [82-87], [89-95]
-	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [224:290] injectible: [224-224], [227-230], [235-236], [238-241], [244-244], [255-255], [258-259], [261-262], [264-265], [267-267], [272-272], [274-275], [277-278], [280-281], [283-287], [289-290]
-		Var: o: main.outer (declared at line 225, available: )
-		Var: s: []*string (declared at line 236, available: )
-		Var: str: string (declared at line 235, available: [224-290])
-		Var: circ: main.circularReferenceType (declared at line 257, available: [224-290])
-		Var: s1: main.stringType1 (declared at line 283, available: [278-290])
-		Var: s2: main.stringType2 (declared at line 284, available: [278-290])
-		Var: s2p: *main.stringType2 (declared at line 285, available: [278-290])
+	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [227:293] injectible: [227-227], [230-233], [238-239], [241-244], [247-247], [258-258], [261-262], [264-265], [267-268], [270-270], [275-275], [277-278], [280-281], [283-284], [286-290], [292-293]
+		Var: o: main.outer (declared at line 228, available: )
+		Var: s: []*string (declared at line 239, available: )
+		Var: str: string (declared at line 238, available: [227-293])
+		Var: circ: main.circularReferenceType (declared at line 260, available: [227-293])
+		Var: s1: main.stringType1 (declared at line 286, available: [281-293])
+		Var: s2: main.stringType2 (declared at line 287, available: [281-293])
+		Var: s2p: *main.stringType2 (declared at line 288, available: [281-293])
 	Function: executeEsoteric (main.executeEsoteric) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [51:69] injectible: [51-52], [55-58], [60-62], [68-69]
 		Var: &capture: *int (declared at line 52, available: [51-69])
 		Var: esotericHeap: *main.esotericHeap (declared at line 61, available: [61-62], [68-69])
@@ -383,10 +383,10 @@ Package: main
 		Arg: ~r0: main.largeStruct (declared at line 264, available: )
 	Function: testLinkedList (main.testLinkedList) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go [42:42] injectible: [42-42]
 		Arg: a: main.node (declared at line 42, available: [42-42])
-	Function: testLongFunctionWithChangingState (main.testLongFunctionWithChangingState) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [204:221] injectible: [204-204], [208-208], [211-212], [214-217], [219-221]
-		Var: s: int (declared at line 205, available: [215-215], [220-220])
-		Var: a: int (declared at line 206, available: [204-221])
-		Var: b: int (declared at line 207, available: [204-221])
+	Function: testLongFunctionWithChangingState (main.testLongFunctionWithChangingState) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [204:224] injectible: [204-204], [211-211], [214-215], [217-220], [222-224]
+		Var: s: int (declared at line 205, available: [218-218], [223-223])
+		Var: aPerArch: int (declared at line 209, available: [204-224])
+		Var: b: int (declared at line 210, available: [204-224])
 	Function: testLotsOfFields (main.testLotsOfFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [132:132] injectible: [132-132]
 		Arg: l: main.lotsOfFields (declared at line 132, available: [132-132])
 	Function: testManyArgsArrayReturn (main.testManyArgsArrayReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [311:313] injectible: [311-313]

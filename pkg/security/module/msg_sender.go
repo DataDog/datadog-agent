@@ -47,17 +47,6 @@ type ChanMsgSender[T any] struct {
 	msgs chan *T
 }
 
-type TrackType string
-
-const (
-	// Runtime is the track type for runtime events
-	Runtime TrackType = "runtime"
-	// Logs is the track type for logs events
-	Logs TrackType = "logs"
-	// SecInfo is the track type for secinfo events
-	SecInfo TrackType = "secinfo"
-)
-
 // Send the message
 func (cs *ChanMsgSender[T]) Send(msg *T, expireFnc func(*T)) {
 	select {
@@ -108,7 +97,7 @@ var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
 
 // Send the message
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	if msg.Track == string(SecInfo) {
+	if msg.Track == string(common.SecInfo) {
 		ds.secInfoReporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 	} else {
 		ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)

@@ -384,11 +384,12 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
-func (t *defaultTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
-	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
+// resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
+func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
 	if !hasSource {
 		var err error
-		src, err = t.cfg.fallbackSourceProvider.Source(ctx)
+		src, err = fallbackSourceProvider.Source(ctx)
 		if err != nil {
 			return source.Source{}, fmt.Errorf("failed to get fallback source: %w", err)
 		}
@@ -505,7 +506,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
-		src, err := t.source(ctx, rm.Resource(), hostFromAttributesHandler)
+		src, err := resolveSource(ctx, t.attributesTranslator, rm.Resource(), t.cfg.fallbackSourceProvider, hostFromAttributesHandler)
 		if err != nil {
 			return metadata, err
 		}
