@@ -2,12 +2,17 @@
 
 set -e
 
+# Wait for cloud-init to complete its own apt-get operations to prevent locks from being held
+>&2 echo "Waiting for cloud-init to complete..."
+cloud-init status --wait || true
+>&2 echo "... cloud-init completed"
+
 # Try to disable unattended upgrades and apt automatic updates, should not fail if it is not installed
 sudo systemctl disable unattended-upgrades.service || true
 sudo systemctl stop unattended-upgrades.service || true
 
 sudo systemctl disable apt-daily.service || true
-sudo systemctl disable apt-daily.time || true
+sudo systemctl disable apt-daily.timer || true
 sudo systemctl stop apt-daily.service || true
 sudo systemctl stop apt-daily.timer || true
 
