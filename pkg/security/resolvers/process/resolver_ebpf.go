@@ -921,11 +921,6 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	/*if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
-		entry.CGroup.Merge(&cgroup)
-		entry.Process.ContainerContext.ContainerID = containerID
-	}*/
-
 	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
 		if newEntryCb != nil {
 			newEntryCb(entry, err)
@@ -934,12 +929,11 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	/*	if entry.ExecTime.IsZero() {
-			p.insertForkEntry(entry, entry.FileEvent.Inode, model.ProcessCacheEntryFromKernelMap, newEntryCb)
-		} else {
-			p.insertExecEntry(entry, 0, model.ProcessCacheEntryFromKernelMap)
-		}
-	*/
+	if entry.ExecTime.IsZero() {
+		p.insertForkEntry(entry, entry.FileEvent.Inode, entry.CGroup, model.ProcessCacheEntryFromKernelMap, newEntryCb)
+	} else {
+		p.insertExecEntry(entry, 0, entry.CGroup, model.ProcessCacheEntryFromKernelMap)
+	}
 
 	if newEntryCb != nil {
 		newEntryCb(entry, nil)
