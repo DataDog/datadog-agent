@@ -9,6 +9,7 @@ package connection
 
 import (
 	"io"
+	"os"
 
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -75,6 +76,10 @@ type Tracer interface {
 func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, error) {
 	if cfg.EnableEbpfless {
 		return newEbpfLessTracer(cfg)
+	}
+
+	if os.Getenv("DD_BYPASS_ENABLED") == "true" {
+		cfg.BypassEnabled = true
 	}
 
 	return newEbpfTracer(cfg, telemetryComp)
