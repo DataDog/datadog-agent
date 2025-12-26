@@ -10,6 +10,8 @@ package agentprofiling
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -195,32 +197,30 @@ func (m *Check) Run() error {
 
 // terminateAgent terminates the agent process after flare generation completes.
 // It attempts graceful shutdown via SIGINT, falling back to os.Exit(1) if signal fails.
-// This works cross-platform (Windows, Linux, macOS).
 // Note: Termination is skipped when running in test mode to avoid killing the test process.
 func (m *Check) terminateAgent() {
 	// Skip termination when running in test mode
-	// Check if we're running under go test by looking for test-related arguments or binary name
+	// Check if we're running under go test by looking for test-related arguments
+	// Go test passes arguments like "-test.v=true" or "-test.run=TestName", so we use HasPrefix
 	for _, arg := range os.Args {
-		if arg == "-test.v" || arg == "-test.run" || arg == "-test.timeout" {
+		if strings.HasPrefix(arg, "-test.") {
 			log.Info("Skipping agent termination: running in test mode")
 			return
 		}
 	}
-	// Also check if binary name contains "test" (common for test binaries)
+	// Also check if binary name indicates a test binary
+	// On Windows, test binaries are named like "foo.test.exe", so we check for ".test" suffix
+	// after removing the ".exe" extension if present
 	if len(os.Args) > 0 {
-		binName := os.Args[0]
-		for i := len(binName) - 1; i >= 0 && i >= len(binName)-20; i-- {
-			if binName[i] == '/' || binName[i] == '\\' {
-				binName = binName[i+1:]
-				break
-			}
-		}
-		if len(binName) >= 4 && (binName[:4] == "test" || binName[len(binName)-4:] == "test") {
+		binName := filepath.Base(os.Args[0])
+		// Remove .exe extension on Windows to handle "foo.test.exe" case
+		binName = strings.TrimSuffix(binName, ".exe")
+		// Check if binary name starts with "test" or ends with ".test"
+		if strings.HasPrefix(binName, "test") || strings.HasSuffix(binName, ".test") {
 			log.Info("Skipping agent termination: running in test mode")
 			return
 		}
 	}
-
 	log.Warnf("Terminating agent process due to threshold exceeded (terminate_agent_on_threshold is enabled)")
 
 	// Get the current process
