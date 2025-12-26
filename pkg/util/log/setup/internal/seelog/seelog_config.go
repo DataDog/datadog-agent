@@ -183,7 +183,7 @@ func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) stri
 	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
 
 	frame := formatters.Frame(r)
-	level := formatters.CapitalizedLevel(r.Level)
+	level := formatters.UppercaseLevel(r.Level)
 	shortFilePath := formatters.ShortFilePath(frame)
 	funcShort := formatters.ShortFunction(frame)
 	extraContext := formatters.ExtraTextContext(r)
@@ -201,7 +201,7 @@ func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string
 
 	frame := formatters.Frame(r)
 	level := formatters.UppercaseLevel(r.Level)
-	relfile := formatters.RelFile(frame)
+	relfile := formatters.ShortFilePath(frame)
 	extraContext := formatters.ExtraJSONContext(r)
 
 	return fmt.Sprintf(`%s {"agent":"%s","level":"%s","relfile":"%s","line":"%d","msg":"%s"%s}`+"\n", syslogHeader, strings.ToLower(c.loggerName), level, relfile, frame.Line, r.Message, extraContext)

@@ -334,15 +334,11 @@ func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry) bool) {
 }
 
 func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
-	for _, cgroup := range cr.hostWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.hostWorkloads.Values(), cb) {
+		return
 	}
-	for _, cgroup := range cr.containerWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.containerWorkloads.Values(), cb) {
+		return
 	}
 }
 

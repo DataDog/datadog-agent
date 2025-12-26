@@ -9,12 +9,7 @@ package converters
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -106,19 +101,6 @@ service:
 			"extensions": []any{},
 		},
 	})
-}
-
-func TestConverterInfraAttributesName(t *testing.T) {
-	config := getDefaultConfig(t)
-	require.Equal(t, 6, strings.Count(config, infraAttributesName()))
-}
-
-func getDefaultConfig(t *testing.T) string {
-	_, file, _, _ := runtime.Caller(0)
-	configPath := filepath.Join(filepath.Dir(file), "../../../../..", "cmd", "host-profiler", "dist", "host-profiler-config.yaml")
-	configData, err := os.ReadFile(configPath)
-	require.NoError(t, err)
-	return string(configData)
 }
 
 func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {

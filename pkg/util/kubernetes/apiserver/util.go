@@ -41,7 +41,6 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait
 	for name := range informers {
-		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 			defer cancel()
@@ -77,7 +76,6 @@ func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, 
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait
 	for name := range informers {
-		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		go (func() {
 			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 			defer cancel()

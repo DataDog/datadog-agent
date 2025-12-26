@@ -13,6 +13,7 @@ target:
   profiling_environment:
     # internal profiling
     DD_INTERNAL_PROFILING_ENABLED: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
 
     # run all the time
     DD_INTERNAL_PROFILING_PERIOD: 1m

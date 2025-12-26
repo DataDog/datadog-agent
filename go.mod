@@ -184,7 +184,7 @@ require (
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
-	github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3
+	github.com/DataDog/viper v1.15.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.7

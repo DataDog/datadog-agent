@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
@@ -303,9 +304,7 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 	defer cm.m.Unlock()
 
 	res := make(map[string]integration.Config, len(cm.activeConfigs))
-	for k, v := range cm.activeConfigs {
-		res[k] = v
-	}
+	maps.Copy(res, cm.activeConfigs)
 	return res
 }
 

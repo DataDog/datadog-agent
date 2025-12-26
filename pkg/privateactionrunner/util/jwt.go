@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -64,9 +65,7 @@ func GeneratePARJWT(orgId int64, runnerId string, privateKey *ecdsa.PrivateKey, 
 		"exp":      time.Now().Add(time.Minute * 1).Unix(),
 	}
 
-	for k, v := range extraClaims {
-		claims[k] = v
-	}
+	maps.Copy(claims, extraClaims)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["alg"] = "ES256"

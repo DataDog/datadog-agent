@@ -47,11 +47,12 @@ func Module(params Params) fxutil.Module {
 }
 
 const (
-	eventTypeDBMSamples  = "dbm-samples"
-	eventTypeDBMMetrics  = "dbm-metrics"
-	eventTypeDBMActivity = "dbm-activity"
-	eventTypeDBMMetadata = "dbm-metadata"
-	eventTypeDBMHealth   = "dbm-health"
+	eventTypeDBMSamples         = "dbm-samples"
+	eventTypeDBMMetrics         = "dbm-metrics"
+	eventTypeDBMActivity        = "dbm-activity"
+	eventTypeDBMMetadata        = "dbm-metadata"
+	eventTypeDBMHealth          = "dbm-health"
+	eventTypeDataStreamsMessage = "data-streams-message"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -264,6 +265,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			//nolint:misspell
 			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
 			useStreamStrategy: true,
+		},
+		{
+			eventType:                     eventTypeDataStreamsMessage,
+			category:                      "Data Streams",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "data_streams.forwarder.",
+			hostnameEndpointPrefix:        "trace.agent.",
+			intakeTrackType:               "data_streams_messages",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 	}
 

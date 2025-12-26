@@ -85,11 +85,10 @@ func fieldValueToNumber[V number](valueType nvml.ValueType, value [8]byte) (V, e
 // filterSupportedAPIs tests each API call against the device and returns only the supported ones
 func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCallInfo {
 	var supportedAPIs []apiCallInfo
-
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsUnsupported(err) {
+		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			supportedAPIs = append(supportedAPIs, apiCall)
 		}
 	}
@@ -112,14 +111,14 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	allPhysicalDevices, err := deviceCache.AllPhysicalDevices()
+	allDevices, err := deviceCache.All()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("Error getting all physical devices: %s", err)
 		}
 		return nil
 	}
-	for _, dev := range allPhysicalDevices {
+	for _, dev := range allDevices {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)

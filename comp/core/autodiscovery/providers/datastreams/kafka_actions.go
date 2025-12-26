@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -156,9 +157,7 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 		}
 
 		// Copy auth fields first
-		for k, v := range auth {
-			actionsMap[k] = v
-		}
+		maps.Copy(actionsMap, auth)
 		actionsMap["run_once"] = true
 		actionsMap["remote_config_id"] = parsed.remoteConfigID
 

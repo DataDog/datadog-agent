@@ -74,6 +74,7 @@ enum event_type
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
+    EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -224,6 +225,7 @@ enum erpc_op
     BUMP_DISCARDERS_REVISION,
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,
+    NOP_EVENT_OP,
 };
 
 enum selinux_source_event_t

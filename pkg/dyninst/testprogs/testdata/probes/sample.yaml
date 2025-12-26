@@ -288,6 +288,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testThreeStringsInStruct
     template: "{a}"
@@ -296,10 +297,11 @@ probes:
           ref: "a"
         dsl: "a"
     captureSnapshot: true
-  - id: testThreeStringsInStruct_expression_with_dots
+  - id: testThreeStringsInStructExpr
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testThreeStringsInStruct
     template: "{a.a} {a.b} {a.c}"
@@ -879,6 +881,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testStruct
     template: "{x}"
@@ -1027,6 +1030,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testBigStruct
     template: "{b}"
@@ -1705,6 +1709,8 @@ probes:
     captureSnapshot: true
   - id: testStructWithCyclicMaps
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testStructWithCyclicMaps
     template: "{a}"
@@ -1917,7 +1923,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "208"
+        - "211"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1926,11 +1932,13 @@ probes:
       snapshotsPerSecond: 100
   - id: testLongFunctionWithChangingStateLineB
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "215"
+        - "218"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1939,23 +1947,19 @@ probes:
       snapshotsPerSecond: 100
   - id: testLongFunctionWithChangingStateLineC
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "220"
+        - "223"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
-    template: "{a} and {b}"
+    template: "testLongFunctionWithChangingState"
     segments:
-      - dsl: "a"
-        json:
-          ref: "a"
-      - str: " and "
-      - dsl: "b"
-        json:
-          ref: "b"
+      - str: "testLongFunctionWithChangingState"
   - id: testReturnsPrimitives
     type: LOG_PROBE
     where:

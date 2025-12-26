@@ -1,0 +1,77 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testLongFunctionWithChangingState",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testLongFunctionWithChangingState",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 223
+          },
+          {
+            "function": "main.executeComplexFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 292
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 36
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testLongFunctionWithChangingStateLineC",
+          "location": {
+            "method": "main.testLongFunctionWithChangingState",
+            "file": "complex.go",
+            "line": 223
+          }
+        },
+        "captures": {
+          "lines": {
+            "223": {
+              "locals": {
+                "s": {
+                  "type": "int",
+                  "value": "59"
+                },
+                "aPerArch": {
+                  "type": "int",
+                  "value": "[per-arch-value]"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "1"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
+  }
+]

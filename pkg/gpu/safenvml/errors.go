@@ -67,3 +67,15 @@ func IsDriverNotLoaded(err error) bool {
 	var nvmlErr *NvmlAPIError
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_DRIVER_NOT_LOADED)
 }
+
+func IsInvalidArgument(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_INVALID_ARGUMENT)
+}
+
+// IsAPIUnsupportedOnDevice checks if an error indicates that the API is not supported on the device.
+// Requires the device because some error codes indicate unsupported APIs when the device is MIG.
+func IsAPIUnsupportedOnDevice(err error, device Device) bool {
+	_, isMig := device.(*MIGDevice)
+	return IsUnsupported(err) || (isMig && IsInvalidArgument(err))
+}

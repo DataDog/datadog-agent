@@ -48,7 +48,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	fieldValues, err := c.getFieldValues()
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
-		if ddnvml.IsUnsupported(err) {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics

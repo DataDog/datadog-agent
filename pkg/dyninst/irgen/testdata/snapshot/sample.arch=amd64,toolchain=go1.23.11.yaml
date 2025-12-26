@@ -222,7 +222,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testBigStruct}
-      tags: ['foo:bar']
+      tags: ['foo:bar', 'version_diff:go1.26rc1']
       template: '{b}'
       segments: [{json: {ref: b}, dsl: b}]
       captureSnapshot: true
@@ -1267,7 +1267,7 @@ Probes:
       where:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
-        lines: ["208"]
+        lines: ["211"]
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -1287,7 +1287,8 @@ Probes:
       where:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
-        lines: ["215"]
+        lines: ["218"]
+      tags: ['version_diff:go1.26rc1']
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -1307,15 +1308,11 @@ Probes:
       where:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
-        lines: ["220"]
+        lines: ["223"]
+      tags: ['version_diff:go1.26rc1']
       sampling: {snapshotsPerSecond: 100}
-      template: '{a} and {b}'
-      segments:
-        - json: {ref: a}
-          dsl: a
-        - ' and '
-        - json: {ref: b}
-          dsl: b
+      template: testLongFunctionWithChangingState
+      segments: [testLongFunctionWithChangingState]
       captureSnapshot: true
       subprogram: {subprogram: 46}
       events:
@@ -1324,17 +1321,8 @@ Probes:
           InjectionPoints: [{PC: "0xd03d34", Frameless: false}]
           Condition: null
       probeTemplate:
-        TemplateString: '{a} and {b}'
-        Segments:
-            - JSON: {Ref: a}
-              DSL: a
-              EventKind: Line
-              EventExpressionIndex: 1
-            - ' and '
-            - JSON: {Ref: b}
-              DSL: b
-              EventKind: Line
-              EventExpressionIndex: 3
+        TemplateString: testLongFunctionWithChangingState
+        Segments: [testLongFunctionWithChangingState]
     - id: testManyArgsArrayReturn
       version: 0
       type: LOG_PROBE
@@ -3658,7 +3646,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStruct}
-      tags: ['foo:bar']
+      tags: ['foo:bar', 'version_diff:go1.26rc1']
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
@@ -3759,6 +3747,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStructWithCyclicMaps}
+      tags: ['version_diff:go1.26rc1']
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
@@ -4016,7 +4005,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testThreeStringsInStruct}
-      tags: ['foo:bar']
+      tags: ['foo:bar', 'version_diff:go1.26rc1']
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
@@ -4037,6 +4026,49 @@ Probes:
               DSL: a
               EventKind: Entry
               EventExpressionIndex: 1
+    - id: testThreeStringsInStructExpr
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testThreeStringsInStruct}
+      tags: ['foo:bar', 'version_diff:go1.26rc1']
+      template: '{a.a} {a.b} {a.c}'
+      segments:
+        - json: {getmember: [{ref: a}, a]}
+          dsl: a.a
+        - ' '
+        - json: {getmember: [{ref: a}, b]}
+          dsl: t.b
+        - ' '
+        - json: {getmember: [{ref: a}, c]}
+          dsl: t.c
+      captureSnapshot: false
+      subprogram: {subprogram: 143}
+      events:
+        - Kind: Entry
+          Type: 1334 EventRootType Probe[main.testThreeStringsInStruct]
+          InjectionPoints: [{PC: "0xd0a580", Frameless: true}]
+          Condition: null
+        - Kind: Return
+          Type: 1335 EventRootType Probe[main.testThreeStringsInStruct]Return
+          InjectionPoints: [{PC: "0xd0a59e", Frameless: true}]
+          Condition: null
+      probeTemplate:
+        TemplateString: '{a.a} {a.b} {a.c}'
+        Segments:
+            - JSON: {Base: {Ref: a}, Member: a}
+              DSL: a.a
+              EventKind: Entry
+              EventExpressionIndex: 0
+            - ' '
+            - JSON: {Base: {Ref: a}, Member: b}
+              DSL: t.b
+              EventKind: Entry
+              EventExpressionIndex: 1
+            - ' '
+            - JSON: {Base: {Ref: a}, Member: c}
+              DSL: t.c
+              EventKind: Entry
+              EventExpressionIndex: 2
     - id: testThreeStringsInStructPointer
       version: 0
       type: LOG_PROBE
@@ -4095,49 +4127,6 @@ Probes:
             - ' '
             - JSON: {Base: {Ref: a}, Member: c}
               DSL: a.c
-              EventKind: Entry
-              EventExpressionIndex: 2
-    - id: testThreeStringsInStruct_expression_with_dots
-      version: 0
-      type: LOG_PROBE
-      where: {methodName: main.testThreeStringsInStruct}
-      tags: ['foo:bar']
-      template: '{a.a} {a.b} {a.c}'
-      segments:
-        - json: {getmember: [{ref: a}, a]}
-          dsl: a.a
-        - ' '
-        - json: {getmember: [{ref: a}, b]}
-          dsl: t.b
-        - ' '
-        - json: {getmember: [{ref: a}, c]}
-          dsl: t.c
-      captureSnapshot: false
-      subprogram: {subprogram: 143}
-      events:
-        - Kind: Entry
-          Type: 1334 EventRootType Probe[main.testThreeStringsInStruct]
-          InjectionPoints: [{PC: "0xd0a580", Frameless: true}]
-          Condition: null
-        - Kind: Return
-          Type: 1335 EventRootType Probe[main.testThreeStringsInStruct]Return
-          InjectionPoints: [{PC: "0xd0a59e", Frameless: true}]
-          Condition: null
-      probeTemplate:
-        TemplateString: '{a.a} {a.b} {a.c}'
-        Segments:
-            - JSON: {Base: {Ref: a}, Member: a}
-              DSL: a.a
-              EventKind: Entry
-              EventExpressionIndex: 0
-            - ' '
-            - JSON: {Base: {Ref: a}, Member: b}
-              DSL: t.b
-              EventKind: Entry
-              EventExpressionIndex: 1
-            - ' '
-            - JSON: {Base: {Ref: a}, Member: c}
-              DSL: t.c
               EventKind: Entry
               EventExpressionIndex: 2
     - id: testTypeAlias
@@ -4974,7 +4963,7 @@ Subprograms:
             - Range: 0xd03d58..0xd03d6f
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
-        - Name: a
+        - Name: aPerArch
           Type: 9 BaseType int
           Locations:
             - Range: 0xd03c6d..0xd03c70
@@ -12205,14 +12194,14 @@ Types:
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
-        - Name: a
+        - Name: aPerArch
           Offset: 1
           Kind: local
           Expression:
             Type: 9 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 46, index: 1, name: a}
+                  Variable: {subprogram: 46, index: 1, name: aPerArch}
                   Offset: 0
                   ByteSize: 8
         - Name: b
@@ -12228,42 +12217,22 @@ Types:
     - __kind: EventRootType
       ID: 1177
       Name: Probe[main.testLongFunctionWithChangingState]Line
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
-        - Name: a
+        - Name: aPerArch
           Offset: 1
           Kind: local
           Expression:
             Type: 9 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 46, index: 1, name: a}
+                  Variable: {subprogram: 46, index: 1, name: aPerArch}
                   Offset: 0
                   ByteSize: 8
-        - Name: a
+        - Name: b
           Offset: 9
-          Kind: template_segment
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 46, index: 1, name: a}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: b
-          Offset: 17
           Kind: local
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 46, index: 2, name: b}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: b
-          Offset: 25
-          Kind: template_segment
           Expression:
             Type: 9 BaseType int
             Operations:

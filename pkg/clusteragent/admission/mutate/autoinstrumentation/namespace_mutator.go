@@ -28,11 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// apmInjectionErrorAnnotationKey this annotation is added when the apm auto-instrumentation admission controller failed to mutate the Pod.
-	apmInjectionErrorAnnotationKey = "apm.datadoghq.com/injection-error"
-)
-
 type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
@@ -63,7 +58,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		if pod.Annotations == nil {
 			pod.Annotations = make(map[string]string)
 		}
-		pod.Annotations[apmInjectionErrorAnnotationKey] = injectionDecision.message
+		SetAnnotation(pod, AnnotationInjectionError, injectionDecision.message)
 		return nil
 	}
 
@@ -229,48 +224,61 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
 	}
 
-	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractorFunc(m.imageResolver),
-		injectorImageAnnotationExtractor,
-		injectorDebugAnnotationExtractor,
-	} {
-		opt, err := e.extract(pod)
-		if err != nil {
-			if !isErrAnnotationNotFound(err) {
-				log.Warnf("error extracting injector annotation %s in single step", e.key)
-			}
-			continue
-		}
-		opts = append(opts, opt)
+	// Check for the injector version set.
+	injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion)
+	if found {
+		opts = append(opts, injectorWithImageTag(injectorVersion, m.imageResolver))
+	}
+
+	// Check for the injector image being set.
+	injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage)
+	if found {
+		opts = append(opts, injectorWithImageName(injectorImage))
+	}
+
+	// Check if the user has debug enabled.
+	debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug)
+	if found {
+		opts = append(opts, injectorDebug(debugEnabled))
 	}
 
 	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
-func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
-	var (
-		libList        []libInfo
-		extractLibInfo = func(e annotationExtractor[libInfo]) {
-			i, err := e.extract(pod)
-			if err != nil {
-				if !isErrAnnotationNotFound(err) {
-					log.Warnf("error extracting annotation for key %s", e.key)
-				}
-			} else {
-				libList = append(libList, i)
-			}
-		}
-	)
+func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
+	libs := []libInfo{}
+
+	// Check all supported languages for potential Local SDK Injection.
 	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
-		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+		// Check for a custom library image.
+		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfo("", customImage))
+		}
+
+		// Check for a custom library version.
+		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
+		}
+
+		// Check all containers in the pod for container specific Local SDK Injection.
+		for _, container := range pod.Spec.Containers {
+			// Check for custom library image.
+			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfo(container.Name, customImage))
+			}
+
+			// Check for custom library version.
+			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
+			}
 		}
 	}
 
-	return libList
+	return libs
 }
 
 func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {

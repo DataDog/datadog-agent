@@ -41,12 +41,14 @@ const (
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder
 	ExpirePidDiscarderOp
-	// BumpDiscardersRevision is used to bump the discarders revision (DEPRECATED)
-	BumpDiscardersRevision
-	// GetRingbufUsage is used to retrieve the ring buffer usage
-	GetRingbufUsage
+	// BumpDiscardersRevisionOp is used to bump the discarders revision (DEPRECATED)
+	BumpDiscardersRevisionOp
+	// GetRingbufUsageOp is used to retrieve the ring buffer usage
+	GetRingbufUsageOp
 	// UserSessionContextOp is used to inject the Kubernetes User context
 	UserSessionContextOp
+	// NopEventOp is used to nop an event
+	NopEventOp
 )
 
 // ERPC defines a krpc object

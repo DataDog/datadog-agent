@@ -169,12 +169,12 @@ func (c *Check) ensureInitCollectors() error {
 	// the list of devices can change over time, so grab the latest and:
 	// - remove collectors for the devices that are not present anymore
 	// - collect devices for which a new collector must be added
-	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	devices, err := c.deviceCache.All()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve physical devices: %w", err)
 	}
 	curDevices := map[string]ddnvml.Device{}
-	for _, d := range physicalDevices {
+	for _, d := range devices {
 		curDevices[d.GetDeviceInfo().UUID] = d
 	}
 

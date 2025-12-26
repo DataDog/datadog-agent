@@ -43,12 +43,13 @@ type libConfigInjector struct{}
 
 func (l *libConfigInjector) podMutator(lang language) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		c, err := lang.libConfigAnnotationExtractor().extract(pod)
-		if err != nil {
-			if isErrAnnotationNotFound(err) {
-				return nil
-			}
+		config, found := GetAnnotation(pod, AnnotationLibraryConfigV1.Format(string(lang)))
+		if !found {
+			return nil
+		}
 
+		c, err := parseConfigJSON(config)
+		if err != nil {
 			return err
 		}
 

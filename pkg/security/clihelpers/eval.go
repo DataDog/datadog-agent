@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 
@@ -226,9 +227,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 	variables := make(map[string]eval.SECLVariable)
 
 	// copy the embedded variables
-	for k, v := range model.SECLVariables {
-		variables[k] = v
-	}
+	maps.Copy(variables, model.SECLVariables)
 
 	varOpts := eval.VariableOpts{
 		TTL: 10000000,
