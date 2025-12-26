@@ -171,6 +171,14 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				usmhttp.Debug = true
+				t.Cleanup(func() {
+					usmhttp.Debug = false
+				})
+				fmt.Printf("starting logs for %q\n", tt.name+testNameSuffix)
+				defer func() {
+					fmt.Printf("ending logs for %q\n", tt.name+testNameSuffix)
+				}()
 				t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
 				tt.runClients(t, clientCount)
 
