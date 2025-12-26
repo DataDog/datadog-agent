@@ -15,6 +15,7 @@ CACHE_VERSION = 2
 
 
 ENV_PASSHTROUGH = {
+    'BAZELISK_BASE_URL': "Mirror URL for downloading `bazel` binaries (default: releases.bazel.build)",
     'BAZELISK_HOME': "Runner-dependent cache path used by `bazelisk` to manage `bazel` installations",
     'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
     'DD_CC': 'Points at c compiler',
