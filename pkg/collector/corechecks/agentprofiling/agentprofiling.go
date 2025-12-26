@@ -39,10 +39,11 @@ const (
 
 // Config is the configuration for the agentprofiling check
 type Config struct {
-	MemoryThreshold string `yaml:"memory_threshold"`
-	CPUThreshold    int    `yaml:"cpu_threshold"`
-	TicketID        string `yaml:"ticket_id"`
-	UserEmail       string `yaml:"user_email"`
+	MemoryThreshold           string `yaml:"memory_threshold"`
+	CPUThreshold              int    `yaml:"cpu_threshold"`
+	TicketID                  string `yaml:"ticket_id"`
+	UserEmail                 string `yaml:"user_email"`
+	TerminateAgentOnThreshold bool   `yaml:"terminate_agent_on_threshold"`
 }
 
 // Check is the check that generates a flare with profiles when the core agent's memory or CPU usage exceeds a certain threshold
@@ -192,6 +193,58 @@ func (m *Check) Run() error {
 	return nil
 }
 
+// terminateAgent terminates the agent process after flare generation completes.
+// It attempts graceful shutdown via SIGINT, falling back to os.Exit(1) if signal fails.
+// This works cross-platform (Windows, Linux, macOS).
+// Note: Termination is skipped when running in test mode to avoid killing the test process.
+func (m *Check) terminateAgent() {
+	// Skip termination when running in test mode
+	// Check if we're running under go test by looking for test-related arguments or binary name
+	for _, arg := range os.Args {
+		if arg == "-test.v" || arg == "-test.run" || arg == "-test.timeout" {
+			log.Info("Skipping agent termination: running in test mode")
+			return
+		}
+	}
+	// Also check if binary name contains "test" (common for test binaries)
+	if len(os.Args) > 0 {
+		binName := os.Args[0]
+		for i := len(binName) - 1; i >= 0 && i >= len(binName)-20; i-- {
+			if binName[i] == '/' || binName[i] == '\\' {
+				binName = binName[i+1:]
+				break
+			}
+		}
+		if len(binName) >= 4 && (binName[:4] == "test" || binName[len(binName)-4:] == "test") {
+			log.Info("Skipping agent termination: running in test mode")
+			return
+		}
+	}
+
+	log.Warnf("Terminating agent process due to threshold exceeded (terminate_agent_on_threshold is enabled)")
+
+	// Get the current process
+	selfProcess, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		log.Errorf("Failed to find agent process for termination: %v. Using os.Exit(1)", err)
+		os.Exit(1)
+		return
+	}
+
+	// Attempt graceful shutdown via SIGINT (works cross-platform)
+	// This allows the agent to clean up resources before exiting
+	if err := selfProcess.Signal(os.Interrupt); err != nil {
+		log.Errorf("Failed to send termination signal to agent process: %v. Using os.Exit(1)", err)
+		os.Exit(1)
+		return
+	}
+
+	log.Info("Agent Profiling check: Termination signal (SIGINT) sent to agent process. Agent will exit after cleanup.")
+	// Note: We don't call os.Exit here because the signal handler should handle cleanup.
+	// However, if the signal fails, we fall back to os.Exit(1) above.
+	// The agent's signal handler will process SIGINT and initiate graceful shutdown.
+}
+
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
 func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
@@ -231,6 +284,11 @@ func (m *Check) generateFlare() error {
 	// Mark flare as generated to stop future runs
 	m.flareGenerated = true
 	log.Info("Flare generation complete. No more flares will be generated until the Agent is restarted.")
+
+	// Terminate agent if configured to do so
+	if m.instance.TerminateAgentOnThreshold {
+		m.terminateAgent()
+	}
 
 	return nil
 }
