@@ -86,12 +86,12 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
-	if len(parent.ContainerContext.ContainerID) > 0 && len(child.ContainerContext.ContainerID) == 0 {
+	if !parent.ContainerContext.IsNull() && child.ContainerContext.IsNull() {
 		child.ContainerContext = parent.ContainerContext
 	}
 
 	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !parent.CGroup.CGroupPathKey.IsNull() && child.CGroup.CGroupPathKey.IsNull() {
+	if !parent.CGroup.IsNull() && child.CGroup.IsNull() {
 		child.CGroup = parent.CGroup
 	}
 
@@ -144,7 +144,7 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	)
 
 	for pc != nil {
-		if pc.ContainerContext.ContainerID == "" {
+		if pc.ContainerContext.IsNull() {
 			break
 		}
 		if !slices.Contains(pids, pc.Pid) {
@@ -188,12 +188,12 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.FileEvent = pc.FileEvent
 
 	// the kernel cache may not have a container context, so we need to copy it from the parent
-	if len(pc.ContainerContext.ContainerID) > 0 && len(childEntry.ContainerContext.ContainerID) == 0 {
+	if !pc.ContainerContext.IsNull() && childEntry.ContainerContext.IsNull() {
 		childEntry.ContainerContext = pc.ContainerContext
 	}
 
 	// the kernel cache may not have a cgroup context, so we need to copy it from the parent
-	if !pc.CGroup.CGroupPathKey.IsNull() && childEntry.CGroup.CGroupPathKey.IsNull() {
+	if !pc.CGroup.CGroupPathKey.IsNull() && childEntry.CGroup.IsNull() {
 		childEntry.CGroup = pc.CGroup
 	}
 
