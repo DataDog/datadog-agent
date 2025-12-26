@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,6 +176,9 @@ func TestNewWebSocket(t *testing.T) {
 }
 
 func TestUserAgent(t *testing.T) {
+	if strings.Contains(runtime.Version(), "rc") {
+		t.Skip("skipping test for rc version of go")
+	}
 	assert := assert.New(t)
 	agentConfig := mock.New(t)
 
