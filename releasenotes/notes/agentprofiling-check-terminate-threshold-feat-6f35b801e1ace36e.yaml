@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The Agent Profiling check now supports automatic agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the agent needs to be restarted after generating diagnostic information.
+
+    Enable this feature by setting ``terminate_agent_on_threshold: true`` in the Agent Profiling check configuration. When enabled, the agent will attempt a graceful shutdown via SIGINT after successfully generating a flare, allowing cleanup before exit. If signal delivery fails, it will fall back to immediate termination.
+
+    **Warning**: This feature will cause the agent to exit. This feature is disabled by default and should be used with caution.
