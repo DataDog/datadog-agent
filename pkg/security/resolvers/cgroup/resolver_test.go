@@ -64,10 +64,9 @@ func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 
 	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
 	assert.NotNil(t, cacheEntry)
-	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), cacheEntry.CGroupContext.CGroupID)
-	assert.Equal(t, uint32(42), cacheEntry.CGroupContext.CGroupPathKey.MountID)
-	assert.Equal(t, uint64(9876), cacheEntry.CGroupContext.CGroupPathKey.Inode)
-	assert.Equal(t, containerutils.ContainerID("container-123"), cacheEntry.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), cacheEntry.GetCGroupID())
+	assert.Equal(t, uint64(9876), cacheEntry.GetCGroupInode())
+	assert.Equal(t, containerutils.ContainerID("container-123"), cacheEntry.GetContainerID())
 
 	mockFS.AssertExpectations(t)
 }
@@ -116,7 +115,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 	}
 	cacheEntry := resolver.AddPID(1234, 5678, time.Now(), parentCgroupContext)
 	assert.NotNil(t, cacheEntry)
-	assert.NotNil(t, cacheEntry.CGroupContext.Releasable)
+	assert.NotNil(t, cacheEntry.GetCGroupContext().Releasable)
 
 	// Mock failed direct resolution
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
@@ -128,8 +127,8 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 
 	cacheEntry = resolver.resolveFromFallback(1234, 5678, time.Now())
 	assert.NotNil(t, cacheEntry)
-	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.CGroupContext.CGroupID)
-	assert.Equal(t, parentPathKey, cacheEntry.CGroupContext.CGroupPathKey)
+	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.GetCGroupID())
+	assert.Equal(t, parentPathKey, cacheEntry.GetCGroupContext().CGroupPathKey)
 	// Note: containerutils.FindContainerID would be called here, but we can't easily mock it
 	// in this example as it's a package function
 
@@ -163,9 +162,9 @@ func TestResolvePidCgroupFallback_SuccessFromParentProc(t *testing.T) {
 
 	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
 	assert.NotNil(t, cacheEntry)
-	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.CGroupContext.CGroupID)
-	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.CGroupContext.CGroupPathKey.Inode)
-	assert.Equal(t, containerutils.ContainerID("parent-container-456"), cacheEntry.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.GetCGroupID())
+	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.GetCGroupInode())
+	assert.Equal(t, containerutils.ContainerID("parent-container-456"), cacheEntry.GetContainerID())
 
 	mockFS.AssertExpectations(t)
 }
@@ -225,9 +224,9 @@ func TestResolvePidCgroupFallback_HistoryFoundButCGroupMissing(t *testing.T) {
 
 	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
 	assert.NotNil(t, cacheEntry)
-	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.CGroupContext.CGroupID)
-	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.CGroupContext.CGroupPathKey.Inode)
-	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), cacheEntry.ContainerContext.ContainerID)
+	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.GetCGroupID())
+	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.GetCGroupInode())
+	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), cacheEntry.GetContainerID())
 
 	mockFS.AssertExpectations(t)
 }
