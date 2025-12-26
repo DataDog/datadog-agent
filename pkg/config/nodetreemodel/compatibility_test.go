@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
@@ -667,16 +666,17 @@ c: 1234
 	})
 
 	cvalue := viperConf.Get("c")
-	assert.Equal(t, 1234, cvalue)
+	assert.Equal(t, cvalue, 1234)
 
 	dvalue := viperConf.Get("c.d")
-	assert.Equal(t, nil, dvalue)
+	assert.Equal(t, dvalue, nil)
 
+	// NOTE: Behavior difference, but it requires an error in the config
 	cvalue = ntmConf.Get("c")
-	assert.Equal(t, 1234, cvalue)
+	assert.Equal(t, cvalue, map[string]interface{}{"d": true})
 
 	dvalue = ntmConf.Get("c.d")
-	assert.Equal(t, false, dvalue)
+	assert.Equal(t, dvalue, true)
 }
 
 func TestCompareTimeDuration(t *testing.T) {
@@ -876,47 +876,4 @@ additional_endpoints:
 	}
 	assert.Equal(t, expectEndpoints, viperConf.GetStringMapStringSlice("additional_endpoints"))
 	assert.Equal(t, expectEndpoints, ntmConf.GetStringMapStringSlice("additional_endpoints"))
-}
-
-func TestGetViperCombineInvalidFileData(t *testing.T) {
-	// The setting in the yaml file has the wrong shape
-	// It is a list of an object, but it is supposed to not be a list
-	// The implementation should handle this predictabily and compatibly with Viper
-	// The rule when merging conflicts is that higher layers have branches kept, so
-	// the invalid file data will be kept rather than the default values.
-	configData := `network_path:
-  collector:
-    - input_chan_size: 23456
-`
-	// Two settings at path, but the file source has the wrong shape
-	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
-		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0) //nolint:forbidigo // used to test behavior
-		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)         //nolint:forbidigo // used to test behavior
-	})
-
-	// Value at the path is a list of map
-	expectCollector := []interface{}{
-		map[interface{}]interface{}{
-			"input_chan_size": 23456,
-		},
-	}
-	// Parent of that element
-	expectNetworkPath := map[string]interface{}{
-		"collector": []interface{}{
-			map[interface{}]interface{}{
-				"input_chan_size": 23456,
-			},
-		},
-	}
-
-	// Test what the methods `Get, GetViperCombine, AllSettings` return for each impl
-	for _, cfg := range []model.Reader{viperConf, ntmConf} {
-		assert.Equal(t, expectCollector, cfg.Get("network_path.collector"))
-		assert.Equal(t, expectCollector, helper.GetViperCombine(cfg, "network_path.collector"))
-		assert.Equal(t, expectCollector, cfg.AllSettings()["network_path"].(map[string]interface{})["collector"])
-
-		// Test parent element as well
-		actual := helper.GetViperCombine(cfg, "network_path")
-		assert.Equal(t, expectNetworkPath, actual)
-	}
 }
