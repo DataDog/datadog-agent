@@ -1,4 +1,4 @@
 ---
 features:
   - |
-   Add a new listener based on all CRDs found on the cluster
+     Add a new listener based on all Custom Resource Definitions (CRDs) found on the cluster.
