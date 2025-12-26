@@ -87,8 +87,8 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(",orchestrator:fargate_" + strings.ToLower(string(orch)))
 	}
 	// Add any additional environment-identifying tags
-	if r.conf.AdditionalProfileTags != "" {
-		tags.WriteString(r.conf.AdditionalProfileTags)
+	for k, v := range r.conf.AdditionalProfileTags {
+		tags.WriteString(fmt.Sprintf(",%s:%s", k, v))
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
