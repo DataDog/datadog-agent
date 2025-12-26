@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const RDSTagsDocumentationURL = "https://docs.datadoghq.com/database_monitoring/guide/rds_autodiscovery/?tab=postgres#configure-rds-tags"
+
 // DBMRdsListener implements database-monitoring Rds discovery
 type DBMRdsListener struct {
 	sync.RWMutex
@@ -114,7 +116,7 @@ func (l *DBMRdsListener) discoverRdsInstances() {
 		return
 	}
 	if len(instances) == 0 {
-		log.Debugf("no rds instances found with provided tags %v", l.config.Tags)
+		log.Debugf("no rds instances found with provided tags %v, visit to the following link to learn more about how we use RDS Tags for instance discovery: %s", l.config.Tags, RDSTagsDocumentationURL)
 		return
 	}
 	log.Debugf("found %d rds instances with provided tags %v", len(instances), l.config.Tags)
@@ -143,6 +145,7 @@ func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
+	log.Debugf("creating check for '%s'", *aws.Instance.Endpoint)
 }
 
 func (l *DBMRdsListener) deleteServices(entityIDs []string) {
