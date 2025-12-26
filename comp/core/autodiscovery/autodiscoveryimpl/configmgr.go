@@ -259,6 +259,9 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 
+		// Remove all resolved secrets for this config
+		cm.secretResolver.RemoveOrigin(digest)
+
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
