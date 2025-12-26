@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -36,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -72,7 +70,6 @@ type EBPFResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *utils.Scrubber
 
-	containerResolver *container.Resolver
 	mountResolver     mount.ResolverInterface
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
@@ -439,7 +436,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	}
 
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
-	containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
+	/*containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
@@ -462,7 +459,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	entry.Process.ContainerContext.ContainerID = containerID
 	entry.Process.ContainerContext.CreatedAt = uint64(entry.ExecTime.UnixNano())
 
-	entry.Process.CGroup = cgroup
+	entry.Process.CGroup = cgroup*/
 
 	// Heuristic to detect likely interpreter event
 	// Cannot detect when a script if as follows:
@@ -1568,7 +1565,7 @@ func allInodeErrTags() []string {
 
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *utils.Scrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
+	scrubber *utils.Scrubber, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
@@ -1599,7 +1596,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
 		inodeErrStats:             make(map[string]*atomic.Int64),
-		containerResolver:         containerResolver,
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,
 		userGroupResolver:         userGroupResolver,
