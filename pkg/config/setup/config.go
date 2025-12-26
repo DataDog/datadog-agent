@@ -1244,6 +1244,22 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", map[string]interface{}{})
+
+	// Integration Security Settings
+	// When enabled, integrations will ignore configuration parameters that refer to file paths
+	// if the configuration provider is not trusted. Providers like container labels, pod annotations,
+	// or kubernetes objects are not trusted by default since they can be created by users who don't manage the agent.
+	config.BindEnvAndSetDefault("integration_ignore_untrusted_file_params", false)
+	// List of file paths that integrations are allowed to access, even when provided by an untrusted
+	// configuration provider. An empty list means all file paths are allowed.
+	config.BindEnvAndSetDefault("integration_file_paths_allowlist", []string{})
+	// List of configuration providers considered trusted. Any provider not in this list is considered untrusted.
+	// By default, "file" (local configuration files) and "remote-config" (Datadog Remote Configuration) are trusted.
+	// See https://github.com/DataDog/datadog-agent/blob/main/comp/core/autodiscovery/providers/names/provider_names.go
+	// for the full list of available provider names.
+	config.BindEnvAndSetDefault("integration_trusted_providers", []string{"file", "remote-config"})
+	// List of integration names that are excluded from the above security restrictions.
+	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1303,6 +1319,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
+
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
