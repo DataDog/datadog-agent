@@ -94,13 +94,14 @@ func (n *nodeImpl) Merge(that *nodeImpl) (*nodeImpl, error) {
 		ourIsLeaf := ourChild.IsLeafNode()
 		theirIsLeaf := theirChild.IsLeafNode()
 
-		// If subtree shapes differ, take their branch, unless it is an empty leaf
-		if ourIsLeaf != theirIsLeaf {
-			if theirChild.IsLeafNode() && theirChild.Get() == nil {
-				newChildren[name] = ourChild
-				continue
-			}
+		// If subtree shapes differ, take the longer branch
+		// TODO: Improve error handling in a follow-up PR. We should collect errors
+		// and log.Error them, but also display these errors in more places
+		if ourIsLeaf && !theirIsLeaf {
 			newChildren[name] = theirChild
+			continue
+		} else if !ourIsLeaf && theirIsLeaf {
+			newChildren[name] = ourChild
 			continue
 		}
 
