@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
@@ -52,7 +51,6 @@ import (
 type EBPFResolvers struct {
 	manager              *manager.Manager
 	MountResolver        mount.ResolverInterface
-	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
 	TagsResolver         *tags.LinuxResolver
@@ -156,7 +154,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -181,7 +178,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
+		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +200,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	resolvers := &EBPFResolvers{
 		manager:                manager,
 		MountResolver:          mountResolver,
-		ContainerResolver:      containerResolver,
 		TimeResolver:           timeResolver,
 		UserGroupResolver:      userGroupResolver,
 		TagsResolver:           tagsResolver,

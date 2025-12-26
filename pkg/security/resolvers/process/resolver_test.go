@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -136,9 +135,7 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	containerResolver := container.New()
-
-	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, containerResolver, nil, cgroupsResolver, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, nil, cgroupsResolver, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
