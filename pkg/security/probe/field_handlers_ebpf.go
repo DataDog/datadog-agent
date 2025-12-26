@@ -221,16 +221,6 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
-func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
-	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
-		return containerID
-	}
-
-	cid := containerutils.FindContainerID(cgroupID)
-	fh.cgroupIDcache.Add(cgroupID, cid)
-	return cid
-}
-
 // ResolveRights resolves the rights of a file
 func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) int {
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)

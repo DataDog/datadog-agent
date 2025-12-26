@@ -743,9 +743,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			imageName: imageName,
 			imageTag:  imageTag,
 		}
-		for _, pid := range cgce.GetPIDs() {
-			pids[imageTagKey] = append(pids[imageTagKey], pid)
-		}
+		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})
