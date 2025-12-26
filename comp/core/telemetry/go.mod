@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/telemetry
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.75.0-rc.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.4
@@ -12,8 +12,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.75.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.75.0-rc.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
