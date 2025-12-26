@@ -60,17 +60,17 @@ const (
 
 // guiWiFiData represents the WiFi data structure from GUI IPC
 type guiWiFiData struct {
-	RSSI               int     `json:"rssi" minimum:"-110" maximum:"-5"`
-	SSID               string  `json:"ssid" maxLength:"32"`
-	BSSID              string  `json:"bssid" maxLength:"17" pattern:"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^$"`
-	Channel            int     `json:"channel" minimum:"1" maximum:"196"`
-	Noise              int     `json:"noise" minimum:"-120" maximum:"-75"`
+	RSSI               int     `json:"rssi"`
+	SSID               string  `json:"ssid"`
+	BSSID              string  `json:"bssid"`
+	Channel            int     `json:"channel"`
+	Noise              int     `json:"noise"`
 	NoiseValid         bool    `json:"noise_valid"`
-	TransmitRate       float64 `json:"transmit_rate" minimum:"0" maximum:"100000"`
-	ReceiveRate        float64 `json:"receive_rate" minimum:"0" maximum:"100000"`
+	TransmitRate       float64 `json:"transmit_rate"`
+	ReceiveRate        float64 `json:"receive_rate"`
 	ReceiveRateValid   bool    `json:"receive_rate_valid"`
-	MACAddress         string  `json:"mac_address" maxLength:"17" pattern:"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^$"`
-	PHYMode            string  `json:"phy_mode" enum:"None,802.11a,802.11b,802.11g,802.11n,802.11ac,802.11ax,802.11be"`
+	MACAddress         string  `json:"mac_address"`
+	PHYMode            string  `json:"phy_mode"`
 	LocationAuthorized bool    `json:"location_authorized"`
 	Error              *string `json:"error"`
 }
