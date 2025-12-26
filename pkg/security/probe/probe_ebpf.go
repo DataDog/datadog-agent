@@ -1684,9 +1684,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			CGroupPathKey: event.CgroupWrite.File.PathKey,
 		}
 
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pid, pce.ExecTime, cgroupContext); cacheEntry == nil {
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, pce.ExecTime, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
+		} else {
+			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.CGroupContext, cacheEntry.ContainerContext)
 		}
+
 		return false
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {

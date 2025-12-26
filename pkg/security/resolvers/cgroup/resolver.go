@@ -59,7 +59,7 @@ type ResolverInterface interface {
 // FSInterface defines the interface for CGroupFS operations
 type FSInterface interface {
 	FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, utils.CGroupContext, string, error)
-	GetCgroupPids(cgroupID string) ([]uint32, error)
+	GetCGroupPids(cgroupID string) ([]uint32, error)
 }
 
 // Resolver defines a cgroup monitor
@@ -157,7 +157,7 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 // Otherwise, sync it with new values.
 func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
 	// check if the cgroup still contains pids
-	pids, err := cr.cgroupFS.GetCgroupPids(string(cacheEntry.CGroupContext.CGroupID))
+	pids, err := cr.cgroupFS.GetCGroupPids(string(cacheEntry.CGroupContext.CGroupID))
 	if err != nil {
 		cr.removeCacheEntry(cacheEntry)
 		return
@@ -199,6 +199,8 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCacheEn
 }
 
 func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.ContainerContext, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
+	// sanity check that the releasable is not nil
+
 	if cgroupContext.Releasable == nil {
 		cgroupContext.Releasable = &model.Releasable{}
 	}
@@ -226,20 +228,15 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 
 func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
 	if !cgroupContext.IsResolved() {
-		// path resolution
 		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
 		if err != nil {
+			seclog.Debugf("fallback to resolve dentry for pid %d and path key %v", pid, cgroupContext.CGroupPathKey)
 			return nil
 		}
 
-		cgroupContext = model.CGroupContext{
-			Releasable:    &model.Releasable{},
-			CGroupPathKey: cgroupContext.CGroupPathKey,
-			CGroupID:      containerutils.CGroupID(path),
-		}
+		cgroupContext.CGroupID = containerutils.CGroupID(path)
 	}
 
-	// TODO check is the containerID is not null
 	var containerContext model.ContainerContext
 	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" {
 		containerContext = model.ContainerContext{
@@ -267,20 +264,20 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 			ContainerID: cid,
 			CreatedAt:   uint64(execTime.UnixNano()),
 		}
-		seclog.Infof("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
+		seclog.Debugf("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 	}
 
 	// fallback can fail for short lived processes, in this case we try to assign the parent cgroup
 	if ppid == pid || ppid <= 0 {
-		seclog.Infof("failed to fallback to resolve cgroup for %d, missing parend PPID: %d", pid, ppid)
+		seclog.Debugf("failed to fallback to resolve cgroup for %d, missing parend PPID: %d", pid, ppid)
 		return nil
 	}
 
 	if pathKey, found := cr.history.Get(ppid); found {
 		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
-			seclog.Infof("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
+			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
 
 			return cr.pushNewCacheEntry(pid, cacheEntry.ContainerContext, cacheEntry.CGroupContext)
 		}
@@ -300,19 +297,19 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 			ContainerID: cid,
 			CreatedAt:   uint64(execTime.UnixNano()),
 		}
-		seclog.Infof("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
+		seclog.Debugf("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 	}
 
-	seclog.Infof("failed to add pid %d, error on fallback to resolve its cgroup", pid)
+	seclog.Debugf("failed to add pid %d, error on fallback to resolve its cgroup", pid)
 	return nil
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
 // the cgroup context doesn't have to be resolved, it will be resolved when the cgroup is created.
-func (cr *Resolver) AddPID(pid uint32, execTime time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
+func (cr *Resolver) AddPID(pid uint32, ppid uint32, execTime time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -339,12 +336,12 @@ func (cr *Resolver) AddPID(pid uint32, execTime time.Time, cgroupContext model.C
 		return cacheEntryFound
 	}
 
-	// try to resolve the cgroup from the fallback mechanism
-	cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, execTime)
-	if cacheEntry != nil {
+	// try to resolve the cgroup from the dentry resolver
+	if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, execTime); cacheEntry != nil {
 		return cacheEntry
 	}
-	return nil
+
+	return cr.resolveFromFallback(pid, ppid, execTime)
 }
 
 func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
