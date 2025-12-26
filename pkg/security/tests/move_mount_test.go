@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,22 +24,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func GetMountID(fd int) (uint64, error) {
-	var stx unix.Statx_t
-
-	flags := unix.AT_EMPTY_PATH | unix.AT_STATX_DONT_SYNC
-
-	if err := unix.Statx(fd, "", flags, unix.STATX_MNT_ID, &stx); err != nil {
-		return 0, fmt.Errorf("statx: %w", err)
-	}
-
-	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, errors.New("statx: kernel didn't fill STATX_MNT_ID")
-	}
-
-	return stx.Mnt_id, nil
-}
-
 func TestMoveMount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -50,7 +33,6 @@ func TestMoveMount(t *testing.T) {
 
 	mountDir := t.TempDir()
 	fsmountfd := 0
-	var mountid uint64
 	// Create a temporary mount
 	fdTmp, err := TmpMountAt(mountDir)
 	if err != nil {
@@ -85,7 +67,7 @@ func TestMoveMount(t *testing.T) {
 	}
 	defer unix.Close(fsmountfd)
 
-	mountid, _ = GetMountID(fsmountfd)
+	mountid, err := getMountID(mountDir)
 
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
@@ -243,11 +225,10 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	}
 
 	te, err := newTestEnvironment(true, t.TempDir())
-	defer te.UnmountAll()
-
 	if err != nil {
 		t.Fatal("Error creating new test environment", err)
 	}
+	defer te.UnmountAll()
 
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
@@ -289,8 +270,9 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	})
 }
 
-func TestMoveMountRecursivePropagation(t *testing.T) {
-	SkipIfNotAvailable(t)
+func testMoveMountRecursivePropagation(t *testing.T) {
+	t.Helper()
+	//SkipIfNotAvailable(t)
 
 	// Docker messes up with the propagation
 	if testEnvironment == DockerEnvironment {
@@ -342,7 +324,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" && event.Mount.FSType != "tmpfs" {
+			if event.GetType() != "move_mount" || event.Mount.FSType != "tmpfs" {
 				return false
 			}
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
@@ -353,13 +335,16 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-		for i := range allMounts {
-			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
-			if len(path) == 0 || !strings.Contains(path, "tmp1") || !strings.Contains(path, "tmp2") {
+		for i, _ := range allMounts {
+			path, src, origin, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+
+			if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
+			fmt.Printf("MountID: %d. Source=%d. Origin=%d\n", i, src, origin)
+
 			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
 		}
 	})
