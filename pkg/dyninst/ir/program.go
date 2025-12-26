@@ -224,6 +224,22 @@ type InjectionPoint struct {
 	// HasAssociatedReturn is true if there is going to be a return associated
 	// with this call.
 	HasAssociatedReturn bool `json:"-"`
+	// NoReturnReason is the reason why there is no return associated with this
+	// call. Only set if HasAssociatedReturn is false.
+	NoReturnReason NoReturnReason `json:"-"`
 	// TopPCOffset is the offset of the top PC from the entry PC.
 	TopPCOffset int8 `json:"-"`
 }
+
+// This must be kept in sync with the no_return_reason enum in the ebpf/types.h
+// file.
+type NoReturnReason uint8
+
+const (
+	NoReturnReasonNone            NoReturnReason = 0
+	NoReturnReasonReturnsDisabled NoReturnReason = 1
+	NoReturnReasonLineProbe       NoReturnReason = 2
+	NoReturnReasonInlined         NoReturnReason = 3
+	NoReturnReasonNoBody          NoReturnReason = 4
+	NoReturnReasonIsReturn        NoReturnReason = 5
+)
