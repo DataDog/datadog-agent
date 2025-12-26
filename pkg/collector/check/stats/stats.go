@@ -328,9 +328,9 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	)
 
 	if reportErr != nil {
-		log.Warnf("Failed to report check failure to health platform for %s: %v", cs.CheckName, reportErr)
+		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
 	} else {
-		log.Debugf("Reported check failure to health platform for %s", cs.CheckName)
+		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)
 	}
 }
 
