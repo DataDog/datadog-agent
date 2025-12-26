@@ -56,6 +56,20 @@ dda inv full-host-profiler.build
 
 ## Usage
 
+### Using docker
+
+```bash
+docker-compose up --build
+```
+
+Check profiler's logs with
+
+```bash
+docker-compose logs host-profiler -f
+```
+
+### Running on Host
+
 ```bash
 # Standalone mode
 ./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
@@ -69,6 +83,8 @@ dda inv full-host-profiler.build
   -c cmd/host-profiler/dist/host-profiler-config.yaml \
   --core-config ./dev/dist/datadog.yaml
 ```
+
+**Warning**: in this configuration, container attributes might be broken.
 
 ## Configuration
 
