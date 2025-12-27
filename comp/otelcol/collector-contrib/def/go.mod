@@ -6,6 +6,12 @@ require go.opentelemetry.io/collector/otelcol v0.142.0
 
 require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
+	go.opentelemetry.io/collector/connector/connectortest v0.142.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.142.0 // indirect
+	go.opentelemetry.io/collector/exporter/exportertest v0.142.0 // indirect
+	go.opentelemetry.io/collector/internal/fanoutconsumer v0.142.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.142.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.142.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 )
@@ -34,15 +40,6 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.142.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.142.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0 // indirect
-)
-
-require (
-	go.opentelemetry.io/collector/connector/connectortest v0.142.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.142.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.142.0 // indirect
-	go.opentelemetry.io/collector/internal/fanoutconsumer v0.142.0 // indirect
-	go.opentelemetry.io/collector/processor/processortest v0.142.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.142.0 // indirect
 )
 
 require (
