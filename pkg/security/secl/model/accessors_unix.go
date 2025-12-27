@@ -2171,7 +2171,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.CGroup.CGroupFile.Inode)
+				return int(ev.Exec.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2182,7 +2182,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.CGroup.CGroupFile.MountID)
+				return int(ev.Exec.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2193,10 +2193,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
+				return string(ev.Exec.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.cgroup.version":
@@ -2226,10 +2226,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext))
+				return int(ev.Exec.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.id":
@@ -2237,10 +2237,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
+				return string(ev.Exec.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.tags":
@@ -3627,7 +3627,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.CGroup.CGroupFile.Inode)
+				return int(ev.Exit.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3638,7 +3638,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.CGroup.CGroupFile.MountID)
+				return int(ev.Exit.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3649,10 +3649,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
+				return string(ev.Exit.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.cgroup.version":
@@ -3693,10 +3693,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext))
+				return int(ev.Exit.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.id":
@@ -3704,10 +3704,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
+				return string(ev.Exit.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.tags":
@@ -8289,14 +8289,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -8316,14 +8316,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -8343,14 +8343,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					result := string(element.ProcessContext.Process.CGroup.CGroupID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -8424,14 +8424,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -8451,14 +8451,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -11342,7 +11342,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode)
+				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11353,7 +11353,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID)
+				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11364,10 +11364,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+				return string(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.cgroup.version":
@@ -11397,10 +11397,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.id":
@@ -11408,10 +11408,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.tags":
@@ -12526,7 +12526,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode)
+				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -12540,7 +12540,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID)
+				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -12554,10 +12554,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+				return string(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.version":
@@ -12596,10 +12596,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.id":
@@ -12610,10 +12610,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.tags":
@@ -14550,14 +14550,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -14577,14 +14577,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -14604,14 +14604,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					result := string(element.ProcessContext.Process.CGroup.CGroupID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -14685,14 +14685,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -14712,14 +14712,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -17603,7 +17603,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode)
+				return int(ev.PTrace.Tracee.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17614,7 +17614,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID)
+				return int(ev.PTrace.Tracee.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17625,10 +17625,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
+				return string(ev.PTrace.Tracee.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.version":
@@ -17658,10 +17658,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Process.ContainerContext))
+				return int(ev.PTrace.Tracee.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.container.id":
@@ -17669,10 +17669,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Process.ContainerContext)
+				return string(ev.PTrace.Tracee.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.container.tags":
@@ -18787,7 +18787,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return 0
 				}
-				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode)
+				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -18801,7 +18801,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return 0
 				}
-				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID)
+				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -18815,10 +18815,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
+				return string(ev.PTrace.Tracee.Parent.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.version":
@@ -18857,10 +18857,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Parent.ContainerContext))
+				return int(ev.PTrace.Tracee.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.container.id":
@@ -18871,10 +18871,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
+				return string(ev.PTrace.Tracee.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.container.tags":
@@ -22235,14 +22235,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -22262,14 +22262,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -22289,14 +22289,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					result := string(element.ProcessContext.Process.CGroup.CGroupID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -22370,14 +22370,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -22397,14 +22397,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -25288,7 +25288,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.Target.Process.CGroup.CGroupFile.Inode)
+				return int(ev.Setrlimit.Target.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25299,7 +25299,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.Target.Process.CGroup.CGroupFile.MountID)
+				return int(ev.Setrlimit.Target.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25310,10 +25310,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Process.CGroup)
+				return string(ev.Setrlimit.Target.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.cgroup.version":
@@ -25343,10 +25343,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Process.ContainerContext))
+				return int(ev.Setrlimit.Target.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.container.id":
@@ -25354,10 +25354,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Process.ContainerContext)
+				return string(ev.Setrlimit.Target.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.container.tags":
@@ -26472,7 +26472,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupFile.Inode)
+				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -26486,7 +26486,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupFile.MountID)
+				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -26500,10 +26500,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Parent.CGroup)
+				return string(ev.Setrlimit.Target.Parent.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.cgroup.version":
@@ -26542,10 +26542,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Parent.ContainerContext))
+				return int(ev.Setrlimit.Target.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.container.id":
@@ -26556,10 +26556,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
+				return string(ev.Setrlimit.Target.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.container.tags":
@@ -29017,14 +29017,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.Inode)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -29044,14 +29044,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					result := int(element.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					return int(current.ProcessContext.Process.CGroup.CGroupPathKey.MountID)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -29071,14 +29071,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					result := string(element.ProcessContext.Process.CGroup.CGroupID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -29152,14 +29152,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -29179,14 +29179,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -32070,7 +32070,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Signal.Target.Process.CGroup.CGroupFile.Inode)
+				return int(ev.Signal.Target.Process.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -32081,7 +32081,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Signal.Target.Process.CGroup.CGroupFile.MountID)
+				return int(ev.Signal.Target.Process.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -32092,10 +32092,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
+				return string(ev.Signal.Target.Process.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.version":
@@ -32125,10 +32125,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Process.ContainerContext))
+				return int(ev.Signal.Target.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.container.id":
@@ -32136,10 +32136,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Process.ContainerContext)
+				return string(ev.Signal.Target.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.container.tags":
@@ -33254,7 +33254,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Signal.Target.Parent.CGroup.CGroupFile.Inode)
+				return int(ev.Signal.Target.Parent.CGroup.CGroupPathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -33268,7 +33268,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Signal.Target.Parent.CGroup.CGroupFile.MountID)
+				return int(ev.Signal.Target.Parent.CGroup.CGroupPathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -33282,10 +33282,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
+				return string(ev.Signal.Target.Parent.CGroup.CGroupID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.version":
@@ -33324,10 +33324,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Parent.ContainerContext))
+				return int(ev.Signal.Target.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.container.id":
@@ -33338,10 +33338,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Parent.ContainerContext)
+				return string(ev.Signal.Target.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.container.tags":
@@ -43252,9 +43252,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.caps_used":
 		return ev.setUint64FieldValue("exec.caps_used", &ev.Exec.Process.CapsUsed, value)
 	case "exec.cgroup.file.inode":
-		return ev.setUint64FieldValue("exec.cgroup.file.inode", &ev.Exec.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("exec.cgroup.file.inode", &ev.Exec.Process.CGroup.CGroupPathKey.Inode, value)
 	case "exec.cgroup.file.mount_id":
-		return ev.setUint32FieldValue("exec.cgroup.file.mount_id", &ev.Exec.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("exec.cgroup.file.mount_id", &ev.Exec.Process.CGroup.CGroupPathKey.MountID, value)
 	case "exec.cgroup.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -43639,12 +43639,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return ev.setUint64FieldValue("exit.cgroup.file.inode", &ev.Exit.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("exit.cgroup.file.inode", &ev.Exit.Process.CGroup.CGroupPathKey.Inode, value)
 	case "exit.cgroup.file.mount_id":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return ev.setUint32FieldValue("exit.cgroup.file.mount_id", &ev.Exit.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("exit.cgroup.file.mount_id", &ev.Exit.Process.CGroup.CGroupPathKey.MountID, value)
 	case "exit.cgroup.id":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -44855,9 +44855,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.ancestors.caps_used":
 		return ev.setUint64FieldValue("process.ancestors.caps_used", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CapsUsed, value)
 	case "process.ancestors.cgroup.file.inode":
-		return ev.setUint64FieldValue("process.ancestors.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("process.ancestors.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.Inode, value)
 	case "process.ancestors.cgroup.file.mount_id":
-		return ev.setUint32FieldValue("process.ancestors.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("process.ancestors.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.MountID, value)
 	case "process.ancestors.cgroup.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -45188,9 +45188,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.caps_used":
 		return ev.setUint64FieldValue("process.caps_used", &ev.BaseEvent.ProcessContext.Process.CapsUsed, value)
 	case "process.cgroup.file.inode":
-		return ev.setUint64FieldValue("process.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("process.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPathKey.Inode, value)
 	case "process.cgroup.file.mount_id":
-		return ev.setUint32FieldValue("process.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("process.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPathKey.MountID, value)
 	case "process.cgroup.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -45478,9 +45478,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.parent.caps_used":
 		return ev.setUint64FieldValue("process.parent.caps_used", &ev.BaseEvent.ProcessContext.Parent.CapsUsed, value)
 	case "process.parent.cgroup.file.inode":
-		return ev.setUint64FieldValue("process.parent.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("process.parent.cgroup.file.inode", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPathKey.Inode, value)
 	case "process.parent.cgroup.file.mount_id":
-		return ev.setUint32FieldValue("process.parent.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("process.parent.cgroup.file.mount_id", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPathKey.MountID, value)
 	case "process.parent.cgroup.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -45926,7 +45926,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint64FieldValue("ptrace.tracee.ancestors.cgroup.file.inode", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.cgroup.file.inode", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.Inode, value)
 	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -45934,7 +45934,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("ptrace.tracee.ancestors.cgroup.file.mount_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.cgroup.file.mount_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.MountID, value)
 	case "ptrace.tracee.ancestors.cgroup.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -46877,12 +46877,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setUint64FieldValue("ptrace.tracee.cgroup.file.inode", &ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("ptrace.tracee.cgroup.file.inode", &ev.PTrace.Tracee.Process.CGroup.CGroupPathKey.Inode, value)
 	case "ptrace.tracee.cgroup.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("ptrace.tracee.cgroup.file.mount_id", &ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("ptrace.tracee.cgroup.file.mount_id", &ev.PTrace.Tracee.Process.CGroup.CGroupPathKey.MountID, value)
 	case "ptrace.tracee.cgroup.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47473,7 +47473,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setUint64FieldValue("ptrace.tracee.parent.cgroup.file.inode", &ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("ptrace.tracee.parent.cgroup.file.inode", &ev.PTrace.Tracee.Parent.CGroup.CGroupPathKey.Inode, value)
 	case "ptrace.tracee.parent.cgroup.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47481,7 +47481,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("ptrace.tracee.parent.cgroup.file.mount_id", &ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("ptrace.tracee.parent.cgroup.file.mount_id", &ev.PTrace.Tracee.Parent.CGroup.CGroupPathKey.MountID, value)
 	case "ptrace.tracee.parent.cgroup.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -48807,7 +48807,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint64FieldValue("setrlimit.target.ancestors.cgroup.file.inode", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.cgroup.file.inode", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.Inode, value)
 	case "setrlimit.target.ancestors.cgroup.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -48815,7 +48815,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.ancestors.cgroup.file.mount_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.cgroup.file.mount_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.MountID, value)
 	case "setrlimit.target.ancestors.cgroup.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49758,12 +49758,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setUint64FieldValue("setrlimit.target.cgroup.file.inode", &ev.Setrlimit.Target.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("setrlimit.target.cgroup.file.inode", &ev.Setrlimit.Target.Process.CGroup.CGroupPathKey.Inode, value)
 	case "setrlimit.target.cgroup.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.cgroup.file.mount_id", &ev.Setrlimit.Target.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("setrlimit.target.cgroup.file.mount_id", &ev.Setrlimit.Target.Process.CGroup.CGroupPathKey.MountID, value)
 	case "setrlimit.target.cgroup.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50354,7 +50354,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setUint64FieldValue("setrlimit.target.parent.cgroup.file.inode", &ev.Setrlimit.Target.Parent.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("setrlimit.target.parent.cgroup.file.inode", &ev.Setrlimit.Target.Parent.CGroup.CGroupPathKey.Inode, value)
 	case "setrlimit.target.parent.cgroup.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50362,7 +50362,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.parent.cgroup.file.mount_id", &ev.Setrlimit.Target.Parent.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("setrlimit.target.parent.cgroup.file.mount_id", &ev.Setrlimit.Target.Parent.CGroup.CGroupPathKey.MountID, value)
 	case "setrlimit.target.parent.cgroup.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51536,7 +51536,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint64FieldValue("signal.target.ancestors.cgroup.file.inode", &ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("signal.target.ancestors.cgroup.file.inode", &ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.Inode, value)
 	case "signal.target.ancestors.cgroup.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -51544,7 +51544,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("signal.target.ancestors.cgroup.file.mount_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("signal.target.ancestors.cgroup.file.mount_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPathKey.MountID, value)
 	case "signal.target.ancestors.cgroup.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52487,12 +52487,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setUint64FieldValue("signal.target.cgroup.file.inode", &ev.Signal.Target.Process.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("signal.target.cgroup.file.inode", &ev.Signal.Target.Process.CGroup.CGroupPathKey.Inode, value)
 	case "signal.target.cgroup.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("signal.target.cgroup.file.mount_id", &ev.Signal.Target.Process.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("signal.target.cgroup.file.mount_id", &ev.Signal.Target.Process.CGroup.CGroupPathKey.MountID, value)
 	case "signal.target.cgroup.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53083,7 +53083,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setUint64FieldValue("signal.target.parent.cgroup.file.inode", &ev.Signal.Target.Parent.CGroup.CGroupFile.Inode, value)
+		return ev.setUint64FieldValue("signal.target.parent.cgroup.file.inode", &ev.Signal.Target.Parent.CGroup.CGroupPathKey.Inode, value)
 	case "signal.target.parent.cgroup.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53091,7 +53091,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("signal.target.parent.cgroup.file.mount_id", &ev.Signal.Target.Parent.CGroup.CGroupFile.MountID, value)
+		return ev.setUint32FieldValue("signal.target.parent.cgroup.file.mount_id", &ev.Signal.Target.Parent.CGroup.CGroupPathKey.MountID, value)
 	case "signal.target.parent.cgroup.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
