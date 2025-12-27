@@ -533,9 +533,8 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// Azure serverless apps tags, in the form of a comma-separated list of
-	// key-value pairs, starting with a comma
-	AzureServerlessTags string
+	// AdditionalProfileTags are extra tags to add to profiles
+	AdditionalProfileTags map[string]string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
