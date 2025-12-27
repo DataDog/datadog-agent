@@ -86,7 +86,7 @@ type SerializerConsumer interface {
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
-	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge)
+	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
 }
 
 type serializerConsumer struct {
@@ -231,7 +231,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
-	gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge) {
+	gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge) {
 	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
 	gateWayEnvVar := gatewayUsage.EnvVarValue()
@@ -257,7 +257,7 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 		SourceTypeName: "System",
 	})
 
-	if coatGwUsageMetric == nil || coatGWEnvVarMetric == nil {
+	if coatGwUsageMetric == nil {
 		return
 	}
 
@@ -265,12 +265,10 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 	case ddot:
 		for host := range c.hosts {
 			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
-			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
 			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
-			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
 		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")

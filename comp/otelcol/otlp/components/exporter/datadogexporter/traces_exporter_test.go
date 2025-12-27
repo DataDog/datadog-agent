@@ -120,6 +120,13 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP traces in DDOT",
 		),
+
+		DDOTGWUsage: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_usage",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric for GW deployments with DDOT",
+		),
 	}
 	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
