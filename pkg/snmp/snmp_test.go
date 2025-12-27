@@ -295,7 +295,7 @@ network_devices:
 	assert.Equal(t, "127.0.0.6/30", conf.Configs[2].Network)
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
-	// incorrect snmp_listener config and correct network_devices config
+	// correct snmp_listener config and incorrect network_devices config
 	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
