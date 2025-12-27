@@ -181,8 +181,22 @@ const (
 	// SocketDNSFilter is the socket probe for dns
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
-	// ConntrackHashInsert is the probe for new conntrack entries
+	// JMWREVIEW
+	// JMW thi is the default probe
+	// ConntrackHashInsert is the kprobe for __nf_conntrack_hash_insert (used by prebuilt)
+	// This probe directly receives struct nf_conn*, avoiding the need to extract it from sk_buff
 	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
+
+	// JMW these are the alternate probes if ConntrackHashInsert is not available
+	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
+	ConntrackConfirm ProbeFuncName = "kprobe__nf_conntrack_confirm"
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
+	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
+
+	// ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
+	ConntrackHashCheckInsert ProbeFuncName = "kprobe_nf_conntrack_hash_check_insert"
+	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert
+	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
@@ -217,6 +231,9 @@ const (
 	TCPFailureTelemetry BPFMapName = "tcp_failure_telemetry"
 	// ConnCloseBatchMap is the map storing connection close batch events
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
+	// ConntrackArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
+	// JMWNAME ConntrackConfirmArgsMap?  JMWNEXT can the map be used by both nf_conntrack_confirm and nf_conntrack_hash_insert?  if so pick better name - maybe ConntrackArgsMap = "conntrack_args"
+	ConntrackArgsMap = "conntrack_args"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry

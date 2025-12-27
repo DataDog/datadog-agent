@@ -427,6 +427,7 @@ static __always_inline bool is_ct_event(u64 what) {
     }
 }
 
+//JMW change to new probe?
 SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     u64 zero = 0;
