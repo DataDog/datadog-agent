@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
@@ -58,6 +59,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		run.MakeCommand(globalConfGetter),
 		version.MakeCommand("otel-agent"),
 		status.MakeCommand(globalConfGetter),
+		flare.MakeCommand(globalConfGetter),
 	}
 
 	// Add Windows service control commands (noop on non-Windows via stub)
