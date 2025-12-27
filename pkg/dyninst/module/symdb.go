@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/google/uuid"
 )
 
 // symdbManager deals with uploading symbols to the SymDB backend.
@@ -574,6 +575,7 @@ func (m *symdbManager) performUpload(
 
 	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
 		procID.pid, procID.service, procID.version, executablePath)
+	startTime := time.Now()
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
@@ -589,8 +591,11 @@ func (m *symdbManager) performUpload(
 	)
 	uploadBuffer := make([]uploader.Scope, 0, 100)
 	bufferFuncs := 0
-	// Flush every so ofter in order to not store too many scopes in memory.
-	maybeFlush := func(force bool) error {
+	uploadID := uuid.New()
+	batchNum := 0
+	var totalPackages, totalFuncs int
+	// Flush every so often in order to not store too many scopes in memory.
+	maybeFlush := func(final bool) error {
 		if ctx.Err() != nil {
 			return context.Cause(ctx)
 		}
@@ -598,9 +603,18 @@ func (m *symdbManager) performUpload(
 		if len(uploadBuffer) == 0 {
 			return nil
 		}
-		if force || bufferFuncs >= m.cfg.maxBufferFuncs {
-			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
-			if err := sender.Upload(ctx, uploadBuffer); err != nil {
+		if final || bufferFuncs >= m.cfg.maxBufferFuncs {
+			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions. Final chunk: %t", len(uploadBuffer), bufferFuncs, final)
+			batchNum++
+			err := sender.UploadBatch(ctx,
+				uploader.UploadInfo{
+					UploadID: uploadID,
+					BatchNum: batchNum,
+					Final:    final,
+				},
+				uploadBuffer,
+			)
+			if err != nil {
 				return fmt.Errorf("upload failed: %w", err)
 			}
 			uploadBuffer = uploadBuffer[:0]
@@ -618,18 +632,20 @@ func (m *symdbManager) performUpload(
 			return context.Cause(ctx)
 		}
 
-		scope := uploader.ConvertPackageToScope(pkg, version.AgentVersion)
+		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
 		uploadBuffer = append(uploadBuffer, scope)
+		totalPackages++
+		totalFuncs += pkg.Stats().NumFunctions
 		bufferFuncs += pkg.Stats().NumFunctions
-		if err := maybeFlush(false /* force */); err != nil {
+		if err := maybeFlush(pkg.Final); err != nil {
 			return err
 		}
 	}
-	if err := maybeFlush(true /* force */); err != nil {
-		return err
-	}
 
-	log.Infof("SymDB: Successfully uploaded symbols for process %v (service: %s, version: %s, executable: %s)",
-		procID.pid, procID.service, procID.version, executablePath)
+	log.Infof("SymDB: Successfully uploaded symbols for process %v "+
+		"(service: %s, version: %s, executable: %s):"+
+		" %d packages, %d functions, %d chunks in %v",
+		procID.pid, procID.service, procID.version, executablePath,
+		totalPackages, totalFuncs, batchNum, time.Since(startTime))
 	return nil
 }
