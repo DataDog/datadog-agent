@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"testing"
 
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
@@ -1487,4 +1488,372 @@ func TestDeviceMapperResolution_WithMixedDeviceTypes(t *testing.T) {
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/vg-lv", "device_name:vg-lv"})
 	// Regular device should keep its original name
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenInodeMetricsAreReported(t *testing.T) {
+	// This tests that inode metrics (system.fs.inodes.*) are sent on Linux
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "ext4",
+			Total:             100000000000,
+			Free:              30000000000,
+			Used:              70000000000,
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        400000,
+			InodesFree:        600000,
+			InodesUsedPercent: 40.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Verify inode metrics are sent
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.total", float64(1000000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.used", float64(400000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.free", float64(600000), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.utilized", float64(40.0), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.fs.inodes.in_use", float64(0.4), "", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndInodesIsZero_ThenInodeMetricsAreNotReported(t *testing.T) {
+	// When InodesTotal is 0, inode metrics should not be sent (e.g., some filesystems don't support inodes)
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "tmpfs",
+			Total:             100000000,
+			Free:              50000000,
+			Used:              50000000,
+			UsedPercent:       50.0,
+			InodesTotal:       0, // No inodes
+			InodesUsed:        0,
+			InodesFree:        0,
+			InodesUsedPercent: 0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "tmpfs",
+				Mountpoint: "/tmp",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Disk metrics should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "device_name:tmpfs"})
+	// Inode metrics should NOT be reported when InodesTotal is 0
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.fs.inodes.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsNoneDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	// The code treats device == "none" the same as empty device (excluded by default unless all_partitions: true)
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "none", // Special "none" device (e.g., some virtual filesystems)
+				Mountpoint: "/sys/fs/cgroup",
+				Fstype:     "cgroup2",
+				Opts:       []string{"rw", "nosuid", "nodev", "noexec"},
+			},
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Partition with device "none" should be excluded
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		return slices.Contains(tags, "device:none")
+	}))
+	// Regular partition should still be reported
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsNoneDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	// With all_partitions: true, even "none" devices should be included
+	// Note: We need a non-zero Total size, otherwise it's filtered out by the min_disk_size logic
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        path,
+			Fstype:      "tmpfs",
+			Total:       100000000, // Non-zero to avoid min_disk_size filtering
+			Free:        50000000,
+			Used:        50000000,
+			UsedPercent: 50.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "none",
+				Mountpoint: "/run/user/1000",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// With all_partitions: true, the "none" device should be included
+	// The device tag keeps the original value "none"
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:none", "device_name:none"})
+}
+
+func TestGivenADiskCheckWithResolveRootDeviceFalse_WhenMountinfoDoesNotExist_ThenFallbackToMountsFileAndDevRootNotResolved(t *testing.T) {
+	// Tests the fallback from /proc/self/mountinfo to /proc/self/mounts
+	// When mountinfo doesn't exist, the code should fall back to mounts file.
+	// KEY DIFFERENCE: When using mounts file (not mountinfo), the /dev/root
+	// resolution logic is SKIPPED, so /dev/root stays as-is in the device tag.
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 8, Minor: 1}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+
+	// Create /proc/self directory but NO mountinfo file
+	assert.NoError(t, fs.MkdirAll("/proc/self", 0755))
+	// Also create /proc/1 without mountinfo to ensure fallback happens
+	assert.NoError(t, fs.MkdirAll("/proc/1", 0755))
+
+	// Create mounts file (simpler format than mountinfo)
+	// Format: device mountpoint fstype options dump pass
+	err := afero.WriteFile(fs, "/proc/self/mounts", []byte(
+		`/dev/root / ext4 rw,relatime 0 0
+`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/proc/1/mounts", []byte(
+		`/dev/root / ext4 rw,relatime 0 0
+`),
+		0644)
+	assert.Nil(t, err)
+
+	// Setup uevent file that would normally be used to resolve /dev/root
+	// (but it WON'T be used when falling back to mounts)
+	assert.NoError(t, fs.MkdirAll("/sys/dev/block/8:1", 0755))
+	err = afero.WriteFile(fs, "/sys/dev/block/8:1/uevent", []byte(
+		`MAJOR=8
+MINOR=1
+DEVNAME=sda1
+`),
+		0644)
+	assert.Nil(t, err)
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	// gopsutil returns /dev/root (as it would on some systems)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "ext4",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/root", // This would be resolved to /dev/sda1 with mountinfo
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+resolve_root_device: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	// Check should succeed even when falling back to mounts file
+	assert.Nil(t, err)
+	// KEY ASSERTION: /dev/root is NOT resolved to /dev/sda1 because we're using
+	// the mounts fallback (not mountinfo). This proves the fallback happened!
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/root", "device_name:root"})
+	// Verify it's NOT using the resolved name
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1"})
+}
+
+func TestGivenADiskCheckWithResolveRootDeviceFalse_WhenProc1MountinfoFails_ThenFallbackToProcSelfMountinfo(t *testing.T) {
+	// Tests the fallback from /proc/1/mountinfo to /proc/self/mountinfo
+	// When /proc/1/mountinfo doesn't exist but /proc/self/mountinfo does,
+	// the code should use /proc/self/mountinfo for device-mapper resolution
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 252, Minor: 0}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+
+	// Create /proc/1 directory but NO mountinfo file there
+	assert.NoError(t, fs.MkdirAll("/proc/1", 0755))
+	// Create /proc/self/mountinfo (the fallback)
+	assert.NoError(t, fs.MkdirAll("/proc/self", 0755))
+	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/vg-root rw
+`),
+		0644)
+	assert.Nil(t, err)
+
+	// Setup device-mapper symlink
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-0", "/dev/mapper/vg-root"))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-0", []byte{}, 0644))
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	// gopsutil returns /dev/dm-0 (resolved symlink)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/dm-0", // gopsutil resolves symlink
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+resolve_root_device: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// KEY ASSERTION: Device-mapper resolution worked using /proc/self/mountinfo fallback
+	// /dev/dm-0 should be resolved to friendly /dev/mapper/vg-root name
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/vg-root", "device_name:vg-root"})
+}
+
+func TestGivenADiskCheckWithProcMountinfoPathConfigured_WhenCheckRuns_ThenCustomPathIsUsed(t *testing.T) {
+	// Tests that proc_mountinfo_path configuration overrides the default path
+	// This is useful when running in containers where host's /proc is mounted elsewhere
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		return diskv2.StatT{Major: 252, Minor: 0}, nil
+	}
+	base := afero.NewMemMapFs()
+	fs := newSymlinkFs(base)
+
+	// Create custom mountinfo path (simulating container environment)
+	assert.NoError(t, fs.MkdirAll("/host/proc/1", 0755))
+	err := afero.WriteFile(fs, "/host/proc/1/mountinfo", []byte(
+		`103 1 252:0 / / rw,relatime shared:1 - xfs /dev/mapper/host-root rw
+`),
+		0644)
+	assert.Nil(t, err)
+
+	// Setup device-mapper symlink
+	assert.NoError(t, fs.MkdirAll("/dev/mapper", 0755))
+	assert.NoError(t, fs.SymlinkIfPossible("../dm-0", "/dev/mapper/host-root"))
+	assert.NoError(t, afero.WriteFile(fs, "/dev/dm-0", []byte{}, 0644))
+
+	// Do NOT create /proc/1/mountinfo or /proc/self/mountinfo
+	// The check should use the custom path instead
+
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "xfs",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/dm-0",
+				Mountpoint: "/",
+				Fstype:     "xfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	}), fakeStatFn), fs), "linux")
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	// Configure custom proc_mountinfo_path
+	config := integration.Data([]byte(`
+resolve_root_device: false
+proc_mountinfo_path: /host/proc/1/mountinfo
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	// KEY ASSERTION: Device-mapper resolution worked using custom mountinfo path
+	// /dev/dm-0 should be resolved to friendly /dev/mapper/host-root name
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/mapper/host-root", "device_name:host-root"})
 }

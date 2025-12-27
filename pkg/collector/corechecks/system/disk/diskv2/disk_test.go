@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -1389,4 +1390,107 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenMountPointHasDeletedSuffix_ThenMountPointIsCorrectlyExcluded(t *testing.T) {
+	// This tests the NFS secure mount handling where mountpoints might look like '/mypath (deleted)'
+	// The code should strip the suffix and match against the original path
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "nfs",
+			Total:             100000000,
+			Free:              50000000,
+			Used:              50000000,
+			UsedPercent:       50.0,
+			InodesTotal:       10000,
+			InodesUsed:        5000,
+			InodesFree:        5000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/mnt/nfs_share (deleted)",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/mnt/other",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	// Exclude /mnt/nfs_share - should match even though the actual mountpoint has " (deleted)" suffix
+	config := integration.Data([]byte(`
+mount_point_exclude:
+  - /mnt/nfs_share
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// The partition with "(deleted)" suffix should be excluded
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		return slices.Contains(tags, "device:/dev/sda1")
+	}))
+	// The other partition should still be reported
+	m.AssertCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		return slices.Contains(tags, "device:/dev/sda2")
+	}))
+}
+
+func TestGivenADiskCheckWithDeviceTagReConfiguredWithMultipleTags_WhenCheckRuns_ThenAllTagsAreReported(t *testing.T) {
+	// This tests that device_tag_re supports comma-separated multiple tags
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              path,
+			Fstype:            "ext4",
+			Total:             100000000,
+			Free:              50000000,
+			Used:              50000000,
+			UsedPercent:       50.0,
+			InodesTotal:       10000,
+			InodesUsed:        5000,
+			InodesFree:        5000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	// Configure device_tag_re with multiple comma-separated tags
+	config := integration.Data([]byte(`
+device_tag_re:
+  /dev/sda.*: role:primary, type:ssd, tier:fast
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	// Verify all three tags are present on the metrics
+	m.AssertCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		return slices.Contains(tags, "role:primary") &&
+			slices.Contains(tags, "type:ssd") &&
+			slices.Contains(tags, "tier:fast")
+	}))
 }
