@@ -86,6 +86,7 @@ const (
 	netpathEndpoint              = "/api/v2/netpath"
 	ncmEndpoint                  = "/api/v2/ndmconfig"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
+	agentHealthEndpoint          = "/api/v2/agenthealth"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -147,6 +148,7 @@ type Client struct {
 	netpathAggregator              aggregator.NetpathAggregator
 	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostAggregator
+	agentHealthAggregator          aggregator.AgentHealthAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -177,6 +179,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
+		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
@@ -886,6 +889,23 @@ func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
 		metadata = append(metadata, c.metadataAggregator.GetPayloadsByName(name)...)
 	}
 	return metadata, nil
+}
+
+// GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns a list of agent health payloads
+func (c *Client) GetAgentHealth() ([]*aggregator.AgentHealthPayload, error) {
+	payloads, err := c.getFakePayloads(agentHealthEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	err = c.agentHealthAggregator.UnmarshallPayloads(payloads)
+	if err != nil {
+		return nil, err
+	}
+	agentHealth := make([]*aggregator.AgentHealthPayload, 0, len(c.agentHealthAggregator.GetNames()))
+	for _, name := range c.agentHealthAggregator.GetNames() {
+		agentHealth = append(agentHealth, c.agentHealthAggregator.GetPayloadsByName(name)...)
+	}
+	return agentHealth, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns

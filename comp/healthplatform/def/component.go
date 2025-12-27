@@ -33,7 +33,7 @@ type Issue struct {
 	// (e.g., "logs", "apm", "error-tracking", "network-monitoring")
 	Source string `json:"Source"`
 	// Extra is optional complementary structured information
-	Extra map[any]any `json:"Extra,omitempty"`
+	Extra map[string]any `json:"Extra,omitempty"`
 	// Remediation provides steps to fix the issue
 	Remediation *Remediation `json:"Remediation,omitempty"`
 	// Tags are additional labels for the issue
@@ -74,11 +74,11 @@ type Script struct {
 
 // HealthReport represents the formatted health report structure
 type HealthReport struct {
-	SchemaVersion string   `json:"schema_version"`
-	EventType     string   `json:"event_type"`
-	EmittedAt     string   `json:"emitted_at"`
-	Host          HostInfo `json:"host"`
-	Issues        []Issue  `json:"issues"`
+	SchemaVersion string            `json:"schema_version"`
+	EventType     string            `json:"event_type"`
+	EmittedAt     string            `json:"emitted_at"`
+	Host          HostInfo          `json:"host"`
+	Issues        map[string]*Issue `json:"issues"`
 }
 
 // HostInfo represents the host information in the health report
