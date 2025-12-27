@@ -1,0 +1,17 @@
+# Exclude build artifacts
+target/
+**/target/
+
+# Git directories
+.git/
+**/.git/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
