@@ -22,19 +22,21 @@ import (
 
 // testConfig represents a test configuration for the agentprofiling check
 type testConfig struct {
-	memoryThreshold string
-	cpuThreshold    int
-	ticketID        string
-	userEmail       string
+	memoryThreshold           string
+	cpuThreshold              int
+	ticketID                  string
+	userEmail                 string
+	terminateAgentOnThreshold bool
 }
 
 // defaultTestConfig returns a default test configuration
 func defaultTestConfig() testConfig {
 	return testConfig{
-		memoryThreshold: "0",
-		cpuThreshold:    0,
-		ticketID:        "",
-		userEmail:       "",
+		memoryThreshold:           "0",
+		cpuThreshold:              0,
+		ticketID:                  "",
+		userEmail:                 "",
+		terminateAgentOnThreshold: false,
 	}
 }
 
@@ -48,7 +50,8 @@ func createTestCheck(t *testing.T, cfg testConfig) *Check {
 	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
 cpu_threshold: %d
 ticket_id: "%s"
-user_email: "%s"`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.userEmail))
+user_email: "%s"
+terminate_agent_on_threshold: %t`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.userEmail, cfg.terminateAgentOnThreshold))
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -129,6 +132,43 @@ func TestGenerateFlareTicket(t *testing.T) {
 	check := createTestCheck(t, cfg)
 
 	err := check.generateFlare()
+	require.NoError(t, err)
+	assert.True(t, check.flareGenerated)
+}
+
+// TestTerminateAgentOnThresholdConfig tests that the terminate_agent_on_threshold config is parsed correctly
+func TestTerminateAgentOnThresholdConfig(t *testing.T) {
+	cfg := defaultTestConfig()
+	cfg.memoryThreshold = "1B" // Force trigger
+	cfg.terminateAgentOnThreshold = true
+
+	check := createTestCheck(t, cfg)
+
+	// Verify config is parsed correctly
+	assert.True(t, check.instance.TerminateAgentOnThreshold)
+	assert.Equal(t, uint(1), check.memoryThreshold)
+
+	// Verify that when threshold is exceeded, flare is generated
+	// Note: We can't actually test os.Exit() in unit tests, but we can verify
+	// that the config is set correctly and the check would attempt termination
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareGenerated)
+}
+
+// TestTerminateAgentOnThresholdDisabled tests that termination does not occur when disabled
+func TestTerminateAgentOnThresholdDisabled(t *testing.T) {
+	cfg := defaultTestConfig()
+	cfg.memoryThreshold = "1B" // Force trigger
+	cfg.terminateAgentOnThreshold = false
+
+	check := createTestCheck(t, cfg)
+
+	// Verify config is parsed correctly
+	assert.False(t, check.instance.TerminateAgentOnThreshold)
+
+	// Verify flare is still generated
+	err := check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareGenerated)
 }
