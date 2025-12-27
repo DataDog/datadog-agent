@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
@@ -190,6 +191,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(func() option.Option[agenttelemetry.Component] {
 					return option.None[agenttelemetry.Component]()
+				}),
+				fx.Provide(func() option.Option[healthplatform.Component] {
+					return option.None[healthplatform.Component]()
 				}),
 
 				statusimpl.Module(),
