@@ -226,6 +226,13 @@ func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method stri
 	return cmd.Run()
 }
 
+// EnsurePackagesLayout ensures /opt/datadog-packages directories and symlinks are set up.
+func (i *InstallerExec) EnsurePackagesLayout(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "ensure-packages-layout")
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)

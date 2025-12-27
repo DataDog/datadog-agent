@@ -155,6 +155,7 @@ func RootCommands() []*cobra.Command {
 		installCommand(),
 		setupCommand(),
 		setupInstallerCommand(),
+		ensurePackagesLayoutCommand(),
 		bootstrapCommand(),
 		removeCommand(),
 		installExperimentCommand(),
@@ -268,6 +269,24 @@ func setupInstallerCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.stablePath", args[0])
 			return i.SetupInstaller(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func ensurePackagesLayoutCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "ensure-packages-layout",
+		Short:   "Ensures /opt/datadog-packages directories and symlinks are set up for remote updates",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("ensure_packages_layout")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			return i.EnsurePackagesLayout(i.ctx)
 		},
 	}
 	return cmd

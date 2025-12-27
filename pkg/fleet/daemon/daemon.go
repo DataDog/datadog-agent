@@ -117,15 +117,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if runtime.GOOS != "windows" {
 		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
-	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
-	taskDB, err := newTaskDB(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not create task DB: %w", err)
-	}
-	rc, err := newRemoteConfig(rcFetcher)
-	if err != nil {
-		return nil, fmt.Errorf("could not create remote config client: %w", err)
-	}
+
 	configID := config.GetString("config_id")
 	if configID == "" {
 		configID = "empty"
@@ -148,16 +140,43 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsFromDaemon:         true,
 		ConfigID:             configID,
 	}
+
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
 	gcInterval := config.GetDuration("installer.gc_interval")
-	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
+
+	// Only create /opt/datadog-packages, remote config client and task DB if remote updates are enabled
+	// This avoids creating /opt/datadog-packages when remote updates is disabled
+	var rc *remoteConfig
+	var taskDB *taskDB
+	if env.RemoteUpdates {
+		if err := installer(env).EnsurePackagesLayout(context.Background()); err != nil {
+			log.Warnf("Failed to ensure packages layout: %v", err)
+		}
+		dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
+		taskDB, err = newTaskDB(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not create task DB: %w", err)
+		}
+		rc, err = newRemoteConfig(rcFetcher)
+		if err != nil {
+			return nil, fmt.Errorf("could not create remote config client: %w", err)
+		}
+	}
+
+	d := newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval)
+	return d, nil
 }
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
+	clientID := ""
+	if rc != nil && rc.client != nil {
+		clientID = rc.client.GetClientID()
+	}
+
 	i := &daemonImpl{
 		env:             env,
-		clientID:        rc.client.GetClientID(),
+		clientID:        clientID,
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
@@ -170,7 +189,12 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
 	}
-	i.refreshState(context.Background())
+
+	// Only refresh state if remote updates are enabled
+	if env.RemoteUpdates {
+		i.refreshState(context.Background())
+	}
+
 	return i
 }
 
@@ -352,7 +376,7 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 
 	// If remote updates are disabled, we don't need to stop the updater daemon background goroutine as it was never started, we return early
 	if !d.env.RemoteUpdates {
-		return d.taskDB.Close()
+		return nil
 	}
 
 	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
