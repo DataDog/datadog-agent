@@ -47,6 +47,7 @@
       -e S3_PERMANENT_ARTIFACTS_URI
       -e COVERAGE_CACHE_FLAG
       -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-UnitTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1 -UploadCoverage 1 -UploadTestResults 1"
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
@@ -82,6 +83,7 @@ tests_windows-x64:
       -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
+      -e CI_JOB_ID
       -e SIGN_WINDOWS_DD_WCS=true
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL
@@ -107,6 +109,7 @@ tests_windows-x64:
       -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
+      -e CI_JOB_ID
       -e SIGN_WINDOWS_DD_WCS=true
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL
