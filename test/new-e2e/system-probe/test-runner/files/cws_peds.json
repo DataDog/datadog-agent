@@ -2,7 +2,7 @@
 	"filters": {
 		"pkg/security": {
 			"run-only": [
-				"TestEventMonitor"
+				"TestEnv"
 			]
 		}
 	}
