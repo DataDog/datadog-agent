@@ -179,7 +179,7 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
-	ctx context.Context, pkg string, operations config.Operations,
+	ctx context.Context, pkg string, operations config.Operations, secrets map[string]string,
 ) (err error) {
 	operationsBytes, err := json.Marshal(operations)
 	if err != nil {
@@ -187,8 +187,33 @@ func (i *InstallerExec) InstallConfigExperiment(
 	}
 	cmdLineArgs := []string{pkg, string(operationsBytes)}
 	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
+
+	if secrets == nil {
+		secrets = make(map[string]string)
+	}
+	secretsBytes, err := json.Marshal(secrets)
+	if err != nil {
+		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
+	}
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stdin pipe: %w", err)
+	}
+
 	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("error starting command: %w", err)
+	}
+
+	// Write secrets to stdin
+	if _, err := stdinPipe.Write(secretsBytes); err != nil {
+		stdinPipe.Close()
+		return fmt.Errorf("error writing secrets to stdin: %w", err)
+	}
+	stdinPipe.Close()
+	return cmd.Wait()
 }
 
 // RemoveConfigExperiment removes an experiment.

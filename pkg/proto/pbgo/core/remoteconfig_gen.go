@@ -1063,9 +1063,9 @@ func (z *ClientTracer) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientUpdater) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 3
+	// map header, size 4
 	// string "Tags"
-	o = append(o, 0x83, 0xa4, 0x54, 0x61, 0x67, 0x73)
+	o = append(o, 0x84, 0xa4, 0x54, 0x61, 0x67, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
 	for za0001 := range z.Tags {
 		o = msgp.AppendString(o, z.Tags[za0001])
@@ -1087,6 +1087,9 @@ func (z *ClientUpdater) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "AvailableDiskSpace"
 	o = append(o, 0xb2, 0x41, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x44, 0x69, 0x73, 0x6b, 0x53, 0x70, 0x61, 0x63, 0x65)
 	o = msgp.AppendUint64(o, z.AvailableDiskSpace)
+	// string "SecretsPubKey"
+	o = append(o, 0xad, 0x53, 0x65, 0x63, 0x72, 0x65, 0x74, 0x73, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79)
+	o = msgp.AppendString(o, z.SecretsPubKey)
 	return
 }
 
@@ -1163,6 +1166,12 @@ func (z *ClientUpdater) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AvailableDiskSpace")
 				return
 			}
+		case "SecretsPubKey":
+			z.SecretsPubKey, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SecretsPubKey")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1189,7 +1198,7 @@ func (z *ClientUpdater) Msgsize() (s int) {
 			s += z.Packages[za0002].Msgsize()
 		}
 	}
-	s += 19 + msgp.Uint64Size
+	s += 19 + msgp.Uint64Size + 14 + msgp.StringPrefixSize + len(z.SecretsPubKey)
 	return
 }
 
