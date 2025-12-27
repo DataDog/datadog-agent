@@ -303,7 +303,11 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				// Allow additional logsource tags (e.g. logsource:stdout, logsource:stderr) without failing the test.
+				optionalTags := []*regexp.Regexp{
+					regexp.MustCompile("logsource:.*"),
+				}
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 
