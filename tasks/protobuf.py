@@ -33,10 +33,12 @@ CLI_EXTRAS = {
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
+    'trace/idx': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
     'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
+    'trace/idx': '--go-vtproto_opt=features=marshal+unmarshal+size --go-vtproto_opt=module=github.com/DataDog/datadog-agent',
 }
 
 # protoc-go-inject-tag targets
