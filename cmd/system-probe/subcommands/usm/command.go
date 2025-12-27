@@ -27,6 +27,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		usmCmd.AddCommand(sysinfoCmd)
 	}
 
+	// Add netstat command if available on this platform
+	if netstatCmd := makeNetstatCommand(globalParams); netstatCmd != nil {
+		usmCmd.AddCommand(netstatCmd)
+	}
+
 	// Add check-maps command if available on this platform
 	if checkMapsCmd := makeCheckMapsCommand(globalParams); checkMapsCmd != nil {
 		usmCmd.AddCommand(checkMapsCmd)
