@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.10"
+default_version "3.13.11"
 
 unless windows?
   dependency "libffi"
@@ -13,7 +13,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "de5930852e95ba8c17b56548e04648470356ac47f7506014664f8f510d7bd61b"
+       :sha256 => "03cfedbe06ce21bc44ce09245e091a77f2fee9ec9be5c52069048a181300b202"
 
 relative_path "Python-#{version}"
 
