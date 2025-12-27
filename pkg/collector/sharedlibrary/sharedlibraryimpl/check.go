@@ -31,14 +31,14 @@ type Check struct {
 	interval       time.Duration
 	name           string
 	libraryLoader  ffi.LibraryLoader // FFI handler
-	lib            ffi.Library       // handle of the associated shared library and pointers to its symbols
+	lib            *ffi.Library      // handle of the associated shared library and pointers to its symbols
 	source         string
 	initConfig     string // json string of check init config
 	instanceConfig string // json string of specific instance config
 	cancelled      bool
 }
 
-func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib ffi.Library) (*Check, error) {
+func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib *ffi.Library) (*Check, error) {
 	check := &Check{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
