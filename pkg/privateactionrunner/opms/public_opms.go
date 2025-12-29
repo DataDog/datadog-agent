@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/jsonapi"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/google/uuid"
 )
 
 const (
@@ -31,7 +30,7 @@ const (
 
 // PublicClient exposes endpoint that don't require JWT authentication
 type PublicClient interface {
-	EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, runnerHost string, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error)
+	EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
@@ -48,7 +47,7 @@ func NewPublicClient(ddBaseURL string) PublicClient {
 	}
 }
 
-func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, runnerHost string, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error) {
+func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
@@ -61,14 +60,12 @@ func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appK
 	}
 
 	request := par.CreateRunnerRequest{
-		ID:           uuid.New().String(),
 		RunnerName:   runnerName,
 		RunnerModes:  runnerModes,
-		RunnerHost:   runnerHost,
 		PublicKeyPEM: publicKeyPEM,
 	}
 
-	requestBodyJSON, err := jsonapi.Marshal(request)
+	requestBodyJSON, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
@@ -77,12 +74,6 @@ func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appK
 	if err != nil {
 		return nil, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
-	defer func() {
-		err = req.Body.Close()
-		if err != nil {
-			log.Error("error closing runner creation response body", log.ErrorField(err))
-		}
-	}()
 
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Accept", "application/json")

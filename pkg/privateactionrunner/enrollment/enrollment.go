@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
@@ -33,7 +34,6 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 
 	ctx := context.Background()
 	runnerModes := []modes.Mode{modes.ModePull}
-	runnerHost := ""
 
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
 		ctx,
@@ -41,14 +41,13 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 		appKey,
 		runnerName,
 		runnerModes,
-		runnerHost,
 		publicJwk,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
 
-	region := "us1" // TODO
+	region := regions.GetRegionFromDDSite(ddSite)
 	urn := util.MakeRunnerURN(region, createRunnerResponse.OrgID, createRunnerResponse.RunnerID)
 
 	return &Result{
