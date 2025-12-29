@@ -65,34 +65,14 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	msg.ParsingExtra = message.ParsingExtra{
 		IsPartial: isPartial(flag),
 	}
-<<<<<<< HEAD
 	// Optionally tag the stream (stdout/stderr) so downstream consumers can filter by origin.
 	// Controlled by logs_config.add_logsource_tag (disabled by default).
 	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
-	    stream := string(components[1]) // "stdout" or "stderr"
-	    if (stream == "stdout") || (stream == "stderr") {
-	        msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
-	    }
-=======
-	// Tag the stream (stdout/stderr) so downstream can filter by origin stream.
-<<<<<<< HEAD
-	stream := string(components[1]) // stdout or stderr
-	if stream == "stdout" || stream == "stderr" { // tag the stream so downstream can filter by origin stream.
-		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream)) // add it to rest of tags
-<<<<<<< HEAD
->>>>>>> 6553d72bef (Tag stderr logs with LogSource)
-=======
-=======
-	// Controlled by logs_config.add_logsource_tag (disabled by default).
-	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
-		stream := string(components[1]) // stdout or stderr
+		stream := string(components[1]) // "stdout" or "stderr"
 		if stream == "stdout" || stream == "stderr" {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
 		}
->>>>>>> 9844f9f2eb (logs: gate logsource:{stdout,stderr} behind logs_config.add_logsource_tag (default false) (AGNTLOG-387))
->>>>>>> 40e9094f9e (logs: gate logsource:{stdout,stderr} behind logs_config.add_logsource_tag (default false) (AGNTLOG-387))
 	}
-
 	// Validate timestamp format. K8s API uses either RFC3339 or RFC3339Nano
 	// but RFC3339Nano is a superset that can parse both formats.
 	timestamp = string(components[0])
