@@ -63,6 +63,13 @@ type configSync struct {
 
 // newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
 func newComponent(deps dependencies) (configsync.Component, error) {
+	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
+	if configRefreshIntervalSec <= 0 {
+		deps.Log.Infof("configsync disabled: agent_ipc.config_refresh_interval invalid: %d)", configRefreshIntervalSec)
+		return configSync{}, nil
+	}
+	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
+
 	var compURL *url.URL
 	if deps.Config.GetBool("agent_ipc.use_socket") {
 		path := deps.Config.GetString("agent_ipc.socket_path")
@@ -85,13 +92,6 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 			Path:   "/config/v1",
 		}
 	}
-
-	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
-	if configRefreshIntervalSec <= 0 {
-		deps.Log.Infof("configsync disabled: agent_ipc.config_refresh_interval invalid: %d)", configRefreshIntervalSec)
-		return configSync{}, nil
-	}
-	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	ctx, cancel := context.WithCancel(context.Background())
 	configSync := configSync{
