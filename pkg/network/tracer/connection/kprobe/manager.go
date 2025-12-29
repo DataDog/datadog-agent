@@ -84,6 +84,7 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.TCPSendPageArgsMap},
 		{Name: probes.UDPSendPageArgsMap},
 		{Name: probes.IPMakeSkbArgsMap},
+		// JMW where is COnntrackArgsMap passed to ebpf manager?
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
