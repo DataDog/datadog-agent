@@ -96,8 +96,8 @@ func TestDiagnosticsStates_Summarizes(t *testing.T) {
 	require.True(t, ok, "missing runtime id")
 	got, ok := rt["p1"]
 	require.True(t, ok, "missing probe id")
-	require.True(t, contains(got, "received"))
-	require.True(t, contains(got, "errors"))
+	require.Contains(t, got, "received")
+	require.Contains(t, got, "errors")
 }
 
 type testProbe struct {
@@ -284,12 +284,3 @@ func (p testProbeDefinition) GetTemplate() ir.TemplateDefinition {
 }
 
 var _ ir.ProbeDefinition = testProbeDefinition{}
-
-func contains(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}

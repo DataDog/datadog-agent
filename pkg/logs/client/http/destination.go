@@ -333,6 +333,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
+
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
