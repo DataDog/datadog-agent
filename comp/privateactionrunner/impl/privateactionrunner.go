@@ -122,12 +122,12 @@ func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *pa
 	cfg.Urn = enrollmentResult.URN
 	cfg.PrivateKey = enrollmentResult.PrivateKey
 
-	_, orgID, runnerID, err := util.ParseRunnerURN(enrollmentResult.URN)
+	urnParts, err := util.ParseRunnerURN(enrollmentResult.URN)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse enrollment URN: %w", err)
 	}
-	cfg.OrgId = orgID
-	cfg.RunnerId = runnerID
+	cfg.OrgId = urnParts.OrgID
+	cfg.RunnerId = urnParts.RunnerID
 
 	return cfg, nil
 }

@@ -94,17 +94,17 @@ func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appK
 	if err != nil {
 		return nil, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
+	defer func() {
+		err = resp.Body.Close()
+		if err != nil {
+			log.Error("error closing runner creation response body", log.ErrorField(err))
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}
-	defer func() {
-		err = req.Body.Close()
-		if err != nil {
-			log.Error("error closing runner creation response body", log.ErrorField(err))
-		}
-	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
