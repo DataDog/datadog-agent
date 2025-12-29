@@ -392,6 +392,7 @@ def get_version_ldflags(ctx, install_path=None):
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
     version = get_version(ctx, include_git=True)
+    version_url_safe = get_version(ctx, include_git=True, url_safe=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
@@ -413,6 +414,7 @@ def get_version_ldflags(ctx, install_path=None):
             if install_dir != "datadog-agent":
                 package_version = install_dir
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersionURLSafe={version_url_safe} "
     return ldflags
 
 

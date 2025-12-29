@@ -45,9 +45,13 @@ type dependencies struct {
 }
 
 func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
-	remoteConfig, ok := dependencies.RemoteConfig.Get()
-	if !ok {
-		return nil, errRemoteConfigRequired
+	var remoteConfig rcservice.Component
+	if dependencies.Config.GetBool("remote_updates") {
+		rc, ok := dependencies.RemoteConfig.Get()
+		if !ok {
+			return nil, errRemoteConfigRequired
+		}
+		remoteConfig = rc
 	}
 	hostname, err := dependencies.Hostname.Get(context.Background())
 	if err != nil {
