@@ -111,7 +111,7 @@ var (
 		},
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks_privileged/*/*stdout",
+			Path:                   "/var/log/databricks_privileged/*/*/stdout",
 			Source:                 "worker_stdout",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
