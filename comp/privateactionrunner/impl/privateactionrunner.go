@@ -8,6 +8,7 @@ package privateactionrunnerimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -70,7 +71,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		}
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
-		return Provides{}, fmt.Errorf("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
+		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 
 	keysManager := remoteconfig.New(reqs.RcClient)
