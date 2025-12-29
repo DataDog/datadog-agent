@@ -1943,6 +1943,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then a source_host tag (IP Address) will be added to TCP/UDP logs.
 	config.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", true)
+	// Add per-line logsource:{stdout,stderr} tag to container logs (disabled by default)
+	config.BindEnvAndSetDefault("logs_config.add_logsource_tag", false)
 
 	// If set, the agent will look in this path for docker container log files.  Use this option if
 	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
