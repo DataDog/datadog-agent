@@ -142,6 +142,9 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 	if !cacheEntry.IsContainerContextNull() {
 		cr.containerCacheEntries.Remove(cacheEntry.GetContainerID())
 	}
+
+	cr.cacheEntriesByPathKey.Remove(cacheEntry.GetCGroupPathKey())
+
 	cr.deletedCgroups.Inc()
 }
 

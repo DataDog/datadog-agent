@@ -60,6 +60,11 @@ func (cgce *CacheEntry) GetCGroupID() containerutils.CGroupID {
 	return cgce.cgroupContext.CGroupID
 }
 
+// GetCGroupPathKey returns the cgroup path key
+func (cgce *CacheEntry) GetCGroupPathKey() model.PathKey {
+	return cgce.cgroupContext.CGroupPathKey
+}
+
 // GetContainerID returns the container ID
 func (cgce *CacheEntry) GetContainerContext() model.ContainerContext {
 	return cgce.containerContext
