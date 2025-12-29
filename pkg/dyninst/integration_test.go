@@ -220,7 +220,7 @@ func testDyninst(
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
-	t.Logf("Triggering function calls at %s", time.Now().UTC())
+	t.Logf("Triggering function calls at %s", time.Now().Format(time.RFC3339))
 	sampleStdin.Write([]byte("\n"))
 
 	var totalExpectedEvents int
@@ -248,7 +248,7 @@ func testDyninst(
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !rewriteEnabled {
-		t.Logf("function calls completed at %s", time.Now().UTC())
+		t.Logf("function calls completed at %s", time.Now().Format(time.RFC3339))
 		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())
