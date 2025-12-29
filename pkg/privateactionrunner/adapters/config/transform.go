@@ -53,9 +53,16 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
 
-	urnParts, err := util.ParseRunnerURN(urn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URN: %w", err)
+	var orgID int64
+	var runnerID string
+	// allow empty urn for self-enrollment
+	if urn != "" {
+		urnParts, err := util.ParseRunnerURN(urn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse URN: %w", err)
+		}
+		orgID = urnParts.OrgID
+		runnerID = urnParts.RunnerID
 	}
 
 	return &Config{
@@ -82,9 +89,9 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     urnParts.OrgID,
+		OrgId:                     orgID,
 		PrivateKey:                privateKey,
-		RunnerId:                  urnParts.RunnerID,
+		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
