@@ -43,18 +43,18 @@ jobs:
         id: update
         run: |
           # Get current version before update
-          CURRENT_VERSION=$(dda inv python-version)
+          CURRENT_VERSION=$(dda inv python-version.get)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           
           # Run update task (exits gracefully if no update available)
-          dda inv update-python || true
+          dda inv python-version.update || true
           
           # Check if files were modified
           if git diff --quiet; then
             echo "updated=false" >> $GITHUB_OUTPUT
             echo "No Python update available"
           else
-            NEW_VERSION=$(dda inv python-version)
+            NEW_VERSION=$(dda inv python-version.get)
             NEW_VERSION_NO_DOTS=$(echo "$NEW_VERSION" | tr -d '.')
             echo "updated=true" >> $GITHUB_OUTPUT
             echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
