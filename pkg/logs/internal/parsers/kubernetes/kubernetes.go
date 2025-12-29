@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -65,9 +66,18 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 		IsPartial: isPartial(flag),
 	}
 	// Tag the stream (stdout/stderr) so downstream can filter by origin stream.
+<<<<<<< HEAD
 	stream := string(components[1]) // stdout or stderr
 	if stream == "stdout" || stream == "stderr" { // tag the stream so downstream can filter by origin stream.
 		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream)) // add it to rest of tags
+=======
+	// Controlled by logs_config.add_logsource_tag (disabled by default).
+	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
+		stream := string(components[1]) // stdout or stderr
+		if stream == "stdout" || stream == "stderr" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+		}
+>>>>>>> 9844f9f2eb (logs: gate logsource:{stdout,stderr} behind logs_config.add_logsource_tag (default false) (AGNTLOG-387))
 	}
 
 	// Validate timestamp format. K8s API uses either RFC3339 or RFC3339Nano

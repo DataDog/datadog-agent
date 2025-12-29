@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Length of the docker message header.
@@ -112,8 +113,10 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = false
 	// Add a tag for the stream when deducible from the header byte
-	if stream != "" {
-		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
+		if stream != "" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+		}
 	}
 	return msg, nil
 } 
