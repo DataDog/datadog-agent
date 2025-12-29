@@ -29,13 +29,15 @@ internal_kubernetes_deploy_experimental:
   variables:
     AGENT_NIGHTLY: "true"
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    IMAGE_TAG: "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
   script:
   # TODO: Change git-ref back to main after testing
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref kacper.murzyn/nightly-conductor
       --variable DDR
       --variable DDR_WORKFLOW_ID
       --variable BUNDLE_VERSION_OVERRIDE
-      --variable AGENT_NIGHTLY"
+      --variable AGENT_NIGHTLY
+      --variable IMAGE_TAG"
 
 # notify-slack:
 #   stage: internal_kubernetes_deploy
