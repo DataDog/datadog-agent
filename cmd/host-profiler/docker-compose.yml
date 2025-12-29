@@ -30,11 +30,9 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
-      VERSION: ${VERSION:-local-dev}
     volumes:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /sys/kernel/debug:/sys/kernel/debug
       - agent-ipc:/etc/datadog-agent:ro
     secrets:
       - dd-api-key
