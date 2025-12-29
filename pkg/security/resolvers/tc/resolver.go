@@ -40,27 +40,18 @@ func (t *ProgramKey) Key() string {
 	return t.UID + "_" + t.FuncName + "_" + t.NetDevice.GetKey()
 }
 
-// programEntry holds a TC program entry
-// we keep track of the program ID in addition to the probe itself
-// in case the probe is removed from the manager, or reset, to be
-// able to clean up ddebpf mappings
-type programEntry struct {
-	programID uint32
-	probe     *manager.Probe
-}
-
 // Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
-	programs map[ProgramKey]programEntry
+	programs map[ProgramKey]*manager.Probe
 }
 
 // NewResolver returns a TC resolver
 func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		config:   config,
-		programs: make(map[ProgramKey]programEntry),
+		programs: make(map[ProgramKey]*manager.Probe),
 	}
 }
 
@@ -87,10 +78,10 @@ func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 	// In this setup, if we didn't use the best effort selector, the manager would try to init & attach a program that
 	// was deleted when the container exited.
 	var activatedProbes manager.BestEffort
-	for _, entry := range tcr.programs {
-		if entry.probe.IsRunning() {
+	for _, tcProbe := range tcr.programs {
+		if tcProbe.IsRunning() {
 			activatedProbes.Selectors = append(activatedProbes.Selectors, &manager.ProbeSelector{
-				ProbeIdentificationPair: entry.probe.ProbeIdentificationPair,
+				ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
 			})
 		}
 	}
@@ -148,26 +139,13 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			}
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %w", tcProbe.ProbeIdentificationPair, err))
 		} else {
-			entry := programEntry{
-				programID: newProbe.ID(),
-				probe:     newProbe,
-			}
-
-			tcr.programs[progKey] = entry
+			tcr.programs[progKey] = newProbe
 
 			// do not use dynamic program name here, it explodes cardinality
-			ddebpf.AddProgramNameMapping(entry.programID, entry.probe.EBPFFuncName, "cws")
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
 		}
 	}
 	return combinedErr.ErrorOrNil()
-}
-
-// detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held
-func (tcr *Resolver) detachHook(tcKey ProgramKey, entry programEntry, m *manager.Manager) {
-	ddebpf.RemoveProgramID(entry.programID, "cws")
-	delete(tcr.programs, tcKey)
-
-	_ = m.DetachHook(entry.probe.ProbeIdentificationPair)
 }
 
 // FlushNetworkNamespaceID flushes network ID
@@ -175,9 +153,11 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 	tcr.Lock()
 	defer tcr.Unlock()
 
-	for tcKey, entry := range tcr.programs {
+	for tcKey, tcProbe := range tcr.programs {
 		if tcKey.NetDevice.NetNS == namespaceID {
-			tcr.detachHook(tcKey, entry, m)
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
+			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
+			delete(tcr.programs, tcKey)
 		}
 	}
 }
@@ -191,11 +171,13 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	probesCountNoLazyDeletion := make(map[uint32]int)
 
 	var linkName string
-	for tcKey, entry := range tcr.programs {
-		if !entry.probe.IsTCFilterActive() {
-			tcr.detachHook(tcKey, entry, m)
+	for tcKey, tcProbe := range tcr.programs {
+		if !tcProbe.IsTCFilterActive() {
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
+			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
+			delete(tcr.programs, tcKey)
 		} else {
-			link, err := entry.probe.ResolveLink()
+			link, err := tcProbe.ResolveLink()
 			if err == nil {
 				linkName = link.Attrs().Name
 			} else {
