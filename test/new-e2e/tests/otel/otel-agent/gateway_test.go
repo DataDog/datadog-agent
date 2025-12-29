@@ -64,7 +64,7 @@ var gatewayParams = utils.IAParams{
 
 func (s *gatewayTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail .
 	defer s.CleanupOnSetupFailure()
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
