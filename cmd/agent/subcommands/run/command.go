@@ -146,6 +146,7 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -560,6 +561,7 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
+		privateactionrunnerfx.Module(),
 	)
 }
 
