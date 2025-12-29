@@ -9,6 +9,7 @@ package filesystem
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -41,4 +42,31 @@ func TestRemoveAccessToOtherUsers(t *testing.T) {
 	stat, err = os.Stat(testDir)
 	require.NoError(t, err)
 	assert.Equal(t, int(stat.Mode().Perm()), 0700)
+}
+
+func TestGetOwner_FileExists(t *testing.T) {
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	tempDir := t.TempDir()
+	tempFile, err := os.CreateTemp(tempDir, "file")
+	require.NoError(t, err)
+
+	ownerName, err := p.GetOwner(tempFile.Name())
+	require.NoError(t, err)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	assert.Equal(t, user.Username, ownerName)
+}
+
+func TestGetOwner_NoFile(t *testing.T) {
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	ownerName, err := p.GetOwner("path/to/nothing")
+	assert.Empty(t, ownerName)
+	assert.EqualError(t, err, "could not stat path/to/nothing: no such file or directory")
+
 }

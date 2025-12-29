@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -69,4 +70,17 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
 	return os.Chmod(path, fs.FileMode(newPerm))
+}
+
+func (p *Permission) GetOwner(path string) (string, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return "", fmt.Errorf("could not stat %s: %s", path, err)
+	}
+
+	if owner, err := user.LookupId(strconv.Itoa(int(stat.Uid))); err != nil {
+		return "", fmt.Errorf("could not fetch name for UID %d: %s", stat.Uid, err)
+	} else {
+		return owner.Username, nil
+	}
 }
