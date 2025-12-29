@@ -1,6 +1,6 @@
 ---
-name: Bug Report (Low Priority)
-description: "Create a public Bug Report. Note that these may not be addressed as quickly as the helpdesk and that looking up account information will be difficult"
+name: Generic Issue
+description: "Choose this only if you can reproduce the issue in a clean, generic environment, and it does not depend on customer-specific configuration. If the issue requires extensive logs, flares, or environment debugging, please open a Support ticket using the 'Support Request' option above."
 title: "[BUG] "
 labels: bug,pending
 body:
