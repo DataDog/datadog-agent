@@ -309,7 +309,6 @@ build do
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
         "#{install_dir}/embedded/bin/installer",
-        "#{install_dir}/embedded/bin/privateactionrunner",
       ]
 
       symbol = "_Cfunc__mkcgo_OPENSSL"
