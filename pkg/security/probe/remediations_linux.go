@@ -9,7 +9,6 @@
 package probe
 
 import (
-	json "encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -47,12 +46,14 @@ const (
 type RuleTags map[string]string
 
 // RemediationContainerContext represents the container context for remediation events
+// easyjson:json
 type RemediationContainerContext struct {
 	CreatedAt uint64 `json:"created_at,omitempty"`
 	ID        string `json:"id,omitempty"`
 }
 
 // RemediationAgentContext represents the agent context for remediation events
+// easyjson:json
 type RemediationAgentContext struct {
 	RuleID        string `json:"rule_id"`
 	OS            string `json:"os"`
@@ -64,6 +65,7 @@ type RemediationAgentContext struct {
 }
 
 // RemediationEvent defines a custom remediation event
+// easyjson:json
 type RemediationEvent struct {
 	Date              string                       `json:"date"`
 	Container         *RemediationContainerContext `json:"container,omitempty"`
@@ -77,9 +79,9 @@ type RemediationEvent struct {
 	RuleTags          RuleTags                     `json:"rule_tags,omitempty"`
 }
 
-// ToJSON marshal the kill action event
+// ToJSON marshals the remediation event to JSON
 func (k *RemediationEvent) ToJSON() ([]byte, error) {
-	return json.Marshal(k)
+	return utils.MarshalEasyJSON(k)
 }
 
 func getAgentEventID(rule *rules.Rule) string {

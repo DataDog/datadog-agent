@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v86420401-7cc6ce1f
+  CI_IMAGE_BTF_GEN: v88193244-a04427c8
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v86420401-7cc6ce1f
+  CI_IMAGE_DOCKER_X64: v88193244-a04427c8
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v86420401-7cc6ce1f
+  CI_IMAGE_DOCKER_ARM64: v88193244-a04427c8
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v86420401-7cc6ce1f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v88193244-a04427c8
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v86420401-7cc6ce1f
+  CI_IMAGE_LINUX: v88193244-a04427c8
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v86420401-7cc6ce1f
+  CI_IMAGE_RPM_X64: v88193244-a04427c8
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v86420401-7cc6ce1f
+  CI_IMAGE_RPM_ARM64: v88193244-a04427c8
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v86420401-7cc6ce1f
+  CI_IMAGE_RPM_ARMHF: v88193244-a04427c8
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v86420401-7cc6ce1f
+  CI_IMAGE_WIN_LTSC2022_X64: v88193244-a04427c8
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v86420401-7cc6ce1f
+  CI_IMAGE_WIN_LTSC2025_X64: v88193244-a04427c8
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -968,6 +968,22 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_ssi_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
+        - pkg/clusteragent/admission/mutate/common/**/*
+        - pkg/clusteragent/admission/mutate/config/**/*
+        - pkg/clusteragent/admission/mutate/tagsfromlabels/**/*
+        - pkg/clusteragent/admission/common/**/*
+        - pkg/clusteragent/admission/controllers/webhook/**/*
+        - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
+        - comp/languagedetection/**/*
+        - test/new-e2e/tests/ssi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1006,6 +1022,15 @@ workflow:
       paths:
         - pkg/security/**/*
         - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_sbom_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/sbom/**/*
+        - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
