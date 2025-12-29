@@ -39,10 +39,10 @@ func TestCommand(t *testing.T) {
 func TestFilterCheckConfigsByName_HasCheckWithName(t *testing.T) {
 	checkResponse := integration.ConfigCheckResponse{
 		Configs: []integration.ConfigResponse{{
-				Config: integration.Config{Name: "cpu"},
-			}, {
-				Config: integration.Config{Name: "disk"},
-			},
+			Config: integration.Config{Name: "cpu"},
+		}, {
+			Config: integration.Config{Name: "disk"},
+		},
 		},
 	}
 
@@ -58,10 +58,10 @@ func TestFilterCheckConfigsByName_HasCheckWithName(t *testing.T) {
 func TestFilterCheckConfigsByName_NoCheckWithName(t *testing.T) {
 	checkResponse := integration.ConfigCheckResponse{
 		Configs: []integration.ConfigResponse{{
-				Config: integration.Config{Name: "cpu"},
-			}, {
-				Config: integration.Config{Name: "disk"},
-			},
+			Config: integration.Config{Name: "cpu"},
+		}, {
+			Config: integration.Config{Name: "disk"},
+		},
 		},
 	}
 
