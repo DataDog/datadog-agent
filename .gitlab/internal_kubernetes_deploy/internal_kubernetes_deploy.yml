@@ -27,7 +27,6 @@ internal_kubernetes_deploy_experimental:
   tags: ["arch:amd64", "specific:true"]
   retry: 0
   variables:
-    AGENT_NIGHTLY: "true"
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     AGENT_NIGHTLY_IMAGE_TAG: "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
   script:
@@ -38,7 +37,6 @@ internal_kubernetes_deploy_experimental:
       --variable DDR_WORKFLOW_ID
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
       --variable BUNDLE_VERSION_OVERRIDE
-      --variable AGENT_NIGHTLY
       --variable AGENT_NIGHTLY_IMAGE_TAG"
 
 notify-slack:
