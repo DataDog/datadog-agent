@@ -36,40 +36,53 @@ const (
 )
 
 func init() {
-	registerFeature(Docker)
-	registerFeature(Containerd)
-	registerFeature(Cri)
-	registerFeature(Crio)
-	registerFeature(Kubernetes)
-	registerFeature(ECSEC2)
-	registerFeature(ECSFargate)
-	registerFeature(ECSManagedInstances)
-	registerFeature(EKSFargate)
-	registerFeature(KubeOrchestratorExplorer)
-	registerFeature(KubeletConfigOrchestratorCheck)
-	registerFeature(ECSOrchestratorExplorer)
-	registerFeature(CloudFoundry)
-	registerFeature(Podman)
-	registerFeature(PodResources)
-	registerFeature(KubernetesDevicePlugins)
-	registerFeature(NVML)
-	registerFeature(NonstandardCRIRuntime)
+	features := []Feature{
+		Docker,
+		Containerd,
+		Cri,
+		Crio,
+		Kubernetes,
+		ECSEC2,
+		ECSFargate,
+		ECSManagedInstances,
+		EKSFargate,
+		KubeOrchestratorExplorer,
+		KubeletConfigOrchestratorCheck,
+		ECSOrchestratorExplorer,
+		CloudFoundry,
+		Podman,
+		PodResources,
+		KubernetesDevicePlugins,
+		NVML,
+		NonstandardCRIRuntime,
+	}
+	for _, f := range features {
+		registerFeature(f)
+	}
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
 func IsAnyContainerFeaturePresent() bool {
-	return IsFeaturePresent(Docker) ||
-		IsFeaturePresent(Containerd) ||
-		IsFeaturePresent(Cri) ||
-		IsFeaturePresent(Crio) ||
-		IsFeaturePresent(Kubernetes) ||
-		IsFeaturePresent(ECSEC2) ||
-		IsFeaturePresent(ECSFargate) ||
-		IsFeaturePresent(ECSManagedInstances) ||
-		IsFeaturePresent(EKSFargate) ||
-		IsFeaturePresent(CloudFoundry) ||
-		IsFeaturePresent(Podman) ||
-		IsFeaturePresent(NonstandardCRIRuntime)
+	features := []Feature{
+		Docker,
+		Containerd,
+		Cri,
+		Crio,
+		Kubernetes,
+		ECSEC2,
+		ECSFargate,
+		ECSManagedInstances,
+		EKSFargate,
+		CloudFoundry,
+		Podman,
+		NonstandardCRIRunt,
+	}
+	for _, f := range features {
+		if IsFeaturePresent(f) {
+			return true
+		}
+	}
+	return false
 }
 
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
