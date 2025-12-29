@@ -88,13 +88,6 @@ var (
 	workerLogs = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
-			Path:                   "/databricks/spark/work/*/*/*.log",
-			Source:                 "worker_logs",
-			Service:                "databricks",
-			AutoMultiLineDetection: config.BoolToPtr(true),
-		},
-		{
-			Type:                   "file",
 			Path:                   "/databricks/spark/work/*/*/stderr",
 			Source:                 "worker_stderr",
 			Service:                "databricks",
