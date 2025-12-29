@@ -33,8 +33,10 @@ type MetricPriority int
 const (
 	// Low priority is the default priority level (0)
 	Low MetricPriority = 0
-	// High priority level (10)
-	High MetricPriority = 10
+	// Medium priority level (10)
+	Medium MetricPriority = 10
+	// High priority level (20)
+	High MetricPriority = 20
 )
 
 // CollectorName is the name of the nvml sub-collectors
