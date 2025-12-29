@@ -104,14 +104,14 @@ var (
 	workerLogsStandardAccessMode = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks_privileged/stderr",
+			Path:                   "/var/log/databricks_privileged/*/*stderr",
 			Source:                 "worker_stderr",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks_privileged/stdout",
+			Path:                   "/var/log/databricks_privileged/*/*stdout",
 			Source:                 "worker_stdout",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
@@ -331,6 +331,12 @@ func setupPrivilegedLogs(s *common.Setup, sparkNode string) {
 	s.Out.WriteString("Setting up privileged logs with system probe for standard access mode\n")
 	s.Span.SetTag("host_tag_set.privileged_logs_enabled", "true")
 
+	var originalLogPath string
+	if sparkNode == "driver" {
+		originalLogPath = "/databricks/driver/logs"
+	} else if sparkNode == "worker" {
+		originalLogPath = "/databricks/spark/work"
+	}
 	if s.Config.SystemProbeYAML == nil {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
 	}
@@ -340,11 +346,11 @@ func setupPrivilegedLogs(s *common.Setup, sparkNode string) {
 		log.Warnf("Failed to create /var/log/databricks_privileged directory: %v", err)
 		return
 	}
-	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
-		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
+	if err := os.MkdirAll(originalLogPath, 0755); err != nil {
+		log.Warnf("Failed to create %s directory: %v", originalLogPath, err)
 		return
 	}
-	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks_privileged")
+	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", originalLogPath, "/var/log/databricks_privileged")
 	if err != nil {
 		log.Warnf("Failed to mount driver logs: %v", err)
 	}
