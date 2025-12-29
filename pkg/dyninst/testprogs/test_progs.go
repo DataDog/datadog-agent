@@ -362,5 +362,5 @@ func parseConfig(s string) (Config, error) {
 }
 
 var (
-	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+)$`)
+	goVersionRegex = regexp.MustCompile(`^(go1\.\d+(\.|rc)\d+)$`)
 )
