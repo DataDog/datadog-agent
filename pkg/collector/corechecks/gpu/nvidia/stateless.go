@@ -461,7 +461,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return []Metric{{
 						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
 						Value: float64(count),
-						Type:  metrics.CountType,
+						Type:  metrics.GaugeType,
 						Tags: []string{
 							"memory_location:" + memoryLocationName,
 						},

@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The datadog-agent now uses datadog-secret-backend v1.5.0 which added support for Kubernetes secrets via the Secrets API, Kubernetes file-based secrets, support for Docker secrets, and support for plaintext file secrets. 
+enhancements:
+  - |
+    The datadog-secret-backend now allows implicit Vault authentication to be set as a config option or an env var
+    Added a configurable max_file_read_size config option to file.yaml, file.json, & file.text to prevent OOM reads
+other:
+  - |
+    For up-to-date docs, check out the secret-backend `changelog <https://github.com/DataDog/datadog-secret-backend/blob/v1/CHANGELOG.md>`_, and the Datadog Secrets Management `documentation <https://docs.datadoghq.com/agent/configuration/secrets-management/>`_

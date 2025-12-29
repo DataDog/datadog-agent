@@ -15,7 +15,7 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "testThreeStringsInStruct_expression_with_dots",
+          "id": "testThreeStringsInStructExpr",
           "location": {
             "method": "main.testThreeStringsInStruct"
           }
