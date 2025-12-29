@@ -69,6 +69,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
 		}
 		cfg = updatedCfg
+	} else if cfg.IdentityIsIncomplete() {
+		return Provides{}, fmt.Errorf("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 
 	keysManager := remoteconfig.New(reqs.RcClient)
