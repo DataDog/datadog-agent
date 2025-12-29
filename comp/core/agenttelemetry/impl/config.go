@@ -227,6 +227,15 @@ var defaultProfiles = `
         - name: logs.encoded_bytes_sent
           aggregate_tags:
             - compression_kind
+        - name: logs.http_connectivity_check
+          aggregate_tags:
+            - status
+        - name: logs.http_connectivity_retry_attempt
+          aggregate_tags:
+            - status
+        - name: logs.restart_attempt
+          aggregate_tags:
+            - status
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:

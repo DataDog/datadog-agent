@@ -632,37 +632,6 @@ func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_PreservesComponentRefe
 	suite.Same(originalSchedulers, agent.schedulers)
 }
 
-func (suite *RestartTestSuite) TestCalculateBackoffDuration() {
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false)
-
-	agent, _, _ := createTestAgent(suite, endpoints)
-
-	maxDuration := 10 * time.Second
-
-	// Test exponential growth
-	duration0 := agent.calculateBackoffDuration(0, maxDuration)
-	duration1 := agent.calculateBackoffDuration(1, maxDuration)
-	duration2 := agent.calculateBackoffDuration(2, maxDuration)
-
-	// Durations should increase exponentially
-	suite.Greater(duration1, duration0, "Backoff should increase with attempts")
-	suite.Greater(duration2, duration1, "Backoff should increase with attempts")
-
-	// Test capping at maxDuration
-	duration20 := agent.calculateBackoffDuration(20, maxDuration)
-	suite.LessOrEqual(duration20, maxDuration, "Backoff should be capped at maxDuration")
-
-	// Test randomization (values should be within expected range)
-	suite.GreaterOrEqual(duration0, 1*time.Second, "Attempt 0: should be >= 2^0 seconds")
-	suite.Less(duration0, 2*time.Second, "Attempt 0: should be < 2^1 seconds")
-
-	suite.GreaterOrEqual(duration1, 2*time.Second, "Attempt 1: should be >= 2^1 seconds")
-	suite.Less(duration1, 4*time.Second, "Attempt 1: should be < 2^2 seconds")
-}
-
 func (suite *RestartTestSuite) TestRollbackToPreviousTransport() {
 	// Start with TCP
 	l := mock.NewMockLogsIntake(suite.T())

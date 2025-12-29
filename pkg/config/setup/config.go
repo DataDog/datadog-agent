@@ -1896,11 +1896,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
-	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
-	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
-	// up to this ceiling, then continue checking at this interval. Default: 3600 seconds (1 hour)
-	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", 3600)
+	config.BindEnvAndSetDefault("logs_config.stop_grace_period", "30s")
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
 	config.BindEnvAndSetDefault("logs_config.payload_channel_size", 10)
 
