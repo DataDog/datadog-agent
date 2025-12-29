@@ -523,6 +523,12 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 				},
 			},
 			"env": pulumi.StringMapArray{
+				// These options are disabled by default and not exposed in the
+				// Helm chart yet, so we need to set the env.
+				pulumi.StringMap{
+					"name":  pulumi.String("DD_CLUSTER_CHECKS_CRD_COLLECTION"),
+					"value": pulumi.String("true"),
+				},
 				pulumi.StringMap{
 					"name":  pulumi.String("DD_EC2_METADATA_TIMEOUT"),
 					"value": pulumi.String("5000"), // Unit is ms

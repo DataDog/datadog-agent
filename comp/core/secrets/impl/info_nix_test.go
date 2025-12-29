@@ -80,9 +80,9 @@ func TestDebugInfo(t *testing.T) {
 		return res, nil
 	}
 
-	_, err := resolver.Resolve(testConf, "test", "", "")
+	_, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NoError(t, err)
-	_, err = resolver.Resolve(testConfInfo, "test2", "", "")
+	_, err = resolver.Resolve(testConfInfo, "test2", "", "", true)
 	require.NoError(t, err)
 
 	debugInfo := make(map[string]interface{})
@@ -139,9 +139,9 @@ func TestDebugInfoError(t *testing.T) {
 		return res, nil
 	}
 
-	_, err := resolver.Resolve(testConf, "test", "", "")
+	_, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NoError(t, err)
-	_, err = resolver.Resolve(testConfInfo, "test2", "", "")
+	_, err = resolver.Resolve(testConfInfo, "test2", "", "", true)
 	require.NoError(t, err)
 
 	debugInfo := make(map[string]interface{})
