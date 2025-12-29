@@ -117,6 +117,7 @@ publish_internal_dca_container_image*        @Datadog/agent-delivery
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery
+k8s_staging_deployment_pr              @Datadog/agent-delivery
 
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
