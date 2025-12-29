@@ -122,28 +122,38 @@ var ErrNoConfigGiven = errors.New("no config given for snmp_listener")
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
-	var snmpConfig ListenerConfig
-	// Set defaults before unmarshalling
-	snmpConfig.CollectDeviceMetadata = true
-	snmpConfig.CollectTopology = true
-
 	ddcfg := pkgconfigsetup.Datadog()
-	if ddcfg.IsSet("network_devices.autodiscovery") {
-		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
-		if err != nil {
-			return snmpConfig, err
-		}
-	} else if ddcfg.IsSet("snmp_listener") {
-		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
-		if err != nil {
-			return snmpConfig, err
-		}
-	} else {
-		return snmpConfig, ErrNoConfigGiven
+
+	var snmpConfig ListenerConfig
+
+	possibleConfigKeys := []string{
+		"network_devices.autodiscovery",
+		"snmp_listener",
 	}
 
-	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
+	configKey := ""
+	for _, key := range possibleConfigKeys {
+		if ddcfg.IsConfigured(key) {
+			configKey = key
+			break
+		}
+	}
+
+	if configKey == "" {
+		return ListenerConfig{}, ErrNoConfigGiven
+	}
+
+	err := structure.UnmarshalKey(ddcfg, configKey, &snmpConfig)
+	if err != nil {
+		return ListenerConfig{}, err
+	}
+
+	if ddcfg.IsConfigured(configKey+".allowed_failures") && !ddcfg.IsConfigured(configKey+".discovery_allowed_failures") {
 		snmpConfig.AllowedFailures = snmpConfig.AllowedFailuresLegacy
+	}
+
+	if !ddcfg.IsConfigured(configKey+".namespace") && ddcfg.IsConfigured("network_devices.namespace") {
+		snmpConfig.Namespace = ddcfg.GetString("network_devices.namespace")
 	}
 
 	// Set the default values, we can't otherwise on an array
@@ -189,14 +199,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
 
-		// Ping config
 		config.PingConfig.Enabled = firstNonNil(config.PingConfig.Enabled, snmpConfig.PingConfig.Enabled)
 		config.PingConfig.Linux.UseRawSocket = firstNonNil(config.PingConfig.Linux.UseRawSocket, snmpConfig.PingConfig.Linux.UseRawSocket)
 		config.PingConfig.Interval = firstNonNil(config.PingConfig.Interval, snmpConfig.PingConfig.Interval)
 		config.PingConfig.Timeout = firstNonNil(config.PingConfig.Timeout, snmpConfig.PingConfig.Timeout)
 		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
 
-		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, pkgconfigsetup.Datadog().GetString("network_devices.namespace"))
+		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace)
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
 		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
@@ -233,6 +242,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		}
 		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 	}
+
 	return snmpConfig, nil
 }
 
