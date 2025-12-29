@@ -88,6 +88,7 @@ type Exporter struct {
 	coatUsageMetric    telemetry.Gauge
 	coatGWUsageMetric  telemetry.Gauge
 	coatGWEnvVarMetric telemetry.Gauge
+	ipath              ingestionPath
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -157,6 +158,7 @@ func NewExporter(
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
 	coatGWEnvVarMetric telemetry.Gauge,
+	ipath ingestionPath,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -180,11 +182,22 @@ func NewExporter(
 		coatUsageMetric:    coatUsageMetric,
 		coatGWUsageMetric:  coatGWUsageMetric,
 		coatGWEnvVarMetric: coatGWEnvVarMetric,
+		ipath:              ipath,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+
+	// Track requests based on ingestion path
+	switch e.ipath {
+	case agentOTLPIngest:
+		OTLPIngestAgentMetricsRequests.Inc()
+		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
+	case ddot:
+		OTLPIngestDDOTMetricsRequests.Inc()
+		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
+	}
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {

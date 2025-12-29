@@ -7,17 +7,19 @@ import (
 	"context"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
-	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 )
 
 type traceExporter struct {
@@ -62,6 +64,8 @@ func (exp *traceExporter) consumeTraces(
 	ctx context.Context,
 	td ptrace.Traces,
 ) (err error) {
+	OTLPIngestDDOTTracesRequests.Inc()
+	OTLPIngestDDOTTracesEvents.Add(float64(td.SpanCount()))
 	rspans := td.ResourceSpans()
 	hosts := make(map[string]struct{})
 	ecsFargateArns := make(map[string]struct{})
@@ -88,7 +92,6 @@ func (exp *traceExporter) consumeTraces(
 		case source.InvalidKind:
 		}
 	}
-
 	exp.exportUsageMetrics(hosts, ecsFargateArns)
 	return nil
 }
