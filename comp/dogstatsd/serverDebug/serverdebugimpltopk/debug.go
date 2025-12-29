@@ -50,11 +50,11 @@ type dependencies struct {
 // metricStat holds how many times a metric has been
 // processed and when was the last time.
 type metricStat struct {
+	key      ckey.ContextKey
 	Name     string    `json:"name"`
+	Tags     string    `json:"tags"`
 	Count    uint64    `json:"count"`
 	LastSeen time.Time `json:"last_seen"`
-	Tags     string    `json:"tags"`
-	key      ckey.ContextKey
 	//error     uint32 // overestimation bound
 	heapIndex int // position in minHeap for O(1) lookup
 }
