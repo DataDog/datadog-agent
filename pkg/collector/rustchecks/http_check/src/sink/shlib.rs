@@ -2,6 +2,7 @@ use crate::Result;
 use crate::check::{HttpCheck, config};
 use crate::sink::{Sink, event, event_platform_event, histogram, log, metric, service_check};
 
+use anyhow::Context;
 use libc::{c_char, c_double, c_float, c_int, c_longlong, c_ulong};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -230,9 +231,9 @@ pub fn run(
     instance_config: &str,
 ) -> Result<()> {
     let init_config: config::Init = serde_yaml::from_str(init_config)
-        .map_err(|e| format!("error parsing init config: {}", e))?;
+        .with_context(|| "Failed to parse init configuration")?;
     let instance_config: config::Instance = serde_yaml::from_str(instance_config)
-        .map_err(|e| format!("error parsing instance config: {}", e))?;
+        .with_context(|| "Failed to pars instance configuration")?;
 
     let shlib = SharedLibrary::new(callback);
     let mut http_check = HttpCheck::new(&shlib, check_id.to_string(), init_config);

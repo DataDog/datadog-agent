@@ -4,6 +4,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
+use anyhow::Context;
 use bytes::Bytes;
 use http::uri::Scheme;
 use regex::Regex;
@@ -26,7 +27,7 @@ use tokio::time;
 use super::config;
 use super::config::defaults;
 use crate::check::config::defaults::REVERSE_CONTENT_MATCH;
-use crate::{GenericError, Result};
+use crate::*;
 
 use crate::sink::log;
 use crate::sink::service_check::{self, ServiceCheck, Status};
@@ -49,7 +50,7 @@ pub enum IOErr {
     Connect(GenericError),
     #[error("connection timeout")]
     Timeout,
-    #[error("error")]
+    #[error("error: {0}")]
     Generic(GenericError),
 }
 
@@ -74,14 +75,12 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             check_id,
             service_checks: vec![],
             tags: HashMap::<String, String>::new(),
-            // FIXME hostname
         }
     }
 
     pub async fn check(&mut self, cfg: &config::Instance) {
-        match self.check_impl(cfg).await {
-            Ok(()) => (),
-            Err(err) => self.sink.log(log::Level::Error, err.to_string()),
+        if let Err(err) = self.check_impl(cfg).await {
+            self.sink.log(log::Level::Error, err.to_string())
         }
     }
 
@@ -91,9 +90,8 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             .scheme_str()
             .is_some_and(|s| SUPPORTED_SCHEME.contains(&s))
             && url.host().is_some();
-
         if !valid_url {
-            Err(format!("Invalid URL: {}", url))?
+            bail!("Invalid URL: {}", url);
         }
 
         let mut service_tags = HashMap::<String, String>::new();
@@ -101,9 +99,10 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             self.tags = tags.clone();
             service_tags = tags.clone();
         }
-        
+
         let normalized_name = normalize_tag(&cfg.name);
-        self.tags.insert("instance".to_string(), normalized_name.clone());
+        self.tags
+            .insert("instance".to_string(), normalized_name.clone());
         service_tags.insert("instance".to_string(), normalized_name);
 
         if !self.tags.contains_key("url") {
@@ -124,46 +123,21 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
 
         let maybe_response = self.http(cfg, tls, request).await;
         if let Err(err) = maybe_response.as_ref() {
-            match err {
-                IOErr::Timeout => {
-                    let elapsed = elapsed().as_millis();
-                    self.sink.log(
-                        log::Level::Info,
-                        format!(
-                            "{} is DOWN, error: {}. Connection failed after {} ms",
-                            cfg.url.to_string(),
-                            err.to_string(),
-                            elapsed
-                        ),
-                    );
-                    self.add_service_check(
-                        SvcCheckEvent::Status,
-                        service_check::Status::Critical,
-                        format!("Connection timeout. Connection failed after {} ms", elapsed),
-                    );
-                }
-                IOErr::Connect(err) | IOErr::Generic(err) => {
-                    let elapsed = elapsed().as_millis();
-                    self.sink.log(
-                        log::Level::Info,
-                        format!(
-                            "{} is DOWN, error: {}. Connection failed after {} ms",
-                            cfg.url.to_string(),
-                            err.to_string(),
-                            elapsed
-                        ),
-                    );
-                    self.add_service_check(
-                        SvcCheckEvent::Status,
-                        service_check::Status::Critical,
-                        format!(
-                            "Connection error: {}. Connection failed after {} ms",
-                            err.to_string(),
-                            elapsed
-                        ),
-                    );
-                }
-            };
+            let elapsed = elapsed().as_millis();
+            self.sink.log(
+                log::Level::Info,
+                format!(
+                    "{} is DOWN, error: {}. Connection failed after {} ms",
+                    cfg.url.to_string(),
+                    err.to_string(),
+                    elapsed
+                ),
+            );
+            self.add_service_check(
+                SvcCheckEvent::Status,
+                service_check::Status::Critical,
+                format!("{}. Connection failed after {} ms", err.to_string(), elapsed), // TODO capitalize first later
+            );
         }
 
         if let Ok((mut response, maybe_certificate)) = maybe_response {
@@ -240,10 +214,10 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         let stream = async {
             let stream = TcpStream::connect(endpoint)
                 .await
-                .map_err(|e| IOErr::Connect(Box::new(e)));
+                .map_err(|e| IOErr::Connect(e.into()));
             tls.connect(url.host().unwrap(), stream?)
                 .await
-                .map_err(|e| IOErr::Connect(Box::new(e)))
+                .map_err(|e| IOErr::Connect(e.into()))
         };
         let stream = time::timeout(connect_timeout, stream)
             .await
@@ -275,10 +249,8 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             }
         }
 
-        Ok((
-            maybe_response.map_err(|e| IOErr::Generic(Box::new(e)))?,
-            certificate,
-        ))
+        let response= maybe_response.map_err(|e| IOErr::Generic(e.into()))?;
+        Ok((response,certificate,))
     }
 
     fn make_tls_connector(&self, cfg: &config::Instance) -> Result<tokio_native_tls::TlsConnector> {
@@ -430,7 +402,6 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             let frame = frame?;
 
             if let Some(d) = frame.data_ref() {
-                // TODO protection against long payload?
                 body.extend_from_slice(d.as_ref());
             }
             // FIXME don't read more than MAX_CONTENT_LEN
@@ -532,7 +503,7 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             hostname: String::new(),
             message,
         };
-        self.service_checks.push(sc);
+        self.service_checks.push(sc)
     }
 
     fn gauge(&self, name: &str, value: f64) {
@@ -585,10 +556,13 @@ fn port_or_default(uri: &uri::Uri) -> u16 {
 }
 
 fn load_pem(path: &PathBuf) -> Result<native_tls::Certificate> {
-    let mut file = File::open(path)?;
+    let mut file = File::open(path)
+        .with_context(|| format!("opening {} certificate", path.display()))?;
     let mut buffer = Vec::<u8>::new();
-    file.read_to_end(&mut buffer)?;
-    native_tls::Certificate::from_pem(&buffer).map_err(|e| e.into())
+    file.read_to_end(&mut buffer)
+        .with_context(|| format!("reading {} certificate", path.display()))?;
+    native_tls::Certificate::from_pem(&buffer)
+        .map_err(|e| anyhow!("parsing certificate: {}", e))
 }
 
 fn normalize_tag(tag: &str) -> String {
