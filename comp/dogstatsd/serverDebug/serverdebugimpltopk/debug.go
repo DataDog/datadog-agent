@@ -69,8 +69,9 @@ type metricStatsShard struct {
 }
 
 const (
-	defaultNumShards = uint64(16) // Power of 2 for efficient modulo operation
-	maxItems         = 63
+	// Defaults to use to pass quality gates
+	defaultNumShards = uint64(2) // Power of 2 for efficient modulo operation
+	defaultMaxItems  = 50
 )
 
 type serverDebugImpl struct {
@@ -89,6 +90,7 @@ type serverDebugImpl struct {
 	clock clock.Clock
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
+	maxItems             int
 }
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
@@ -102,7 +104,14 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
-	numShards := defaultNumShards
+	numShards := uint64(cfg.GetInt("dogstatsd_metrics_stats_num_shards"))
+	if numShards < 1 {
+		numShards = defaultNumShards
+	}
+	maxItems := cfg.GetInt("dogstatsd_metrics_stats_max_items")
+	if maxItems < 0 {
+		maxItems = defaultMaxItems
+	}
 	sd := &serverDebugImpl{
 		log:     l,
 		enabled: atomic.NewBool(false),
@@ -115,12 +124,13 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 		clock:     clock.New(),
 		shards:    make([]*metricStatsShard, numShards),
 		numShards: numShards,
+		maxItems:  maxItems,
 	}
 	// Initialize all shards
 	for i := uint64(0); i < sd.numShards; i++ {
 		sd.shards[i] = &metricStatsShard{
 			stats:   make(map[ckey.ContextKey]*metricStat),
-			minHeap: make([]*metricStat, 0, maxItems),
+			minHeap: make([]*metricStat, 0, sd.maxItems),
 			//tagsAccumulator: tagset.NewHashingTagsAccumulator(),
 		}
 	}
@@ -225,7 +235,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 			shard.heapifyUp(ms.heapIndex)
 		}
 	} else {
-		if len(shard.stats) < maxItems {
+		if len(shard.stats) < d.maxItems {
 			newMs := &metricStat{
 				key:      key,
 				Name:     sample.Name,

@@ -13,3 +13,5 @@ telemetry.checks: '*'
 cloud_provider_metadata: []
 
 dogstatsd_socket: '/tmp/dsd.socket'
+dogstatsd_metrics_stats_num_shards: 16
+dogstatsd_metrics_stats_max_items: 100
