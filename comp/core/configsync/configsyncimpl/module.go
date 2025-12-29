@@ -67,8 +67,8 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 	if deps.Config.GetBool("agent_ipc.use_socket") {
 		path := deps.Config.GetString("agent_ipc.socket_path") + "/agent_ipc.socket"
 		compURL = &url.URL{
-			Scheme: "http",
-			Host:   path,
+			Scheme: "https+unix",
+			Host:   path+":",
 			Path:   "/config/v1",
 		}
 	} else {

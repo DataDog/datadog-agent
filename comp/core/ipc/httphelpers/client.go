@@ -9,6 +9,7 @@ package httphelpers
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,6 @@ type ipcClient struct {
 	innerClient http.Client
 	authToken   string
 	config      pkgconfigmodel.Reader
-	useVSock    bool
 }
 
 // NewClient creates a new secure client
@@ -42,9 +42,7 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		TLSClientConfig: clientTLSConfig,
 	}
 
-	useVSock := false
 	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
-		useVSock = true
 		tr.DialContext = func(_ context.Context, _ string, address string) (net.Conn, error) {
 			_, sPort, err := net.SplitHostPort(address)
 			if err != nil {
@@ -68,14 +66,68 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 
 			return conn, err
 		}
+	} else {
+		clone := tr.Clone()
+		clone.DialContext = udsDialContext()
+		udsRoundTripper := roundTripAdapter(clone)
+
+		tr.RegisterProtocol("http+unix", udsRoundTripper)
 	}
 
 	return &ipcClient{
 		innerClient: http.Client{Transport: tr},
 		authToken:   authToken,
 		config:      config,
-		useVSock:    useVSock,
 	}
+}
+
+type dialContextWrapper (func(ctx context.Context, network, address string) (net.Conn, error))
+
+func udsDialContext() dialContextWrapper {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		defaultDialContext := (&net.Dialer{}).DialContext
+
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			host = address
+		}
+
+		filepath, err := base64.RawURLEncoding.DecodeString(host)
+		if err == nil {
+			network, address = "unix", string(filepath)
+		}
+
+		return defaultDialContext(ctx, network, address)
+	}
+}
+
+type roundTripWrapper (func(req *http.Request) (*http.Response, error))
+
+func (f roundTripWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func roundTripAdapter(next http.RoundTripper) http.RoundTripper {
+	return roundTripWrapper(func(req *http.Request) (*http.Response, error) {
+		if req.URL == nil {
+			return nil, fmt.Errorf("ipc client: unix socket: no request URL")
+		}
+
+		scheme := strings.TrimSuffix(req.URL.Scheme, "+unix")
+		if scheme == req.URL.Scheme {
+			return nil, fmt.Errorf("ipc client: unix socket: : missing '+unix' suffix in scheme %s", req.URL.Scheme)
+		}
+
+		socketPath, requestPath, _ := strings.Cut(req.URL.Path, ":")
+		encodedHost := base64.RawURLEncoding.EncodeToString([]byte(socketPath))
+
+		req = req.Clone(req.Context())
+		req.URL.Scheme = scheme
+		req.URL.Host = encodedHost
+		req.URL.Path = requestPath
+
+		return next.RoundTrip(req)
+	})
 }
 
 func (s *ipcClient) Get(url string, opts ...ipc.RequestOption) (resp []byte, err error) {
@@ -141,15 +193,6 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	// is shared between copies. This approach enables per-request timeout customization.
 	client := s.innerClient
 	client.Timeout = params.Timeout
-
-	// if we are not using vsock, but the request is made to a unix socket url address we disable TLS and replace the dialer in the client copy for the request
-	if !s.useVSock && isUDSRequest(req) {
-		client.Transport = &http.Transport{
-			DialContext: func(_ context.Context, _, address string) (net.Conn, error) {
-				return net.Dial("unix", address)
-			},
-		}
-	}
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+s.authToken)
