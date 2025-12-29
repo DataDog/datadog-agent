@@ -7,9 +7,9 @@ package kubernetesagentparams
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"gopkg.in/yaml.v3"
@@ -65,8 +65,12 @@ type Params struct {
 	DualShipping bool
 	// OTelAgent is a flag to deploy the OTel agent.
 	OTelAgent bool
+	// OTelAgentGateway is a flag to deploy the OTel agent with gateway enabled.
+	OTelAgentGateway bool
 	// OTelConfig is the OTel configuration to use for the agent installation.
 	OTelConfig string
+	// OTelGatewayConfig is the OTel configuration to use for the gateway collector installation.
+	OTelGatewayConfig string
 	// GKEAutopilot is a flag to deploy the agent with only GKE Autopilot compatible values.
 	GKEAutopilot bool
 	// FIPS is a flag to deploy the agent with FIPS agent image.
@@ -213,10 +217,31 @@ datadog:
 	}
 }
 
+func WithOTelAgentGateway() func(*Params) error {
+	return func(p *Params) error {
+		p.OTelAgentGateway = true
+		otelAgentGatewayValues := `
+otelAgentGateway:
+  enabled: true
+  replicas: 1`
+
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(otelAgentGatewayValues))
+		return nil
+	}
+}
+
 func WithOTelConfig(config string) func(*Params) error {
 	return func(p *Params) error {
 		var err error
 		p.OTelConfig, err = utils.MergeYAML(p.OTelConfig, config)
+		return err
+	}
+}
+
+func WithOTelGatewayConfig(config string) func(*Params) error {
+	return func(p *Params) error {
+		var err error
+		p.OTelGatewayConfig, err = utils.MergeYAML(p.OTelGatewayConfig, config)
 		return err
 	}
 }

@@ -2,6 +2,63 @@
 Release Notes
 =============
 
+.. _Release Notes_7.73.2:
+
+7.73.2
+======
+
+.. _Release Notes_7.73.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-23
+
+- Please refer to the `7.73.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7732>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The disk check now handles ``PartitionsWithContext`` errors gracefully instead of failing entirely.
+  When some partitions fail to load, the check continues collecting metrics for the partitions that
+  succeeded. This aligns the Go implementation with the Python check behavior.
+
+- The new version of the disk check on Windows now normalizes the ``device:`` tag by stripping
+  backslashes and lowercasing, matching the Python disk check behavior.
+  This ensures customers that migrated from Python to Go disk check see
+  consistent ``device:`` tag values (e.g., ``C:\`` becomes ``c:``).
+
+- Implemented a fix so that the Agent does not try to schedule the ``orchestrator_kubelet_config`` check when
+  the ``orchestrator_explorer.kubelet_config_check.enabled`` config is
+  set to ``false``.
+
+
+.. _Release Notes_7.73.1:
+
+7.73.1
+======
+
+.. _Release Notes_7.73.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-17
+
+- Please refer to the `7.73.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7731>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.11``.
+
+
 .. _Release Notes_7.73.0:
 
 7.73.0

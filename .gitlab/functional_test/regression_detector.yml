@@ -96,7 +96,7 @@ single_machine_performance-regression_detector-merge_base_check:
   retry: !reference [.retry_only_infra_failure, retry]
   script:
     - |
-      if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 5 != 0 )); then
+      if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 2 != 0 )); then
         exit 0
       fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.

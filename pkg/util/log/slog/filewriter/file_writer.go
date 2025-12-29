@@ -196,7 +196,7 @@ func (rw *rollingFileWriter) deleteOldRolls(history []string) error {
 	for i := 0; i < rollsToDelete; i++ {
 		// Try best to delete files without breaking the loop.
 		if err = tryRemoveFile(filepath.Join(rw.currentDirPath, history[i])); err != nil {
-			reportInternalError(err)
+			fmt.Fprintf(os.Stderr, "log: filewriter internal error: %v\n", err)
 		}
 	}
 
@@ -455,8 +455,4 @@ func tryRemoveFile(filePath string) (err error) {
 		return
 	}
 	return
-}
-
-func reportInternalError(err error) {
-	fmt.Fprintf(os.Stderr, "log internal error: %s\n", err)
 }

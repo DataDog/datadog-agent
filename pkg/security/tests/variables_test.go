@@ -23,7 +23,7 @@ func TestVariableAnyField(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID: "test_rule_field_variable",
 		// TODO(lebauce): should infer event type from variable usage
-		Expression: `open.file.path != "" && "${open.file.path}:foo" == "{{.Root}}/test-open:foo"`,
+		Expression: `open.file.path != "" && "%{open.file.path}:foo" == "{{.Root}}/test-open:foo"`,
 	}}
 
 	test, err := newTestModule(t, nil, ruleDefs)
