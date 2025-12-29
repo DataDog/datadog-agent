@@ -3,14 +3,11 @@
 # Needs to be able to trigger the `buildimages-update` workflow.
 issuer: https://gitlab.ddbuild.io
 
-subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+subject_pattern: "project_path:DataDog/datadog-agent-buildimages:.*"
 
 claim_pattern:
-  event_name: workflow_dispatch
-  ref: refs/heads/main
-  ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/buildimages-update\.yml@refs/heads/main
+  project_path: DataDog/datadog-agent-buildimages
+  pipeline_source: push
 
 permissions:
-  contents: write
-  pull_requests: write
+  actions: write

@@ -216,7 +216,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	defer i.m.Unlock()
 
 	// make sure data directory is set up correctly
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
 	}
@@ -812,14 +812,22 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	// TODO: should we call paths.EnsureInstallerDataDir() here?
-	//       It should probably be anywhere that the below directories must be
-	//       created, but it feels wrong to have the constructor perform work
-	//       like this. For example, "read only" subcommands like `get-states`
-	//       will end up iterating the filesystem tree to apply permissions,
-	//       and every subprocess during experiments will repeat the work,
-	//       even though it should only be needed at install/setup time.
-	err := os.MkdirAll(paths.PackagesPath, 0755)
+	// Enforce permissions on the installer data directory
+	//
+	// TODO: Avoid setup-like work in the installer constructor.
+	// These directories should be created properly at install/setup time, however
+	// the installer constructor is called before install/setup runs, and will fail if
+	// these directories do not exist, so we must do some minimal creation/validation here.
+	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
+	// because the constructor is called for every subprocess, even "read only"
+	// subcommands like `get-states`.
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	// create subdirectories
+	err = os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
