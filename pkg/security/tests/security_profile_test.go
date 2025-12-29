@@ -3215,6 +3215,9 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer func() {
+			_ = cmd.Wait()
+		}()
 
 		time.Sleep(1 * time.Second) // Let events be added to the dump
 
