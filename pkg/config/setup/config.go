@@ -1348,31 +1348,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{
-		"cpu",
-		"agent_telemetry",
-		"agentcrashdetect",
-		"disk",
-		"file_handle",
-		"filehandles",
-		"io",
-		"load",
-		"memory",
-		"network",
-		"ntp",
-		"process",
-		"service_discovery",
-		"system",
-		"system_core",
-		"system_swap",
-		"telemetry",
-		"telemetryCheck",
-		"uptime",
-		"win32_event_log",
-		"wincrashdetect",
-		"winkmem",
-		"winproc",
-	})
+	config.BindEnvAndSetDefault("allowed_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -2809,6 +2785,33 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "basic" {
+		// Enable default checks
+		config.Set("allowed_checks", []string{
+			"cpu",
+			"agent_telemetry",
+			"agentcrashdetect",
+			"disk",
+			"file_handle",
+			"filehandles",
+			"io",
+			"load",
+			"memory",
+			"network",
+			"ntp",
+			"process",
+			"service_discovery",
+			"system",
+			"system_core",
+			"system_swap",
+			"telemetry",
+			"telemetryCheck",
+			"uptime",
+			"win32_event_log",
+			"wincrashdetect",
+			"winkmem",
+			"winproc",
+		}, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
