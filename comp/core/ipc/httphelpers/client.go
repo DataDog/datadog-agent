@@ -110,7 +110,7 @@ func (f roundTripWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 func roundTripAdapter(next http.RoundTripper) http.RoundTripper {
 	return roundTripWrapper(func(req *http.Request) (*http.Response, error) {
 		if req.URL == nil {
-			return nil, fmt.Errorf("ipc client: unix socket: no request URL")
+			return nil, errors.New("ipc client: unix socket: no request URL")
 		}
 
 		scheme := strings.TrimSuffix(req.URL.Scheme, "+unix")
@@ -232,21 +232,6 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 		return body, fmt.Errorf("status code: %d, body: %s", r.StatusCode, string(body))
 	}
 	return body, nil
-}
-
-// determine if the request is to a socket Listener by checking the url
-func isUDSRequest(req *http.Request) bool {
-	host, _, err := net.SplitHostPort(req.URL.Host)
-	if err != nil {
-		host = req.URL.Host
-	}
-	if host == "localhost" {
-		return false
-	}
-	if ipAddr := net.ParseIP(host); ipAddr != nil {
-		return false
-	}
-	return true
 }
 
 // IPCEndpoint section
