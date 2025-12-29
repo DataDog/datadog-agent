@@ -7,6 +7,7 @@
 package helper
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -32,9 +33,7 @@ func GetViperCombine(cfg model.Reader, key string) interface{} {
 	// If the setting is a map, copy to the tree (return value)
 	tree := make(map[string]interface{})
 	if mapval, ok := rawval.(map[string]interface{}); ok {
-		for k, v := range mapval {
-			tree[k] = v
-		}
+		maps.Copy(tree, mapval)
 	}
 
 	// Iterate the subfields of this setting (will find env vars this way)

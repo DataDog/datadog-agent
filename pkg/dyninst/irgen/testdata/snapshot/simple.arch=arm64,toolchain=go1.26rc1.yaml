@@ -1,0 +1,2993 @@
+ID: 1
+Probes:
+    - id: PointerChainArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.PointerChainArg}
+      capture: {maxReferenceDepth: 3}
+      template: 'ptr: {ptr}'
+      segments: ['ptr: ', {json: {ref: ptr}, dsl: ptr}]
+      captureSnapshot: true
+      subprogram: {subprogram: 13}
+      events:
+        - Kind: Entry
+          Type: 216 EventRootType Probe[main.PointerChainArg]
+          InjectionPoints: [{PC: "0xc815c", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 'ptr: {ptr}'
+        Segments:
+            - 'ptr: '
+            - JSON: {Ref: ptr}
+              DSL: ptr
+              EventKind: Entry
+              EventExpressionIndex: 1
+    - id: PointerSmallChainArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.PointerSmallChainArg}
+      capture: {maxReferenceDepth: 5}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 14}
+      events:
+        - Kind: Entry
+          Type: 217 EventRootType Probe[main.PointerSmallChainArg]
+          InjectionPoints: [{PC: "0xc8190", Frameless: false}]
+          Condition: null
+    - id: bigMapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.bigMapArg}
+      template: 'm: {m}'
+      segments: ['m: ', {json: {ref: m}, dsl: m}]
+      captureSnapshot: true
+      subprogram: {subprogram: 9}
+      events:
+        - Kind: Entry
+          Type: 208 EventRootType Probe[main.bigMapArg]
+          InjectionPoints: [{PC: "0xc85f8", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 209 EventRootType Probe[main.bigMapArg]Return
+          InjectionPoints: [{PC: "0xc8644", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 'm: {m}'
+        Segments:
+            - 'm: '
+            - JSON: {Ref: m}
+              DSL: m
+              EventKind: Entry
+              EventExpressionIndex: 1
+    - id: inlined
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.inlined}
+      sampling: {snapshotsPerSecond: 2}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 12}
+      events:
+        - Kind: Entry
+          Type: 214 EventRootType Probe[main.inlined]
+          InjectionPoints:
+            - PC: "0xc7f38"
+              Frameless: false
+            - PC: "0xc84c8"
+              Frameless: false
+          Condition: null
+        - Kind: Return
+          Type: 215 EventRootType Probe[main.inlined]Return
+          InjectionPoints: [{PC: "0xc84fc", Frameless: false}]
+          Condition: null
+    - id: intArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
+        - Kind: Entry
+          Type: 189 EventRootType Probe[main.intArg]
+          InjectionPoints: [{PC: "0xc81f8", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 190 EventRootType Probe[main.intArg]Return
+          InjectionPoints: [{PC: "0xc822c", Frameless: false}]
+          Condition: null
+    - id: intArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArrayArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 4}
+      events:
+        - Kind: Entry
+          Type: 199 EventRootType Probe[main.intArrayArg]
+          InjectionPoints: [{PC: "0xc8358", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 200 EventRootType Probe[main.intArrayArg]Return
+          InjectionPoints: [{PC: "0xc8398", Frameless: false}]
+          Condition: null
+    - id: intArrayArgFrameless
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArgFrameless}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 7}
+      events:
+        - Kind: Entry
+          Type: 205 EventRootType Probe[main.stringArrayArgFrameless]
+          InjectionPoints: [{PC: "0xc84a0", Frameless: true}]
+          Condition: null
+    - id: intSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intSliceArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 3}
+      events:
+        - Kind: Entry
+          Type: 197 EventRootType Probe[main.intSliceArg]
+          InjectionPoints: [{PC: "0xc82d8", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 198 EventRootType Probe[main.intSliceArg]Return
+          InjectionPoints: [{PC: "0xc8310", Frameless: false}]
+          Condition: null
+    - id: logProbe_no_snapshot_stringArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArg}
+      template: 's: {s}'
+      segments: ['s: ', {json: {ref: s}, dsl: s}]
+      captureSnapshot: false
+      subprogram: {subprogram: 2}
+      events:
+        - Kind: Entry
+          Type: 191 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: "0xc8268", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 192 EventRootType Probe[main.stringArg]Return
+          InjectionPoints: [{PC: "0xc82a0", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 's: {s}'
+        Segments:
+            - 's: '
+            - JSON: {Ref: s}
+              DSL: s
+              EventKind: Entry
+              EventExpressionIndex: 0
+    - id: logProbe_no_snapshot_stringArg_bad_template
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArg}
+      template: 'x: {x}'
+      segments: ['x: ', {json: {ref: x}, dsl: x}]
+      captureSnapshot: false
+      subprogram: {subprogram: 2}
+      events:
+        - Kind: Entry
+          Type: 193 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: "0xc8268", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 194 EventRootType Probe[main.stringArg]Return
+          InjectionPoints: [{PC: "0xc82a0", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 'x: {x}'
+        Segments:
+            - 'x: '
+            - Error: failed to resolve reference "x"
+              DSL: x
+    - id: mapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.mapArg}
+      template: 'm: {m}'
+      segments: ['m: ', {json: {ref: m}, dsl: m}]
+      captureSnapshot: true
+      subprogram: {subprogram: 8}
+      events:
+        - Kind: Entry
+          Type: 206 EventRootType Probe[main.mapArg]
+          InjectionPoints: [{PC: "0xc8588", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 207 EventRootType Probe[main.mapArg]Return
+          InjectionPoints: [{PC: "0xc85b4", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 'm: {m}'
+        Segments:
+            - 'm: '
+            - JSON: {Ref: m}
+              DSL: m
+              EventKind: Entry
+              EventExpressionIndex: 1
+    - id: noArgs
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.noArgs}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 10}
+      events:
+        - Kind: Entry
+          Type: 210 EventRootType Probe[main.noArgs]
+          InjectionPoints: [{PC: "0xc8688", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 211 EventRootType Probe[main.noArgs]Return
+          InjectionPoints: [{PC: "0xc86bc", Frameless: false}]
+          Condition: null
+    - id: stringArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArg}
+      template: 's: {s}'
+      segments: ['s: ', {json: {ref: s}, dsl: s}]
+      captureSnapshot: true
+      subprogram: {subprogram: 2}
+      events:
+        - Kind: Entry
+          Type: 195 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: "0xc8268", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 196 EventRootType Probe[main.stringArg]Return
+          InjectionPoints: [{PC: "0xc82a0", Frameless: false}]
+          Condition: null
+      probeTemplate:
+        TemplateString: 's: {s}'
+        Segments:
+            - 's: '
+            - JSON: {Ref: s}
+              DSL: s
+              EventKind: Entry
+              EventExpressionIndex: 1
+    - id: stringArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 6}
+      events:
+        - Kind: Entry
+          Type: 203 EventRootType Probe[main.stringArrayArg]
+          InjectionPoints: [{PC: "0xc8448", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 204 EventRootType Probe[main.stringArrayArg]Return
+          InjectionPoints: [{PC: "0xc8488", Frameless: false}]
+          Condition: null
+    - id: stringSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringSliceArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 5}
+      events:
+        - Kind: Entry
+          Type: 201 EventRootType Probe[main.stringSliceArg]
+          InjectionPoints: [{PC: "0xc83c8", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 202 EventRootType Probe[main.stringSliceArg]Return
+          InjectionPoints: [{PC: "0xc8400", Frameless: false}]
+          Condition: null
+    - id: usesMapsOfMapsThatDoNotAppearAsArguments
+      version: 0
+      type: LOG_PROBE
+      where:
+        methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 11}
+      events:
+        - Kind: Entry
+          Type: 212 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+          InjectionPoints: [{PC: "0xc8700", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 213 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+          InjectionPoints: [{PC: "0xc887c", Frameless: false}]
+          Condition: null
+Subprograms:
+    - ID: 1
+      Name: main.intArg
+      OutOfLinePCRanges: [0xc81e0..0xc8250]
+      InlinePCRanges: []
+      Variables:
+        - Name: x
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0xc81e0..0xc8200
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 2
+      Name: main.stringArg
+      OutOfLinePCRanges: [0xc8250..0xc82c0]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xc8250..0xc8274
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+          Role: Parameter
+    - ID: 3
+      Name: main.intSliceArg
+      OutOfLinePCRanges: [0xc82c0..0xc8340]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 112 GoSliceHeaderType []int
+          Locations:
+            - Range: 0xc82c0..0xc82e4
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          Role: Parameter
+    - ID: 4
+      Name: main.intArrayArg
+      OutOfLinePCRanges: [0xc8340..0xc83b0]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 113 ArrayType [3]int
+          Locations:
+            - Range: 0xc8340..0xc83b0
+              Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
+          Role: Parameter
+    - ID: 5
+      Name: main.stringSliceArg
+      OutOfLinePCRanges: [0xc83b0..0xc8430]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 114 GoSliceHeaderType []string
+          Locations:
+            - Range: 0xc83b0..0xc83d4
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          Role: Parameter
+    - ID: 6
+      Name: main.stringArrayArg
+      OutOfLinePCRanges: [0xc8430..0xc84a0]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 115 ArrayType [3]string
+          Locations:
+            - Range: 0xc8430..0xc84a0
+              Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
+          Role: Parameter
+    - ID: 7
+      Name: main.stringArrayArgFrameless
+      OutOfLinePCRanges: [0xc84a0..0xc84b0]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 115 ArrayType [3]string
+          Locations:
+            - Range: 0xc84a0..0xc84b0
+              Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
+          Role: Parameter
+    - ID: 8
+      Name: main.mapArg
+      OutOfLinePCRanges: [0xc8570..0xc85e0]
+      InlinePCRanges: []
+      Variables:
+        - Name: m
+          Type: 116 GoMapType map[string]int
+          Locations:
+            - Range: 0xc8570..0xc85a4
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 9
+      Name: main.bigMapArg
+      OutOfLinePCRanges: [0xc85e0..0xc8670]
+      InlinePCRanges: []
+      Variables:
+        - Name: m
+          Type: 121 GoMapType map[string]main.bigStruct
+          Locations:
+            - Range: 0xc85e0..0xc8610
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc8610..0xc8670
+              Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
+          Role: Parameter
+    - ID: 10
+      Name: main.noArgs
+      OutOfLinePCRanges: [0xc8670..0xc86e0]
+      InlinePCRanges: []
+      Variables: []
+    - ID: 11
+      Name: main.usesMapsOfMapsThatDoNotAppearAsArguments
+      OutOfLinePCRanges: [0xc86e0..0xc88a0]
+      InlinePCRanges: []
+      Variables:
+        - Name: ~r0
+          Type: 126 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
+          Locations:
+            - Range: 0xc86e0..0xc887c
+              Pieces: []
+            - Range: 0xc887c..0xc887d
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc887d..0xc88a0
+              Pieces: []
+          Role: Return
+    - ID: 12
+      Name: main.inlined
+      OutOfLinePCRanges: [0xc84b0..0xc8520]
+      InlinePCRanges:
+        - Ranges: [0xc7f38..0xc7f6c]
+          RootRanges: [0xc7da0..0xc81e0]
+      Variables:
+        - Name: x
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0xc7f38..0xc7f6c
+              Pieces: []
+            - Range: 0xc84b0..0xc84d0
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 13
+      Name: main.PointerChainArg
+      OutOfLinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0xc815c..0xc8188]
+          RootRanges: [0xc7da0..0xc81e0]
+      Variables:
+        - Name: ptr
+          Type: 131 PointerType *****int
+          Locations:
+            - Range: 0xc8134..0xc8178
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 14
+      Name: main.PointerSmallChainArg
+      OutOfLinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0xc8190..0xc81bc]
+          RootRanges: [0xc7da0..0xc81e0]
+      Variables:
+        - Name: ptr
+          Type: 133 PointerType **int
+          Locations:
+            - Range: 0xc8190..0xc81bc
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+          Role: Parameter
+Types:
+    - __kind: PointerType
+      ID: 131
+      Name: '*****int'
+      ByteSize: 8
+      GoRuntimeType: 38624
+      GoKind: 22
+      Pointee: 132 PointerType ****int
+    - __kind: PointerType
+      ID: 132
+      Name: '****int'
+      ByteSize: 8
+      GoRuntimeType: 38560
+      GoKind: 22
+      Pointee: 188 PointerType ***int
+    - __kind: PointerType
+      ID: 188
+      Name: '***int'
+      ByteSize: 8
+      GoRuntimeType: 38496
+      GoKind: 22
+      Pointee: 133 PointerType **int
+    - __kind: PointerType
+      ID: 133
+      Name: '**int'
+      ByteSize: 8
+      GoRuntimeType: 38432
+      GoKind: 22
+      Pointee: 105 PointerType *int
+    - __kind: PointerType
+      ID: 67
+      Name: '**runtime.p'
+      ByteSize: 8
+      GoKind: 22
+      Pointee: 68 PointerType *runtime.p
+    - __kind: PointerType
+      ID: 174
+      Name: '**table<int,main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 175 PointerType *table<int,main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 119
+      Name: '**table<string,int>'
+      ByteSize: 8
+      Pointee: 120 PointerType *table<string,int>
+    - __kind: PointerType
+      ID: 124
+      Name: '**table<string,main.bigStruct>'
+      ByteSize: 8
+      Pointee: 125 PointerType *table<string,main.bigStruct>
+    - __kind: PointerType
+      ID: 129
+      Name: '**table<uint8,map[int]main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 130 PointerType *table<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 142
+      Name: '*[]*runtime.p.array'
+      ByteSize: 8
+      Pointee: 141 GoSliceDataType []*runtime.p.array
+    - __kind: PointerType
+      ID: 144
+      Name: '*[]int.array'
+      ByteSize: 8
+      Pointee: 143 GoSliceDataType []int.array
+    - __kind: PointerType
+      ID: 40
+      Name: '*[]runtime.ancestorInfo'
+      ByteSize: 8
+      GoRuntimeType: 42592
+      GoKind: 22
+      Pointee: 41 UnresolvedPointeeType []runtime.ancestorInfo
+    - __kind: PointerType
+      ID: 146
+      Name: '*[]string.array'
+      ByteSize: 8
+      Pointee: 145 GoSliceDataType []string.array
+    - __kind: PointerType
+      ID: 137
+      Name: '*[]uint8.array'
+      ByteSize: 8
+      Pointee: 136 GoSliceDataType []uint8.array
+    - __kind: PointerType
+      ID: 139
+      Name: '*[]uintptr.array'
+      ByteSize: 8
+      Pointee: 138 GoSliceDataType []uintptr.array
+    - __kind: PointerType
+      ID: 10
+      Name: '*bool'
+      ByteSize: 8
+      GoRuntimeType: 32416
+      GoKind: 22
+      Pointee: 4 BaseType bool
+    - __kind: PointerType
+      ID: 108
+      Name: '*error'
+      ByteSize: 8
+      GoRuntimeType: 31328
+      GoKind: 22
+      Pointee: 15 GoInterfaceType error
+    - __kind: PointerType
+      ID: 109
+      Name: '*float32'
+      ByteSize: 8
+      GoRuntimeType: 32288
+      GoKind: 22
+      Pointee: 17 BaseType float32
+    - __kind: PointerType
+      ID: 104
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 32352
+      GoKind: 22
+      Pointee: 14 BaseType float64
+    - __kind: PointerType
+      ID: 105
+      Name: '*int'
+      ByteSize: 8
+      GoRuntimeType: 31968
+      GoKind: 22
+      Pointee: 7 BaseType int
+    - __kind: PointerType
+      ID: 21
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 31712
+      GoKind: 22
+      Pointee: 12 BaseType int32
+    - __kind: PointerType
+      ID: 107
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 31840
+      GoKind: 22
+      Pointee: 13 BaseType int64
+    - __kind: PointerType
+      ID: 99
+      Name: '*internal/runtime/atomic.Pointer[runtime.m]'
+      ByteSize: 8
+      GoRuntimeType: 104576
+      GoKind: 22
+      Pointee: 100 UnresolvedPointeeType internal/runtime/atomic.Pointer[runtime.m]
+    - __kind: PointerType
+      ID: 161
+      Name: '*main.bigStruct'
+      ByteSize: 8
+      GoRuntimeType: 29792
+      GoKind: 22
+      Pointee: 162 StructureType main.bigStruct
+    - __kind: PointerType
+      ID: 172
+      Name: '*map<int,main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 173 GoSwissMapHeaderType map<int,main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 117
+      Name: '*map<string,int>'
+      ByteSize: 8
+      Pointee: 118 GoSwissMapHeaderType map<string,int>
+    - __kind: PointerType
+      ID: 122
+      Name: '*map<string,main.bigStruct>'
+      ByteSize: 8
+      Pointee: 123 GoSwissMapHeaderType map<string,main.bigStruct>
+    - __kind: PointerType
+      ID: 127
+      Name: '*map<uint8,map[int]main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 128 GoSwissMapHeaderType map<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 180
+      Name: '*noalg.map.group[int]main.aStructNotUsedAsAnArgument'
+      ByteSize: 8
+      Pointee: 181 StructureType noalg.map.group[int]main.aStructNotUsedAsAnArgument
+    - __kind: PointerType
+      ID: 149
+      Name: '*noalg.map.group[string]int'
+      ByteSize: 8
+      Pointee: 150 StructureType noalg.map.group[string]int
+    - __kind: PointerType
+      ID: 157
+      Name: '*noalg.map.group[string]main.bigStruct'
+      ByteSize: 8
+      Pointee: 158 StructureType noalg.map.group[string]main.bigStruct
+    - __kind: PointerType
+      ID: 167
+      Name: '*noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument'
+      ByteSize: 8
+      Pointee: 168 StructureType noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+    - __kind: PointerType
+      ID: 27
+      Name: '*runtime._defer'
+      ByteSize: 8
+      GoRuntimeType: 32608
+      GoKind: 22
+      Pointee: 28 UnresolvedPointeeType runtime._defer
+    - __kind: PointerType
+      ID: 25
+      Name: '*runtime._panic'
+      ByteSize: 8
+      GoRuntimeType: 88768
+      GoKind: 22
+      Pointee: 26 UnresolvedPointeeType runtime._panic
+    - __kind: PointerType
+      ID: 69
+      Name: '*runtime.cgoCallers'
+      ByteSize: 8
+      GoRuntimeType: 34720
+      GoKind: 22
+      Pointee: 70 UnresolvedPointeeType runtime.cgoCallers
+    - __kind: PointerType
+      ID: 48
+      Name: '*runtime.coro'
+      ByteSize: 8
+      GoRuntimeType: 33440
+      GoKind: 22
+      Pointee: 49 UnresolvedPointeeType runtime.coro
+    - __kind: PointerType
+      ID: 59
+      Name: '*runtime.g'
+      ByteSize: 8
+      GoRuntimeType: 79616
+      GoKind: 22
+      Pointee: 23 StructureType runtime.g
+    - __kind: PointerType
+      ID: 29
+      Name: '*runtime.m'
+      ByteSize: 8
+      GoRuntimeType: 89408
+      GoKind: 22
+      Pointee: 30 StructureType runtime.m
+    - __kind: PointerType
+      ID: 68
+      Name: '*runtime.p'
+      ByteSize: 8
+      GoRuntimeType: 72704
+      GoKind: 22
+      Pointee: 140 UnresolvedPointeeType runtime.p
+    - __kind: PointerType
+      ID: 42
+      Name: '*runtime.sudog'
+      ByteSize: 8
+      GoRuntimeType: 33376
+      GoKind: 22
+      Pointee: 43 UnresolvedPointeeType runtime.sudog
+    - __kind: PointerType
+      ID: 50
+      Name: '*runtime.synctestBubble'
+      ByteSize: 8
+      GoRuntimeType: 102336
+      GoKind: 22
+      Pointee: 51 UnresolvedPointeeType runtime.synctestBubble
+    - __kind: PointerType
+      ID: 45
+      Name: '*runtime.timer'
+      ByteSize: 8
+      GoRuntimeType: 136512
+      GoKind: 22
+      Pointee: 46 UnresolvedPointeeType runtime.timer
+    - __kind: PointerType
+      ID: 83
+      Name: '*runtime.traceBuf'
+      ByteSize: 8
+      GoRuntimeType: 109760
+      GoKind: 22
+      Pointee: 84 UnresolvedPointeeType runtime.traceBuf
+    - __kind: PointerType
+      ID: 53
+      Name: '*runtime.xRegState'
+      ByteSize: 8
+      GoRuntimeType: 33632
+      GoKind: 22
+      Pointee: 54 UnresolvedPointeeType runtime.xRegState
+    - __kind: PointerType
+      ID: 101
+      Name: '*string'
+      ByteSize: 8
+      GoRuntimeType: 31392
+      GoKind: 22
+      Pointee: 9 GoStringHeaderType string
+    - __kind: PointerType
+      ID: 135
+      Name: '*string.str'
+      ByteSize: 8
+      Pointee: 134 GoStringDataType string.str
+    - __kind: PointerType
+      ID: 175
+      Name: '*table<int,main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 178 StructureType table<int,main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 120
+      Name: '*table<string,int>'
+      ByteSize: 8
+      Pointee: 147 StructureType table<string,int>
+    - __kind: PointerType
+      ID: 125
+      Name: '*table<string,main.bigStruct>'
+      ByteSize: 8
+      Pointee: 155 StructureType table<string,main.bigStruct>
+    - __kind: PointerType
+      ID: 130
+      Name: '*table<uint8,map[int]main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 165 StructureType table<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: PointerType
+      ID: 110
+      Name: '*uint'
+      ByteSize: 8
+      GoRuntimeType: 32032
+      GoKind: 22
+      Pointee: 11 BaseType uint
+    - __kind: PointerType
+      ID: 111
+      Name: '*uint16'
+      ByteSize: 8
+      GoRuntimeType: 31648
+      GoKind: 22
+      Pointee: 6 BaseType uint16
+    - __kind: PointerType
+      ID: 22
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 31776
+      GoKind: 22
+      Pointee: 2 BaseType uint32
+    - __kind: PointerType
+      ID: 106
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 31904
+      GoKind: 22
+      Pointee: 8 BaseType uint64
+    - __kind: PointerType
+      ID: 5
+      Name: '*uint8'
+      ByteSize: 8
+      GoRuntimeType: 31520
+      GoKind: 22
+      Pointee: 3 BaseType uint8
+    - __kind: PointerType
+      ID: 20
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 32096
+      GoKind: 22
+      Pointee: 1 BaseType uintptr
+    - __kind: EventRootType
+      ID: 216
+      Name: Probe[main.PointerChainArg]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ptr
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 131 PointerType *****int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 13, index: 0, name: ptr}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: ptr
+          Offset: 9
+          Kind: template_segment
+          Expression:
+            Type: 131 PointerType *****int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 13, index: 0, name: ptr}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 217
+      Name: Probe[main.PointerSmallChainArg]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ptr
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 133 PointerType **int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 14, index: 0, name: ptr}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 208
+      Name: Probe[main.bigMapArg]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: m
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 121 GoMapType map[string]main.bigStruct
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 9, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: m
+          Offset: 9
+          Kind: template_segment
+          Expression:
+            Type: 121 GoMapType map[string]main.bigStruct
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 9, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 209
+      Name: Probe[main.bigMapArg]Return
+    - __kind: EventRootType
+      ID: 214
+      Name: Probe[main.inlined]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: x
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 12, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 215
+      Name: Probe[main.inlined]Return
+    - __kind: EventRootType
+      ID: 189
+      Name: Probe[main.intArg]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: x
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 190
+      Name: Probe[main.intArg]Return
+    - __kind: EventRootType
+      ID: 199
+      Name: Probe[main.intArrayArg]
+      ByteSize: 25
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 113 ArrayType [3]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 4, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 24
+    - __kind: EventRootType
+      ID: 200
+      Name: Probe[main.intArrayArg]Return
+    - __kind: EventRootType
+      ID: 197
+      Name: Probe[main.intSliceArg]
+      ByteSize: 25
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 112 GoSliceHeaderType []int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 3, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 24
+    - __kind: EventRootType
+      ID: 198
+      Name: Probe[main.intSliceArg]Return
+    - __kind: EventRootType
+      ID: 206
+      Name: Probe[main.mapArg]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: m
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 116 GoMapType map[string]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 8, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: m
+          Offset: 9
+          Kind: template_segment
+          Expression:
+            Type: 116 GoMapType map[string]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 8, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 207
+      Name: Probe[main.mapArg]Return
+    - __kind: EventRootType
+      ID: 210
+      Name: Probe[main.noArgs]
+    - __kind: EventRootType
+      ID: 211
+      Name: Probe[main.noArgs]Return
+    - __kind: EventRootType
+      ID: 191
+      Name: Probe[main.stringArg]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: EventRootType
+      ID: 193
+      Name: Probe[main.stringArg]
+    - __kind: EventRootType
+      ID: 195
+      Name: Probe[main.stringArg]
+      ByteSize: 33
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: s
+          Offset: 17
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: EventRootType
+      ID: 192
+      Name: Probe[main.stringArg]Return
+    - __kind: EventRootType
+      ID: 194
+      Name: Probe[main.stringArg]Return
+    - __kind: EventRootType
+      ID: 196
+      Name: Probe[main.stringArg]Return
+    - __kind: EventRootType
+      ID: 205
+      Name: Probe[main.stringArrayArgFrameless]
+      ByteSize: 49
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 115 ArrayType [3]string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 7, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 48
+    - __kind: EventRootType
+      ID: 203
+      Name: Probe[main.stringArrayArg]
+      ByteSize: 49
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 115 ArrayType [3]string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 6, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 48
+    - __kind: EventRootType
+      ID: 204
+      Name: Probe[main.stringArrayArg]Return
+    - __kind: EventRootType
+      ID: 201
+      Name: Probe[main.stringSliceArg]
+      ByteSize: 25
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 114 GoSliceHeaderType []string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 5, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 24
+    - __kind: EventRootType
+      ID: 202
+      Name: Probe[main.stringSliceArg]Return
+    - __kind: EventRootType
+      ID: 212
+      Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+    - __kind: EventRootType
+      ID: 213
+      Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ~r0
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 126 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 11, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: ArrayType
+      ID: 95
+      Name: '[10]runtime.heldLockInfo'
+      ByteSize: 160
+      GoRuntimeType: 54848
+      GoKind: 17
+      Count: 10
+      HasCount: true
+      Element: 96 StructureType runtime.heldLockInfo
+    - __kind: ArrayType
+      ID: 187
+      Name: '[128]uint8'
+      ByteSize: 128
+      GoRuntimeType: 51584
+      GoKind: 17
+      Count: 128
+      HasCount: true
+      Element: 3 BaseType uint8
+    - __kind: ArrayType
+      ID: 82
+      Name: '[2]*runtime.traceBuf'
+      ByteSize: 16
+      GoRuntimeType: 57824
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 83 PointerType *runtime.traceBuf
+    - __kind: ArrayType
+      ID: 81
+      Name: '[2][2]*runtime.traceBuf'
+      ByteSize: 32
+      GoRuntimeType: 57920
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 82 ArrayType [2]*runtime.traceBuf
+    - __kind: ArrayType
+      ID: 87
+      Name: '[2][8]runtime.pcvalueCacheEnt'
+      ByteSize: 384
+      GoRuntimeType: 58112
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 88 ArrayType [8]runtime.pcvalueCacheEnt
+    - __kind: ArrayType
+      ID: 58
+      Name: '[2]uint64'
+      ByteSize: 16
+      GoRuntimeType: 56192
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 8 BaseType uint64
+    - __kind: ArrayType
+      ID: 93
+      Name: '[32]uint64'
+      ByteSize: 256
+      GoRuntimeType: 60512
+      GoKind: 17
+      Count: 32
+      HasCount: true
+      Element: 8 BaseType uint64
+    - __kind: ArrayType
+      ID: 73
+      Name: '[32]uintptr'
+      ByteSize: 256
+      GoRuntimeType: 54752
+      GoKind: 17
+      Count: 32
+      HasCount: true
+      Element: 1 BaseType uintptr
+    - __kind: ArrayType
+      ID: 113
+      Name: '[3]int'
+      ByteSize: 24
+      GoRuntimeType: 51200
+      GoKind: 17
+      Count: 3
+      HasCount: true
+      Element: 7 BaseType int
+    - __kind: ArrayType
+      ID: 57
+      Name: '[3]internal/runtime/atomic.Uint32'
+      ByteSize: 12
+      GoRuntimeType: 56096
+      GoKind: 17
+      Count: 3
+      HasCount: true
+      Element: 33 StructureType internal/runtime/atomic.Uint32
+    - __kind: ArrayType
+      ID: 115
+      Name: '[3]string'
+      ByteSize: 48
+      GoRuntimeType: 51296
+      GoKind: 17
+      Count: 3
+      HasCount: true
+      Element: 9 GoStringHeaderType string
+    - __kind: ArrayType
+      ID: 94
+      Name: '[4]uint64'
+      ByteSize: 32
+      GoRuntimeType: 59648
+      GoKind: 17
+      Count: 4
+      HasCount: true
+      Element: 8 BaseType uint64
+    - __kind: ArrayType
+      ID: 62
+      Name: '[6]uintptr'
+      ByteSize: 48
+      GoRuntimeType: 54656
+      GoKind: 17
+      Count: 6
+      HasCount: true
+      Element: 1 BaseType uintptr
+    - __kind: ArrayType
+      ID: 88
+      Name: '[8]runtime.pcvalueCacheEnt'
+      ByteSize: 192
+      GoRuntimeType: 58016
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 89 StructureType runtime.pcvalueCacheEnt
+    - __kind: GoSliceHeaderType
+      ID: 66
+      Name: '[]*runtime.p'
+      ByteSize: 24
+      GoRuntimeType: 39904
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 67 PointerType **runtime.p
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 141 GoSliceDataType []*runtime.p.array
+    - __kind: GoSliceDataType
+      ID: 141
+      Name: '[]*runtime.p.array'
+      DynamicSizeClass: slice
+      ByteSize: 8
+      Element: 68 PointerType *runtime.p
+    - __kind: GoSliceDataType
+      ID: 185
+      Name: '[]*table<int,main.aStructNotUsedAsAnArgument>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 175 PointerType *table<int,main.aStructNotUsedAsAnArgument>
+    - __kind: GoSliceDataType
+      ID: 153
+      Name: '[]*table<string,int>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 120 PointerType *table<string,int>
+    - __kind: GoSliceDataType
+      ID: 163
+      Name: '[]*table<string,main.bigStruct>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 125 PointerType *table<string,main.bigStruct>
+    - __kind: GoSliceDataType
+      ID: 176
+      Name: '[]*table<uint8,map[int]main.aStructNotUsedAsAnArgument>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 130 PointerType *table<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: GoSliceHeaderType
+      ID: 112
+      Name: '[]int'
+      ByteSize: 24
+      GoRuntimeType: 41632
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 105 PointerType *int
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 143 GoSliceDataType []int.array
+    - __kind: GoSliceDataType
+      ID: 143
+      Name: '[]int.array'
+      DynamicSizeClass: slice
+      ByteSize: 8
+      Element: 7 BaseType int
+    - __kind: GoSliceDataType
+      ID: 186
+      Name: '[]noalg.map.group[int]main.aStructNotUsedAsAnArgument.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 136
+      Element: 181 StructureType noalg.map.group[int]main.aStructNotUsedAsAnArgument
+    - __kind: GoSliceDataType
+      ID: 154
+      Name: '[]noalg.map.group[string]int.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 200
+      Element: 150 StructureType noalg.map.group[string]int
+    - __kind: GoSliceDataType
+      ID: 164
+      Name: '[]noalg.map.group[string]main.bigStruct.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 200
+      Element: 158 StructureType noalg.map.group[string]main.bigStruct
+    - __kind: GoSliceDataType
+      ID: 177
+      Name: '[]noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 136
+      Element: 168 StructureType noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+    - __kind: UnresolvedPointeeType
+      ID: 41
+      Name: '[]runtime.ancestorInfo'
+      ByteSize: 8
+    - __kind: GoSliceHeaderType
+      ID: 114
+      Name: '[]string'
+      ByteSize: 24
+      GoRuntimeType: 41888
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 101 PointerType *string
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 145 GoSliceDataType []string.array
+    - __kind: GoSliceDataType
+      ID: 145
+      Name: '[]string.array'
+      DynamicSizeClass: slice
+      ByteSize: 16
+      Element: 9 GoStringHeaderType string
+    - __kind: GoSliceHeaderType
+      ID: 39
+      Name: '[]uint8'
+      ByteSize: 24
+      GoRuntimeType: 41312
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 5 PointerType *uint8
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 136 GoSliceDataType []uint8.array
+    - __kind: GoSliceDataType
+      ID: 136
+      Name: '[]uint8.array'
+      DynamicSizeClass: slice
+      ByteSize: 1
+      Element: 3 BaseType uint8
+    - __kind: GoSliceHeaderType
+      ID: 44
+      Name: '[]uintptr'
+      ByteSize: 24
+      GoRuntimeType: 41760
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 20 PointerType *uintptr
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 138 GoSliceDataType []uintptr.array
+    - __kind: GoSliceDataType
+      ID: 138
+      Name: '[]uintptr.array'
+      DynamicSizeClass: slice
+      ByteSize: 8
+      Element: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 4
+      Name: bool
+      ByteSize: 1
+      GoRuntimeType: 46976
+      GoKind: 1
+    - __kind: BaseType
+      ID: 18
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 46784
+      GoKind: 16
+    - __kind: BaseType
+      ID: 103
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 46720
+      GoKind: 15
+    - __kind: GoInterfaceType
+      ID: 15
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 71168
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 16 VoidPointerType unsafe.Pointer
+    - __kind: BaseType
+      ID: 17
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 46848
+      GoKind: 13
+    - __kind: BaseType
+      ID: 14
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 46912
+      GoKind: 14
+    - __kind: GoSubroutineType
+      ID: 63
+      Name: func()
+      ByteSize: 8
+      GoRuntimeType: 39072
+      GoKind: 19
+    - __kind: GoSubroutineType
+      ID: 78
+      Name: func(*runtime.g, unsafe.Pointer) bool
+      ByteSize: 8
+      GoRuntimeType: 62880
+      GoKind: 19
+    - __kind: GoSwissMapGroupsType
+      ID: 179
+      Name: groupReference<int,main.aStructNotUsedAsAnArgument>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 180 PointerType *noalg.map.group[int]main.aStructNotUsedAsAnArgument
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 181 StructureType noalg.map.group[int]main.aStructNotUsedAsAnArgument
+      GroupSliceType: 186 GoSliceDataType []noalg.map.group[int]main.aStructNotUsedAsAnArgument.array
+    - __kind: GoSwissMapGroupsType
+      ID: 148
+      Name: groupReference<string,int>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 149 PointerType *noalg.map.group[string]int
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 150 StructureType noalg.map.group[string]int
+      GroupSliceType: 154 GoSliceDataType []noalg.map.group[string]int.array
+    - __kind: GoSwissMapGroupsType
+      ID: 156
+      Name: groupReference<string,main.bigStruct>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 157 PointerType *noalg.map.group[string]main.bigStruct
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 158 StructureType noalg.map.group[string]main.bigStruct
+      GroupSliceType: 164 GoSliceDataType []noalg.map.group[string]main.bigStruct.array
+    - __kind: GoSwissMapGroupsType
+      ID: 166
+      Name: groupReference<uint8,map[int]main.aStructNotUsedAsAnArgument>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 167 PointerType *noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 168 StructureType noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+      GroupSliceType: 177 GoSliceDataType []noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument.array
+    - __kind: BaseType
+      ID: 7
+      Name: int
+      ByteSize: 8
+      GoRuntimeType: 46528
+      GoKind: 2
+    - __kind: BaseType
+      ID: 102
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 46144
+      GoKind: 4
+    - __kind: BaseType
+      ID: 12
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 46272
+      GoKind: 5
+    - __kind: BaseType
+      ID: 13
+      Name: int64
+      ByteSize: 8
+      GoRuntimeType: 46400
+      GoKind: 6
+    - __kind: BaseType
+      ID: 19
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 46016
+      GoKind: 3
+    - __kind: StructureType
+      ID: 92
+      Name: internal/chacha8rand.State
+      ByteSize: 304
+      GoRuntimeType: 126400
+      GoKind: 25
+      RawFields:
+        - Name: buf
+          Offset: 0
+          Type: 93 ArrayType [32]uint64
+        - Name: seed
+          Offset: 256
+          Type: 94 ArrayType [4]uint64
+        - Name: i
+          Offset: 288
+          Type: 2 BaseType uint32
+        - Name: n
+          Offset: 292
+          Type: 2 BaseType uint32
+        - Name: c
+          Offset: 296
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 36
+      Name: internal/runtime/atomic.Bool
+      ByteSize: 1
+      GoRuntimeType: 82176
+      GoKind: 25
+      RawFields:
+        - Name: u
+          Offset: 0
+          Type: 37 StructureType internal/runtime/atomic.Uint8
+    - __kind: StructureType
+      ID: 76
+      Name: internal/runtime/atomic.Int64
+      ByteSize: 8
+      GoRuntimeType: 112448
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 34 StructureType internal/runtime/atomic.noCopy
+        - Name: _
+          Offset: 0
+          Type: 77 StructureType internal/runtime/atomic.align64
+        - Name: value
+          Offset: 0
+          Type: 13 BaseType int64
+    - __kind: UnresolvedPointeeType
+      ID: 100
+      Name: internal/runtime/atomic.Pointer[runtime.m]
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 33
+      Name: internal/runtime/atomic.Uint32
+      ByteSize: 4
+      GoRuntimeType: 100608
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 34 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 37
+      Name: internal/runtime/atomic.Uint8
+      ByteSize: 1
+      GoRuntimeType: 100448
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 34 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 3 BaseType uint8
+    - __kind: StructureType
+      ID: 77
+      Name: internal/runtime/atomic.align64
+      GoRuntimeType: 69472
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 34
+      Name: internal/runtime/atomic.noCopy
+      GoRuntimeType: 69376
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 184
+      Name: main.aStructNotUsedAsAnArgument
+      ByteSize: 8
+      GoRuntimeType: 77440
+      GoKind: 25
+      RawFields: [{Name: a, Offset: 0, Type: 7 BaseType int}]
+    - __kind: StructureType
+      ID: 162
+      Name: main.bigStruct
+      ByteSize: 184
+      GoRuntimeType: 134752
+      GoKind: 25
+      RawFields:
+        - Name: Field1
+          Offset: 0
+          Type: 7 BaseType int
+        - Name: Field2
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: Field3
+          Offset: 16
+          Type: 7 BaseType int
+        - Name: Field4
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: Field5
+          Offset: 32
+          Type: 7 BaseType int
+        - Name: Field6
+          Offset: 40
+          Type: 7 BaseType int
+        - Name: Field7
+          Offset: 48
+          Type: 7 BaseType int
+        - Name: data
+          Offset: 56
+          Type: 187 ArrayType [128]uint8
+    - __kind: GoSwissMapHeaderType
+      ID: 173
+      Name: map<int,main.aStructNotUsedAsAnArgument>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 174 PointerType **table<int,main.aStructNotUsedAsAnArgument>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 185 GoSliceDataType []*table<int,main.aStructNotUsedAsAnArgument>.array
+      GroupType: 181 StructureType noalg.map.group[int]main.aStructNotUsedAsAnArgument
+    - __kind: GoSwissMapHeaderType
+      ID: 118
+      Name: map<string,int>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 119 PointerType **table<string,int>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 153 GoSliceDataType []*table<string,int>.array
+      GroupType: 150 StructureType noalg.map.group[string]int
+    - __kind: GoSwissMapHeaderType
+      ID: 123
+      Name: map<string,main.bigStruct>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 124 PointerType **table<string,main.bigStruct>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 163 GoSliceDataType []*table<string,main.bigStruct>.array
+      GroupType: 158 StructureType noalg.map.group[string]main.bigStruct
+    - __kind: GoSwissMapHeaderType
+      ID: 128
+      Name: map<uint8,map[int]main.aStructNotUsedAsAnArgument>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 129 PointerType **table<uint8,map[int]main.aStructNotUsedAsAnArgument>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 176 GoSliceDataType []*table<uint8,map[int]main.aStructNotUsedAsAnArgument>.array
+      GroupType: 168 StructureType noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+    - __kind: GoMapType
+      ID: 171
+      Name: map[int]main.aStructNotUsedAsAnArgument
+      ByteSize: 8
+      GoRuntimeType: 75520
+      GoKind: 21
+      HeaderType: 173 GoSwissMapHeaderType map<int,main.aStructNotUsedAsAnArgument>
+    - __kind: GoMapType
+      ID: 116
+      Name: map[string]int
+      ByteSize: 8
+      GoRuntimeType: 75648
+      GoKind: 21
+      HeaderType: 118 GoSwissMapHeaderType map<string,int>
+    - __kind: GoMapType
+      ID: 121
+      Name: map[string]main.bigStruct
+      ByteSize: 8
+      GoRuntimeType: 75776
+      GoKind: 21
+      HeaderType: 123 GoSwissMapHeaderType map<string,main.bigStruct>
+    - __kind: GoMapType
+      ID: 126
+      Name: map[uint8]map[int]main.aStructNotUsedAsAnArgument
+      ByteSize: 8
+      GoRuntimeType: 76032
+      GoKind: 21
+      HeaderType: 128 GoSwissMapHeaderType map<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: ArrayType
+      ID: 182
+      Name: noalg.[8]struct { key int; elem main.aStructNotUsedAsAnArgument }
+      ByteSize: 128
+      GoRuntimeType: 51392
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 183 StructureType noalg.struct { key int; elem main.aStructNotUsedAsAnArgument }
+    - __kind: ArrayType
+      ID: 159
+      Name: noalg.[8]struct { key string; elem *main.bigStruct }
+      ByteSize: 192
+      GoRuntimeType: 51680
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 160 StructureType noalg.struct { key string; elem *main.bigStruct }
+    - __kind: ArrayType
+      ID: 151
+      Name: noalg.[8]struct { key string; elem int }
+      ByteSize: 192
+      GoRuntimeType: 51488
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 152 StructureType noalg.struct { key string; elem int }
+    - __kind: ArrayType
+      ID: 169
+      Name: noalg.[8]struct { key uint8; elem map[int]main.aStructNotUsedAsAnArgument }
+      ByteSize: 128
+      GoRuntimeType: 51872
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 170 StructureType noalg.struct { key uint8; elem map[int]main.aStructNotUsedAsAnArgument }
+    - __kind: StructureType
+      ID: 181
+      Name: noalg.map.group[int]main.aStructNotUsedAsAnArgument
+      ByteSize: 136
+      GoRuntimeType: 83584
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 182 ArrayType noalg.[8]struct { key int; elem main.aStructNotUsedAsAnArgument }
+    - __kind: StructureType
+      ID: 150
+      Name: noalg.map.group[string]int
+      ByteSize: 200
+      GoRuntimeType: 83840
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 151 ArrayType noalg.[8]struct { key string; elem int }
+    - __kind: StructureType
+      ID: 158
+      Name: noalg.map.group[string]main.bigStruct
+      ByteSize: 200
+      GoRuntimeType: 84096
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 159 ArrayType noalg.[8]struct { key string; elem *main.bigStruct }
+    - __kind: StructureType
+      ID: 168
+      Name: noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
+      ByteSize: 136
+      GoRuntimeType: 84608
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 169 ArrayType noalg.[8]struct { key uint8; elem map[int]main.aStructNotUsedAsAnArgument }
+    - __kind: StructureType
+      ID: 183
+      Name: noalg.struct { key int; elem main.aStructNotUsedAsAnArgument }
+      ByteSize: 16
+      GoRuntimeType: 83456
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 7 BaseType int
+        - Name: elem
+          Offset: 8
+          Type: 184 StructureType main.aStructNotUsedAsAnArgument
+    - __kind: StructureType
+      ID: 160
+      Name: noalg.struct { key string; elem *main.bigStruct }
+      ByteSize: 24
+      GoRuntimeType: 83968
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 161 PointerType *main.bigStruct
+    - __kind: StructureType
+      ID: 152
+      Name: noalg.struct { key string; elem int }
+      ByteSize: 24
+      GoRuntimeType: 83712
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 7 BaseType int
+    - __kind: StructureType
+      ID: 170
+      Name: noalg.struct { key uint8; elem map[int]main.aStructNotUsedAsAnArgument }
+      ByteSize: 16
+      GoRuntimeType: 84480
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 3 BaseType uint8
+        - Name: elem
+          Offset: 8
+          Type: 171 GoMapType map[int]main.aStructNotUsedAsAnArgument
+    - __kind: UnresolvedPointeeType
+      ID: 28
+      Name: runtime._defer
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 26
+      Name: runtime._panic
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 70
+      Name: runtime.cgoCallers
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 49
+      Name: runtime.coro
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 90
+      Name: runtime.dlogPerM
+      GoRuntimeType: 68608
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 23
+      Name: runtime.g
+      ByteSize: 456
+      GoRuntimeType: 158400
+      GoKind: 25
+      RawFields:
+        - Name: stack
+          Offset: 0
+          Type: 24 StructureType runtime.stack
+        - Name: stackguard0
+          Offset: 16
+          Type: 1 BaseType uintptr
+        - Name: stackguard1
+          Offset: 24
+          Type: 1 BaseType uintptr
+        - Name: _panic
+          Offset: 32
+          Type: 25 PointerType *runtime._panic
+        - Name: _defer
+          Offset: 40
+          Type: 27 PointerType *runtime._defer
+        - Name: m
+          Offset: 48
+          Type: 29 PointerType *runtime.m
+        - Name: sched
+          Offset: 56
+          Type: 31 StructureType runtime.gobuf
+        - Name: syscallsp
+          Offset: 104
+          Type: 1 BaseType uintptr
+        - Name: syscallpc
+          Offset: 112
+          Type: 1 BaseType uintptr
+        - Name: syscallbp
+          Offset: 120
+          Type: 1 BaseType uintptr
+        - Name: stktopsp
+          Offset: 128
+          Type: 1 BaseType uintptr
+        - Name: param
+          Offset: 136
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: atomicstatus
+          Offset: 144
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: stackLock
+          Offset: 148
+          Type: 2 BaseType uint32
+        - Name: goid
+          Offset: 152
+          Type: 8 BaseType uint64
+        - Name: schedlink
+          Offset: 160
+          Type: 32 BaseType runtime.guintptr
+        - Name: waitsince
+          Offset: 168
+          Type: 13 BaseType int64
+        - Name: waitreason
+          Offset: 176
+          Type: 35 BaseType runtime.waitReason
+        - Name: preempt
+          Offset: 177
+          Type: 4 BaseType bool
+        - Name: preemptStop
+          Offset: 178
+          Type: 4 BaseType bool
+        - Name: preemptShrink
+          Offset: 179
+          Type: 4 BaseType bool
+        - Name: asyncSafePoint
+          Offset: 180
+          Type: 4 BaseType bool
+        - Name: paniconfault
+          Offset: 181
+          Type: 4 BaseType bool
+        - Name: gcscandone
+          Offset: 182
+          Type: 4 BaseType bool
+        - Name: throwsplit
+          Offset: 183
+          Type: 4 BaseType bool
+        - Name: activeStackChans
+          Offset: 184
+          Type: 4 BaseType bool
+        - Name: parkingOnChan
+          Offset: 185
+          Type: 36 StructureType internal/runtime/atomic.Bool
+        - Name: inMarkAssist
+          Offset: 186
+          Type: 4 BaseType bool
+        - Name: coroexit
+          Offset: 187
+          Type: 4 BaseType bool
+        - Name: raceignore
+          Offset: 188
+          Type: 19 BaseType int8
+        - Name: nocgocallback
+          Offset: 189
+          Type: 4 BaseType bool
+        - Name: tracking
+          Offset: 190
+          Type: 4 BaseType bool
+        - Name: trackingSeq
+          Offset: 191
+          Type: 3 BaseType uint8
+        - Name: trackingStamp
+          Offset: 192
+          Type: 13 BaseType int64
+        - Name: runnableTime
+          Offset: 200
+          Type: 13 BaseType int64
+        - Name: lockedm
+          Offset: 208
+          Type: 38 BaseType runtime.muintptr
+        - Name: fipsIndicator
+          Offset: 216
+          Type: 3 BaseType uint8
+        - Name: fipsOnlyBypass
+          Offset: 217
+          Type: 4 BaseType bool
+        - Name: ditWanted
+          Offset: 218
+          Type: 4 BaseType bool
+        - Name: syncSafePoint
+          Offset: 219
+          Type: 4 BaseType bool
+        - Name: runningCleanups
+          Offset: 220
+          Type: 36 StructureType internal/runtime/atomic.Bool
+        - Name: sig
+          Offset: 224
+          Type: 2 BaseType uint32
+        - Name: secret
+          Offset: 228
+          Type: 12 BaseType int32
+        - Name: writebuf
+          Offset: 232
+          Type: 39 GoSliceHeaderType []uint8
+        - Name: sigcode0
+          Offset: 256
+          Type: 1 BaseType uintptr
+        - Name: sigcode1
+          Offset: 264
+          Type: 1 BaseType uintptr
+        - Name: sigpc
+          Offset: 272
+          Type: 1 BaseType uintptr
+        - Name: parentGoid
+          Offset: 280
+          Type: 8 BaseType uint64
+        - Name: gopc
+          Offset: 288
+          Type: 1 BaseType uintptr
+        - Name: ancestors
+          Offset: 296
+          Type: 40 PointerType *[]runtime.ancestorInfo
+        - Name: startpc
+          Offset: 304
+          Type: 1 BaseType uintptr
+        - Name: racectx
+          Offset: 312
+          Type: 1 BaseType uintptr
+        - Name: waiting
+          Offset: 320
+          Type: 42 PointerType *runtime.sudog
+        - Name: cgoCtxt
+          Offset: 328
+          Type: 44 GoSliceHeaderType []uintptr
+        - Name: labels
+          Offset: 352
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: timer
+          Offset: 360
+          Type: 45 PointerType *runtime.timer
+        - Name: sleepWhen
+          Offset: 368
+          Type: 13 BaseType int64
+        - Name: selectDone
+          Offset: 376
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: goroutineProfiled
+          Offset: 380
+          Type: 47 StructureType runtime.goroutineProfileStateHolder
+        - Name: coroarg
+          Offset: 384
+          Type: 48 PointerType *runtime.coro
+        - Name: bubble
+          Offset: 392
+          Type: 50 PointerType *runtime.synctestBubble
+        - Name: xRegs
+          Offset: 400
+          Type: 52 StructureType runtime.xRegPerG
+        - Name: trace
+          Offset: 408
+          Type: 55 StructureType runtime.gTraceState
+        - Name: gcAssistBytes
+          Offset: 440
+          Type: 13 BaseType int64
+        - Name: valgrindStackID
+          Offset: 448
+          Type: 1 BaseType uintptr
+    - __kind: StructureType
+      ID: 55
+      Name: runtime.gTraceState
+      ByteSize: 32
+      GoRuntimeType: 79488
+      GoKind: 25
+      RawFields:
+        - Name: traceSchedResourceState
+          Offset: 0
+          Type: 56 StructureType runtime.traceSchedResourceState
+    - __kind: StructureType
+      ID: 31
+      Name: runtime.gobuf
+      ByteSize: 48
+      GoRuntimeType: 129568
+      GoKind: 25
+      RawFields:
+        - Name: sp
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: pc
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: g
+          Offset: 16
+          Type: 32 BaseType runtime.guintptr
+        - Name: ctxt
+          Offset: 24
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: lr
+          Offset: 32
+          Type: 1 BaseType uintptr
+        - Name: bp
+          Offset: 40
+          Type: 1 BaseType uintptr
+    - __kind: StructureType
+      ID: 47
+      Name: runtime.goroutineProfileStateHolder
+      ByteSize: 4
+      GoRuntimeType: 95328
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 34 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 60
+      Name: runtime.gsignalStack
+      ByteSize: 40
+      GoRuntimeType: 117824
+      GoKind: 25
+      RawFields:
+        - Name: stack
+          Offset: 0
+          Type: 24 StructureType runtime.stack
+        - Name: stackguard0
+          Offset: 16
+          Type: 1 BaseType uintptr
+        - Name: stackguard1
+          Offset: 24
+          Type: 1 BaseType uintptr
+        - Name: stktopsp
+          Offset: 32
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 32
+      Name: runtime.guintptr
+      ByteSize: 8
+      GoRuntimeType: 60960
+      GoKind: 12
+    - __kind: StructureType
+      ID: 96
+      Name: runtime.heldLockInfo
+      ByteSize: 16
+      GoRuntimeType: 97728
+      GoKind: 25
+      RawFields:
+        - Name: lockAddr
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: rank
+          Offset: 8
+          Type: 97 BaseType runtime.lockRank
+    - __kind: StructureType
+      ID: 72
+      Name: runtime.listNodeManual
+      ByteSize: 16
+      GoRuntimeType: 96928
+      GoKind: 25
+      RawFields:
+        - Name: prev
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: next
+          Offset: 8
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 97
+      Name: runtime.lockRank
+      ByteSize: 8
+      GoRuntimeType: 61344
+      GoKind: 2
+    - __kind: StructureType
+      ID: 30
+      Name: runtime.m
+      ByteSize: 1824
+      GoRuntimeType: 163680
+      GoKind: 25
+      RawFields:
+        - Name: g0
+          Offset: 0
+          Type: 59 PointerType *runtime.g
+        - Name: morebuf
+          Offset: 8
+          Type: 31 StructureType runtime.gobuf
+        - Name: divmod
+          Offset: 56
+          Type: 2 BaseType uint32
+        - Name: procid
+          Offset: 64
+          Type: 8 BaseType uint64
+        - Name: gsignal
+          Offset: 72
+          Type: 59 PointerType *runtime.g
+        - Name: goSigStack
+          Offset: 80
+          Type: 60 StructureType runtime.gsignalStack
+        - Name: sigmask
+          Offset: 120
+          Type: 61 ArrayType runtime.sigset
+        - Name: tls
+          Offset: 128
+          Type: 62 ArrayType [6]uintptr
+        - Name: mstartfn
+          Offset: 176
+          Type: 63 GoSubroutineType func()
+        - Name: curg
+          Offset: 184
+          Type: 59 PointerType *runtime.g
+        - Name: caughtsig
+          Offset: 192
+          Type: 32 BaseType runtime.guintptr
+        - Name: signalSecret
+          Offset: 200
+          Type: 2 BaseType uint32
+        - Name: p
+          Offset: 208
+          Type: 64 BaseType runtime.puintptr
+        - Name: nextp
+          Offset: 216
+          Type: 64 BaseType runtime.puintptr
+        - Name: oldp
+          Offset: 224
+          Type: 64 BaseType runtime.puintptr
+        - Name: id
+          Offset: 232
+          Type: 13 BaseType int64
+        - Name: mallocing
+          Offset: 240
+          Type: 12 BaseType int32
+        - Name: throwing
+          Offset: 244
+          Type: 65 BaseType runtime.throwType
+        - Name: preemptoff
+          Offset: 248
+          Type: 9 GoStringHeaderType string
+        - Name: locks
+          Offset: 264
+          Type: 12 BaseType int32
+        - Name: dying
+          Offset: 268
+          Type: 12 BaseType int32
+        - Name: profilehz
+          Offset: 272
+          Type: 12 BaseType int32
+        - Name: spinning
+          Offset: 276
+          Type: 4 BaseType bool
+        - Name: blocked
+          Offset: 277
+          Type: 4 BaseType bool
+        - Name: newSigstack
+          Offset: 278
+          Type: 4 BaseType bool
+        - Name: printlock
+          Offset: 279
+          Type: 19 BaseType int8
+        - Name: incgo
+          Offset: 280
+          Type: 4 BaseType bool
+        - Name: isextra
+          Offset: 281
+          Type: 4 BaseType bool
+        - Name: isExtraInC
+          Offset: 282
+          Type: 4 BaseType bool
+        - Name: isExtraInSig
+          Offset: 283
+          Type: 4 BaseType bool
+        - Name: freeWait
+          Offset: 284
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: needextram
+          Offset: 288
+          Type: 4 BaseType bool
+        - Name: g0StackAccurate
+          Offset: 289
+          Type: 4 BaseType bool
+        - Name: traceback
+          Offset: 290
+          Type: 3 BaseType uint8
+        - Name: allpSnapshot
+          Offset: 296
+          Type: 66 GoSliceHeaderType []*runtime.p
+        - Name: ncgocall
+          Offset: 320
+          Type: 8 BaseType uint64
+        - Name: ncgo
+          Offset: 328
+          Type: 12 BaseType int32
+        - Name: cgoCallersUse
+          Offset: 332
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: cgoCallers
+          Offset: 336
+          Type: 69 PointerType *runtime.cgoCallers
+        - Name: park
+          Offset: 344
+          Type: 71 StructureType runtime.note
+        - Name: alllink
+          Offset: 352
+          Type: 29 PointerType *runtime.m
+        - Name: schedlink
+          Offset: 360
+          Type: 38 BaseType runtime.muintptr
+        - Name: idleNode
+          Offset: 368
+          Type: 72 StructureType runtime.listNodeManual
+        - Name: lockedg
+          Offset: 384
+          Type: 32 BaseType runtime.guintptr
+        - Name: createstack
+          Offset: 392
+          Type: 73 ArrayType [32]uintptr
+        - Name: lockedExt
+          Offset: 648
+          Type: 2 BaseType uint32
+        - Name: lockedInt
+          Offset: 652
+          Type: 2 BaseType uint32
+        - Name: mWaitList
+          Offset: 656
+          Type: 74 StructureType runtime.mWaitList
+        - Name: ditEnabled
+          Offset: 672
+          Type: 4 BaseType bool
+        - Name: mLockProfile
+          Offset: 680
+          Type: 75 StructureType runtime.mLockProfile
+        - Name: profStack
+          Offset: 736
+          Type: 44 GoSliceHeaderType []uintptr
+        - Name: waitunlockf
+          Offset: 760
+          Type: 78 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
+        - Name: waitlock
+          Offset: 768
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: waitTraceSkip
+          Offset: 776
+          Type: 7 BaseType int
+        - Name: waitTraceBlockReason
+          Offset: 784
+          Type: 79 BaseType runtime.traceBlockReason
+        - Name: syscalltick
+          Offset: 788
+          Type: 2 BaseType uint32
+        - Name: freelink
+          Offset: 792
+          Type: 29 PointerType *runtime.m
+        - Name: trace
+          Offset: 800
+          Type: 80 StructureType runtime.mTraceState
+        - Name: libcallpc
+          Offset: 872
+          Type: 1 BaseType uintptr
+        - Name: libcallsp
+          Offset: 880
+          Type: 1 BaseType uintptr
+        - Name: libcallg
+          Offset: 888
+          Type: 32 BaseType runtime.guintptr
+        - Name: winsyscall
+          Offset: 896
+          Type: 85 StructureType runtime.winlibcall
+        - Name: vdsoSP
+          Offset: 896
+          Type: 1 BaseType uintptr
+        - Name: vdsoPC
+          Offset: 904
+          Type: 1 BaseType uintptr
+        - Name: preemptGen
+          Offset: 912
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: signalPending
+          Offset: 916
+          Type: 33 StructureType internal/runtime/atomic.Uint32
+        - Name: pcvalueCache
+          Offset: 920
+          Type: 86 StructureType runtime.pcvalueCache
+        - Name: dlogPerM
+          Offset: 1312
+          Type: 90 StructureType runtime.dlogPerM
+        - Name: mOS
+          Offset: 1312
+          Type: 91 StructureType runtime.mOS
+        - Name: chacha8
+          Offset: 1336
+          Type: 92 StructureType internal/chacha8rand.State
+        - Name: cheaprand
+          Offset: 1640
+          Type: 8 BaseType uint64
+        - Name: locksHeldLen
+          Offset: 1648
+          Type: 7 BaseType int
+        - Name: locksHeld
+          Offset: 1656
+          Type: 95 ArrayType [10]runtime.heldLockInfo
+        - Name: self
+          Offset: 1816
+          Type: 98 StructureType runtime.mWeakPointer
+    - __kind: StructureType
+      ID: 75
+      Name: runtime.mLockProfile
+      ByteSize: 56
+      GoRuntimeType: 130080
+      GoKind: 25
+      RawFields:
+        - Name: waitTime
+          Offset: 0
+          Type: 76 StructureType internal/runtime/atomic.Int64
+        - Name: stack
+          Offset: 8
+          Type: 44 GoSliceHeaderType []uintptr
+        - Name: cycles
+          Offset: 32
+          Type: 13 BaseType int64
+        - Name: cyclesLost
+          Offset: 40
+          Type: 13 BaseType int64
+        - Name: haveStack
+          Offset: 48
+          Type: 4 BaseType bool
+        - Name: disabled
+          Offset: 49
+          Type: 4 BaseType bool
+    - __kind: StructureType
+      ID: 91
+      Name: runtime.mOS
+      ByteSize: 24
+      GoRuntimeType: 125728
+      GoKind: 25
+      RawFields:
+        - Name: profileTimer
+          Offset: 0
+          Type: 12 BaseType int32
+        - Name: profileTimerValid
+          Offset: 4
+          Type: 36 StructureType internal/runtime/atomic.Bool
+        - Name: needPerThreadSyscall
+          Offset: 5
+          Type: 37 StructureType internal/runtime/atomic.Uint8
+        - Name: vgetrandomState
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: waitsema
+          Offset: 16
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 80
+      Name: runtime.mTraceState
+      ByteSize: 72
+      GoRuntimeType: 130336
+      GoKind: 25
+      RawFields:
+        - Name: writing
+          Offset: 0
+          Type: 36 StructureType internal/runtime/atomic.Bool
+        - Name: buf
+          Offset: 8
+          Type: 81 ArrayType [2][2]*runtime.traceBuf
+        - Name: link
+          Offset: 40
+          Type: 29 PointerType *runtime.m
+        - Name: reentered
+          Offset: 48
+          Type: 2 BaseType uint32
+        - Name: entryGen
+          Offset: 56
+          Type: 1 BaseType uintptr
+        - Name: oldthrowsplit
+          Offset: 64
+          Type: 4 BaseType bool
+    - __kind: StructureType
+      ID: 74
+      Name: runtime.mWaitList
+      ByteSize: 16
+      GoRuntimeType: 97408
+      GoKind: 25
+      RawFields:
+        - Name: next
+          Offset: 0
+          Type: 38 BaseType runtime.muintptr
+        - Name: startTicks
+          Offset: 8
+          Type: 13 BaseType int64
+    - __kind: StructureType
+      ID: 98
+      Name: runtime.mWeakPointer
+      ByteSize: 8
+      GoRuntimeType: 102816
+      GoKind: 25
+      RawFields:
+        - Name: m
+          Offset: 0
+          Type: 99 PointerType *internal/runtime/atomic.Pointer[runtime.m]
+    - __kind: BaseType
+      ID: 38
+      Name: runtime.muintptr
+      ByteSize: 8
+      GoRuntimeType: 61056
+      GoKind: 12
+    - __kind: StructureType
+      ID: 71
+      Name: runtime.note
+      ByteSize: 8
+      GoRuntimeType: 80512
+      GoKind: 25
+      RawFields: [{Name: key, Offset: 0, Type: 1 BaseType uintptr}]
+    - __kind: UnresolvedPointeeType
+      ID: 140
+      Name: runtime.p
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 86
+      Name: runtime.pcvalueCache
+      ByteSize: 392
+      GoRuntimeType: 97568
+      GoKind: 25
+      RawFields:
+        - Name: entries
+          Offset: 0
+          Type: 87 ArrayType [2][8]runtime.pcvalueCacheEnt
+        - Name: inUse
+          Offset: 384
+          Type: 7 BaseType int
+    - __kind: StructureType
+      ID: 89
+      Name: runtime.pcvalueCacheEnt
+      ByteSize: 24
+      GoRuntimeType: 118784
+      GoKind: 25
+      RawFields:
+        - Name: targetpc
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: off
+          Offset: 8
+          Type: 2 BaseType uint32
+        - Name: val
+          Offset: 12
+          Type: 12 BaseType int32
+        - Name: valPC
+          Offset: 16
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 64
+      Name: runtime.puintptr
+      ByteSize: 8
+      GoRuntimeType: 61248
+      GoKind: 12
+    - __kind: ArrayType
+      ID: 61
+      Name: runtime.sigset
+      ByteSize: 8
+      GoRuntimeType: 64864
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 24
+      Name: runtime.stack
+      ByteSize: 16
+      GoRuntimeType: 94048
+      GoKind: 25
+      RawFields:
+        - Name: lo
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: hi
+          Offset: 8
+          Type: 1 BaseType uintptr
+    - __kind: UnresolvedPointeeType
+      ID: 43
+      Name: runtime.sudog
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 51
+      Name: runtime.synctestBubble
+      ByteSize: 8
+    - __kind: BaseType
+      ID: 65
+      Name: runtime.throwType
+      ByteSize: 4
+      GoRuntimeType: 47168
+      GoKind: 10
+    - __kind: UnresolvedPointeeType
+      ID: 46
+      Name: runtime.timer
+      ByteSize: 8
+    - __kind: BaseType
+      ID: 79
+      Name: runtime.traceBlockReason
+      ByteSize: 1
+      GoRuntimeType: 47232
+      GoKind: 8
+    - __kind: UnresolvedPointeeType
+      ID: 84
+      Name: runtime.traceBuf
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 56
+      Name: runtime.traceSchedResourceState
+      ByteSize: 32
+      GoRuntimeType: 95648
+      GoKind: 25
+      RawFields:
+        - Name: statusTraced
+          Offset: 0
+          Type: 57 ArrayType [3]internal/runtime/atomic.Uint32
+        - Name: seq
+          Offset: 16
+          Type: 58 ArrayType [2]uint64
+    - __kind: BaseType
+      ID: 35
+      Name: runtime.waitReason
+      ByteSize: 1
+      GoRuntimeType: 105056
+      GoKind: 8
+    - __kind: StructureType
+      ID: 85
+      Name: runtime.winlibcall
+      GoRuntimeType: 68512
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 52
+      Name: runtime.xRegPerG
+      ByteSize: 8
+      GoRuntimeType: 79360
+      GoKind: 25
+      RawFields:
+        - Name: state
+          Offset: 0
+          Type: 53 PointerType *runtime.xRegState
+    - __kind: UnresolvedPointeeType
+      ID: 54
+      Name: runtime.xRegState
+      ByteSize: 8
+    - __kind: GoStringHeaderType
+      ID: 9
+      Name: string
+      ByteSize: 16
+      GoRuntimeType: 45952
+      GoKind: 24
+      RawFields:
+        - Name: str
+          Offset: 0
+          Type: 135 PointerType *string.str
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+      Data: 134 GoStringDataType string.str
+    - __kind: GoStringDataType
+      ID: 134
+      Name: string.str
+      DynamicSizeClass: string
+      ByteSize: 1
+    - __kind: StructureType
+      ID: 178
+      Name: table<int,main.aStructNotUsedAsAnArgument>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 179 GoSwissMapGroupsType groupReference<int,main.aStructNotUsedAsAnArgument>
+    - __kind: StructureType
+      ID: 147
+      Name: table<string,int>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 148 GoSwissMapGroupsType groupReference<string,int>
+    - __kind: StructureType
+      ID: 155
+      Name: table<string,main.bigStruct>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 156 GoSwissMapGroupsType groupReference<string,main.bigStruct>
+    - __kind: StructureType
+      ID: 165
+      Name: table<uint8,map[int]main.aStructNotUsedAsAnArgument>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 166 GoSwissMapGroupsType groupReference<uint8,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: BaseType
+      ID: 11
+      Name: uint
+      ByteSize: 8
+      GoRuntimeType: 46592
+      GoKind: 7
+    - __kind: BaseType
+      ID: 6
+      Name: uint16
+      ByteSize: 2
+      GoRuntimeType: 46208
+      GoKind: 9
+    - __kind: BaseType
+      ID: 2
+      Name: uint32
+      ByteSize: 4
+      GoRuntimeType: 46336
+      GoKind: 10
+    - __kind: BaseType
+      ID: 8
+      Name: uint64
+      ByteSize: 8
+      GoRuntimeType: 46464
+      GoKind: 11
+    - __kind: BaseType
+      ID: 3
+      Name: uint8
+      ByteSize: 1
+      GoRuntimeType: 46080
+      GoKind: 8
+    - __kind: BaseType
+      ID: 1
+      Name: uintptr
+      ByteSize: 8
+      GoRuntimeType: 46656
+      GoKind: 12
+    - __kind: VoidPointerType
+      ID: 16
+      Name: unsafe.Pointer
+      ByteSize: 8
+      GoRuntimeType: 47040
+      GoKind: 26
+MaxTypeID: 217
+Issues:
+    - probe_definition:
+        id: spanProbe
+        version: 0
+        type: SPAN_PROBE
+        where:
+            methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+        tags: ['issue:UnsupportedFeature']
+        evaluateAt: exit
+      issue:
+        Kind: 3
+        Message: probe kind ProbeKindSpan is not supported
+GoModuledataInfo: {FirstModuledataAddr: "0x1c0320", TypesOffset: 296}
+CommonTypes:
+    G: 23 StructureType runtime.g
+    M: 30 StructureType runtime.m
