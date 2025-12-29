@@ -263,6 +263,8 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 		}
 		seclog.Debugf("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 
+		cr.fallbackSucceed.Inc()
+
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 	}
 
@@ -275,6 +277,8 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 	if pathKey, found := cr.history.Get(ppid); found {
 		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
 			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
+
+			cr.fallbackSucceed.Inc()
 
 			return cr.pushNewCacheEntry(pid, cacheEntry.GetContainerContext(), cacheEntry.GetCGroupContext())
 		}
@@ -296,8 +300,12 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 		}
 		seclog.Debugf("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 
+		cr.fallbackSucceed.Inc()
+
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 	}
+
+	cr.fallbackFailed.Inc()
 
 	seclog.Debugf("failed to add pid %d, error on fallback to resolve its cgroup", pid)
 	return nil
