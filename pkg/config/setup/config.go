@@ -1336,6 +1336,16 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure mode - additional checks
+	// When infrastructure_mode is set, only a limited set of checks are allowed to run.
+	// This setting allows customers to add additional checks to the allowlist beyond the default set.
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
+	// Infrastructure mode - excluded checks
+	// When infrastructure_mode is set, this setting allows customers to remove checks
+	// from the default allowlist that would otherwise be allowed to run.
+	config.BindEnvAndSetDefault("excluded_default_checks", []string{})
+
 	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
 	// Note: All checks starting with "custom_" are always allowed.
 	config.BindEnvAndSetDefault("allowed_checks", []string{
@@ -1363,11 +1373,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-
-	// Infrastructure basic mode - additional checks
-	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
-	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

@@ -30,8 +30,14 @@ func NewFileConfigProvider(telemetryStore *telemetry.Store) *FileConfigProvider 
 
 // Collect returns the check configurations defined in Yaml files.
 // Configs with advanced AD identifiers are filtered-out. They're handled by other file-based config providers.
+// Configs are also filtered based on infrastructure_mode settings.
 func (c *FileConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
-	configs, errors, err := ReadConfigFiles(WithoutAdvancedAD)
+	// Compose filters: WithoutAdvancedAD AND WithInfrastructureModeFilter
+	combinedFilter := func(cfg integration.Config) bool {
+		return WithoutAdvancedAD(cfg) && WithInfrastructureModeFilter(cfg)
+	}
+
+	configs, errors, err := ReadConfigFiles(combinedFilter)
 	if err != nil {
 		return nil, err
 	}
