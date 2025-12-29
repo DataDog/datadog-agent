@@ -253,6 +253,8 @@ LOADER_TAGS = set()
 
 FULL_HOST_PROFILER_TAGS = set()
 
+PRIVATEACTIONRUNNER_TAGS = set()
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -299,6 +301,7 @@ build_tags = {
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
         "full-host-profiler": FULL_HOST_PROFILER_TAGS,
+        "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
@@ -327,6 +330,7 @@ build_tags = {
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
         "installer": INSTALLER_TAGS.union(FIPS_TAGS),
+        "privateactionrunner": PRIVATEACTIONRUNNER_TAGS.union(FIPS_TAGS),
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

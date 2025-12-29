@@ -29,6 +29,7 @@ var (
 		"/opt/datadog-agent/embedded/bin/process-agent",
 		"/opt/datadog-agent/embedded/bin/system-probe",
 		"/opt/datadog-agent/embedded/bin/cws-instrumentation",
+		"/opt/datadog-agent/embedded/bin/privateactionrunner",
 		"/opt/datadog-agent/bin/datadog-cluster-agent",
 		// installer
 		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
@@ -37,6 +38,7 @@ var (
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/process-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/system-probe",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/cws-instrumentation",
+		"/opt/datadog-packages/datadog-agent/*/embedded/bin/privateactionrunner",
 		"/opt/datadog-packages/datadog-agent/*/bin/datadog-cluster-agent",
 		"/opt/datadog-packages/datadog-installer/*/bin/installer/installer",
 	}

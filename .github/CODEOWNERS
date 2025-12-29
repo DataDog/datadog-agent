@@ -695,6 +695,7 @@
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 /tasks/process_agent.py                 @DataDog/container-experiences
+/tasks/privateactionrunner.py           @DataDog/action-platform
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform

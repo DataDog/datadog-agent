@@ -176,6 +176,17 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
+  # Private action runner
+  if not heroku_target? and not fips_mode?
+    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+    elsif not heroku_target?
+      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
+  end
+
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
@@ -298,6 +309,7 @@ build do
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
         "#{install_dir}/embedded/bin/installer",
+        "#{install_dir}/embedded/bin/privateactionrunner",
       ]
 
       symbol = "_Cfunc__mkcgo_OPENSSL"
