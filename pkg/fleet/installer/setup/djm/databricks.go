@@ -104,7 +104,7 @@ var (
 	workerLogsStandardAccessMode = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks_privileged/*/*stderr",
+			Path:                   "/var/log/databricks_privileged/*/*/stderr",
 			Source:                 "worker_stderr",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
