@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -218,11 +217,11 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 	}
 
 	policy := backoff.NewExpBackoffPolicy(
-		pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		maxRetryInterval,
-		pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		false,
+		a.endpoints.Main.BackoffFactor,
+		a.endpoints.Main.BackoffBase,
+		a.endpoints.Main.BackoffMax,
+		a.endpoints.Main.RecoveryInterval,
+		a.endpoints.Main.RecoveryReset,
 	)
 
 	attempt := 0
