@@ -7,9 +7,7 @@ package config
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -55,14 +53,9 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
 
-	var orgID int64
-	var runnerID string
-	var err error
-	if urn != "" {
-		orgID, runnerID, err = parseURN(urn)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse URN: %w", err)
-		}
+	urnParts, err := util.ParseRunnerURN(urn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URN: %w", err)
 	}
 
 	return &Config{
@@ -89,35 +82,10 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     orgID,
+		OrgId:                     urnParts.OrgID,
 		PrivateKey:                privateKey,
-		RunnerId:                  runnerID,
+		RunnerId:                  urnParts.RunnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
-}
-
-// parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
-// and returns the org_id and runner_id
-func parseURN(urn string) (int64, string, error) {
-	parts := strings.Split(urn, ":")
-	if len(parts) != 7 {
-		return 0, "", fmt.Errorf("invalid URN format: expected 6 parts separated by ':', got %d", len(parts))
-	}
-
-	if parts[0] != "urn" || parts[1] != "dd" || parts[2] != "apps" || parts[3] != "on-prem-runner" {
-		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
-	}
-
-	orgID, err := strconv.ParseInt(parts[5], 10, 64)
-	if err != nil {
-		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
-	}
-
-	runnerID := parts[6]
-	if runnerID == "" {
-		return 0, "", errors.New("runner_id cannot be empty in URN")
-	}
-
-	return orgID, runnerID, nil
 }
