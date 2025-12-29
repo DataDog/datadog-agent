@@ -58,6 +58,15 @@ dda inv full-host-profiler.build
 
 ### Using docker
 
+Create a `.env` file containing:
+
+```
+UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
+GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
+```
+
+Then run
+
 ```bash
 docker-compose up --build
 ```
