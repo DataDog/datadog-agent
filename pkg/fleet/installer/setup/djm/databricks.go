@@ -101,6 +101,22 @@ var (
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 	}
+	workerLogsStandardAccessMode = []config.IntegrationConfigLogs{
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/stderr",
+			Source:                 "worker_stderr",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/stdout",
+			Source:                 "worker_stdout",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+	}
 	tracerConfigDatabricks = config.APMConfigurationDefault{
 		DataJobsEnabled:     config.BoolToPtr(true),
 		IntegrationsEnabled: config.BoolToPtr(false),
@@ -311,7 +327,7 @@ func setupGPUIntegration(s *common.Setup) {
 	s.DelayedAgentRestartConfig.LogFile = restartLogFile
 }
 
-func setupPrivilegedLogs(s *common.Setup) {
+func setupPrivilegedLogs(s *common.Setup, sparkNode string) {
 	s.Out.WriteString("Setting up privileged logs with system probe for standard access mode\n")
 	s.Span.SetTag("host_tag_set.privileged_logs_enabled", "true")
 
@@ -343,7 +359,7 @@ func setupDatabricksDriver(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 
 		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
-			setupPrivilegedLogs(s)
+			setupPrivilegedLogs(s, "driver")
 			sparkIntegration.Logs = driverLogsStandardAccessMode
 			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
 		} else {
@@ -372,11 +388,14 @@ func setupDatabricksWorker(s *common.Setup) {
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
-		sparkIntegration.Logs = workerLogs
-		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 
 		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
-			setupPrivilegedLogs(s)
+			setupPrivilegedLogs(s, "worker")
+			sparkIntegration.Logs = workerLogsStandardAccessMode
+			s.Span.SetTag("host_tag_set.worker_logs_enabled_standard_am", "true")
+		} else {
+			sparkIntegration.Logs = workerLogs
+			s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
