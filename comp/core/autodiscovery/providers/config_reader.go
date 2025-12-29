@@ -123,17 +123,27 @@ var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool {
 // WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers.
 var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) == 0 }
 
-// WithInfrastructureModeFilter filters out configs that are not allowed based on infrastructure_mode settings.
-// When infrastructure_mode is "full", all checks are allowed.
-// Otherwise, only checks in the allowlist (allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted.
-var WithInfrastructureModeFilter FilterFunc = func(c integration.Config) bool {
+// WithIntegrationsFilter filters out configs that are not allowed based on configuration settings.
+// When infrastructure_mode is "full", all checks are allowed. Otherwise, only checks in the allowlist (allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted. This filter only applies to check configs (with instances), logs-only and metrics-only configs are always allowed.
+var WithIntegrationsFilter FilterFunc = func(c integration.Config) bool {
+	// Only filter check configs (those with instances)
+	// Logs-only and metrics-only configs should not be filtered by infrastructure mode
+	if len(c.Instances) == 0 {
+		return true
+	}
+
+	if !pkgconfigsetup.Datadog().GetBool("agent_checks.enabled") {
+		log.Debugf("Check %q is disabled via agent_checks.enabled, filtering out", c.Name)
+		return false
+	}
+
 	allowed := pkgconfigsetup.IsCheckAllowedByInfraMode(c.Name)
 	if !allowed {
 		infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
 		if pkgconfigsetup.IsCheckExcludedByInfraMode(c.Name) {
-			log.Infof("Check %q is excluded via excluded_default_checks in infrastructure mode %q, filtering out", c.Name, infraMode)
+			log.Debugf("Check %q is excluded via excluded_default_checks in infrastructure mode %q, filtering out", c.Name, infraMode)
 		} else {
-			log.Infof("Check %q is not allowed in infrastructure mode %q, filtering out", c.Name, infraMode)
+			log.Debugf("Check %q is not allowed in infrastructure mode %q, filtering out", c.Name, infraMode)
 		}
 	}
 	return allowed
