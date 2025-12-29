@@ -58,7 +58,7 @@ func getListener(address string) (net.Listener, error) {
 func getIPCServerAddressPort() (string, bool) {
 	if pkgconfigsetup.Datadog().GetBool("agent_ipc.use_socket") {
 		socketPath := pkgconfigsetup.Datadog().GetString("agent_ipc.socket_path")
-		return socketPath + "/agent_ipc.socket", true
+		return socketPath, true
 	}
 
 	ipcServerPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.port")

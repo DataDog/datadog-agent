@@ -65,10 +65,10 @@ type configSync struct {
 func newComponent(deps dependencies) (configsync.Component, error) {
 	var compURL *url.URL
 	if deps.Config.GetBool("agent_ipc.use_socket") {
-		path := deps.Config.GetString("agent_ipc.socket_path") + "/agent_ipc.socket"
+		path := deps.Config.GetString("agent_ipc.socket_path")
 		compURL = &url.URL{
 			Scheme: "https+unix",
-			Host:   path+":",
+			Host:   path + ":",
 			Path:   "/config/v1",
 		}
 	} else {
