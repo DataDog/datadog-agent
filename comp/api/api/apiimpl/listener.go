@@ -47,7 +47,7 @@ func getListener(address string) (net.Listener, error) {
 		return listener, err
 	}
 
-	if strings.HasSuffix(address, ".socket") {
+	if strings.Contains(address, "/") {
 		return net.Listen("unix", address)
 	}
 
@@ -55,7 +55,7 @@ func getListener(address string) (net.Listener, error) {
 }
 
 // getIPCServerAddressPort returns whether the IPC server is enabled, and if so its host:port or unix socket path
-func getIPCServerAddressPort() (string, bool) {
+func getIPCServerPath() (string, bool) {
 	if pkgconfigsetup.Datadog().GetBool("agent_ipc.use_socket") {
 		socketPath := pkgconfigsetup.Datadog().GetString("agent_ipc.socket_path")
 		return socketPath, true

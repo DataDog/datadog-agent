@@ -13,10 +13,10 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-func TestGetIPCServerAddressPort(t *testing.T) {
+func TestGetIPCServerPath(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		configmock.New(t)
-		_, enabled := getIPCServerAddressPort()
+		_, enabled := getIPCServerPath()
 		require.False(t, enabled)
 	})
 
@@ -24,7 +24,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 1234)
 
-		hostPort, enabled := getIPCServerAddressPort()
+		hostPort, enabled := getIPCServerPath()
 		require.Equal(t, "localhost:1234", hostPort)
 		require.True(t, enabled)
 	})
@@ -33,7 +33,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 0)
 
-		_, enabled := getIPCServerAddressPort()
+		_, enabled := getIPCServerPath()
 		require.False(t, enabled)
 	})
 
@@ -41,7 +41,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.use_socket", true)
 
-		path, enabled := getIPCServerAddressPort()
+		path, enabled := getIPCServerPath()
 		require.True(t, enabled)
 		require.Equal(t, "/var/run/datadog/agent_ipc.socket", path)
 	})
