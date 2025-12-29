@@ -274,7 +274,6 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 }
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
-	t.Helper()
 	SkipIfNotAvailable(t)
 
 	// Docker messes up with the propagation
