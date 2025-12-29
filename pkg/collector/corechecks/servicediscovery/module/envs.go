@@ -94,8 +94,8 @@ func (er *EnvReader) add() {
 	}
 }
 
-// getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
-func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
+// GetTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
+func GetTargetEnvs(proc *process.Process) (envs.Variables, error) {
 	reader, err := newEnvReader(proc)
 	defer func() {
 		if reader != nil {

@@ -8,20 +8,20 @@
 package usm
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	sdmodule "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -35,19 +35,15 @@ const (
 	defaultMaxServiceLength = 20
 	maxLanguageLength       = 12 // Maximum width for language column to maintain table alignment
 
-	// Environment variable names
-	envDDService = "DD_SERVICE"
-	envDDTags    = "DD_TAGS"
-	tagService   = "service:"
+	// Truncation suffix
+	truncationSuffix       = "..."
+	truncationSuffixLength = 3
 
-	// Proc filesystem paths
-	procEnviron = "environ"
+	// Default display value for missing data
+	missingValuePlaceholder = "-"
 
 	// Service context prefix
 	processContextPrefix = "process_context:"
-
-	// Special characters
-	nullByte = '\x00'
 )
 
 // makeSysinfoCommand returns the "usm sysinfo" cobra command.
@@ -91,7 +87,7 @@ type SystemInfo struct {
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
-func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
+func runSysinfoWithConfig(sysprobeconfig sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -148,9 +144,11 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 			var svc *procutil.Service
 
 			// First, try to extract DD_SERVICE from process environment variables
-			if ddService := extractDDServiceFromProc(proc.Pid); ddService != "" {
-				svc = &procutil.Service{
-					DDService: ddService,
+			if targetEnvs, err := getTargetEnvsFromPID(proc.Pid); err == nil {
+				if ddService := extractDDServiceFromEnvs(targetEnvs); ddService != "" {
+					svc = &procutil.Service{
+						DDService: ddService,
+					}
 				}
 			}
 
@@ -182,10 +180,22 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength, maxServiceLength)
 }
 
+// truncateString truncates a string to maxLength, adding "..." suffix if truncated.
+// If maxLength is 0 or negative, no truncation is performed.
+func truncateString(s string, maxLength int) string {
+	if maxLength <= 0 || len(s) <= maxLength {
+		return s
+	}
+	if maxLength <= truncationSuffixLength {
+		return s[:maxLength]
+	}
+	return s[:maxLength-truncationSuffixLength] + truncationSuffix
+}
+
 // formatLanguage formats a language for display
 func formatLanguage(lang languagemodels.Language) string {
 	if lang.Name == "" {
-		return "-"
+		return missingValuePlaceholder
 	}
 	if lang.Version != "" {
 		return fmt.Sprintf("%s/%s", lang.Name, lang.Version)
@@ -211,25 +221,14 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 	for _, procInfo := range info.Processes {
 		proc := procInfo.Process
 
-		// Truncate fields based on configuration (0 means unlimited)
-		name := proc.Name
-		if maxNameLength > 0 && len(name) > maxNameLength {
-			name = name[:maxNameLength-3] + "..."
-		}
-		cmdline := formatCmdline(proc.Cmdline)
-		if maxCmdlineLength > 0 && len(cmdline) > maxCmdlineLength {
-			cmdline = cmdline[:maxCmdlineLength-3] + "..."
-		}
-
-		// Format the detected language
-		langStr := formatLanguage(procInfo.Language)
-		if len(langStr) > maxLanguageLength {
-			langStr = langStr[:maxLanguageLength]
-		}
+		// Truncate and format fields
+		name := truncateString(proc.Name, maxNameLength)
+		cmdline := truncateString(formatCmdline(proc.Cmdline), maxCmdlineLength)
+		langStr := truncateString(formatLanguage(procInfo.Language), maxLanguageLength)
 
 		// Format the service name from Process.Service field
 		// Prioritize DDService (from DD_SERVICE env var) over GeneratedName
-		serviceStr := "-"
+		serviceStr := missingValuePlaceholder
 		if proc.Service != nil {
 			if proc.Service.DDService != "" {
 				serviceStr = proc.Service.DDService
@@ -237,9 +236,7 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 				serviceStr = proc.Service.GeneratedName
 			}
 		}
-		if maxServiceLength > 0 && len(serviceStr) > maxServiceLength {
-			serviceStr = serviceStr[:maxServiceLength-3] + "..."
-		}
+		serviceStr = truncateString(serviceStr, maxServiceLength)
 
 		fmt.Printf("%-7d | %-7d | %-25s | %-20s | %-12s | %s\n", proc.Pid, proc.Ppid, name, serviceStr, langStr, cmdline)
 	}
@@ -262,74 +259,33 @@ func formatCmdline(args []string) string {
 	return builder.String()
 }
 
-// extractDDServiceFromProc reads DD_SERVICE from /proc/PID/environ using the service discovery infrastructure
-// This mirrors the approach from pkg/collector/corechecks/servicediscovery/module/envs.go
-func extractDDServiceFromProc(pid int32) string {
-	targetEnvs, err := getTargetEnvs(pid)
+// getTargetEnvsFromPID reads the environment variables of interest from the /proc/<pid>/environ file.
+// This is a convenience wrapper around sdmodule.GetTargetEnvs that takes a PID directly.
+func getTargetEnvsFromPID(pid int32) (envs.Variables, error) {
+	proc, err := process.NewProcess(pid)
 	if err != nil {
+		return envs.Variables{}, err
+	}
+	return sdmodule.GetTargetEnvs(proc)
+}
+
+// extractDDServiceFromEnvs extracts the DD_SERVICE value from environment variables.
+// It checks DD_SERVICE first, then falls back to parsing DD_TAGS for "service:" prefix.
+// Returns empty string if no service name is found.
+func extractDDServiceFromEnvs(targetEnvs envs.Variables) string {
+	// Convert envs.Variables to []string format expected by parser.ChooseServiceNameFromEnvs
+	var envSlice []string
+	if ddService, ok := targetEnvs.Get("DD_SERVICE"); ok && ddService != "" {
+		envSlice = append(envSlice, "DD_SERVICE="+ddService)
+	}
+	if ddTags, ok := targetEnvs.Get("DD_TAGS"); ok && ddTags != "" {
+		envSlice = append(envSlice, "DD_TAGS="+ddTags)
+	}
+
+	if len(envSlice) == 0 {
 		return ""
 	}
 
-	// Check DD_SERVICE first
-	if ddService, ok := targetEnvs.Get(envDDService); ok && ddService != "" {
-		return ddService
-	}
-
-	// Check DD_TAGS for service:value
-	if ddTags, ok := targetEnvs.Get(envDDTags); ok {
-		parts := strings.Split(ddTags, ",")
-		for _, p := range parts {
-			if strings.HasPrefix(p, tagService) {
-				svc := strings.TrimPrefix(p, tagService)
-				if svc != "" {
-					return svc
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
-// zeroSplitter is a bufio.SplitFunc that splits on null bytes
-func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	for i := 0; i < len(data); i++ {
-		if data[i] == nullByte {
-			return i + 1, data[:i], nil
-		}
-	}
-	if !atEOF {
-		return 0, nil, nil
-	}
-	return 0, data, bufio.ErrFinalToken
-}
-
-// getTargetEnvs reads target environment variables from /proc/PID/environ
-// This follows the pattern from pkg/collector/corechecks/servicediscovery/module/envs.go
-func getTargetEnvs(pid int32) (envs.Variables, error) {
-	// Use kernel.HostProc for proper path construction (handles different proc filesystem mounts)
-	environPath := kernel.HostProc(strconv.Itoa(int(pid)), procEnviron)
-	file, err := os.Open(environPath)
-	if err != nil {
-		return envs.Variables{}, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(zeroSplitter)
-
-	var targetEnvs envs.Variables
-	for scanner.Scan() {
-		env := scanner.Text()
-		name, val, found := strings.Cut(env, "=")
-		if found {
-			targetEnvs.Set(name, val)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return envs.Variables{}, err
-	}
-
-	return targetEnvs, nil
+	svc, _ := parser.ChooseServiceNameFromEnvs(envSlice)
+	return svc
 }

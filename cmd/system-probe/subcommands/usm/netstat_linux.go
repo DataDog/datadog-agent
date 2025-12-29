@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/procnet"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -89,36 +90,55 @@ type NetConnection struct {
 func runNetstat(showTCP, showUDP, showListening bool) error {
 	var connections []*NetConnection
 
-	// Read TCP connections
+	// Read TCP connections using procnet package (provides robust parsing and PID/FD mapping)
 	if showTCP {
-		tcpConns, err := readProcNet("/proc/net/tcp", "tcp")
-		if err == nil {
-			connections = append(connections, tcpConns...)
-		}
-		tcp6Conns, err := readProcNet("/proc/net/tcp6", "tcp6")
-		if err == nil {
-			connections = append(connections, tcp6Conns...)
+		tcpConns := procnet.GetTCPConnections()
+		for _, conn := range tcpConns {
+			// Skip connections with invalid addresses (zero netip.Addr values)
+			// This is a safeguard - invalid addresses are not valid connections
+			if !conn.Laddr.IsValid() || !conn.Raddr.IsValid() {
+				continue
+			}
+
+			// Determine protocol based on IP version
+			protocol := "tcp"
+			if conn.Laddr.Is6() {
+				protocol = "tcp6"
+			}
+
+			connections = append(connections, &NetConnection{
+				Protocol:    protocol,
+				LocalAddr:   conn.Laddr.String(),
+				LocalPort:   conn.Lport,
+				RemoteAddr:  conn.Raddr.String(),
+				RemotePort:  conn.Rport,
+				State:       tcpStateToString(conn.State),
+				PID:         int32(conn.PID),
+				ProcessName: getProcessName(int32(conn.PID)),
+			})
 		}
 	}
 
-	// Read UDP connections
+	// Read UDP connections (manual parsing required - procnet package doesn't expose UDP support yet)
 	if showUDP {
-		udpConns, err := readProcNet("/proc/net/udp", "udp")
+		udpConns, err := readProcNetUDP("/proc/net/udp", "udp")
 		if err == nil {
 			connections = append(connections, udpConns...)
 		}
-		udp6Conns, err := readProcNet("/proc/net/udp6", "udp6")
+		udp6Conns, err := readProcNetUDP("/proc/net/udp6", "udp6")
 		if err == nil {
 			connections = append(connections, udp6Conns...)
 		}
-	}
 
-	// Map inodes to processes
-	inodeToPID := mapInodestoProcesses()
-	for _, conn := range connections {
-		if pid, ok := inodeToPID[conn.Inode]; ok {
-			conn.PID = pid
-			conn.ProcessName = getProcessName(pid)
+		// Map inodes to processes for UDP connections
+		inodeToPID := mapInodestoProcesses()
+		for _, conn := range connections {
+			if conn.Protocol == "udp" || conn.Protocol == "udp6" {
+				if pid, ok := inodeToPID[conn.Inode]; ok {
+					conn.PID = pid
+					conn.ProcessName = getProcessName(pid)
+				}
+			}
 		}
 	}
 
@@ -158,8 +178,29 @@ func runNetstat(showTCP, showUDP, showListening bool) error {
 	return nil
 }
 
-// readProcNet reads connections from /proc/net files
-func readProcNet(path, protocol string) ([]*NetConnection, error) {
+// tcpStateToString converts TCP state int to readable string
+func tcpStateToString(state int) string {
+	states := map[int]string{
+		tcpStateEstablished: "ESTABLISHED",
+		tcpStateSynSent:     "SYN_SENT",
+		tcpStateSynRecv:     "SYN_RECV",
+		tcpStateFinWait1:    "FIN_WAIT1",
+		tcpStateFinWait2:    "FIN_WAIT2",
+		tcpStateTimeWait:    "TIME_WAIT",
+		tcpStateClose:       "CLOSE",
+		tcpStateCloseWait:   "CLOSE_WAIT",
+		tcpStateLastAck:     "LAST_ACK",
+		tcpStateListen:      "LISTEN",
+		tcpStateClosing:     "CLOSING",
+	}
+	if s, ok := states[state]; ok {
+		return s
+	}
+	return fmt.Sprintf("STATE_%d", state)
+}
+
+// readProcNetUDP reads UDP connections from /proc/net files
+func readProcNetUDP(path, protocol string) ([]*NetConnection, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -195,10 +236,7 @@ func readProcNet(path, protocol string) ([]*NetConnection, error) {
 		remoteAddr := parseHexIP(remoteAddrPort[0])
 		remotePort := parseHexPort(remoteAddrPort[1])
 
-		// Parse state
-		state := parseTCPState(fields[procNetFieldState])
-
-		// Parse inode
+		// Parse inode (UDP doesn't have meaningful connection states like TCP)
 		inode, _ := strconv.ParseUint(fields[procNetFieldInode], 10, 64)
 
 		connections = append(connections, &NetConnection{
@@ -207,7 +245,7 @@ func readProcNet(path, protocol string) ([]*NetConnection, error) {
 			LocalPort:  localPort,
 			RemoteAddr: remoteAddr,
 			RemotePort: remotePort,
-			State:      state,
+			State:      "-",
 			Inode:      inode,
 		})
 	}
@@ -235,28 +273,6 @@ func parseHexIP(hexIP string) string {
 func parseHexPort(hexPort string) uint16 {
 	port, _ := strconv.ParseUint(hexPort, 16, 16)
 	return uint16(port)
-}
-
-// parseTCPState converts hex state to readable string
-func parseTCPState(hexState string) string {
-	state, _ := strconv.ParseUint(hexState, 16, 8)
-	states := map[uint64]string{
-		tcpStateEstablished: "ESTABLISHED",
-		tcpStateSynSent:     "SYN_SENT",
-		tcpStateSynRecv:     "SYN_RECV",
-		tcpStateFinWait1:    "FIN_WAIT1",
-		tcpStateFinWait2:    "FIN_WAIT2",
-		tcpStateTimeWait:    "TIME_WAIT",
-		tcpStateClose:       "CLOSE",
-		tcpStateCloseWait:   "CLOSE_WAIT",
-		tcpStateLastAck:     "LAST_ACK",
-		tcpStateListen:      "LISTEN",
-		tcpStateClosing:     "CLOSING",
-	}
-	if s, ok := states[state]; ok {
-		return s
-	}
-	return fmt.Sprintf("0x%X", state)
 }
 
 // mapInodestoProcesses maps socket inodes to PIDs

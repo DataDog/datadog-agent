@@ -352,7 +352,7 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
-	env, err := getTargetEnvs(proc)
+	env, err := GetTargetEnvs(proc)
 	if err != nil {
 		return nil, err
 	}
