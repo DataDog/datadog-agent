@@ -67,7 +67,7 @@ func TestFilterCheckConfigsByName_NoCheckWithName(t *testing.T) {
 
 	// no filtering is done on the config check response since the "memory" config is not
 	err := filterCheckConfigsByName(&checkResponse, "memory")
-	assert.Error(t, err)
+	assert.EqualError(t, err, "no check named \"memory\" was found")
 }
 
 func TestConvertConfigToJSON_DefaultValues(t *testing.T) {

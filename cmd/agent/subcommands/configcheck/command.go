@@ -206,6 +206,10 @@ func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
 		return err
 	}
 
-	fmt.Fprintln(w, string(result))
+	_, err = fmt.Fprintln(w, string(result))
+	if err != nil {
+		return err
+	}
+	
 	return nil
 }
