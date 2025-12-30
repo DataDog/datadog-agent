@@ -146,7 +146,7 @@ func IsTCPRequired(coreConfig pkgconfigmodel.Reader) bool {
 }
 
 // HTTPConnectivityRetryIntervalMax returns the maximum interval for HTTP connectivity retry attempts.
-func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) float64 {
+func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).httpConnectivityRetryIntervalMax()
 }
 
@@ -231,7 +231,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
-		host, port, err := parseAddress(logsDDURL)
+		host, port, err := parseAddress("localhost:9992")
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}

@@ -1867,7 +1867,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", 3600)
+	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+	// up to this ceiling, then continue checking at this interval. Default: 1 hour
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", "1h")
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")

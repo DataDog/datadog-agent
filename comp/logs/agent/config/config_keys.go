@@ -117,8 +117,8 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
-func (l *LogsConfigKeys) httpConnectivityRetryIntervalMax() float64 {
-	return l.getConfig().GetFloat64(l.getConfigKey("http_connectivity_retry_interval_max"))
+func (l *LogsConfigKeys) httpConnectivityRetryIntervalMax() time.Duration {
+	return l.getConfig().GetDuration(l.getConfigKey("http_connectivity_retry_interval_max"))
 }
 
 func (l *LogsConfigKeys) compressionKind() string {

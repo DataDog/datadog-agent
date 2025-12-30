@@ -211,7 +211,7 @@ func (a *logAgent) smartHTTPRestart() {
 // exponential backoff with randomization [2^(n-1), 2^n) seconds, capped at configured max
 func (a *logAgent) httpRetryLoop(ctx context.Context) {
 	maxRetryInterval := config.HTTPConnectivityRetryIntervalMax(a.config)
-	if maxRetryInterval == 0 {
+	if maxRetryInterval.Seconds() <= 0 {
 		a.log.Warn("HTTP connectivity retry interval max set to 0 seconds, skipping HTTP connectivity retry")
 		return
 	}
@@ -225,7 +225,7 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 	policy := backoff.NewExpBackoffPolicy(
 		endpoints.Main.BackoffFactor,
 		endpoints.Main.BackoffBase,
-		endpoints.Main.BackoffMax,
+		maxRetryInterval.Seconds(),
 		endpoints.Main.RecoveryInterval,
 		endpoints.Main.RecoveryReset,
 	)
