@@ -6,6 +6,8 @@
 package grpc
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -106,30 +108,39 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Extract wildcard values from the pattern
 	wildcardValues := pattern.GetWildcardValues(tokenList)
 
-	// Handle sending PatternDefine or PatternDelete as needed
-	mt.handlePatternChange(pattern, changeType, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
-
-	// Build complete tag list including log-level fields
-	// These fields are sent as separate JSON fields in the HTTP pipeline,
-	// but as tags in the gRPC stateful pipeline (per proto spec)
-	tagStrings := mt.buildTagStrings(msg)
-
-	// Encode tags
-	encodedTags, newEntries := mt.tagManager.EncodeTagStrings(tagStrings)
-
-	// Send any new dictionary entries first
-	for id, value := range newEntries {
-		mt.sendDictEntryDefine(outputChan, msg, id, value)
+	// Send PatternDefine for new or updated patterns (receiver replaces on same pattern_id)
+	if changeType == clustering.PatternNew || changeType == clustering.PatternUpdated {
+		mt.sendPatternDefine(pattern, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
 	}
 
-	// Send StructuredLog with pattern_id + dynamic values
-	mt.sendStructuredLog(outputChan, msg, pattern, wildcardValues, ts, encodedTags)
+	// Encode wildcard values with type inference (int64 → float64 → dict_index → string)
+	dynamicValues := make([]*statefulpb.DynamicValue, len(wildcardValues))
+	for i, val := range wildcardValues {
+		encoded, dictID, isNew := mt.encodeDynamicValue(val)
+		dynamicValues[i] = encoded
+
+		// Send DictEntryDefine if this created a new dictionary entry
+		if isNew {
+			mt.sendDictEntryDefine(outputChan, msg, dictID, val)
+		}
+	}
+
+	// Build complete tag list and encode as TagSet
+	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
+	if isNew {
+		mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsString)
+	}
+
+	// Send StructuredLog with all fields
+	tsMillis := uint64(ts.UnixNano() / nanoToMillis)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, pattern.PatternID, dynamicValues, tagSet)
 }
 
-// buildTagStrings constructs the complete tag list for a message.
+// buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
 // This includes log-level fields (hostname, service, ddsource, status) as tags,
 // plus all other tags from the message metadata (container tags, source config tags, processing tags).
-func (mt *MessageTranslator) buildTagStrings(msg *message.Message) []string {
+// All tags are joined as a single string, encoded as a single dictionary entry in the TagSet
+func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagSet, string, uint64, bool) {
 	// Start with metadata tags (container tags, source config tags, processing tags)
 	tagStrings := msg.MessageMetadata.Tags()
 
@@ -153,7 +164,22 @@ func (mt *MessageTranslator) buildTagStrings(msg *message.Message) []string {
 		tagStrings = append(tagStrings, "status:"+status)
 	}
 
-	return tagStrings
+	allTagsString := strings.Join(tagStrings, ",")
+	if allTagsString == "" {
+		return nil, "", 0, false
+	}
+
+	dictID, isNew := mt.tagManager.AddString(allTagsString)
+
+	tagSet := &statefulpb.TagSet{
+		Tagset: &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_DictIndex{
+				DictIndex: dictID,
+			},
+		},
+	}
+
+	return tagSet, allTagsString, dictID, isNew
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring ServerlessExtra.Timestamp
@@ -169,24 +195,6 @@ func getMessageTimestamp(msg *message.Message) time.Time {
 func tokenizeMessage(contentStr string) *token.TokenList {
 	tokenizer := automaton.NewTokenizer(contentStr)
 	return tokenizer.Tokenize()
-}
-
-// handlePatternChange handles pattern changes based on PatternChangeType from cluster manager
-// Uses the change type to determine if we need to send PatternDefine/PatternDelete
-// The snapshot mechanism in inflight.go tracks what's been sent for stream recovery
-func (mt *MessageTranslator) handlePatternChange(pattern *clustering.Pattern, changeType clustering.PatternChangeType, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
-	switch changeType {
-	case clustering.PatternNew:
-		// New pattern - send PatternDefine (may have 0 wildcards initially)
-		mt.sendPatternDefine(pattern, msg, outputChan, patternDefineSent, patternDefineParamCount)
-
-	case clustering.PatternUpdated:
-		// Pattern structure changed (e.g., 0→N wildcards, or N→M wildcards)
-		mt.sendPatternDelete(pattern.PatternID, msg, outputChan)
-		mt.sendPatternDefine(pattern, msg, outputChan, patternDefineSent, patternDefineParamCount)
-
-	case clustering.PatternNoChange:
-	}
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum
@@ -240,8 +248,8 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 
 // sendRawLog creates and sends a raw log datum
 // todo: AGNTLOG-414: Will be used for first log without a pattern
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tags []*statefulpb.Tag) {
-	logDatum := buildRawLog(contentStr, ts, tags)
+func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
+	logDatum := buildRawLog(contentStr, ts, tagSet)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -253,8 +261,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, pattern *clustering.Pattern, wildcardValues []string, ts time.Time, tags []*statefulpb.Tag) {
-	logDatum := buildStructuredLog(pattern.PatternID, wildcardValues, ts, tags)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -308,37 +316,57 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 	}
 }
 
-// buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(patternID uint64, wildcardValues []string, ts time.Time, tags []*statefulpb.Tag) *statefulpb.Datum {
-	// Convert wildcard values to DynamicValue format
-	dynamicValues := make([]*statefulpb.DynamicValue, len(wildcardValues))
-	for i, value := range wildcardValues {
-		dynamicValues[i] = &statefulpb.DynamicValue{
-			Value: &statefulpb.DynamicValue_StringValue{
-				StringValue: value,
+// encodeDynamicValue encodes a wildcard value with type inference
+// Priority: int64 → float64 → dict_index (via tagManager) → string (fallback)
+// Returns the encoded DynamicValue and whether a new dict entry was created
+func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
+	// Try parsing as int64
+	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_IntValue{
+				IntValue: intVal,
 			},
-		}
+		}, 0, false
 	}
 
+	// Try parsing as float64
+	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_FloatValue{
+				FloatValue: floatVal,
+			},
+		}, 0, false
+	}
+
+	// Try dictionary encoding for string values
+	dictID, isNew := mt.tagManager.AddString(value)
+	return &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{
+			DictIndex: dictID,
+		},
+	}, dictID, isNew
+}
+
+// buildStructuredLog creates a Datum containing a StructuredLog
+func buildStructuredLog(timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
-				Timestamp: uint64(ts.UnixNano() / nanoToMillis),
+				Timestamp: timestamp,
 				Content: &statefulpb.Log_Structured{
 					Structured: &statefulpb.StructuredLog{
 						PatternId:     patternID,
 						DynamicValues: dynamicValues,
 					},
 				},
-				// tags are already fully encoded in the tag manager
-				Tags: tags,
+				Tags: tagSet,
 			},
 		},
 	}
 }
 
 // buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time, tags []*statefulpb.Tag) *statefulpb.Datum {
+func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
@@ -346,7 +374,7 @@ func buildRawLog(content string, ts time.Time, tags []*statefulpb.Tag) *stateful
 				Content: &statefulpb.Log_Raw{
 					Raw: content,
 				},
-				Tags: tags,
+				Tags: tagSet,
 			},
 		},
 	}
