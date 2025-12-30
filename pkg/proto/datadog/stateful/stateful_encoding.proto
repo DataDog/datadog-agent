@@ -22,6 +22,7 @@ message DictEntryDelete {
 
 // pos_list is used to indicate where dynamic values should be inserted
 // it's more accurate than a marker
+// PatternDefine is also used to signal a update to an existing pattern.
 message PatternDefine {
   uint64 pattern_id = 1;
   string template = 2;
@@ -37,6 +38,10 @@ message PatternDelete {
 // Log payload
 // ---------------------------------------------------------------------------
 
+message TagSet {
+  DynamicValue tagset = 1;
+}
+
 message Tag {
   DynamicValue key = 1;
   DynamicValue value = 2;
@@ -48,13 +53,12 @@ message Log {
     StructuredLog structured = 2;
     string raw = 3;
   }
-  
   // TODO: right now we are assuming logs are attached per tag - in the future we may have common tags in the stream
   // state and auto-populate them downstream.
   // Required tags: `service`, `hostname`,
   // Other tags on agent payload: `status`, `source`
-  // All other tags are sent as `ddtags`
-    repeated Tag tags = 4;
+  // All tags are joined together sent as a single tagset
+  TagSet tags = 4;
 }
 
 message StructuredLog {
@@ -62,7 +66,6 @@ message StructuredLog {
   repeated DynamicValue dynamic_values = 2;
 }
 
-// TODO not sure we need numeric type
 message DynamicValue {
   oneof value {
     int64 int_value = 1;
@@ -97,7 +100,7 @@ message DatumSequence {
 message StatefulBatch {
   uint32 batch_id = 1;
 
-  // Bytes of a serialized DatumSequence. Eventually this will also be compressed.
+  // Bytes of a serialized and compressed DatumSequence.
   // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
   bytes data = 2;
 }
