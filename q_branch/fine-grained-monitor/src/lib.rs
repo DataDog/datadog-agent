@@ -29,5 +29,6 @@
 //! ```
 
 pub mod discovery;
+pub mod index;
 pub mod metrics_viewer;
 pub mod observer;

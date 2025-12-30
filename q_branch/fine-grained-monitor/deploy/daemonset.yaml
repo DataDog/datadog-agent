@@ -16,7 +16,7 @@ spec:
       hostPID: true  # Needed to read /proc for all processes
       containers:
       - name: monitor
-        image: fine-grained-monitor:rotation
+        image: fine-grained-monitor:latest
         imagePullPolicy: Never  # Use locally loaded image
         args:
           - "--output-dir=/data"
@@ -55,7 +55,7 @@ spec:
             cpu: "500m"
       # REQ-ICV-001: Viewer sidecar for in-cluster access
       - name: viewer
-        image: fine-grained-monitor:rotation
+        image: fine-grained-monitor:latest
         imagePullPolicy: Never
         command: ["/usr/local/bin/fgm-viewer"]
         args:

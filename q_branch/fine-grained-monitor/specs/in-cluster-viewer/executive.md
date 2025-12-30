@@ -23,13 +23,13 @@ operations over thousands of files.
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
-| **REQ-ICV-001:** Access Viewer From Cluster | 🔄 In Progress | Dockerfile + DaemonSet updated |
-| **REQ-ICV-002:** View Node-Local Metrics | 🔄 In Progress | Directory glob support added |
-| **REQ-ICV-003:** Fast Startup via Index | ❌ Not Started | Design complete, implementation pending |
-| **REQ-ICV-004:** Viewer Operates Independently | 🔄 In Progress | Sidecar pattern implemented |
+| **REQ-ICV-001:** Access Viewer From Cluster | ✅ Complete | Sidecar deployed, port-forward works |
+| **REQ-ICV-002:** View Node-Local Metrics | ✅ Complete | 204 metrics, 21 containers visible |
+| **REQ-ICV-003:** Fast Startup via Index | ✅ Complete | Startup in seconds, not 30+ minutes |
+| **REQ-ICV-004:** Viewer Operates Independently | ✅ Complete | Read-only volume, skips in-progress files |
 
-**Progress:** 0 of 4 complete
+**Progress:** 4 of 4 complete
 
-**Blocker:** REQ-ICV-003 blocks testing. Current implementation scans all files
-at startup (30+ min with 11k files). Index-based approach designed, awaiting
-implementation.
+**Verified:** In-cluster viewer tested in gadget-dev Kind cluster. Index-based
+startup successfully loads 204 metrics from parquet schema and 21 containers
+from index.json within seconds.

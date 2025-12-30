@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -20,7 +20,10 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 mod discovery;
+mod index;
 mod observer;
+
+use index::ContainerIndex;
 
 /// Maximum total Parquet file size before triggering graceful shutdown (1 GiB)
 const MAX_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
@@ -207,6 +210,13 @@ async fn run(args: Args) -> anyhow::Result<()> {
     // Write session manifest
     write_session_manifest(&args, &identifier, &run_id, &node_name, &cluster_name).await?;
 
+    // REQ-ICV-003: Load or create container index for fast viewer startup
+    let index_path = args.output_dir.join("index.json");
+    let container_index = Arc::new(RwLock::new(ContainerIndex::load_or_create(
+        &index_path,
+        args.rotation_seconds,
+    )));
+
     // Set up external shutdown coordination
     let (external_shutdown_tx, external_shutdown_rx) = watch::channel(false);
     let shutdown_requested = Arc::new(AtomicBool::new(false));
@@ -235,8 +245,17 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let observer_shutdown = external_shutdown_rx.clone();
     let interval_ms = args.interval_ms;
     let verbose_perf_risk = args.verbose_perf_risk;
+    let observer_index = container_index.clone();
+    let observer_index_path = index_path.clone();
     tokio::spawn(async move {
-        observer_loop(interval_ms, verbose_perf_risk, observer_shutdown).await;
+        observer_loop(
+            interval_ms,
+            verbose_perf_risk,
+            observer_shutdown,
+            observer_index,
+            observer_index_path,
+        )
+        .await;
     });
 
     // Run rotation loop
@@ -247,6 +266,8 @@ async fn run(args: Args) -> anyhow::Result<()> {
         cluster_name,
         external_shutdown_rx,
         shutdown_requested,
+        container_index,
+        index_path,
     )
     .await
 }
@@ -258,6 +279,8 @@ async fn run_rotation_loop(
     cluster_name: String,
     mut external_shutdown_rx: watch::Receiver<bool>,
     shutdown_requested: Arc<AtomicBool>,
+    container_index: Arc<RwLock<ContainerIndex>>,
+    index_path: PathBuf,
 ) -> anyhow::Result<()> {
     let rotation_interval = Duration::from_secs(args.rotation_seconds);
     let mut total_bytes: u64 = 0;
@@ -383,6 +406,14 @@ async fn run_rotation_loop(
                             "File rotation completed"
                         );
                         current_output_path = new_output_path;
+
+                        // REQ-ICV-003: Update index data range on successful rotation
+                        if let Ok(mut index) = container_index.write() {
+                            index.update_data_range(Utc::now());
+                            if let Err(e) = index.save(&index_path) {
+                                tracing::warn!(error = %e, "Failed to save index after rotation");
+                            }
+                        }
                     }
                     Ok(Err(e)) => {
                         tracing::error!(
@@ -433,6 +464,8 @@ async fn observer_loop(
     interval_ms: u64,
     verbose_perf_risk: bool,
     mut shutdown_rx: watch::Receiver<bool>,
+    container_index: Arc<RwLock<ContainerIndex>>,
+    index_path: PathBuf,
 ) {
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
     let mut observer = observer::Observer::new();
@@ -449,6 +482,24 @@ async fn observer_loop(
                 }
 
                 tracing::debug!(count = containers.len(), "Discovered containers");
+
+                // REQ-ICV-003: Update container index if containers changed
+                let index_changed = {
+                    if let Ok(mut index) = container_index.write() {
+                        index.update(&containers)
+                    } else {
+                        false
+                    }
+                };
+
+                // Save index if containers changed
+                if index_changed {
+                    if let Ok(index) = container_index.read() {
+                        if let Err(e) = index.save(&index_path) {
+                            tracing::warn!(error = %e, "Failed to save index after container change");
+                        }
+                    }
+                }
 
                 // Sample metrics for all containers
                 observer.sample(&containers, verbose_perf_risk).await;
