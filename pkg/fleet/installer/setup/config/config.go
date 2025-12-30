@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -24,7 +25,15 @@ var (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	datadogConfPath := filepath.Join(configDir, datadogConfFile)
+
+	// Check if datadog.yaml already exists and we're not upgrading
+	if _, err := os.Stat(datadogConfPath); err == nil && os.Getenv("DD_UPGRADE") != "true" {
+		fmt.Printf("\n* Keeping old %s configuration file\n\n", datadogConfFile)
+		return nil
+	}
+
+	err := writeConfig(datadogConfPath, config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
