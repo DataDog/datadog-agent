@@ -146,11 +146,6 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips b
 }
 
 func dockerOTelAgentGatewayFullImagePath(e config.Env, repositoryPath, imageTag string) string {
-	// return agent image path if defined
-	if e.AgentFullImagePath() != "" {
-		return e.AgentFullImagePath()
-	}
-
 	// if agent pipeline id and commit sha are defined, use the image from the pipeline pushed on agent QA registry
 	if e.PipelineID() != "" && e.CommitSHA() != "" && imageTag == "" {
 		tag := fmt.Sprintf("%s-%s", e.PipelineID(), e.CommitSHA())
