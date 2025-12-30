@@ -101,12 +101,56 @@ struct HealthResponse {
     status: String,
 }
 
+/// Priority metrics shown at top of list (most useful for container monitoring).
+/// Order matters - these appear first in the UI.
+const PRIORITY_METRICS: &[&str] = &[
+    "cpu_percentage",
+    "total_cpu_usage_millicores",
+    "cpu_limit_millicores",
+    "user_cpu_percentage",
+    "kernel_cpu_percentage",
+    "system_cpu_percentage",
+    "smaps_rollup.pss",
+    "cgroup.v2.cpu.stat.throttled_usec",
+    "cgroup.v2.cpu.stat.nr_throttled",
+    "cgroup.v2.cpu.pressure.some.avg10",
+    "cgroup.v2.memory.current",
+    "cgroup.v2.memory.max",
+    "cgroup.v2.memory.peak",
+    "cgroup.v2.memory.stat.anon",
+    "cgroup.v2.memory.stat.file",
+    "cgroup.v2.memory.events.oom_kill",
+    "cgroup.v2.memory.pressure.some.avg10",
+    "container.pid_count",
+    "cgroup.v2.pids.current",
+    "cgroup.v2.cgroup.threads",
+    "cgroup.v2.io.stat.rbytes",
+    "cgroup.v2.io.stat.wbytes",
+    "cgroup.v2.io.pressure.some.avg10",
+    "cgroup.v2.memory.swap.current",
+    "cgroup.v2.memory.stat.pgmajfault",
+];
+
 /// GET /api/metrics - list available metrics.
 /// REQ-MV-002: Returns list of available metric names with sample counts.
+/// Priority metrics appear first, then remaining metrics alphabetically.
 async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<MetricsResponse> {
-    Json(MetricsResponse {
-        metrics: state.data.index.metrics.clone(),
-    })
+    let mut metrics = state.data.index.metrics.clone();
+
+    // Sort: priority metrics first (in order), then alphabetically
+    metrics.sort_by(|a, b| {
+        let a_priority = PRIORITY_METRICS.iter().position(|&m| m == a.name);
+        let b_priority = PRIORITY_METRICS.iter().position(|&m| m == b.name);
+
+        match (a_priority, b_priority) {
+            (Some(a_idx), Some(b_idx)) => a_idx.cmp(&b_idx),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.name.cmp(&b.name),
+        }
+    });
+
+    Json(MetricsResponse { metrics })
 }
 
 #[derive(Serialize)]
