@@ -411,7 +411,13 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	var policyState *PolicyState
 	var exists bool
 
+	ruleIDs := make(map[eval.RuleID]struct{})
 	for _, rule := range rs.GetRules() {
+		if _, found := ruleIDs[rule.Def.ID]; found {
+			continue
+		}
+
+		ruleIDs[rule.Def.ID] = struct{}{}
 		for pInfo := range rule.Policies(includeInternalPolicies) {
 			if policyState, exists = mp[pInfo.Name]; !exists {
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.Type, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")
