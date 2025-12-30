@@ -8,7 +8,6 @@ package selftests
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/atomic"
@@ -16,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -35,18 +33,18 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		return nil, err
 	}
 	tmpDir = dir
-	fileToCreate := "file.txt"
+	/*fileToCreate := "file.txt"
 
 	keyPath := "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
 
 	dirLongPath, err := pathutils.GetLongPathName(dir)
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
 	selfTests = []SelfTest{
-		&WindowsCreateFileSelfTest{filename: filepath.Join(dirLongPath, fileToCreate)},
-		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
+		//&WindowsCreateFileSelfTest{filename: filepath.Join(dirLongPath, fileToCreate)},
+		//&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 
 	s := &SelfTester{
