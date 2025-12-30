@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/planetscale/vtprotobuf/protohelpers"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -288,16 +289,38 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		}
 	}
 
-	// Create DatumSequence and marshal to bytes
+	// Create DatumSequence
 	datumSeq := &statefulpb.DatumSequence{
 		Data: grpcDatums,
 	}
 
-	serialized, err := datumSeq.MarshalVT()
+	// Compute sizes once, right before marshalling
+	// DatumSequence encoding: for each datum, 1 byte field tag + varint(size) + datum bytes
+	// Also track log telemetry here since Log datums have been delta-encoded at this point
+	seqSize := 0
+	for _, datum := range grpcDatums {
+		datumSize := datum.SizeVT()
+		seqSize += 1 + protohelpers.SizeOfVarint(uint64(datumSize)) + datumSize
+
+		// Track log bytes telemetry (post-delta encoding = actual wire size)
+		if logDatum := datum.GetLogs(); logDatum != nil {
+			if logDatum.GetStructured() != nil {
+				tlmPipelinePatternLogsProcessedBytes.Add(float64(datumSize), s.pipelineName)
+			} else if logDatum.GetRaw() != "" {
+				tlmPipelineRawLogsProcessedBytes.Add(float64(datumSize), s.pipelineName)
+			}
+		}
+	}
+
+	// Allocate buffer once and marshal directly using MarshalToSizedBufferVT
+	// This avoids the duplicate SizeVT call that MarshalVT would make internally
+	serialized := make([]byte, seqSize)
+	n, err := datumSeq.MarshalToSizedBufferVT(serialized)
 	if err != nil {
 		log.Errorf("Failed to marshal DatumSequence: %v", err)
 		return
 	}
+	serialized = serialized[:n]
 
 	// Compress the serialized protobuf data
 	compressed, err := s.compression.Compress(serialized)

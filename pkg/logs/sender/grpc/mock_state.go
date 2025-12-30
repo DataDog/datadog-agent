@@ -250,8 +250,8 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
 	logDatum := buildRawLog(contentStr, ts, tagSet)
 
+	// Count metric only - bytes tracked in batch_strategy after delta encoding
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelineRawLogsProcessedBytes.Add(float64(logDatum.SizeVT()), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
@@ -263,8 +263,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) {
 	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet)
 
+	// Count metric only - bytes tracked in batch_strategy after delta encoding
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelinePatternLogsProcessedBytes.Add(float64(logDatum.SizeVT()), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
