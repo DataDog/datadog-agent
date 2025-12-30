@@ -80,7 +80,7 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 }
 
 // Stop does nothing
-func (c *Check) Stop() {}
+func (*Check) Stop() {}
 
 // Cancel closes the associated shared library and prevents the check from running
 func (c *Check) Cancel() {
@@ -108,7 +108,7 @@ func (c *Check) Version() string {
 }
 
 // IsTelemetryEnabled is not enabled
-func (c *Check) IsTelemetryEnabled() bool {
+func (*Check) IsTelemetryEnabled() bool {
 	return false
 }
 
@@ -133,7 +133,7 @@ func (c *Check) InstanceConfig() string {
 }
 
 // GetWarnings returns nothing
-func (c *Check) GetWarnings() []error {
+func (*Check) GetWarnings() []error {
 	return []error{}
 }
 
@@ -180,11 +180,11 @@ func (c *Check) ID() checkid.ID {
 }
 
 // GetDiagnoses returns nothing
-func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+func (*Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 
 // IsHASupported does not apply to shared library checks
-func (c *Check) IsHASupported() bool {
+func (*Check) IsHASupported() bool {
 	return false
 }

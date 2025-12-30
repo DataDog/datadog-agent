@@ -32,22 +32,22 @@ import "C"
 type NoopSharedLibraryLoader struct{}
 
 // Load returns the noop library
-func (ml *NoopSharedLibraryLoader) Open(_ string) (*Library, error) {
+func (*NoopSharedLibraryLoader) Open(_ string) (*Library, error) {
 	return GetNoopLibrary(), nil
 }
 
 // Close does nothing
-func (ml *NoopSharedLibraryLoader) Close(_ *Library) error {
+func (*NoopSharedLibraryLoader) Close(_ *Library) error {
 	return nil
 }
 
 // Run does nothing
-func (ml *NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string) error {
+func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string) error {
 	return nil
 }
 
 // Version returns "noop_version"
-func (ml *NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
+func (*NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
 	return "noop_version", nil
 }
 

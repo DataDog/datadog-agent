@@ -37,7 +37,7 @@ func (*CheckLoader) Name() string {
 	return CheckLoaderName
 }
 
-func (sl *CheckLoader) String() string {
+func (*CheckLoader) String() string {
 	return "Shared Library Loader"
 }
 
