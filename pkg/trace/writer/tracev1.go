@@ -23,12 +23,45 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// pathTraces is the target host API path for delivering traces.
+const pathTraces = "/api/v0.2/traces"
+
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+const tagAPMMode = "_dd.apm_mode"
+
+const defaultConnectionLimit = 5
+
+// MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
+// a flush is triggered; replaced in tests.
+var MaxPayloadSize = 3_200_000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
+
 // SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
-	Size          int
 	SpanCount     int64
 	EventCount    int64
+}
+
+var outPool = sync.Pool{}
+
+func getBS(size int) []byte {
+	b := outPool.Get()
+	if b == nil {
+		return make([]byte, size)
+	}
+	bs := b.([]byte)
+	if cap(bs) < size {
+		return make([]byte, size)
+	}
+	return bs[:size]
 }
 
 // TraceWriterV1 implements TraceWriterV1 interface, and buffers traces and APM events, flushing them to the Datadog API.
@@ -49,8 +82,8 @@ type TraceWriterV1 struct {
 	tick            time.Duration         // flush frequency
 	agentVersion    string
 
-	tracerPayloadsV1 []*idx.InternalTracerPayload // V1 tracer payloads buffered
-	bufferedSizeV1   int                          // estimated buffer size for V1
+	tracerPayloadsV1 []*idx.TracerPayload // V1 tracer payloads buffered
+	bufferedSizeV1   int                  // estimated buffer size for V1
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -189,42 +222,71 @@ func (w *TraceWriterV1) FlushSync() error {
 	return nil
 }
 
-// appendChunks adds sampled chunks to the current payload, and in the case the payload
-// is full, returns a finished payload which needs to be written out.
-func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) []*idx.InternalTracerPayload {
-	var toflush []*idx.InternalTracerPayload
+// appendChunks adds sampled chunks to the current payload, splitting the payload if it is too large and returning a list of payloads(list of tracer payloads) to flush.
+func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayload {
+	var toFlush [][]*idx.TracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	size := pkg.Size
+	pbTracerPayload := pkg.TracerPayload.ToProto()
+	pbTracerPayload.RemoveUnusedStrings()
+	size := pbTracerPayload.SizeVT()
 	if size+w.bufferedSizeV1 > MaxPayloadSize {
-		// reached maximum allowed buffered size
-		// reset the buffer so we can add our payload and defer a flush.
-		toflush = w.tracerPayloadsV1
-		w.resetBufferV1()
+		// Buffer is full, split the incoming Tracer payload
+		log.Debugf("Writer: reached maximum allowed buffered size, splitting payload with %d chunks and size %d", len(pbTracerPayload.Chunks), size)
+		numChunks := len(pbTracerPayload.Chunks)
+		if numChunks < 4 {
+			// If fewer than 4 chunks, send each chunk separately
+			for i := 0; i < numChunks; i++ {
+				splitPayload := pbTracerPayload.NewStringsClone()
+				splitPayload.Chunks = pbTracerPayload.Chunks[i : i+1]
+				splitPayload.RemoveUnusedStrings()
+				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				agentPayload := append(w.tracerPayloadsV1, splitPayload)
+				toFlush = append(toFlush, agentPayload)
+				w.resetBufferV1()
+			}
+		} else {
+			// Split into 4 groups of chunks
+			// This ensures we stay well under the intake limit as the worstcase here is 3.2 MB + 25 MB / 4 = 7.3 MB
+			chunksPerPayload := numChunks / 4
+			for i := range 4 {
+				splitPayload := pbTracerPayload.NewStringsClone()
+				// For the last group, include any remaining chunks due to integer division
+				endIdx := (i + 1) * chunksPerPayload
+				if i == 3 {
+					endIdx = numChunks
+				}
+				splitPayload.Chunks = pbTracerPayload.Chunks[i*chunksPerPayload : endIdx]
+				splitPayload.RemoveUnusedStrings() // We must remove unused strings again from these new split payloads to reduce the size of each payload
+				log.Tracef("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
+				agentPayload := append(w.tracerPayloadsV1, splitPayload)
+				toFlush = append(toFlush, agentPayload)
+				w.resetBufferV1()
+			}
+		}
+		return toFlush
 	}
-	if len(pkg.TracerPayload.Chunks) > 0 {
-		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
-		w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pkg.TracerPayload)
-	}
+	w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pbTracerPayload)
 	w.bufferedSizeV1 += size
-	return toflush
+	return nil
 }
 
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent
+// Chunks must not be used after this point as the trace writer may modify the payload in-place.
 func (w *TraceWriterV1) WriteChunksV1(pkg *SampledChunksV1) {
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
 
-	toflush := w.appendChunksV1(pkg)
-	if toflush != nil {
-		w.flushPayloadsV1(toflush)
+	toFlush := w.appendChunksV1(pkg)
+	for _, payload := range toFlush {
+		w.flushPayloadsV1(payload)
 	}
 }
 
 func (w *TraceWriterV1) resetBufferV1() {
 	w.bufferedSizeV1 = 0
-	w.tracerPayloadsV1 = make([]*idx.InternalTracerPayload, 0, len(w.tracerPayloadsV1))
+	w.tracerPayloadsV1 = make([]*idx.TracerPayload, 0, len(w.tracerPayloadsV1))
 }
 
 // w must be locked for a flush.
@@ -236,7 +298,7 @@ func (w *TraceWriterV1) flush() {
 }
 
 // w does not need to be locked during flushPayloads.
-func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
+func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.TracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
 	if len(payloads) == 0 {
 		// nothing to do
@@ -244,12 +306,6 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
-
-	protoPayloads := make([]*idx.TracerPayload, len(payloads))
-	for i, payload := range payloads {
-		payload.RemoveUnusedStrings()
-		protoPayloads[i] = payload.ToProto()
-	}
 
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
@@ -259,7 +315,7 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		IdxTracerPayloads:  protoPayloads,
+		IdxTracerPayloads:  payloads,
 	}
 	if w.apmMode != "" {
 		p.Tags = map[string]string{tagAPMMode: w.apmMode}
@@ -330,7 +386,7 @@ func (w *TraceWriterV1) recordEvent(t eventType, data *eventData) {
 		w.stats.Retries.Inc()
 
 	case eventTypeSent:
-		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
+		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes) // TODO: Undo when done
 		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
