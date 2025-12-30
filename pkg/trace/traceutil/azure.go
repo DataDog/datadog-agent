@@ -164,10 +164,3 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 	}
 	return
 }
-
-// BuildAdditionalAppServiceProfileTags returns additional tags to add to profiles for Azure App Service.
-func BuildAdditionalAppServiceProfileTags() map[string]string {
-	return map[string]string{
-		"_dd.origin": "appservice",
-	}
-}

@@ -533,7 +533,7 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// AdditionalProfileTags are extra tags to add to profiles
+	// Additional profile tags
 	AdditionalProfileTags map[string]string
 
 	// AuthToken is the auth token for the agent
