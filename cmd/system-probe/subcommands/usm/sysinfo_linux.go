@@ -87,7 +87,7 @@ type SystemInfo struct {
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
-func runSysinfoWithConfig(sysprobeconfig sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
+func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength, maxServiceLength int) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
