@@ -4,6 +4,8 @@
 //! - Phase 1 (startup): Fast metadata scan - metric names, containers, counts
 //! - Phase 2 (on-demand): Load actual timeseries data when requested
 //!
+//! REQ-ICV-003: Supports index-based fast startup for in-cluster viewer.
+//!
 //! This dramatically reduces startup time for large parquet files.
 
 use anyhow::{Context, Result};
@@ -11,6 +13,7 @@ use arrow::array::{
     Array, BooleanArray, Float64Array, MapArray, StringArray, StructArray, UInt64Array,
 };
 use arrow::datatypes::DataType;
+use glob::glob;
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -19,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeseriesPoint};
+use crate::index::ContainerIndex;
 
 /// Metrics that represent cumulative counters (need rate conversion).
 const CUMULATIVE_METRICS: &[&str] = &[
@@ -70,6 +74,96 @@ impl LazyDataStore {
 
         Ok(Self {
             paths,
+            index,
+            timeseries_cache: RwLock::new(HashMap::new()),
+            stats_cache: RwLock::new(HashMap::new()),
+        })
+    }
+
+    /// REQ-ICV-003: Create from container index for instant startup.
+    /// Uses index for container metadata, reads metrics from parquet schema.
+    pub fn from_index(container_index: ContainerIndex, data_dir: PathBuf) -> Result<Self> {
+        eprintln!("Building metadata from index...");
+
+        // Find a recent parquet file to read schema from
+        // Sort by modification time (newest first) to avoid stale/empty files
+        let pattern = format!("{}/**/*.parquet", data_dir.display());
+        let mut parquet_files: Vec<PathBuf> = glob(&pattern)?
+            .filter_map(Result::ok)
+            .collect();
+
+        // Sort by modification time - newest first
+        parquet_files.sort_by(|a, b| {
+            let a_time = a.metadata().and_then(|m| m.modified()).ok();
+            let b_time = b.metadata().and_then(|m| m.modified()).ok();
+            b_time.cmp(&a_time)
+        });
+
+        // Keep recent files for data loading (limit to avoid memory issues)
+        // These will be used for actual data queries
+        parquet_files.truncate(500);
+        eprintln!("Using {} recent parquet files for data", parquet_files.len());
+
+        // Get metric names from parquet schema - try multiple files
+        let mut metrics = Vec::new();
+        for file in &parquet_files {
+            match read_metrics_from_schema(file) {
+                Ok(m) => {
+                    metrics = m;
+                    eprintln!("Read {} metrics from schema of {:?}", metrics.len(), file);
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("Skipping {:?}: {}", file, e);
+                    continue;
+                }
+            }
+        }
+        if metrics.is_empty() && !parquet_files.is_empty() {
+            eprintln!("Warning: Could not read metrics from any parquet file");
+        }
+
+        // Build container info from index
+        let mut containers = HashMap::new();
+        let mut qos_classes = HashSet::new();
+
+        for (short_id, entry) in &container_index.containers {
+            containers.insert(
+                short_id.clone(),
+                ContainerInfo {
+                    id: entry.full_id.clone(),
+                    short_id: short_id.clone(),
+                    qos_class: Some(entry.qos_class.clone()),
+                    namespace: None, // Not available from basic index
+                    pod_name: None,  // Not available from basic index
+                },
+            );
+            qos_classes.insert(entry.qos_class.clone());
+        }
+
+        // Build metric_containers map (all containers for all metrics initially)
+        let all_container_ids: HashSet<String> = containers.keys().cloned().collect();
+        let metric_containers: HashMap<String, HashSet<String>> = metrics
+            .iter()
+            .map(|m| (m.name.clone(), all_container_ids.clone()))
+            .collect();
+
+        let index = MetadataIndex {
+            metrics,
+            qos_classes: qos_classes.into_iter().collect(),
+            namespaces: Vec::new(), // Not available from basic index
+            containers,
+            metric_containers,
+        };
+
+        eprintln!(
+            "Index-based startup complete: {} metrics, {} containers",
+            index.metrics.len(),
+            index.containers.len()
+        );
+
+        Ok(Self {
+            paths: parquet_files, // Start with discovered files
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
             stats_cache: RwLock::new(HashMap::new()),
@@ -185,6 +279,75 @@ impl LazyDataStore {
         self.timeseries_cache.write().unwrap().clear();
         self.stats_cache.write().unwrap().clear();
     }
+}
+
+/// REQ-ICV-003: Read metric names from a parquet file's metric_name column.
+/// Samples the first row group to get unique metric names efficiently.
+fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
+    let file = File::open(path).context("Failed to open parquet file")?;
+
+    // Check file size - skip files that are too small or being written
+    if let Ok(metadata) = file.metadata() {
+        if metadata.len() < 8 {
+            anyhow::bail!("Parquet file too small (likely being written)");
+        }
+    }
+
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    let schema = builder.schema();
+    let parquet_schema = builder.parquet_schema();
+
+    // Project only the metric_name column for efficient reading
+    let metric_name_idx = schema
+        .index_of("metric_name")
+        .context("Missing metric_name column in parquet schema")?;
+
+    let projection_mask =
+        parquet::arrow::ProjectionMask::roots(parquet_schema, vec![metric_name_idx]);
+
+    // Only read first few row groups to get metric names (they're repeated)
+    let num_row_groups = builder.metadata().num_row_groups();
+    let row_groups_to_sample: Vec<usize> = if num_row_groups > 3 {
+        vec![0, num_row_groups / 2, num_row_groups - 1]
+    } else {
+        (0..num_row_groups).collect()
+    };
+
+    let reader = builder
+        .with_projection(projection_mask)
+        .with_row_groups(row_groups_to_sample)
+        .with_batch_size(65536)
+        .build()?;
+
+    let mut metric_set: HashSet<String> = HashSet::new();
+
+    for batch_result in reader {
+        let batch = batch_result?;
+
+        let metric_names = batch
+            .column_by_name("metric_name")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .context("metric_name column is not a StringArray")?;
+
+        for i in 0..metric_names.len() {
+            if !metric_names.is_null(i) {
+                metric_set.insert(metric_names.value(i).to_string());
+            }
+        }
+    }
+
+    // Convert to MetricInfo sorted by name
+    let mut metrics: Vec<MetricInfo> = metric_set
+        .into_iter()
+        .map(|name| MetricInfo {
+            name,
+            sample_count: 0, // Not known from sampling
+        })
+        .collect();
+
+    metrics.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(metrics)
 }
 
 /// Fast metadata-only scan of parquet files.
