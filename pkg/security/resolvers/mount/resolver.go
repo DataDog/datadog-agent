@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -202,14 +203,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	// Find all the mounts that I'm the parent of
 	for mnt := range mr.mounts.ValuesIter() {
 		if mnt.ParentPathKey.MountID == mount.MountID {
-			inserted := false
-			for _, e := range mount.Children {
-				if e == mnt.MountID {
-					inserted = true
-					break
-				}
-			}
-			if inserted {
+			if slices.Contains(mount.Children, mnt.MountID) {
 				continue
 			}
 
@@ -219,7 +213,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	allChildren, err := mr.getAllChildren(mount)
 	if err != nil {
-		seclog.Warnf("Error getting the list of children for mount id %d", mount.MountID)
+		seclog.Warnf("Error getting the list of children for mount id %d. err = %v", mount.MountID, err)
 	}
 
 	for _, child := range allChildren {
@@ -232,16 +226,13 @@ func (mr *Resolver) getAllChildren(mount *model.Mount) (map[uint32]*model.Mount,
 	children := map[uint32]*model.Mount{}
 
 	err := mr.getAllChildrenRecursive(mount, children)
-	if err != nil {
-		return nil, err
-	}
 
-	return children, nil
+	return children, err
 }
 
 func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, mountList map[uint32]*model.Mount) error {
 	if _, existed := mountList[mount.MountID]; existed {
-		return fmt.Errorf("mount ID %d already visited – potential cycle detected", mount.MountID)
+		return nil
 	}
 	mountList[mount.MountID] = mount
 
@@ -388,14 +379,7 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 	// Update the list of children of the parent
 	parent, ok := mr.mounts.Get(m.ParentPathKey.MountID)
 	if ok {
-		exists := false
-		for _, mntid := range parent.Children {
-			if mntid == m.MountID {
-				exists = true
-				break
-			}
-		}
-		if !exists {
+		if !slices.Contains(parent.Children, m.MountID) {
 			parent.Children = append(parent.Children, m.MountID)
 		}
 	}

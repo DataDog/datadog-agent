@@ -205,7 +205,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	assert.Equal(t, Metric{
 		Name:     xidErrorsMetricName,
 		Value:    1,
-		Type:     metrics.CountType,
+		Type:     metrics.GaugeType,
 		Priority: Medium,
 		Tags:     []string{"type:31", "origin:hardware"},
 	}, mm[0])
@@ -230,14 +230,14 @@ func TestDeviceEventsCollector(t *testing.T) {
 		{
 			Name:     xidErrorsMetricName,
 			Value:    1,
-			Type:     metrics.CountType,
+			Type:     metrics.GaugeType,
 			Priority: Medium,
 			Tags:     []string{"type:12", "origin:driver"},
 		},
 		{
 			Name:     xidErrorsMetricName,
 			Value:    2,
-			Type:     metrics.CountType,
+			Type:     metrics.GaugeType,
 			Priority: Medium,
 			Tags:     []string{"type:31", "origin:hardware"},
 		},

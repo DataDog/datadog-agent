@@ -404,17 +404,32 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 
 // shouldResolvedSecret limit which secrets can be access by which containers when running on k8s.
 //
-// We enforce 3 type of limitation (each giving different level of control to the user). Those limitation are only
-// active, for now, when using the `k8s_secret@namespace/secret-name/key` notation.
+// We enforce 3 type of limitation (each giving different level of control to the user). These limitations
+// are active when using either:
+// `k8s_secret@namespace/secret-name/key`
+// `namespace/secret-name;key` (for datadog-secret-backend)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
 // - secret_allowed_k8s_namespace: containers can only access secrets from a set of namespaces
-// - secrets in your configuration: user provide a mapping specifying which image can access which secrets
+// - secret_image_to_handle: user provided mapping specifying which image can access which secrets
 func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imageName string, kubeNamespace string) bool {
-	if secretName, found := strings.CutPrefix(handle, "k8s_secret@"); found && kubeNamespace != "" {
-		secretNamespace := strings.Split(secretName, "/")[0]
+	var secretNamespace string
 
+	// format: k8s_secret@namespace/secret-name/key
+	if secretName, found := strings.CutPrefix(handle, "k8s_secret@"); found && kubeNamespace != "" {
+		secretNamespace = strings.Split(secretName, "/")[0]
+	}
+
+	// format: namespace/secret-name;key
+	if secretNamespace == "" && kubeNamespace != "" {
+		if parts := strings.SplitN(handle, ";", 2); len(parts) == 2 {
+			secretNamespace = strings.SplitN(parts[0], "/", 2)[0]
+		}
+	}
+
+	// apply restrictions if namespace was extracted from either format
+	if secretNamespace != "" && kubeNamespace != "" {
 		if r.scopeIntegrationToNamespace && kubeNamespace != secretNamespace {
 			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from k8s namespace '%s' can't access secrets from other namespaces as per 'secret_scope_integration_to_their_k8s_namespace'",
 				handle, origin, imageName, kubeNamespace)
@@ -447,7 +462,7 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
-func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string) ([]byte, error) {
+func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -477,9 +492,11 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
 					r.registerSecretOrigin(handle, origin, path)
-					// notify subscriptions
-					for _, sub := range r.subscriptions {
-						sub(handle, origin, path, value, secretValue)
+
+					if notify {
+						for _, sub := range r.subscriptions {
+							sub(handle, origin, path, value, secretValue)
+						}
 					}
 					foundSecrets[handle] = struct{}{}
 					return secretValue, nil
@@ -547,7 +564,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 		}
 
 		// for Resolving secrets, always send notifications
-		r.processSecretResponse(secretResponse, false)
+		r.processSecretResponse(secretResponse, false, notify)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -622,7 +639,7 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
 // and return the handles that have received new values compared to what was in the cache,
 // and where those handles appear
-func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool, notify bool) secretRefreshInfo {
 	var handleInfoList []handleInfo
 
 	// notify subscriptions about the changes to secrets
@@ -641,16 +658,18 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
-			for _, sub := range r.subscriptions {
-				if useAllowlist && !secretMatchesAllowlist(secretCtx) {
-					// only update setting paths that match the allowlist
-					continue
+			if notify {
+				for _, sub := range r.subscriptions {
+					if useAllowlist && !secretMatchesAllowlist(secretCtx) {
+						// only update setting paths that match the allowlist
+						continue
+					}
+					// notify subscribers that secret has changed
+					sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
 				}
-				// notify subscribers that secret has changed
-				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
-				secretPath := strings.Join(secretCtx.path, "/")
-				places = append(places, handlePlace{Context: secretCtx.origin, Path: secretPath})
 			}
+			secretPath := strings.Join(secretCtx.path, "/")
+			places = append(places, handlePlace{Context: secretCtx.origin, Path: secretPath})
 		}
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
@@ -678,6 +697,26 @@ func (r *secretResolver) Refresh(updateNow bool) (string, error) {
 	default:
 	}
 	return "", nil
+}
+
+// RemoveOrigin removes a origin from the cache
+func (r *secretResolver) RemoveOrigin(origin string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	for handle, origins := range r.origin {
+		newList := []secretContext{}
+		for _, item := range origins {
+			if item.origin != origin {
+				newList = append(newList, item)
+			}
+		}
+		if len(newList) == 0 {
+			delete(r.origin, handle)
+		} else {
+			r.origin[handle] = newList
+		}
+	}
 }
 
 // performRefresh executes the actual secret refresh operation
@@ -714,7 +753,7 @@ func (r *secretResolver) performRefresh() (string, error) {
 
 	var auditRecordErr error
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
-	refreshResult := r.processSecretResponse(secretResponse, true)
+	refreshResult := r.processSecretResponse(secretResponse, true, true)
 	if len(refreshResult.Handles) > 0 {
 		// add the results to the audit file, if any secrets have new values
 		if err := r.addToAuditFile(secretResponse); err != nil {
