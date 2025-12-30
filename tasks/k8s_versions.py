@@ -250,7 +250,7 @@ def _create_matrix_entry(version: str, digest: str, indent: int) -> str:
     return f'{spaces}- EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion={version}@{digest}"'
 
 
-def _find_k8s_latest_job(content: str) -> tuple:
+def _find_k8s_latest_job(content: str) -> tuple[int | None, int | None, int | None]:
     """
     Find the new-e2e-containers-k8s-latest job section in the raw content.
     Returns (job_start_line, job_end_line, extra_params_line) or (None, None, None) if not found.
@@ -303,7 +303,36 @@ def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
     return None
 
 
-def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
+def _add_version_to_matrix(
+    lines: list[str],
+    version: str,
+    digest: str,
+    matrix_start: int,
+    matrix_end: int,
+    indent: int,
+    extra_params_line: int
+) -> tuple[list[str], int]:
+    """
+    Add a version to the matrix section.
+    Returns (updated_lines, updated_extra_params_line).
+    """
+    last_k8s_line = matrix_start
+    for i in range(matrix_start, matrix_end):
+        if 'kubernetesVersion=' in lines[i]:
+            last_k8s_line = i
+
+    matrix_entry = _create_matrix_entry(version, digest, indent)
+    insert_position = last_k8s_line + 1
+    lines.insert(insert_position, matrix_entry)
+
+    # Update extra_params_line index since we inserted a line before it
+    if insert_position <= extra_params_line:
+        extra_params_line += 1
+
+    return lines, extra_params_line
+
+
+def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool, list[str]]:
     """
     Update the e2e.yml file with new Kubernetes versions.
 
@@ -355,33 +384,21 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     lines = content.split('\n')
     added_versions = []
 
-    # Parse versions only from the matrix section to avoid matching the k8s-latest job
+    # Parse versions only from the matrix section
     existing_versions = _parse_existing_k8s_versions(content, matrix_start, matrix_end)
     existing_version_strs = {v['version'] for v in existing_versions}
 
     if current_latest['version'] not in existing_version_strs:
-        print(f"Rotating {current_latest['version']} from k8s-latest job to matrix")
-
-        last_k8s_line = matrix_start
-        for i in range(matrix_start, matrix_end):
-            if 'kubernetesVersion=' in lines[i]:
-                last_k8s_line = i
-
-        # Create matrix entry for the old latest
-        matrix_entry = _create_matrix_entry(
+        print(f"Moving {current_latest['version']} from k8s-latest job to matrix")
+        lines, extra_params_line = _add_version_to_matrix(
+            lines,
             current_latest['version'],
             current_latest['digest'],
-            indent
+            matrix_start,
+            matrix_end,
+            indent,
+            extra_params_line
         )
-
-        # Insert after the last Kubernetes version
-        insert_position = last_k8s_line + 1
-        lines.insert(insert_position, matrix_entry)
-
-        # Update extra_params_line index since we inserted a line before it
-        if insert_position <= extra_params_line:
-            extra_params_line += 1
-
         added_versions.append(current_latest['version'])
 
     print(f"Updating new-e2e-containers-k8s-latest job to {desired_latest_version}")
