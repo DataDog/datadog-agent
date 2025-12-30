@@ -60,6 +60,11 @@ type batchStrategy struct {
 	// For gRPC: store Datums separately since MessageBuffer only stores metadata
 	grpcDatums []*statefulpb.Datum
 
+	// Delta encoding state - tracks previous values within current batch
+	lastTimestamp     uint64 // milliseconds since epoch
+	lastPatternID     uint64 // pattern identifier
+	lastTagsDictIndex uint64 // dictionary index of tag string
+
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -154,6 +159,17 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 		return false
 	}
 
+	// Update delta state when PatternDefine passes through
+	// This ensures the first log after a pattern definition correctly omits pattern_id
+	if patternDefine := m.Datum.GetPatternDefine(); patternDefine != nil {
+		s.lastPatternID = patternDefine.PatternId
+	}
+
+	// Apply delta encoding to Log datums before adding to batch
+	if logDatum := m.Datum.GetLogs(); logDatum != nil {
+		s.applyDeltaEncoding(logDatum)
+	}
+
 	// Try to add to buffer
 	if s.buffer.AddMessageWithSize(m.Metadata, m.Metadata.RawDataLen) {
 		s.grpcDatums = append(s.grpcDatums, m.Datum)
@@ -162,6 +178,53 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 
 	// Buffer full (not an error)
 	return false
+}
+
+// applyDeltaEncoding applies delta encoding to a Log datum within the current batch
+// Computes deltas for timestamp, omits unchanged pattern_id and tags
+func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
+	// Timestamp delta encoding
+	currentTimestamp := logDatum.Timestamp
+
+	// First message in batch: send absolute timestamp
+	if s.lastTimestamp == 0 {
+		s.lastTimestamp = currentTimestamp
+		// Keep absolute value in logDatum.Timestamp
+	} else if currentTimestamp == s.lastTimestamp {
+		// No change: omit timestamp field (set to 0, proto3 omits it)
+		logDatum.Timestamp = 0
+	} else if currentTimestamp < s.lastTimestamp {
+		// Clock skew detected (time went backwards): send absolute timestamp
+		s.lastTimestamp = currentTimestamp
+		// Keep absolute value in logDatum.Timestamp
+	} else {
+		// Normal case: compute and send delta
+		delta := currentTimestamp - s.lastTimestamp
+		s.lastTimestamp = currentTimestamp
+		logDatum.Timestamp = delta
+	}
+
+	// Pattern ID delta encoding (for structured logs only)
+	if structured := logDatum.GetStructured(); structured != nil {
+		if structured.PatternId == s.lastPatternID {
+			structured.PatternId = 0 // proto3 omits zero values
+		} else {
+			s.lastPatternID = structured.PatternId
+		}
+	}
+
+	// Tag delta encoding (extract dict index from TagSet)
+	if tagSet := logDatum.Tags; tagSet != nil {
+		if tagSetValue := tagSet.Tagset; tagSetValue != nil {
+			if dictIndex := tagSetValue.GetDictIndex(); dictIndex != 0 {
+				if dictIndex == s.lastTagsDictIndex {
+					logDatum.Tags = nil // omit unchanged tags
+				} else {
+					s.lastTagsDictIndex = dictIndex
+				}
+			}
+		}
+	}
 }
 
 // Mostly copy/pasted from batch.go
@@ -201,6 +264,11 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	// Use the collected Datums and clear them
 	grpcDatums := s.grpcDatums
 	s.grpcDatums = make([]*statefulpb.Datum, 0)
+
+	// Reset delta encoding state for next batch
+	s.lastTimestamp = 0
+	s.lastPatternID = 0
+	s.lastTagsDictIndex = 0
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
