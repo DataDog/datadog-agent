@@ -13,23 +13,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
+	awsrds "github.com/aws/aws-sdk-go-v2/service/rds"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
 
 // RdsClient is the interface for describing cluster and instance endpoints
 type RdsClient interface {
-	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error)
+	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error)
 	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error)
-	GetRdsInstancesFromTags(ctx context.Context, tags []string, dbmTag string) ([]Instance, error)
+	GetRdsInstancesFromTags(ctx context.Context, config Config) ([]Instance, error)
 }
 
 // rdsService defines the interface for describing cluster instances. It exists here to facilitate testing
 // but the *rds.Client will be the implementation for production code.
 type rdsService interface {
-	DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error)
-	DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error)
+	DescribeDBInstances(ctx context.Context, params *awsrds.DescribeDBInstancesInput, optFns ...func(*awsrds.Options)) (*awsrds.DescribeDBInstancesOutput, error)
+	DescribeDBClusters(ctx context.Context, params *awsrds.DescribeDBClustersInput, optFns ...func(*awsrds.Options)) (*awsrds.DescribeDBClustersOutput, error)
 }
 
 // Client is a wrapper around the AWS RDS client
@@ -60,6 +60,6 @@ func NewRdsClient(region string) (*Client, string, error) {
 		return nil, region, err
 	}
 
-	svc := rds.NewFromConfig(cfg)
+	svc := awsrds.NewFromConfig(cfg)
 	return &Client{client: svc}, region, nil
 }
