@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrics Viewer</title>
+    <title>Fine-Grained Monitor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='10' fill='%23007bff'/><path d='M20 70 L35 40 L50 55 L65 25 L80 50' stroke='white' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
     <!-- REQ-MV-001: uPlot for canvas-based rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
     <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
@@ -447,7 +448,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <h1>Metrics Viewer</h1>
+                <h1>Fine-Grained Monitor</h1>
             </div>
             <div class="sidebar-content">
                 <!-- REQ-MV-002: Metric selection with fuzzy search -->
@@ -741,6 +742,8 @@
 
                 return state.containers.map((c, index) => {
                     const containerId = c.info.short_id;
+                    // Show pod name if available, otherwise fall back to container ID
+                    const displayName = c.info.pod_name || containerId;
                     const isSelected = state.selectedContainerIds.includes(containerId);
                     const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
                     const color = getContainerColor(containerId, state.selectedContainerIds);
@@ -759,7 +762,7 @@
                                    ${isSelected ? 'checked' : ''}
                                    data-container-checkbox>
                             <span class="container-color" style="background: ${color}"></span>
-                            <span class="container-id">${escapeHtml(containerId)}</span>
+                            <span class="container-id" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</span>
                             <span class="container-avg">avg: ${avgStr}</span>
                             <button class="study-btn"
                                     style="${studyBtnStyle}"
@@ -781,6 +784,8 @@
                 }
 
                 const containerId = state.study.containerId;
+                const container = state.containers.find(c => c.info.short_id === containerId);
+                const displayName = container?.info.pod_name || containerId;
                 const result = state.study.results[containerId];
                 const windowCount = result?.windows?.length || 0;
 
@@ -859,7 +864,7 @@
                             <span>Periodicity Study</span>
                             <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
                         </div>
-                        <div class="study-panel-container">Container: ${escapeHtml(containerId)}</div>
+                        <div class="study-panel-container" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</div>
                         <div class="study-panel-stats">
                             <div><strong>${windowCount}</strong> periodic windows</div>
                             <div>Dominant period: <strong>${dominantPeriod}</strong></div>
@@ -878,11 +883,12 @@
 
                 return state.selectedContainerIds.map((id, i) => {
                     const container = state.containers.find(c => c.info.short_id === id);
+                    const displayName = container?.info.pod_name || id;
                     const qos = container?.info.qos_class || '?';
                     return `
                         <div class="legend-item">
                             <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
-                            <span>${escapeHtml(id)} (${escapeHtml(qos)})</span>
+                            <span title="${escapeAttr(id)}">${escapeHtml(displayName)} (${escapeHtml(qos)})</span>
                         </div>
                     `;
                 }).join('');
