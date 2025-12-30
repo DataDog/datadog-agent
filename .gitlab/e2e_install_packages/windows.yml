@@ -231,6 +231,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentFails$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
@@ -255,9 +256,12 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIPurge$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestDisableEnableScript$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestEnableSSIOnReinstall$"
       - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestInstallFromScript$"
       # apm-inject-package
       - EXTRA_PARAMS: --run "TestAPMInjectInstall/TestInstallUninstallAPMInjectPackage$"
       - EXTRA_PARAMS: --run "TestAgentScriptInstallsAPMInject/TestInstallFromScript$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSI$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestEnableDisable$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithIIS$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithJava$"

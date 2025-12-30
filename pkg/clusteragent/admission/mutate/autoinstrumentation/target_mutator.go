@@ -25,8 +25,6 @@ import (
 )
 
 const (
-	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
-	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
 	// AppliedTargetEnvVar is the environment variable that contains the JSON of the target that was applied to the pod.
 	AppliedTargetEnvVar = "DD_INSTRUMENTATION_APPLIED_TARGET"
 )
@@ -244,7 +242,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	}))
 
 	// Add the annotations to the pod.
-	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
+	SetAnnotation(pod, AnnotationAppliedTarget, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -353,7 +351,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	injectAllAnnotation := strings.ToLower(AnnotationLibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
 		return &annotationResult{
 			shouldContinue: false,
@@ -483,4 +481,15 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	}
 
 	return false, found
+}
+
+// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
+// that should be enabled by default
+func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
+	var libsToInject []libInfo
+	for _, lang := range supportedLanguages {
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
+	}
+
+	return libsToInject
 }

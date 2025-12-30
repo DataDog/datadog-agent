@@ -49,7 +49,39 @@ github.com/grpc-ecosystem/grpc-gateway: Copyright (c) 2015, Gengo, Inc.
 google.golang.org/grpc: Copyright 2014 gRPC authors.
 google.golang.org/grpc/*: Copyright 2014 gRPC authors.
 github.com/skydive-project/go-debouncer: Copyright (C) 2018 Red Hat, Inc.
-
+# taken from https://gitlab.com/gitlab-org/api/client-go and then `rg --no-filename Copyright | sort | uniq` and then removing Copyright, year and deduplicating
+gitlab.com/gitlab-org/api/client-go: [
+    "Andrea Funto'",
+    "Arkbriar",
+    "Daniel Steinke",
+    "Daniela Filipe Bento",
+    "Eric Stevens",
+    "FantasyTeddy",
+    "Hakki Ceylan",
+    "Igor Varavko",
+    "James Hong",
+    "Joel Gerber",
+    "Kordian Bruck",
+    "Mai Lapyst",
+    "Markus Lackner",
+    "Masahiro Yoshida",
+    "Matej Velikonja",
+    "Matthias Simon",
+    "Michael Lihs",
+    "Nick Westbury",
+    "Patrick Webster",
+    "Paul Cioanca",
+    "Paul Shoemaker",
+    "Pavel Kostohrys",
+    "Ryan Glab <ryan.j.glab@gmail.com>",
+    "Sander van Harmelen",
+    "Serena Fang",
+    "Stany MARCEL",
+    "Sune Keller",
+    "Timo Furrer <tuxtimo@gmail.com>",
+    "Yavuz Turk",
+    "徐晓伟 <xuxiaowei@xuxiaowei.com.cn>",
+]
 # NOTE: We cannot use
 #   github.com/DataDog/*: Datadog, Inc.
 # because many of those repos are forks, where DD does not own the copyright.

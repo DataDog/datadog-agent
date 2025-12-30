@@ -102,8 +102,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-
-		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
+		if value.ContainerContext.Releasable != nil {
 			value.ContainerContext.CallReleaseCallback()
 		}
 		if value.CGroupContext.Releasable != nil {
@@ -147,10 +146,10 @@ func (cr *Resolver) Start(_ context.Context) {
 }
 
 func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
-	cr.cgroups.Remove(cgroup.CGroupFile.Inode)
-	cr.hostWorkloads.Remove(cgroup.CGroupID)
-	if cgroup.ContainerID != "" {
-		cr.containerWorkloads.Remove(cgroup.ContainerID)
+	cr.cgroups.Remove(cgroup.CGroupContext.CGroupFile.Inode)
+	cr.hostWorkloads.Remove(cgroup.CGroupContext.CGroupID)
+	if cgroup.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Remove(cgroup.ContainerContext.ContainerID)
 	}
 	cr.deletedCgroups.Inc()
 }
@@ -186,7 +185,7 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 // currentCgroup already locked
 func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
 	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
-		if cgroup.CGroupFile.Inode == currentCgroup.CGroupFile.Inode {
+		if cgroup.CGroupContext.CGroupFile.Inode == currentCgroup.CGroupContext.CGroupFile.Inode {
 			return false
 		}
 		cgroup.Lock()
@@ -206,8 +205,7 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 
 func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext.ContainerID, &process.CGroup, process.Pid)
-	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
+	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext, process.CGroup, process.Pid)
 
 	// add the new CGroup to the cache
 	if process.ContainerContext.ContainerID != "" {
@@ -297,7 +295,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	found := false
 	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
 		cgroup.Lock()
-		if cgroup.CGroupFile.Inode == process.CGroup.CGroupFile.Inode {
+		if cgroup.CGroupContext.CGroupFile.Inode == process.CGroup.CGroupFile.Inode {
 			cgroup.PIDs[process.Pid] = true
 			found = true
 		} else if _, exist := cgroup.PIDs[process.Pid]; exist {
@@ -336,20 +334,16 @@ func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry) bool) {
 }
 
 func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
-	for _, cgroup := range cr.hostWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.hostWorkloads.Values(), cb) {
+		return
 	}
-	for _, cgroup := range cr.containerWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.containerWorkloads.Values(), cb) {
+		return
 	}
 }
 
-// GetWorkload returns the workload referenced by the provided ID
-func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
+// GetContainerWorkload returns the workload referenced by the provided container ID
+func (cr *Resolver) GetContainerWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
 	if id == "" {
 		return nil, false
 	}
@@ -360,8 +354,8 @@ func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.Cac
 	return cr.containerWorkloads.Get(id)
 }
 
-// GetWorkloadByCGroupID returns the workload referenced by the provided cgroup ID
-func (cr *Resolver) GetWorkloadByCGroupID(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
+// GetHostWorkload returns the workload referenced by the provided cgroup ID
+func (cr *Resolver) GetHostWorkload(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
 	if cgroupID == "" {
 		return nil, false
 	}

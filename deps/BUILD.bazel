@@ -23,10 +23,12 @@ filegroup(
             "@attr",
             "@gcrypt",
             "@gpg-error",
+            "@libpcap//:pcap",
             "@libsepol//:sepol",
+            "@libxml2",
+            "@libxslt",
             "@nghttp2",
             "@pcre2",
-            "@popt",
             "@zstd",
         ],
         "//:macos_arm64": [

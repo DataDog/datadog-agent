@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -85,7 +86,7 @@ type SerializerConsumer interface {
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
-	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge)
+	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge)
 }
 
 type serializerConsumer struct {
@@ -107,6 +108,14 @@ const (
 	ddot
 	agentOTLPIngest
 )
+
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.HistogramDataPointSlice) {
+	// TODO noop for now
+}
+
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
+	// TODO noop for now
+}
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
@@ -222,9 +231,10 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
-	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge) {
+	gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge, coatGWEnvVarMetric telemetry.Gauge) {
 	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
+	gateWayEnvVar := gatewayUsage.EnvVarValue()
 	if enabled {
 		c.series = append(c.series, &metrics.Serie{
 			Name:           "datadog.otel.gateway",
@@ -238,18 +248,29 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 		value = 0
 	}
 
-	if coatUsageMetric == nil {
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "datadog.otel.gateway.configured",
+		Points:         []metrics.Point{{Value: gateWayEnvVar, Ts: float64(time.Now().Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+
+	if coatGwUsageMetric == nil || coatGWEnvVarMetric == nil {
 		return
 	}
 
 	switch c.ipath {
 	case ddot:
 		for host := range c.hosts {
-			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
-			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatGWEnvVarMetric.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
 		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")

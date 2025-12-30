@@ -6,7 +6,7 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//packages:__subpackages__"])
 
 _VERSION = "1.5.7"
 

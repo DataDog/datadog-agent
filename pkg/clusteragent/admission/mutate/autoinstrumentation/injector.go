@@ -20,6 +20,8 @@ import (
 const (
 	injectPackageDir   = "opt/datadog-packages/datadog-apm-inject"
 	libraryPackagesDir = "opt/datadog/apm/library"
+	volumeName         = "datadog-auto-instrumentation"
+	mountPath          = "/datadog-lib"
 )
 
 func asAbs(path string) string {
@@ -73,12 +75,13 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 })
 
 type injector struct {
-	image      string
-	registry   string
-	debug      bool
-	injected   bool
-	injectTime time.Time
-	opts       libRequirementOptions
+	image            string
+	canonicalVersion string
+	registry         string
+	debug            bool
+	injected         bool
+	injectTime       time.Time
+	opts             libRequirementOptions
 }
 
 func (i *injector) initContainer() initContainer {
@@ -150,28 +153,6 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractorFunc = func(imageResolver ImageResolver) annotationExtractor[injectorOption] {
-	injectorVersionAnnotationExtractor := annotationExtractor[injectorOption]{
-		key: "admission.datadoghq.com/apm-inject.version",
-		do: infallibleFn(func(tag string) injectorOption {
-			return injectorWithImageTag(tag, imageResolver)
-		},
-		),
-	}
-
-	return injectorVersionAnnotationExtractor
-}
-
-var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.custom-image",
-	do:  infallibleFn(injectorWithImageName),
-}
-
-var injectorDebugAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.debug",
-	do:  infallibleFn(injectorDebug),
-}
-
 func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
 	return func(i *injector) {
 		i.opts = opts
@@ -193,10 +174,12 @@ func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOptio
 		if resolvedImage, ok := imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
 			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
 			i.image = resolvedImage.FullImageRef
+			i.canonicalVersion = resolvedImage.CanonicalVersion
 			return
 		}
 		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
+		i.canonicalVersion = ""
 	}
 }
 
@@ -206,7 +189,7 @@ func injectorDebug(boolean string) injectorOption {
 	if boolean != "" {
 		debug, err = strconv.ParseBool(boolean)
 		if err != nil {
-			log.Errorf("parse admission.datadoghq.com/apm-inject.debug: %s", err)
+			log.Errorf("parse %s: %s", AnnotationEnableDebug, err)
 		}
 	}
 	return func(i *injector) {
@@ -231,6 +214,10 @@ func (i *injector) podMutator() podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		if i.injected {
 			return nil
+		}
+
+		if i.canonicalVersion != "" {
+			SetAnnotation(pod, AnnotationInjectorCanonicalVersion, i.canonicalVersion)
 		}
 
 		if err := i.requirements().injectPod(pod, ""); err != nil {
