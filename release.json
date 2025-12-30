@@ -1,6 +1,6 @@
 {
     "base_branch": "7.73.x",
-    "current_milestone": "7.73.3",
+    "current_milestone": "7.73.4",
     "dependencies": {
         "INTEGRATIONS_CORE_VERSION": "7.73.2",
         "JMXFETCH_HASH": "89adfa759b44d588da0e7fb93eaf00e61260c396ad0e55397bef12a56057ab99",
