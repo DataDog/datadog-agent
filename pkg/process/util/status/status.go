@@ -62,12 +62,10 @@ type ExpvarsMap struct {
 	RTProcessQueueSize              int                 `json:"rtprocess_queue_size"`
 	ConnectionsQueueSize            int                 `json:"connections_queue_size"`
 	EventQueueSize                  int                 `json:"event_queue_size"`
-	PodQueueSize                    int                 `json:"pod_queue_size"`
 	ProcessQueueBytes               int                 `json:"process_queue_bytes"`
 	RTProcessQueueBytes             int                 `json:"rtprocess_queue_bytes"`
 	ConnectionsQueueBytes           int                 `json:"connections_queue_bytes"`
 	EventQueueBytes                 int                 `json:"event_queue_bytes"`
-	PodQueueBytes                   int                 `json:"pod_queue_bytes"`
 	ContainerID                     string              `json:"container_id"`
 	ProxyURL                        string              `json:"proxy_url"`
 	LogFile                         string              `json:"log_file"`
