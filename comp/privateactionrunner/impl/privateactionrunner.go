@@ -75,8 +75,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-func (p *privateactionrunnerImpl) Start(ctx context.Context) error {
-	p.WorkflowRunner.Start(ctx)
+func (p *privateactionrunnerImpl) Start(_ context.Context) error {
+	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
+	p.WorkflowRunner.Start(context.Background())
 	return nil
 }
 
