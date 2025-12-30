@@ -112,11 +112,6 @@ func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFarga
 	}
 
 	if exp.coatGWUsageMetric != nil {
-		for host := range hosts {
-			exp.coatGWUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
-		}
-		for taskArn := range ecsFargateArns {
-			exp.coatGWUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
-		}
+		exp.coatGWUsageMetric.Set(value, buildInfo.Version, buildInfo.Command)
 	}
 }

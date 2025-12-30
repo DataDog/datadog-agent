@@ -263,13 +263,7 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 
 	switch c.ipath {
 	case ddot:
-		for host := range c.hosts {
-			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
-		}
-		for ecsFargateTag := range c.ecsFargateTags {
-			taskArn := strings.Split(ecsFargateTag, ":")[1]
-			coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
-		}
+		coatGwUsageMetric.Set(value, buildInfo.Version, buildInfo.Command)
 	case agentOTLPIngest:
 		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")
 	case ossCollector:

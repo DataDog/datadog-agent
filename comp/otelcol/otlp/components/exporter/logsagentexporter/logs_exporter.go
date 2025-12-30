@@ -162,9 +162,7 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 
 	if e.coatGwUsageMetric != nil {
 		value, _ := e.gatewaysUsage.Gauge()
-		for host := range e.hosts {
-			e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command, host, "")
-		}
+		e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command)
 	}
 
 	return nil

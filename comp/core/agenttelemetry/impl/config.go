@@ -379,12 +379,10 @@ var defaultProfiles = `
           aggregate_tags:
             - version
             - command
-            - host
         - name: runtime.datadog_agent_ddot_gateway_configured
           aggregate_tags:
             - version
             - command
-            - host
     schedule:
       start_after: 30
       iterations: 0
