@@ -41,6 +41,8 @@ Users need to switch freely without losing context.
 
 ### REQ-MV-003: Filter Containers by Attributes
 
+**DEPRECATED:** Feature removed from UI.
+
 WHEN user applies a QoS class filter
 THE SYSTEM SHALL show only containers matching that class
 
@@ -60,6 +62,11 @@ THE SYSTEM SHALL preserve the current time range
 QoS class or namespace lets users focus on relevant workloads without scrolling
 through long lists. Preserving the time window lets users compare different
 container subsets at the same point in time.
+
+**Deprecation Reason:** In practice, the QoS class and namespace filters were
+not useful. The search functionality (REQ-MV-004) provides sufficient filtering
+capability, and the filter dropdowns added UI clutter without corresponding
+value.
 
 ---
 
