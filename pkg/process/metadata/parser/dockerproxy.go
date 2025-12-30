@@ -105,11 +105,13 @@ func (d *DockerProxy) Filter(payload *model.Connections) {
 
 func (d *DockerProxy) isProxied(c *model.Connection) bool {
 	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: c.Type}]; ok {
-		return p.ip == c.Raddr.Ip
+		// Only filter if IP pattern matches AND it's the docker-proxy's connection
+		return p.ip == c.Raddr.Ip && c.Pid == p.pid
 	}
 
 	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: c.Type}]; ok {
-		return p.ip == c.Laddr.Ip
+		// Only filter if IP pattern matches AND it's the docker-proxy's connection
+		return p.ip == c.Laddr.Ip && c.Pid == p.pid
 	}
 
 	return false
