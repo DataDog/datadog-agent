@@ -1313,9 +1313,9 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
-func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+func newFakeSignal(targetPID int, path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
 	event := model.NewFakeEvent()
-	event.Type = uint32(model.CgroupWriteEventType)
+	event.Type = uint32(model.SignalEventType)
 	event.ProcessCacheEntry = &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
@@ -1328,8 +1328,8 @@ func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *m
 	if ancestor != nil {
 		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
 	}
-	event.SetFieldValue("cgroup_write.pid", cgroupWritePID)
-	event.SetFieldValue("cgroup_write.file.path", path)
+	event.SetFieldValue("signal.pid", targetPID)
+	event.SetFieldValue("signal.target.file.path", path)
 	return event
 }
 
@@ -1338,27 +1338,27 @@ func TestActionSetVariableScopeField(t *testing.T) {
 		Rules: []*RuleDefinition{
 			{
 				ID:         "first_execution_context",
-				Expression: `cgroup_write.file.path == "/tmp/one" && ${process.correlation_key} == ""`,
+				Expression: `signal.target.file.path == "/tmp/one" && ${process.correlation_key} == ""`,
 				Actions: []*ActionDefinition{
 					{
-						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						// This action should set the value or the correlation_key of the target process of the signal event
 						Filter: stringPtr(`${process.correlation_key} == ""`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
 							Expression:   `"first"`,
 							Scope:        "process",
-							ScopeField:   "cgroup_write.pid",
+							ScopeField:   "signal.pid",
 							Inherited:    true,
 						},
 					},
 					{
-						// This action should set the value or the correlation_key of the process doing the cgroup_write
+						// This action should set the value or the correlation_key of the process doing the signal
 						Filter: stringPtr(`${process.correlation_key} == ""`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
-							Expression:   `"cgroup_write_first"`,
+							Expression:   `"signal_first"`,
 							Scope:        "process",
 							Inherited:    true,
 						},
@@ -1367,15 +1367,15 @@ func TestActionSetVariableScopeField(t *testing.T) {
 			},
 			{
 				ID:         "second_execution_context",
-				Expression: `cgroup_write.file.path == "/tmp/two" && ${process.correlation_key} == "cgroup_write_first"`,
+				Expression: `signal.target.file.path == "/tmp/two" && ${process.correlation_key} == "signal_first"`,
 				Actions: []*ActionDefinition{
 					{
-						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						// This action should set the value or the correlation_key of the target process of the signal event
 						Filter: stringPtr(`${process.correlation_key} == "first"`),
 						Set: &SetDefinition{
 							Name:         "parent_correlation_keys",
 							DefaultValue: "",
-							ScopeField:   "cgroup_write.pid",
+							ScopeField:   "signal.pid",
 							Expression:   "${process.correlation_key}",
 							Scope:        "process",
 							Append:       true,
@@ -1383,20 +1383,20 @@ func TestActionSetVariableScopeField(t *testing.T) {
 						},
 					},
 					{
-						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						// This action should set the value or the correlation_key of the target process of the signal event
 						Filter: stringPtr(`${process.correlation_key} == "first"`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
 							Expression:   `"second"`,
 							Scope:        "process",
-							ScopeField:   "cgroup_write.pid",
+							ScopeField:   "signal.pid",
 							Inherited:    true,
 						},
 					},
 					{
-						// This action should set the value or the correlation_key of the target process of the cgroup_write event
-						Filter: stringPtr(`${process.correlation_key} == "cgroup_write_first"`),
+						// This action should set the value or the correlation_key of the target process of the signal event
+						Filter: stringPtr(`${process.correlation_key} == "signal_first"`),
 						Set: &SetDefinition{
 							Name:         "parent_correlation_keys",
 							DefaultValue: "",
@@ -1407,12 +1407,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 						},
 					},
 					{
-						// This action should set the value or the correlation_key of the process doing the cgroup_write
-						Filter: stringPtr(`${process.correlation_key} == "cgroup_write_first"`),
+						// This action should set the value or the correlation_key of the process doing the signal
+						Filter: stringPtr(`${process.correlation_key} == "signal_first"`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
-							Expression:   `"cgroup_write_second"`,
+							Expression:   `"signal_second"`,
 							Scope:        "process",
 							Inherited:    true,
 						},
@@ -1424,7 +1424,7 @@ func TestActionSetVariableScopeField(t *testing.T) {
 				Expression: `open.file.path == "/tmp/third" && ${process.correlation_key} == "second"`,
 				Actions: []*ActionDefinition{
 					{
-						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						// This action should set the value or the correlation_key of the target process of the signal event
 						Filter: stringPtr(`${process.correlation_key} == "second"`),
 						Set: &SetDefinition{
 							Name:         "parent_correlation_keys",
@@ -1482,10 +1482,10 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	assert.NotNil(t, parentCorrelationKeysScopedVariable)
 	assert.True(t, ok)
 
-	// create cgroup_write event
-	event1 := newFakeCGroupWrite(2, "/tmp/one", 1, nil)
-	event2 := newFakeCGroupWrite(2, "/tmp/two", 1, nil)
-	eventPID2 := newFakeCGroupWrite(0, "", 2, nil)
+	// create signal event
+	event1 := newFakeSignal(2, "/tmp/one", 1, nil)
+	event2 := newFakeSignal(2, "/tmp/two", 1, nil)
+	eventPID2 := newFakeSignal(0, "", 2, nil)
 	event3 := fakeOpenEvent("/tmp/third", 3, eventPID2.ProcessCacheEntry)
 	ctx1 := eval.NewContext(event1)
 	ctx3 := eval.NewContext(event3)
@@ -1497,10 +1497,10 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	// check the correlation_key of the current process
 	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
-	assert.Equal(t, "cgroup_write_first", correlationKeyValue.(string))
+	assert.Equal(t, "signal_first", correlationKeyValue.(string))
 	assert.True(t, set)
 
-	// check the correlation key of the PID from the cgroup_write
+	// check the correlation key of the PID from the signal
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "first", correlationKeyValue.(string))
@@ -1513,20 +1513,20 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	// check the correlation_key of the current process
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
-	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
+	assert.Equal(t, "signal_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
 	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
-	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
+	assert.Equal(t, []string{"signal_first"}, parentCorrelationKeysValue.([]string))
 
-	// check the correlation key of the PID from the cgroup_write
+	// check the correlation key of the PID from the signal
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "second", correlationKeyValue.(string))
 	assert.True(t, set)
 
-	// check the parent_correlation_keys of the PID from the cgroup_write
+	// check the parent_correlation_keys of the PID from the signal
 	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.Equal(t, []string{"first"}, parentCorrelationKeysValue.([]string))
 
@@ -1537,20 +1537,20 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	// check the correlation_key of the current process
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1, false)
 	assert.NotNil(t, correlationKeyValue)
-	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
+	assert.Equal(t, "signal_second", correlationKeyValue.(string))
 	assert.True(t, set)
 
 	// check the parent_correlation_keys of the current process
 	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1, false)
-	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
+	assert.Equal(t, []string{"signal_first"}, parentCorrelationKeysValue.([]string))
 
-	// check the correlation key of the PID from the cgroup_write
+	// check the correlation key of the PID from the signal
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3, false)
 	assert.NotNil(t, correlationKeyValue)
 	assert.Equal(t, "third", correlationKeyValue.(string))
 	assert.True(t, set)
 
-	// check the parent_correlation_keys of the PID from the cgroup_write
+	// check the parent_correlation_keys of the PID from the signal
 	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3, false)
 	assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
 }
