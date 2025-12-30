@@ -93,7 +93,7 @@ func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return nil, fmt.Errorf("failed to load shared library at %s: %s", libPath, C.GoString(cErr))
+		return nil, fmt.Errorf("Failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
 	return (*Library)(&cLib), nil
@@ -136,7 +136,7 @@ func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig strin
 	C.run_shared_library(lib.run, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
+		return fmt.Errorf("Failed to run check: %s", C.GoString(cErr))
 	}
 
 	return nil
