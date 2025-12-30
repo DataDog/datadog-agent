@@ -1,0 +1,22 @@
+flowchart TB
+    subgraph NODE["Kubernetes Node"]
+        KUBELET["kubelet"]
+        
+        subgraph POD["Pod (datadog-agent)"]
+            C1["Container: core-agent"]
+            C2["Container: trace-agent"]
+            C3["Container: process-agent"]
+            C4["Container: system-probe"]
+        end
+        
+        KUBELET --> POD
+    end
+
+    NOTE["Kubelet ALREADY provides:<br/>• Restart policies<br/>• Health probes<br/>• Resource limits<br/>• Lifecycle management"]
+
+    style NODE fill:#f5f5f5,stroke:#333
+    style POD fill:#e8f5e9,stroke:#388e3c
+    style KUBELET fill:#fff,stroke:#333
+    style NOTE fill:#fff3e0,stroke:#f57c00
+
+

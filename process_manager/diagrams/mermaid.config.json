@@ -1,0 +1,22 @@
+{
+  "theme": "default",
+  "themeVariables": {
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "fontSize": "16px",
+    "primaryColor": "#632ca6",
+    "primaryTextColor": "#fff",
+    "primaryBorderColor": "#4a1f80",
+    "lineColor": "#333333",
+    "secondaryColor": "#a78bfa",
+    "tertiaryColor": "#c4b5fd"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "padding": 20,
+    "htmlLabels": true,
+    "useMaxWidth": false
+  }
+}
+
+
+

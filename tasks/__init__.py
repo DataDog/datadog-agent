@@ -60,6 +60,7 @@ from tasks import (
     pkg_template,
     pre_commit,
     process_agent,
+    process_manager,
     protobuf,
     python_version,
     quality_gates,
@@ -220,6 +221,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(process_manager)
 ns.add_collection(testwasher)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)

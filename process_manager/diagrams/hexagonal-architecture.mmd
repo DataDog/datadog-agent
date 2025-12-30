@@ -1,0 +1,72 @@
+flowchart TB
+    subgraph Driving["Adapters (Driving)"]
+        gRPC["gRPC Server<br/>(tonic)"]
+        REST["REST Server<br/>(axum)"]
+        CLI["CLI Client<br/>(dd-procmgr)"]
+    end
+    
+    subgraph Application["Application Layer"]
+        App["Application"]
+        subgraph UseCases["Use Cases"]
+            Create["CreateProcess"]
+            Start["StartProcess"]
+            Stop["StopProcess"]
+            List["ListProcesses"]
+            Restart["RestartProcess"]
+            Update["UpdateProcess"]
+            Delete["DeleteProcess"]
+            LoadCfg["LoadConfig"]
+            GetStatus["GetProcessStatus"]
+            GetUsage["GetResourceUsage"]
+        end
+    end
+    
+    subgraph Domain["Domain Layer"]
+        subgraph Services["Domain Services"]
+            Supervision["Process Supervision"]
+            Health["Health Monitoring"]
+            Deps["Dependency Resolution"]
+            Conflict["Conflict Resolution"]
+            Socket["Socket Activation"]
+            ConfigParse["Config Parsing"]
+        end
+        subgraph Entities["Entities"]
+            Process["Process"]
+            HealthCheck["HealthCheck"]
+            ResourceLimits["ResourceLimits"]
+            SocketConfig["SocketConfig"]
+        end
+        subgraph Ports["Ports (Interfaces)"]
+            RepoPort["ProcessRepository"]
+            ExecPort["ProcessExecutor"]
+            HealthPort["HealthCheckExecutor"]
+        end
+    end
+    
+    subgraph Infrastructure["Infrastructure Layer (Driven Adapters)"]
+        InMemRepo["In-Memory Repository"]
+        TokioExec["Tokio Process Executor"]
+        HealthExec["Health Check Executor"]
+        ResourceReader["Resource Usage Reader"]
+    end
+    
+    gRPC --> App
+    REST --> App
+    CLI --> App
+    App --> Services
+    Services --> Entities
+    Services --> Ports
+    Ports --> Infrastructure
+    
+    classDef driving fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    classDef application fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    classDef domain fill:#632ca6,stroke:#4a1f80,color:#fff
+    classDef infrastructure fill:#059669,stroke:#047857,color:#fff
+    
+    class gRPC,REST,CLI driving
+    class App,Create,Start,Stop,List,Restart,Update,Delete,LoadCfg,GetStatus,GetUsage application
+    class Supervision,Health,Deps,Conflict,Socket,ConfigParse,Process,HealthCheck,ResourceLimits,SocketConfig,RepoPort,ExecPort,HealthPort domain
+    class InMemRepo,TokioExec,HealthExec,ResourceReader infrastructure
+
+
+

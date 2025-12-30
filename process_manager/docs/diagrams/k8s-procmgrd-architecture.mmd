@@ -1,0 +1,43 @@
+flowchart TB
+    subgraph K8S["Kubernetes"]
+        KUBELET["kubelet"]
+        
+        subgraph POD["Pod: datadog-agent"]
+            subgraph CONTAINER["Container"]
+                PM["dd-procmgrd"]
+                CORE["core-agent"]
+                TRACE["trace-agent"]
+                PROCESS["process-agent"]
+                
+                PM --> CORE
+                PM --> TRACE
+                PM --> PROCESS
+            end
+            
+            LIVE["/healthz/live"]
+            READY["/healthz/ready"]
+            METRICS["/metrics<br/>(per-process data)"]
+            
+            PM --> LIVE
+            PM --> READY
+            PM --> METRICS
+        end
+        
+        KUBELET -->|"livenessProbe"| LIVE
+        KUBELET -->|"readinessProbe"| READY
+    end
+    
+    PROM["Prometheus / Datadog"]
+    PROM -->|"scrape"| METRICS
+
+    style K8S fill:#f5f5f5,stroke:#333
+    style POD fill:#e3f2fd,stroke:#1976d2
+    style CONTAINER fill:#bbdefb,stroke:#1976d2
+    style PM fill:#632ca6,stroke:#4a1f80,color:#fff
+    style CORE fill:#a78bfa,stroke:#7c3aed,color:#fff
+    style TRACE fill:#a78bfa,stroke:#7c3aed,color:#fff
+    style PROCESS fill:#a78bfa,stroke:#7c3aed,color:#fff
+    style LIVE fill:#c8e6c9,stroke:#388e3c
+    style READY fill:#c8e6c9,stroke:#388e3c
+    style METRICS fill:#c8e6c9,stroke:#388e3c
+    style PROM fill:#fff3e0,stroke:#f57c00

@@ -2,19 +2,24 @@
 Description=Datadog Agent
 After=network.target
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-ddot.service
+Wants=datadog-agent-installer.service datadog-agent-data-plane.service datadog-agent-ddot.service
 
 [Service]
 Type=simple
 PIDFile=/opt/datadog-agent/run/agent.pid
-User=dd-agent
+# dd-procmgrd runs as root to handle user switching for child processes
+# Child processes (agent, trace-agent, etc.) run as dd-agent via YAML config
+# KillMode=control-group ensures all child processes are killed when dd-procmgrd dies
+# This prevents orphaned processes running without supervision
+KillMode=control-group
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+Environment="DD_PM_CONFIG_DIR=/etc/datadog-agent/process-manager/processes.d"
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
 Restart=on-failure
-ExecStart=/opt/datadog-agent/bin/agent/agent run -p /opt/datadog-agent/run/agent.pid
+ExecStart=/opt/datadog-agent/bin/dd-procmgrd
 
 
 [Install]

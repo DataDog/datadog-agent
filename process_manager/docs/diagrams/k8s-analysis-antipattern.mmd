@@ -1,0 +1,31 @@
+flowchart TB
+    subgraph NODE["Kubernetes Node"]
+        KUBELET["kubelet"]
+        
+        subgraph POD["Pod (datadog-agent)"]
+            subgraph CONTAINER["Container (single)"]
+                PM["dd-procmgrd<br/>⚠️ EXTRA LAYER"]
+                AGENT["core-agent"]
+                TRACE["trace-agent"]
+                PROCESS["process-agent"]
+                SYSPROBE["system-probe"]
+                
+                PM --> AGENT
+                PM --> TRACE
+                PM --> PROCESS
+                PM --> SYSPROBE
+            end
+        end
+        
+        KUBELET --> POD
+    end
+
+    PROBLEM["⚠️ Problem: Two layers of process management<br/>(kubelet + dd-procmgrd)"]
+
+    style NODE fill:#f5f5f5,stroke:#333
+    style POD fill:#ffebee,stroke:#c62828
+    style CONTAINER fill:#ffcdd2,stroke:#c62828
+    style PM fill:#ef5350,color:#fff
+    style PROBLEM fill:#ffebee,stroke:#c62828
+
+

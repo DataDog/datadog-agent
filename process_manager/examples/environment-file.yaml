@@ -1,0 +1,64 @@
+# Environment File Example
+# This example demonstrates EnvironmentFile= and PIDFile= features (systemd-compatible)
+
+processes:
+  webapp:
+    command: python3
+    args:
+      - -m
+      - http.server
+      - "8000"
+    
+    # EnvironmentFile: Load environment variables from file
+    # - Supports KEY=VALUE format (one per line)
+    # - Lines starting with # are comments
+    # - Empty lines are ignored
+    # - Prefix path with '-' to ignore if file doesn't exist
+    environment_file: -/etc/webapp/env  # Load from file, ignore if missing
+    
+    # PIDFile: Write process PID to file on start, remove on stop
+    # - Useful for external monitoring tools
+    # - Parent directories are created automatically
+    # - Cleaned up automatically on process stop/crash
+    pidfile: /var/run/webapp.pid
+    
+    # Environment variables defined here override those from environment_file
+    env:
+      PORT: "8000"
+      LOG_LEVEL: INFO
+    
+    restart: always
+    stdout: inherit
+    stderr: inherit
+
+  database:
+    command: /usr/bin/postgres
+    args:
+      - -D
+      - /var/lib/postgresql/data
+    
+    # Load database config from file (no '-' prefix = fail if missing)
+    environment_file: /etc/database/env
+    
+    # Write PID for monitoring
+    pidfile: /var/run/database.pid
+    
+    restart: always
+    user: postgres
+    group: postgres
+    
+  cache:
+    command: redis-server
+    args:
+      - /etc/redis/redis.conf
+    
+    # Optional environment file (prefix with '-')
+    environment_file: -/etc/redis/env
+    
+    # PID file for redis
+    pidfile: /var/run/redis.pid
+    
+    restart: always
+    after:
+      - database
+

@@ -1,0 +1,35 @@
+flowchart TD
+    A[Process Exits<br/>exit code = N] --> B{Explicitly<br/>stopped?}
+    B -->|Yes| C["`**Stopped**`"]
+    B -->|No| D{Exit code<br/>N = 0?}
+    
+    D -->|Yes| E["`**Exited**`"]
+    D -->|No| F["`**Failed**`"]
+    
+    E --> G{Restart<br/>policy?}
+    F --> G
+    
+    G -->|never| H[No restart]
+    G -->|always| I[Restart]
+    G -->|on-failure| J{State?}
+    G -->|on-success| K{State?}
+    
+    J -->|Failed| I
+    J -->|Exited| H
+    
+    K -->|Exited| I
+    K -->|Failed| H
+    
+    I --> L{Start limit<br/>exceeded?}
+    L -->|Yes| P["`**Crashed**`"]
+    L -->|No| M[Apply exponential<br/>backoff delay]
+    M --> N[Start process]
+    
+    H --> O[Remain in<br/>current state]
+
+    style C fill:#6c757d,color:#fff
+    style E fill:#28a745,color:#fff
+    style F fill:#dc3545,color:#fff
+    style P fill:#dc3545,color:#fff
+    style I fill:#007bff,color:#fff
+    style H fill:#ffc107,color:#000

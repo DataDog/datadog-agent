@@ -1,0 +1,77 @@
+# Example process manager configuration with systemd-like features
+
+processes:
+  web_server:
+    command: "python3"
+    args: ["-m", "http.server", "8080"]
+    auto_start: true
+    restart: "always"
+
+    # Restart delay with exponential backoff
+    restart_sec: 2              # Wait 2 seconds before first restart
+    restart_max_delay: 60       # Cap exponential backoff at 60 seconds
+
+    # Start limits (prevents infinite restart loops)
+    start_limit_burst: 5        # Max 5 restarts
+    start_limit_interval: 300   # Within 300 seconds (5 minutes)
+
+    # Output redirection
+    stdout: "/tmp/webserver.log"        # Write stdout to file (appends)
+    stderr: "/tmp/webserver.err.log"    # Write stderr to separate file
+
+    working_dir: "/tmp"
+    env:
+      DEBUG: "true"
+
+  background_job:
+    command: "sleep"
+    args: ["60"]
+    auto_start: false
+    restart: "on-failure"
+
+    # Custom restart settings
+    restart_sec: 5
+    restart_max_delay: 120
+
+    # More lenient start limits
+    start_limit_burst: 10
+    start_limit_interval: 600
+
+    # Output options: "null" discards output, "inherit" passes to daemon
+    stdout: "null"      # Discard stdout
+    stderr: "inherit"   # Show stderr in daemon's output
+
+  crash_test:
+    command: "bash"
+    args: ["-c", "exit 1"]
+    auto_start: false
+    restart: "always"
+
+    # Aggressive restart for testing
+    restart_sec: 1
+    restart_max_delay: 10
+
+    # Will hit limit quickly for testing
+    start_limit_burst: 3
+    start_limit_interval: 30
+
+    # Both outputs to same file
+    stdout: "/tmp/crash_test.log"
+    stderr: "/tmp/crash_test.log"
+
+  timeout_test:
+    command: "sleep"
+    args: ["300"]
+    auto_start: false
+
+    # Timeout settings
+    timeout_start_sec: 5      # Max 5 seconds to start (not needed for this process)
+    timeout_stop_sec: 3       # Force kill after 3 seconds if not stopped gracefully
+
+  custom_signal_test:
+    command: "sleep"
+    args: ["300"]
+    auto_start: false
+
+    # Custom kill signal - use SIGINT instead of SIGTERM
+    kill_signal: "SIGINT"     # Send Ctrl+C signal on stop (instead of default SIGTERM)
