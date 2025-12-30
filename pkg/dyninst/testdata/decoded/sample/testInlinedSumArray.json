@@ -79,7 +79,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "[1, 2, 3, ...]"
@@ -169,7 +175,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "[1, 2, 3, ...]"
