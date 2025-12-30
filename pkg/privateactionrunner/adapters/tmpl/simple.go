@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/aymerick/raymond/lexer"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type config struct {
@@ -201,7 +203,8 @@ func evaluateExpression(path []string, i int, input, topLevelInput reflect.Value
 	case reflect.Ptr:
 		return evaluateExpression(path, i, input.Elem(), topLevelInput)
 	case reflect.Struct:
-		expFieldName := strings.Title(part)
+		caser := cases.Title(language.English)
+		expFieldName := caser.String(part)
 		// check if struct have this field and that it is exported
 		if tField, ok := input.Type().FieldByName(expFieldName); ok && (tField.PkgPath == "") {
 			// struct field

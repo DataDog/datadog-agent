@@ -87,7 +87,7 @@ func (h *RunPredefinedScriptHandler) Run(
 
 	const maxOutputSize = 10 * 1024 * 1024 // 10MB
 	if stdoutBuffer.Len()+stderrBuffer.Len() > maxOutputSize {
-		return nil, fmt.Errorf("script output exceeded 10MB limit")
+		return nil, errors.New("script output exceeded 10MB limit")
 	}
 
 	if err != nil && !inputs.NoFailOnError {

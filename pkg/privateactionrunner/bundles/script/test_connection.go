@@ -71,11 +71,7 @@ func (h *TestConnectionHandler) Run(
 	}
 
 	for scriptName, scriptConf := range scriptConfig.RunPredefinedScript {
-		details := ScriptDetails{
-			Command:         scriptConf.Command,
-			ParameterSchema: scriptConf.ParameterSchema,
-		}
-		availableScripts[scriptName] = details
+		availableScripts[scriptName] = ScriptDetails(scriptConf)
 	}
 
 	return &TestConnectionOutputs{
