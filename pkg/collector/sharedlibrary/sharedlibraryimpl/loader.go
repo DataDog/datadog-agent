@@ -63,7 +63,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// check version -- fallback to "unversioned" version if the version cannot be retrieved from the library
-	version, err := sl.loader.Version(lib.Version)
+	version, err := sl.loader.Version(lib)
 	if err != nil {
 		c.version = "unversioned"
 	} else {

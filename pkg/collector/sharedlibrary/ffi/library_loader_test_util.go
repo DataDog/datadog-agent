@@ -42,17 +42,21 @@ func (ml *NoopSharedLibraryLoader) Close(_ *Library) error {
 }
 
 // Run does nothing
-func (ml *NoopSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, _ string) error {
+func (ml *NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string) error {
 	return nil
 }
 
 // Version returns "noop_version"
-func (ml *NoopSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
+func (ml *NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
 	return "noop_version", nil
 }
 
 // GetNoopLibrary returns a library with pointers to noop functions
 func GetNoopLibrary() *Library {
 	cLib := C.get_noop_library()
-	return newLibrary(cLib)
+	return (*Library)(cLib)
+}
+
+func NewNullSymbolLibrary() *Library {
+	return &Library{}
 }

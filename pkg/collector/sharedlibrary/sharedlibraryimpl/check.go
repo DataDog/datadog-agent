@@ -63,7 +63,7 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// run the check through the library loader
-	err := c.libraryLoader.Run(c.lib.Run, string(c.id), c.initConfig, c.instanceConfig)
+	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig)
 	if err != nil {
 		return fmt.Errorf("Run failed: %s", err)
 	}

@@ -31,8 +31,8 @@ func TestRunCheckWithNullSymbol(t *testing.T) {
 	check, err := newFakeCheck(aggregator.NewNoOpSenderManager())
 	require.NoError(t, err)
 
-	// set the symbol handle to NULL
-	check.lib.Run = nil
+	// set the symbol pointers to null
+	check.lib = ffi.NewNullSymbolLibrary()
 
 	err = check.runCheckImpl(false)
 	assert.Error(t, err, "pointer to shared library 'Run' symbol is NULL")

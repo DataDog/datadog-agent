@@ -60,17 +60,17 @@ func getLibExtension() string {
 
 // Library stores everything needed for using the shared libraries' symbols
 type Library struct {
-	Handle  unsafe.Pointer
-	Run     *C.run_function_t
-	Version *C.version_function_t
+	handle  unsafe.Pointer
+	run     *C.run_function_t
+	version *C.version_function_t
 }
 
 // LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
 	Open(name string) (*Library, error)
 	Close(lib *Library) error
-	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
-	Version(versionPtr *C.version_function_t) (string, error)
+	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
+	Version(lib *Library) (string, error)
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -95,14 +95,14 @@ func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 		return nil, fmt.Errorf("failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
-	return newLibrary(&cLib), nil
+	return (*Library)(&cLib), nil
 }
 
 // Close closes the shared library
 func (l *SharedLibraryLoader) Close(lib *Library) error {
 	var cErr *C.char
 
-	C.close_shared_library(lib.Handle, &cErr)
+	C.close_shared_library(lib.handle, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Close failed: %s", C.GoString(cErr))
@@ -112,7 +112,7 @@ func (l *SharedLibraryLoader) Close(lib *Library) error {
 }
 
 // Run calls the `Run` symbol of the shared library to execute the check's implementation
-func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
+func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string) error {
 	cID := C.CString(checkID)
 	defer C.free(unsafe.Pointer(cID))
 
@@ -124,7 +124,7 @@ func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, init
 
 	var cErr *C.char
 
-	C.run_shared_library(runPtr, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
+	C.run_shared_library(lib.run, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
@@ -134,10 +134,10 @@ func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, init
 }
 
 // Version calls the `Version` symbol to retrieve the check version
-func (l *SharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
+func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 	var cErr *C.char
 
-	cLibVersion := C.get_version_shared_library(versionPtr, &cErr)
+	cLibVersion := C.get_version_shared_library(lib.version, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return "", fmt.Errorf("Failed to get version: %s", C.GoString(cErr))
@@ -152,13 +152,5 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
-	}
-}
-
-func newLibrary(lib *C.library_t) *Library {
-	return &Library{
-		Handle:  lib.handle,
-		Run:     lib.run,
-		Version: lib.version,
 	}
 }
