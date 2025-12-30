@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package winmem provides memory usage metrics for Windows
 package winmem
 
 /*
@@ -203,7 +204,7 @@ func PageFileCallback(
 
 	if pInfo == nil || lpFilename == nil {
 		log.Errorf("Invalid input in callback: pInfo: %v, lpFilename: %v", pInfo, lpFilename)
-		return C.BOOL(0)
+		return C.BOOL(1)
 	}
 
 	// Convert the handle back to a Go context
@@ -216,6 +217,10 @@ func PageFileCallback(
 	}
 
 	pageFileName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(lpFilename)))
+	if pageFileName == "" {
+		log.Errorf("Invalid page file name in callback: %v", lpFilename)
+		return C.BOOL(1)
+	}
 	log.Debugf("Found page file: %v", pageFileName)
 
 	// Calculate metrics in bytes with overflow protection
@@ -227,7 +232,7 @@ func PageFileCallback(
 	// Check for potential overflow before multiplication
 	if ctx.PageSize > 0 && totalSize > (^uint64(0)/ctx.PageSize) {
 		log.Debugf("Total size is too large for page file: %v", pageFileName)
-		return C.BOOL(0)
+		return C.BOOL(1)
 	}
 
 	totalBytes := totalSize * ctx.PageSize
