@@ -53,7 +53,6 @@ ALL_TAGS = {
     "netgo",
     "npm",
     "nvml",  # used for the nvidia go-nvml library
-    "oracle",
     "orchestrator",
     "osusergo",
     "otlp",
@@ -96,7 +95,6 @@ AGENT_TAGS = {
     "ncm",
     "netcgo",
     "nvml",
-    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -124,7 +122,6 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "kubeapiserver",
         "kubelet",
         "nvml",
-        "oracle",
         "orchestrator",
         "podman",
         "systemd",
