@@ -14,7 +14,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -26,10 +25,6 @@ const (
 	JMXLoggerName       LoggerName = "JMXFETCH"
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
-
-func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
-	return formatters.GetLogDateFormat(cfg.GetBool("log_format_rfc3339"))
-}
 
 // SetupLogger sets up a logger with the specified logger name and log level
 // if a non empty logFile is provided, it will also log to the file
@@ -106,7 +101,7 @@ func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, lo
 	// Configure log file, log file max size, log file roll up
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
-	return generateLoggerInterface(config, cfg)
+	return generateLoggerInterface(config)
 }
 
 func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
@@ -123,11 +118,11 @@ func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, sy
 		config.ConfigureSyslog(syslogURI)
 	}
 
-	return generateLoggerInterface(config, cfg)
+	return generateLoggerInterface(config)
 }
 
 // generateLoggerInterface return a logger Interface from a log config
-func generateLoggerInterface(logConfig *seelogCfg.Config, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
+func generateLoggerInterface(logConfig *seelogCfg.Config) (log.LoggerInterface, error) {
 	return logConfig.SlogLogger()
 }
 

@@ -7,9 +7,7 @@
 package seelog
 
 import (
-	"bytes"
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -44,21 +42,6 @@ type Config struct {
 	jsonFormatter   func(ctx context.Context, r stdslog.Record) string
 	commonFormatter func(ctx context.Context, r stdslog.Record) string
 }
-
-const seelogConfigurationTemplate = `
-<seelog minlevel="%[1]s">
-	<outputs formatid="%[2]s">
-		%[3]s
-		%[4]s
-		%[5]s
-	</outputs>
-	<formats>
-		<format id="json"          format="%[6]s"/>
-		<format id="common"        format="%[7]s"/>
-		<format id="syslog-json"   format="%%CustomSyslogHeader(20,%[8]t) %[9]s"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,%[8]t) %[10]s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n" />
-	</formats>
-</seelog>`
 
 // SlogLogger returns a slog logger behaving the same way as Render would configure a seelog logger
 func (c *Config) SlogLogger() (types.LoggerInterface, error) {
@@ -214,11 +197,4 @@ func NewSeelogConfig(name, level, format string, syslogRFC bool, jsonFormatter, 
 	c.commonFormatter = commonFormatter
 	c.logLevel = level
 	return c
-}
-
-func xmlEscape(in string) string {
-	var buffer bytes.Buffer
-	// EscapeText can only fail if writing to the buffer fails, and writing to a bytes.Buffer cannot fail
-	_ = xml.EscapeText(&buffer, []byte(in))
-	return buffer.String()
 }
