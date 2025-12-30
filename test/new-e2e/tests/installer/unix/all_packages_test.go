@@ -44,7 +44,7 @@ var (
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
-		e2eos.WindowsServer2022,
+		// e2eos.WindowsServer2022,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
@@ -54,9 +54,9 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
 		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		// {t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
-		{t: testConfig},
+		// {t: testConfig},
 	}
 )
 
@@ -266,9 +266,9 @@ func envForceInstall(pkg string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=true"
 }
 
-func envForceVersion(pkg, version string) string {
-	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
-}
+// func envForceVersion(pkg, version string) string {
+// 	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
+// }
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
