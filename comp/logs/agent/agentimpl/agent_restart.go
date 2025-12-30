@@ -216,12 +216,18 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 		return
 	}
 
+	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config)
+	if err != nil {
+		a.log.Errorf("Failed to build HTTP endpoints: %v", err)
+		return
+	}
+
 	policy := backoff.NewExpBackoffPolicy(
-		a.endpoints.Main.BackoffFactor,
-		a.endpoints.Main.BackoffBase,
-		a.endpoints.Main.BackoffMax,
-		a.endpoints.Main.RecoveryInterval,
-		a.endpoints.Main.RecoveryReset,
+		endpoints.Main.BackoffFactor,
+		endpoints.Main.BackoffBase,
+		endpoints.Main.BackoffMax,
+		endpoints.Main.RecoveryInterval,
+		endpoints.Main.RecoveryReset,
 	)
 
 	attempt := 0
