@@ -57,6 +57,9 @@ type Config struct {
 	Version string
 
 	MetricsClient statsd.ClientInterface
+
+	// Credentials from agent configuration
+	Credentials map[string]interface{}
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {

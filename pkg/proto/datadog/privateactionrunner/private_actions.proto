@@ -92,4 +92,5 @@ enum CredentialsType {
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
+  AGENT_CONFIGURATION = 4;
 }

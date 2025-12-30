@@ -63,6 +63,11 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse URN: %w", err)
 	}
 
+	creds, err := loadCredentials(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load credentials: %w", err)
+	}
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -92,7 +97,22 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
+		Credentials:               creds,
 	}, nil
+}
+
+// loadCredentials loads all credentials from privateactionrunner.credentials
+func loadCredentials(config config.Component) (map[string]interface{}, error) {
+	credentialsData := config.Get("privateactionrunner.credentials")
+	if credentialsData == nil {
+		return nil, nil
+	}
+
+	if credMap, ok := credentialsData.(map[string]interface{}); ok {
+		return credMap, nil
+	}
+
+	return nil, errors.New("expected privateactionrunner.credentials to be a map")
 }
 
 // parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
