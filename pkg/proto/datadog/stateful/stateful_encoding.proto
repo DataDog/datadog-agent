@@ -75,6 +75,17 @@ message DynamicValue {
   }
 }
 
+// We could choose to delta encode at batch level or at stream level.
+// If at stream level, then we need to send the delta encoding related state
+// to resync the Intake on stream restart
+// Currently we are doing it at batch level. This message below is not used,
+// we declare it here for future use.
+message DeltaEncodingSync {
+  uint64 timestamp = 1;
+  uint64 pattern_id = 2;
+  TagSet tags = 3;
+}
+
 // ---------------------------------------------------------------------------
 // Streaming envelope
 // ---------------------------------------------------------------------------
@@ -85,7 +96,8 @@ message Datum {
     PatternDelete pattern_delete = 2;
     DictEntryDefine dict_entry_define = 3;
     DictEntryDelete dict_entry_delete = 4;
-    Log logs = 5;
+    DeltaEncodingSync delta_encoding_sync = 5;
+    Log logs = 6;
   }
 }
 
