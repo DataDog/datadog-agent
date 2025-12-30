@@ -9,6 +9,7 @@
 package ffi
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"runtime"
@@ -100,6 +101,10 @@ func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 
 // Close closes the shared library
 func (l *SharedLibraryLoader) Close(lib *Library) error {
+	if lib == nil {
+		return errors.New("pointer to 'Library' struct is null")
+	}
+
 	var cErr *C.char
 
 	C.close_shared_library(lib.handle, &cErr)
@@ -113,6 +118,10 @@ func (l *SharedLibraryLoader) Close(lib *Library) error {
 
 // Run calls the `Run` symbol of the shared library to execute the check's implementation
 func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string) error {
+	if lib == nil {
+		return errors.New("pointer to 'Library' struct is null")
+	}
+
 	cID := C.CString(checkID)
 	defer C.free(unsafe.Pointer(cID))
 
@@ -135,6 +144,10 @@ func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig strin
 
 // Version calls the `Version` symbol to retrieve the check version
 func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
+	if lib == nil {
+		return "", errors.New("pointer to 'Library' struct is null")
+	}
+
 	var cErr *C.char
 
 	cLibVersion := C.get_version_shared_library(lib.version, &cErr)
