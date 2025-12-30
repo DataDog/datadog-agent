@@ -69,11 +69,7 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               },
               "~r1": {
                 "type": "error",
@@ -178,11 +174,7 @@
               },
               "~r1": {
                 "type": "error",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
