@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/winmem"
 )
 
-func VirtualMemory() (*winutil.VirtualMemoryStat, error) {
-	return &winutil.VirtualMemoryStat{
+func VirtualMemory() (*winmem.VirtualMemoryStat, error) {
+	return &winmem.VirtualMemoryStat{
 		Total:       12345667890,
 		Available:   234567890,
 		Used:        10000000000,
@@ -28,8 +28,8 @@ func VirtualMemory() (*winutil.VirtualMemoryStat, error) {
 	}, nil
 }
 
-func SwapMemory() (*winutil.SwapMemoryStat, error) {
-	return &winutil.SwapMemoryStat{
+func SwapMemory() (*winmem.SwapMemoryStat, error) {
+	return &winmem.SwapMemoryStat{
 		Total:       100000,
 		Used:        40000,
 		Free:        60000,
@@ -37,8 +37,8 @@ func SwapMemory() (*winutil.SwapMemoryStat, error) {
 	}, nil
 }
 
-func PagefileMemory() (*winutil.PagefileStat, error) {
-	return &winutil.PagefileStat{
+func PagefileMemory() (*winmem.PagefileStat, error) {
+	return &winmem.PagefileStat{
 		Total:       120000,
 		Available:   90000,
 		Used:        30000,
@@ -46,8 +46,8 @@ func PagefileMemory() (*winutil.PagefileStat, error) {
 	}, nil
 }
 
-func PagingFileMemory() ([]*winutil.PagingFileStat, error) {
-	return []*winutil.PagingFileStat{
+func PagingFileMemory() ([]*winmem.PagingFileStat, error) {
+	return []*winmem.PagingFileStat{
 		{
 			Name:        "C:\\pagefile.sys",
 			Total:       120000,

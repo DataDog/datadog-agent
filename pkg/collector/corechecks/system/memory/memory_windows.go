@@ -12,16 +12,16 @@ import (
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/winmem"
 )
 
 // For testing purpose
-var virtualMemory = winutil.VirtualMemory
+var virtualMemory = winmem.VirtualMemory
 
 var (
-	swapMemory       = winutil.SwapMemory
-	pageMemory       = winutil.PagefileMemory
-	pagingFileMemory = winutil.PagingFileMemory
+	swapMemory       = winmem.SwapMemory
+	pageMemory       = winmem.PagefileMemory
+	pagingFileMemory = winmem.PagingFileMemory
 )
 
 // Check doesn't need additional fields

@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winutil
+package winmem
 
 type performanceInformation struct {
 	cb                uint32

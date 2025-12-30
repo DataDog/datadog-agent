@@ -5,12 +5,23 @@
 
 //go:build windows
 
-package winutil
+package winmem
 
+/*
+#cgo LDFLAGS: -lpsapi
+
+#include "winmem.h"
+#include <stdlib.h>
+*/
+import "C"
 import (
+	"fmt"
+	"runtime/cgo"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -176,38 +187,62 @@ func SwapMemory() (*SwapMemoryStat, error) {
 	return ret, nil
 }
 
-// EnumPageFilesW Calls the callback routine for each installed pagefile in the system.
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumpagefilesw
-func EnumPageFilesW(pageSize uint64) ([]*PagingFileStat, error) {
-	ctx := &PageFilesContext{
-		PageFiles: make([]*PagingFileStat, 0),
-		PageSize:  pageSize,
-	}
-	r0, _, err := procEnumPageFilesW.Call(windows.NewCallback(pEnumPageFileCallbackW), uintptr(unsafe.Pointer(ctx)))
-	if r0 == 0 {
-		return nil, err
-	}
-	return ctx.PageFiles, nil
-}
+//export PageFileCallback
+func PageFileCallback(
+	handle C.GoHandle,
+	pInfo C.PENUM_PAGE_FILE_INFORMATION,
+	lpFilename C.LPCWSTR,
+) C.BOOL {
+	// Recover from panics
+	defer func() {
+		if r := recover(); r != nil {
+			// Log the panic but don't crash
+			log.Errorf("Panic in callback: %v\n", r)
+		}
+	}()
 
-// pEnumPageFileCallbackW is an application-defined callback function used with the EnumPageFilesW function.
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/psapi/nc-psapi-penum_page_file_callbackw
-func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageFileInformation, lpFileName *[windows.MAX_LONG_PATH]uint16) uintptr {
-	ctx := (*PageFilesContext)(unsafe.Pointer(pContext)) //nolint:govet
-	pageFileName := windows.UTF16ToString(lpFileName[:])
+	if pInfo == nil || lpFilename == nil {
+		log.Errorf("Invalid input in callback: pInfo: %v, lpFilename: %v", pInfo, lpFilename)
+		return C.BOOL(0)
+	}
 
-	// Convert pages to bytes using the pageSize from context
-	totalBytes := enumPageFileInformation.totalSize * ctx.PageSize
-	usedBytes := enumPageFileInformation.totalInUse * ctx.PageSize
+	// Convert the handle back to a Go context
+	h := cgo.Handle(handle)
+	value := h.Value()
+	ctx, ok := value.(*PageFilesContext)
+	if !ok {
+		log.Errorf("Invalid context type in callback: %v", value)
+		return C.BOOL(0)
+	}
+
+	pageFileName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(lpFilename)))
+	log.Debugf("Found page file: %v", pageFileName)
+
+	// Calculate metrics in bytes with overflow protection
+	// Check for potential overflow before multiplication
+	totalSize := uint64(pInfo.TotalSize)
+	totalInUse := uint64(pInfo.TotalInUse)
+	log.Debugf("Total size: %v, Total in use: %v", totalSize, totalInUse)
+
+	// Check for potential overflow before multiplication
+	if ctx.PageSize > 0 && totalSize > (^uint64(0)/ctx.PageSize) {
+		log.Debugf("Total size is too large for page file: %v", pageFileName)
+		return C.BOOL(0)
+	}
+
+	totalBytes := totalSize * ctx.PageSize
+	usedBytes := totalInUse * ctx.PageSize
 	availableBytes := totalBytes - usedBytes
+	log.Debugf("Total bytes: %v, Used bytes: %v, Available bytes: %v", totalBytes, usedBytes, availableBytes)
 
 	var usedPercent float64
 	if totalBytes != 0 {
-		usedPercent = (float64(usedBytes) / float64(totalBytes)) * 100
+		usedPercent = (float64(usedBytes) / float64(totalBytes)) * 100.0
+	} else {
+		log.Warnf("Total bytes is 0 for page file: %v", pageFileName)
 	}
 
+	// Create page file entry
 	pageFile := &PagingFileStat{
 		Name:        pageFileName,
 		Total:       totalBytes,
@@ -215,8 +250,33 @@ func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageF
 		Used:        usedBytes,
 		UsedPercent: usedPercent,
 	}
+	log.Debugf("Created page file entry: %v", pageFile)
+
 	ctx.PageFiles = append(ctx.PageFiles, pageFile)
-	return 1 // TRUE - continue enumeration
+	log.Debugf("Added page file entry to context: %v", ctx.PageFiles)
+
+	return C.BOOL(1)
+}
+
+// EnumPageFilesW enumerates page files
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumpagefilesw
+func EnumPageFilesW(pageSize uint64) ([]*PagingFileStat, error) {
+	ctx := &PageFilesContext{
+		PageFiles: make([]*PagingFileStat, 0),
+		PageSize:  pageSize,
+	}
+
+	handle := cgo.NewHandle(ctx)
+	defer handle.Delete()
+
+	result := C.enumPageFilesWithHandle(C.GoHandle(handle))
+
+	if result == 0 {
+		return nil, fmt.Errorf("Failed to enumerate Page Files: %w", windows.GetLastError())
+	}
+
+	return ctx.PageFiles, nil
 }
 
 // PagingFileMemory returns paging file metrics
