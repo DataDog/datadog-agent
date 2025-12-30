@@ -72,15 +72,31 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return os.Chmod(path, fs.FileMode(newPerm))
 }
 
+// GetOwner returns the owner of a given file
 func (p *Permission) GetOwner(path string) (string, error) {
+	// the use of syscall is required because os.Stat doesn't have a method for getting the file owner
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return "", fmt.Errorf("could not stat %s: %s", path, err)
 	}
 
-	if owner, err := user.LookupId(strconv.Itoa(int(stat.Uid))); err != nil {
+	owner, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
+	if err != nil {
 		return "", fmt.Errorf("could not fetch name for UID %d: %s", stat.Uid, err)
-	} else {
-		return owner.Username, nil
 	}
+
+	return owner.Username, nil
+}
+
+// GetOtherUsersWriteAccess checks if other users have write access to a given file
+func (p *Permission) GetOtherUsersWriteAccess(path string) (bool, error) {
+	fperm, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	// filter the permission bits by only keeping the 'write' bit for other users
+	otherWriteAccess := fperm.Mode().Perm() & 002
+
+	return otherWriteAccess != 0, nil
 }

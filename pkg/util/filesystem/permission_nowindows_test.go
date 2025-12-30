@@ -55,6 +55,7 @@ func TestGetOwner_FileExists(t *testing.T) {
 	ownerName, err := p.GetOwner(tempFile.Name())
 	require.NoError(t, err)
 
+	// owner of the temp file is the current user executing the test
 	user, err := user.Current()
 	require.NoError(t, err)
 
@@ -69,4 +70,40 @@ func TestGetOwner_NoFile(t *testing.T) {
 	assert.Empty(t, ownerName)
 	assert.EqualError(t, err, "could not stat path/to/nothing: no such file or directory")
 
+}
+
+func TestGetOtherUsersWriteAccess_CanWrite(t *testing.T) {
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	tempDir := t.TempDir()
+	tempFile, err := os.CreateTemp(tempDir, "")
+	require.NoError(t, err)
+
+	// give other users the write access to the temp file
+	err = os.Chmod(tempFile.Name(), 0757)
+	require.NoError(t, err)
+
+	otherWriteAccess, err := p.GetOtherUsersWriteAccess(tempFile.Name())
+	require.NoError(t, err)
+
+	assert.True(t, otherWriteAccess)
+}
+
+func TestGetOtherUsersWriteAccess_CannotWrite(t *testing.T) {
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	tempDir := t.TempDir()
+	tempFile, err := os.CreateTemp(tempDir, "")
+	require.NoError(t, err)
+
+	// remove other users write access to the temp file
+	err = os.Chmod(tempFile.Name(), 0755)
+	require.NoError(t, err)
+
+	otherWriteAccess, err := p.GetOtherUsersWriteAccess(tempFile.Name())
+	require.NoError(t, err)
+
+	assert.False(t, otherWriteAccess)
 }
