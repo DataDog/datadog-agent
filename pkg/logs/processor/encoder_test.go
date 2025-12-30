@@ -7,19 +7,119 @@ package processor
 
 import (
 	"encoding/json"
-	"testing"
-
+	"fmt"
 	"strings"
-
+	"testing"
 	"time"
+
+	"google.golang.org/protobuf/encoding/protowire"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/agent-payload/v5/pb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// Unmarshal decodes protobuf wire format data into the Log struct.
+// This is only used for testing and should not be in production code.
+func (l *Log) Unmarshal(data []byte) error {
+	for len(data) > 0 {
+		fieldNum, wireType, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return fmt.Errorf("invalid protobuf tag: %d", n)
+		}
+		data = data[n:]
+
+		switch fieldNum {
+		case 1: // Message
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Message field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Message: %d", n)
+			}
+			l.Message = v
+			data = data[n:]
+
+		case 2: // Status
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Status field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Status: %d", n)
+			}
+			l.Status = v
+			data = data[n:]
+
+		case 3: // Timestamp
+			if wireType != protowire.VarintType {
+				return fmt.Errorf("invalid wire type for Timestamp field")
+			}
+			v, n := protowire.ConsumeVarint(data)
+			if n < 0 {
+				return fmt.Errorf("invalid varint for Timestamp: %d", n)
+			}
+			l.Timestamp = int64(v)
+			data = data[n:]
+
+		case 4: // Hostname
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Hostname field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Hostname: %d", n)
+			}
+			l.Hostname = v
+			data = data[n:]
+
+		case 5: // Service
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Service field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Service: %d", n)
+			}
+			l.Service = v
+			data = data[n:]
+
+		case 6: // Source
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Source field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Source: %d", n)
+			}
+			l.Source = v
+			data = data[n:]
+
+		case 7: // Tags (repeated)
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("invalid wire type for Tags field")
+			}
+			v, n := protowire.ConsumeString(data)
+			if n < 0 {
+				return fmt.Errorf("invalid string for Tags: %d", n)
+			}
+			l.Tags = append(l.Tags, v)
+			data = data[n:]
+
+		default:
+			// Skip unknown fields
+			n := protowire.ConsumeFieldValue(fieldNum, wireType, data)
+			if n < 0 {
+				return fmt.Errorf("invalid field value: %d", n)
+			}
+			data = data[n:]
+		}
+	}
+	return nil
+}
 
 func TestRawEncoder(t *testing.T) {
 
@@ -128,7 +228,7 @@ func TestProtoEncoder(t *testing.T) {
 	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
-	log := &pb.Log{}
+	log := &Log{}
 	err = log.Unmarshal(msg.GetContent())
 	assert.Nil(t, err)
 
@@ -159,7 +259,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
-	log := &pb.Log{}
+	log := &Log{}
 	err = log.Unmarshal(msg.GetContent())
 	assert.Nil(t, err)
 
