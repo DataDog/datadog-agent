@@ -50,5 +50,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/fine-grained-monitor /usr/local/bin/
+COPY --from=builder /build/target/release/fgm-viewer /usr/local/bin/
 
 ENTRYPOINT ["/usr/local/bin/fine-grained-monitor"]

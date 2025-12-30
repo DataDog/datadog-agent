@@ -646,11 +646,26 @@
 
         const Components = {
             // REQ-MV-002: Metric list with search
+            // REQ-ICV-003: Show waiting message when no metrics available
             MetricList(state) {
+                // REQ-ICV-003: Show waiting message when no data collected yet
+                if (state.metrics.length === 0) {
+                    return `
+                        <div style="padding: 16px; text-align: center;">
+                            <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
+                            <div style="color: #666; font-size: 13px; font-weight: 500;">Waiting for data...</div>
+                            <div style="color: #888; font-size: 11px; margin-top: 4px;">
+                                Collector is writing metrics.<br>
+                                Page will refresh automatically.
+                            </div>
+                        </div>
+                    `;
+                }
+
                 const filtered = filterMetrics(state.metrics, state.metricSearchQuery);
 
                 if (filtered.length === 0) {
-                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No metrics found</div>';
+                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No metrics match search</div>';
                 }
 
                 return filtered.map(m => {
@@ -859,6 +874,13 @@
 
                 if (metrics.length > 0) {
                     await Actions.loadContainers();
+                } else {
+                    // REQ-ICV-003: Auto-refresh when no data available
+                    console.log('No metrics found, will auto-refresh in 5 seconds...');
+                    setTimeout(() => {
+                        console.log('Refreshing to check for new data...');
+                        window.location.reload();
+                    }, 5000);
                 }
             },
 

@@ -53,6 +53,30 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
+      # REQ-ICV-001: Viewer sidecar for in-cluster access
+      - name: viewer
+        image: fine-grained-monitor:rotation
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/fgm-viewer"]
+        args:
+          - "/data"
+          - "--port=8050"
+          - "--no-browser"
+        ports:
+          - containerPort: 8050
+            name: http
+            protocol: TCP
+        volumeMounts:
+          - name: data
+            mountPath: /data
+            readOnly: true
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
       terminationGracePeriodSeconds: 60  # Allow time for parquet footer to be written
       volumes:
         - name: cgroup
