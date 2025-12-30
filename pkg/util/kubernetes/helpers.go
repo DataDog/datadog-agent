@@ -14,7 +14,7 @@ import (
 // Taken from https://github.com/kow3ns/kubernetes/blob/96067e6d7b24a05a6a68a0d94db622957448b5ab/staging/src/k8s.io/apimachinery/pkg/util/rand/rand.go#L76
 const KubeAllowedEncodeStringAlphaNums = "bcdfghjklmnpqrstvwxz2456789"
 
-// Digits holds the digits used for naming replicasets in kubenetes < 1.8
+// Digits holds the digits used for naming replicasets in kubernetes < 1.8
 const Digits = "1234567890"
 
 // ParseDeploymentForReplicaSet gets the deployment name from a replicaset,
@@ -54,14 +54,9 @@ func ParseCronJobForJob(name string) (string, int) {
 		return "", 0
 	}
 
-	if !stringInRuneset(suffix, Digits) {
-		// Invalid suffix
-		return "", 0
-	}
-
 	id, err := strconv.Atoi(suffix)
 	if err != nil {
-		// Cannot happen because of the test just above
+		// Invalid suffix
 		return "", 0
 	}
 
@@ -94,7 +89,7 @@ func removeKubernetesNameSuffix(name string) string {
 		return ""
 	}
 
-	if !stringInRuneset(suffix, Digits) && !stringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+	if !stringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) && !stringInRuneset(suffix, Digits) {
 		// Invalid suffix
 		return ""
 	}
