@@ -18,10 +18,6 @@ type CreateRunnerRequest struct {
 	PublicKeyPEM string       `json:"public_key_pem" jsonapi:"attribute" validate:"required"`
 }
 
-func (req *CreateRunnerRequest) UnmarshalID(id string) error {
-	return nil
-}
-
 // CreateRunnerResponse represents the response for runner creation
 type CreateRunnerResponse struct {
 	ID          string   `jsonapi:"primary,createRunnerResponse"`
