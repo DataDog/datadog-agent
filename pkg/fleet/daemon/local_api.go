@@ -24,6 +24,13 @@ import (
 type StatusResponse struct {
 	APIResponse
 	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
+	SecretsPubKey     string               `json:"secrets_pub_key"`
+}
+
+// startConfigExperimentRequest is the request to the start config experiment endpoint.
+type startConfigExperimentRequest struct {
+	Operations       string            `json:"operations"`
+	EncryptedSecrets map[string]string `json:"encrypted_secrets"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -95,8 +102,10 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
+	rcState := l.daemon.GetRemoteConfigState()
 	response = StatusResponse{
-		RemoteConfigState: l.daemon.GetRemoteConfigState().Packages,
+		RemoteConfigState: rcState.Packages,
+		SecretsPubKey:     rcState.SecretsPubKey,
 	}
 }
 
@@ -202,7 +211,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request config.Operations
+	var request startConfigExperimentRequest
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -213,7 +222,14 @@ func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Requ
 		response.Error = &APIError{Message: err.Error()}
 		return
 	}
-	err = l.daemon.StartConfigExperiment(r.Context(), pkg, request)
+	var ops config.Operations
+	err = json.Unmarshal([]byte(request.Operations), &ops)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	err = l.daemon.StartConfigExperiment(r.Context(), pkg, ops, request.EncryptedSecrets)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -329,7 +345,7 @@ type LocalAPIClient interface {
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
-	StartConfigExperiment(pkg, version string) error
+	StartConfigExperiment(pkg, operations string, encryptedSecrets map[string]string) error
 	StopConfigExperiment(pkg string) error
 	PromoteConfigExperiment(pkg string) error
 }
@@ -492,8 +508,16 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 }
 
 // StartConfigExperiment starts a config experiment for a package.
-func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer([]byte(operations)))
+func (c *localAPIClientImpl) StartConfigExperiment(pkg string, operations string, encryptedSecrets map[string]string) error {
+	request := startConfigExperimentRequest{
+		Operations:       operations,
+		EncryptedSecrets: encryptedSecrets,
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

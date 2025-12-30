@@ -57,7 +57,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -523,9 +523,14 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	// Replace secrets in operations
+	if err := config.ReplaceSecrets(&operations, decryptedSecrets); err != nil {
+		return fmt.Errorf("could not replace secrets: %w", err)
+	}
 
 	err := i.packages.Get(pkg).DeleteExperiment(ctx)
 	if err != nil {
