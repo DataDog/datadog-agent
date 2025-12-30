@@ -2791,7 +2791,7 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "basic" {
 		// Enable default checks
-		config.Set("allowed_checks", []string{
+		config.Set("infrastructure_mode.allowed_checks", []string{
 			"cpu",
 			"agent_telemetry",
 			"agentcrashdetect",
