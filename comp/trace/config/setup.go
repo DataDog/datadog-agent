@@ -679,13 +679,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
-	// Populate AdditionalProfileTags from configuration
 	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
-	if len(c.AdditionalProfileTags) > 0 {
-		log.Debugf("Loaded additional profile tags from config: %v", c.AdditionalProfileTags)
-	} else {
-		log.Debug("No additional profile tags configured")
-	}
 	return nil
 }
 
