@@ -170,6 +170,13 @@ func (ms *MockScheduler) scheduledSize() int {
 	return len(ms.scheduled)
 }
 
+func (ms *MockScheduler) isScheduled(digest string) bool {
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
+	_, found := ms.scheduled[digest]
+	return found
+}
+
 type AutoConfigTestSuite struct {
 	suite.Suite
 	deps Deps
@@ -759,8 +766,7 @@ func TestRefreshConfig(t *testing.T) {
 			}
 
 			require.Eventually(t, func() bool {
-				_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
-				return sch.scheduledSize() == 1 && foundScheduledConfig
+				return sch.scheduledSize() == 1 && sch.isScheduled(resolved.Digest())
 			}, 5*time.Second, 10*time.Millisecond)
 
 			// rotate secret
@@ -793,8 +799,7 @@ func TestRefreshConfig(t *testing.T) {
 
 			// newly resolved configuration is eventually scheduled (or remains unchanged if shouldRefresh is false).
 			require.Eventually(t, func() bool {
-				_, foundScheduledConfig := sch.scheduled[resolved.Digest()]
-				return sch.scheduledSize() == 1 && foundScheduledConfig
+				return sch.scheduledSize() == 1 && sch.isScheduled(resolved.Digest())
 			}, 5*time.Second, 10*time.Millisecond)
 		})
 	}
