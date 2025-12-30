@@ -14,7 +14,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.69.4 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect

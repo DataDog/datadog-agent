@@ -17,7 +17,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect

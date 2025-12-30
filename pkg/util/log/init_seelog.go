@@ -8,28 +8,8 @@ package log
 import (
 	"log/slog"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
-
-func parseShortFilePath(_ string) seelog.FormatterFunc {
-	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return formatters.ExtractShortPathFromFullPath(context.FullPath())
-	}
-}
-
-func createExtraJSONContext(_ string) seelog.FormatterFunc {
-	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return formatters.ExtraJSONContext(toAttrHolder(context.CustomContext()))
-	}
-}
-
-func createExtraTextContext(_ string) seelog.FormatterFunc {
-	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return formatters.ExtraTextContext(toAttrHolder(context.CustomContext()))
-	}
-}
 
 func toAttrHolder(context interface{}) formatters.AttrHolder {
 	return attrHolderImpl(formatters.ToSlogAttrs(context))
@@ -47,10 +27,4 @@ func (h attrHolderImpl) Attrs(fn func(a slog.Attr) bool) {
 
 func (h attrHolderImpl) NumAttrs() int {
 	return len(h)
-}
-
-func init() {
-	_ = seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
-	_ = seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)
-	_ = seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 }
