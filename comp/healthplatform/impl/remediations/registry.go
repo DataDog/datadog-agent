@@ -13,6 +13,7 @@ import (
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/dockerpermissions"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/rofspermissions"
 )
 
 // IssueTemplate defines how to build a complete issue (metadata + remediation) from context
@@ -43,6 +44,9 @@ func NewRegistry() *Registry {
 func (r *Registry) registerBuiltInTemplates() {
 	// Docker log permissions
 	r.Register("docker-file-tailing-disabled", dockerpermissions.NewDockerPermissionIssue())
+
+	// Read-Only Filesystem permissions
+	r.Register("read-only-filesystem-error", rofspermissions.NewRofsPermissionIssue())
 }
 
 // Register adds an issue template for a specific issue ID

@@ -299,7 +299,7 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
-	_ healthplatform.Component,
+	hp healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
@@ -365,6 +365,7 @@ func run(log log.Component,
 		ipc,
 		snmpScanManager,
 		traceroute,
+		hp,
 	); err != nil {
 		return err
 	}
@@ -586,9 +587,11 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	hp healthplatform.Component,
 ) error {
 	var err error
 
+	checkROFSPermissions(cfg, hp)
 	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
 	defer func() {
 		span.Finish(err)
