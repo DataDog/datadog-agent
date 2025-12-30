@@ -249,9 +249,67 @@ def _create_matrix_entry(version: str, digest: str, indent: int) -> str:
     return f'{spaces}- EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion={version}@{digest}"'
 
 
+def _find_k8s_latest_job(content: str) -> tuple:
+    """
+    Find the new-e2e-containers-k8s-latest job section in the raw content.
+    Returns (job_start_line, job_end_line, extra_params_line) or (None, None, None) if not found.
+    """
+    lines = content.split('\n')
+    in_latest_job = False
+    job_start = None
+    extra_params_line = None
+
+    for i, line in enumerate(lines):
+        # Find the new-e2e-containers-k8s-latest job
+        if line.strip().startswith('new-e2e-containers-k8s-latest:'):
+            in_latest_job = True
+            job_start = i
+            continue
+
+        if in_latest_job:
+            if 'EXTRA_PARAMS:' in line and 'kubernetesVersion=' in line:
+                extra_params_line = i
+
+            if line and not line[0].isspace() and line.strip().endswith(':'):
+                return job_start, i, extra_params_line
+
+    return None, None, None
+
+
+def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
+    """
+    Extract the current Kubernetes version from the new-e2e-containers-k8s-latest job.
+    Returns {'version': 'v1.34.0', 'digest': 'sha256:...'} or None if not found.
+    """
+    _, _, extra_params_line = _find_k8s_latest_job(content)
+
+    if extra_params_line is None:
+        return None
+
+    lines = content.split('\n')
+    line = lines[extra_params_line]
+
+    pattern = r'kubernetesVersion=(v?\d+\.\d+(?:\.\d+)?(?:@sha256:[a-f0-9]+)?)'
+    match = re.search(pattern, line)
+
+    if match:
+        version_str = match.group(1)
+        # Check if it has a digest
+        if '@sha256:' in version_str:
+            version, digest = version_str.split('@')
+            return {'version': version, 'digest': digest}
+
+    return None
+
+
 def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     """
     Update the e2e.yml file with new Kubernetes versions.
+
+    1. Reads the desired latest version from new_versions
+    2. Reads the current latest version from new-e2e-containers-k8s-latest job
+    3. If they differ, adds the new version to the matrix and updates the new-e2e-containers-k8s-latest job
+
     Returns (success: bool, added_versions: List[str])
     """
     if not os.path.exists(E2E_YAML_PATH):
@@ -261,59 +319,84 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     with open(E2E_YAML_PATH) as f:
         content = f.read()
 
-    # Find the matrix section
+    # 1. Reads the desired latest version from new_versions
+    if not new_versions:
+        print("No new versions found")
+        return False, []
+
+    desired_latest_version = list(new_versions.keys())[0]
+    desired_latest_digest = new_versions[desired_latest_version]['digest']
+    print(f"Desired latest version from new_versions: {desired_latest_version}")
+
+    # 2. Reads the current latest version from new-e2e-containers-k8s-latest job
+    current_latest = _extract_version_from_latest_job(content)
+
+    if not current_latest:
+        print("No current latest version found in new-e2e-containers-k8s-latest job")
+        return False, []
+
+    print(f"Current latest version in new-e2e-containers-k8s-latest job: {current_latest['version']}")
+
+    if current_latest['version'] == desired_latest_version and current_latest['digest'] == desired_latest_digest:
+        print("YAML is already in sync with new_versions")
+        return False, []
+
+    # 3. If they differ, adds the new version to the matrix and updates the new-e2e-containers-k8s-latest job
     matrix_start, matrix_end, indent = _find_matrix_section(content)
+    _, _, extra_params_line = _find_k8s_latest_job(content)
 
     if matrix_start is None:
         raise Exit("Error: Could not find matrix section in e2e.yml", code=1)
 
-    # Parse existing versions
+    if extra_params_line is None:
+        raise Exit("Error: Could not find new-e2e-containers-k8s-latest job", code=1)
+
+    lines = content.split('\n')
+    added_versions = []
+
     existing_versions = _parse_existing_k8s_versions(content)
     existing_version_strs = {v['version'] for v in existing_versions}
 
-    print(f"Found {len(existing_versions)} existing Kubernetes versions in e2e.yml")
+    if current_latest['version'] not in existing_version_strs:
+        print(f"Rotating {current_latest['version']} from k8s-latest job to matrix")
 
-    # Determine which versions to add
-    versions_to_add = []
-    for version, data in new_versions.items():
-        if version not in existing_version_strs:
-            versions_to_add.append({'version': version, 'digest': data['digest']})
+        last_k8s_line = matrix_start
+        for i in range(matrix_start, matrix_end):
+            if 'kubernetesVersion=' in lines[i]:
+                last_k8s_line = i
 
-    if not versions_to_add:
-        print("No new versions to add - all versions already present")
-        return False, []
+        # Create matrix entry for the old latest
+        matrix_entry = _create_matrix_entry(
+            current_latest['version'],
+            current_latest['digest'],
+            indent
+        )
 
-    print(f"Adding {len(versions_to_add)} new version(s)")
+        # Insert after the last Kubernetes version
+        insert_position = last_k8s_line + 1
+        lines.insert(insert_position, matrix_entry)
 
-    # Create new matrix entries
-    lines = content.split('\n')
-    new_entries = []
+        # Update extra_params_line index since we inserted a line before it
+        if insert_position <= extra_params_line:
+            extra_params_line += 1
 
-    for version_data in versions_to_add:
-        entry = _create_matrix_entry(version_data['version'], version_data['digest'], indent)
-        new_entries.append(entry)
-        print(f"  Adding: {version_data['version']}")
+        added_versions.append(current_latest['version'])
 
-    # Find the last Kubernetes version entry
-    last_k8s_line = matrix_start
-    for i in range(matrix_start, matrix_end):
-        if 'kubernetesVersion=' in lines[i]:
-            last_k8s_line = i
+    print(f"Updating new-e2e-containers-k8s-latest job to {desired_latest_version}")
+    old_line = lines[extra_params_line]
+    new_line = re.sub(
+        r'kubernetesVersion=v?\d+\.\d+\.\d+@sha256:[a-f0-9]+',
+        f'kubernetesVersion={desired_latest_version}@{desired_latest_digest}',
+        old_line
+    )
+    lines[extra_params_line] = new_line
 
-    # Insert after the last Kubernetes version
-    insert_position = last_k8s_line + 1
-
-    # Build the new content
-    new_lines = lines[:insert_position] + new_entries + lines[insert_position:]
-    new_content = '\n'.join(new_lines)
-
-    # Write the updated content
+    new_content = '\n'.join(lines)
     with open(E2E_YAML_PATH, 'w') as f:
         f.write(new_content)
 
     print(f"Successfully updated {E2E_YAML_PATH}")
-
-    return True, [v['version'] for v in versions_to_add]
+    return True, [desired_latest_version]
 
 
 @task
@@ -372,8 +455,11 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     """
     Update the e2e.yml file with new Kubernetes versions.
 
-    This task reads Kubernetes versions from a JSON file and updates the
-    .gitlab/test/e2e/e2e.yml file with any new versions that aren't already present.
+    This task reads Kubernetes versions from a JSON file:
+    1. Compares with the current version in new-e2e-containers-k8s-latest job
+    2. If they differ:
+       - Moves the current version from k8s-latest job to the matrix
+       - Updates k8s-latest job with the new version
 
     Args:
         versions_file: Path to the JSON file containing versions (default: k8s_versions.json)
@@ -404,7 +490,7 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
         version_list = '\n'.join(f"- `{v}`" for v in added_versions)
         _set_github_output('updated', 'true')
         _set_github_output('new_versions', version_list)
-        print(f"\nSuccessfully added {len(added_versions)} version(s)")
+        print(f"\nSuccessfully updated to latest version: {added_versions[0]}")
     else:
         _set_github_output('updated', 'false')
         print("\nNo updates made")
