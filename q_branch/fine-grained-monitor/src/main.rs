@@ -21,9 +21,11 @@ use uuid::Uuid;
 
 mod discovery;
 mod index;
+mod kubernetes;
 mod observer;
 
 use index::ContainerIndex;
+use kubernetes::KubernetesClient;
 
 /// Maximum total Parquet file size before triggering graceful shutdown (1 GiB)
 const MAX_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
@@ -217,6 +219,11 @@ async fn run(args: Args) -> anyhow::Result<()> {
         args.rotation_seconds,
     )));
 
+    // REQ-PME-002: Initialize Kubernetes API client for pod metadata enrichment
+    // Gracefully degrades if API unavailable (returns None)
+    let k8s_client = KubernetesClient::try_new().await;
+    let k8s_client = k8s_client.map(Arc::new);
+
     // Set up external shutdown coordination
     let (external_shutdown_tx, external_shutdown_rx) = watch::channel(false);
     let shutdown_requested = Arc::new(AtomicBool::new(false));
@@ -247,6 +254,7 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let verbose_perf_risk = args.verbose_perf_risk;
     let observer_index = container_index.clone();
     let observer_index_path = index_path.clone();
+    let observer_k8s_client = k8s_client.clone();
     tokio::spawn(async move {
         observer_loop(
             interval_ms,
@@ -254,6 +262,7 @@ async fn run(args: Args) -> anyhow::Result<()> {
             observer_shutdown,
             observer_index,
             observer_index_path,
+            observer_k8s_client,
         )
         .await;
     });
@@ -459,6 +468,9 @@ async fn run_rotation_loop(
     Ok(())
 }
 
+/// Kubernetes metadata refresh interval (30 seconds per design.md)
+const K8S_REFRESH_INTERVAL_SECS: u64 = 30;
+
 /// Main observer loop: discovers containers and samples metrics at the configured interval
 async fn observer_loop(
     interval_ms: u64,
@@ -466,19 +478,48 @@ async fn observer_loop(
     mut shutdown_rx: watch::Receiver<bool>,
     container_index: Arc<RwLock<ContainerIndex>>,
     index_path: PathBuf,
+    k8s_client: Option<Arc<KubernetesClient>>,
 ) {
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
     let mut observer = observer::Observer::new();
 
+    // REQ-PME-002: Track last Kubernetes metadata refresh
+    let mut last_k8s_refresh = std::time::Instant::now()
+        .checked_sub(Duration::from_secs(K8S_REFRESH_INTERVAL_SECS))
+        .unwrap_or_else(std::time::Instant::now);
+
     loop {
         tokio::select! {
             _ = interval.tick() => {
+                // REQ-PME-002: Refresh Kubernetes metadata periodically
+                if let Some(ref client) = k8s_client {
+                    let now = std::time::Instant::now();
+                    if now.duration_since(last_k8s_refresh) >= Duration::from_secs(K8S_REFRESH_INTERVAL_SECS) {
+                        if let Err(e) = client.refresh().await {
+                            tracing::warn!(error = %e, "Failed to refresh Kubernetes pod metadata");
+                        }
+                        last_k8s_refresh = now;
+                    }
+                }
+
                 // Discover all running containers via cgroup scan
-                let containers = discovery::scan_cgroups();
+                let mut containers = discovery::scan_cgroups();
 
                 if containers.is_empty() {
                     tracing::debug!("No containers discovered");
                     continue;
+                }
+
+                // REQ-PME-002: Enrich containers with Kubernetes metadata
+                if let Some(ref client) = k8s_client {
+                    let metadata_cache = client.get_cache().await;
+                    for container in &mut containers {
+                        if let Some(metadata) = metadata_cache.get(&container.id) {
+                            container.pod_name = Some(metadata.pod_name.clone());
+                            container.namespace = Some(metadata.namespace.clone());
+                            container.labels = Some(metadata.labels.clone());
+                        }
+                    }
                 }
 
                 tracing::debug!(count = containers.len(), "Discovered containers");

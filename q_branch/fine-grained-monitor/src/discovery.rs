@@ -3,6 +3,7 @@
 //! Discovers running containers by walking /sys/fs/cgroup/ and matching
 //! kubepods patterns. No external dependencies (kubelet, CRI socket).
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -24,6 +25,13 @@ pub struct Container {
     pub pod_uid: Option<String>,
     /// QoS class inferred from cgroup path
     pub qos_class: QosClass,
+    // REQ-PME-003: Kubernetes metadata from API (populated by kubernetes.rs)
+    /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
+    pub pod_name: Option<String>,
+    /// Namespace from Kubernetes API (e.g., "kube-system")
+    pub namespace: Option<String>,
+    /// Pod labels from Kubernetes API
+    pub labels: Option<HashMap<String, String>>,
 }
 
 /// Kubernetes QoS class
@@ -187,6 +195,10 @@ fn try_parse_container_scope(path: &Path, name: &str) -> Option<Container> {
         pids,
         pod_uid,
         qos_class,
+        // Kubernetes metadata populated later by kubernetes.rs
+        pod_name: None,
+        namespace: None,
+        labels: None,
     })
 }
 

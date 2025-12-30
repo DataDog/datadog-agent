@@ -12,7 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::discovery::{Container, QosClass};
 
 /// Current schema version for forward compatibility
-const SCHEMA_VERSION: u32 = 1;
+/// v2: Added pod_name, namespace, labels from Kubernetes API (REQ-PME-003)
+const SCHEMA_VERSION: u32 = 2;
 
 /// Container metadata stored in the index
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +29,16 @@ pub struct ContainerEntry {
     pub first_seen: DateTime<Utc>,
     /// When this container was last observed
     pub last_seen: DateTime<Utc>,
+    // REQ-PME-003: Kubernetes metadata from API
+    /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pod_name: Option<String>,
+    /// Namespace from Kubernetes API (e.g., "kube-system")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Pod labels from Kubernetes API
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<HashMap<String, String>>,
 }
 
 /// Data file time range information
@@ -140,10 +151,24 @@ impl ContainerIndex {
             }
         }
 
-        // Add new containers
+        // Add new containers or update existing ones with new metadata
         for container in containers {
             let sid = short_id(&container.id);
-            if !self.containers.contains_key(&sid) {
+            if let Some(entry) = self.containers.get_mut(&sid) {
+                // Update existing container with new Kubernetes metadata if available
+                if container.pod_name.is_some() && entry.pod_name.is_none() {
+                    entry.pod_name = container.pod_name.clone();
+                    entry.namespace = container.namespace.clone();
+                    entry.labels = container.labels.clone();
+                    tracing::info!(
+                        container_id = %sid,
+                        pod_name = ?container.pod_name,
+                        namespace = ?container.namespace,
+                        "Updated container with Kubernetes metadata"
+                    );
+                    changed = true;
+                }
+            } else {
                 self.containers.insert(
                     sid.clone(),
                     ContainerEntry {
@@ -152,11 +177,15 @@ impl ContainerIndex {
                         qos_class: qos_to_string(container.qos_class),
                         first_seen: now,
                         last_seen: now,
+                        pod_name: container.pod_name.clone(),
+                        namespace: container.namespace.clone(),
+                        labels: container.labels.clone(),
                     },
                 );
                 tracing::info!(
                     container_id = %sid,
                     pod_uid = ?container.pod_uid,
+                    pod_name = ?container.pod_name,
                     qos_class = %qos_to_string(container.qos_class),
                     "New container discovered"
                 );
@@ -213,6 +242,9 @@ mod tests {
             pids: vec![1],
             pod_uid: pod_uid.map(String::from),
             qos_class: qos,
+            pod_name: None,
+            namespace: None,
+            labels: None,
         }
     }
 

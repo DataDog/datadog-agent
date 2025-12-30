@@ -30,5 +30,6 @@
 
 pub mod discovery;
 pub mod index;
+pub mod kubernetes;
 pub mod metrics_viewer;
 pub mod observer;

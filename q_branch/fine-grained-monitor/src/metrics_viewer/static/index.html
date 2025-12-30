@@ -42,6 +42,24 @@
             font-size: 18px;
             color: #333;
         }
+        .sidebar-header .instance-info {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #e8f4ff;
+            border-radius: 4px;
+            font-size: 11px;
+            border-left: 3px solid #007bff;
+        }
+        .sidebar-header .instance-info .pod-name {
+            font-family: monospace;
+            font-weight: 600;
+            color: #0056b3;
+            word-break: break-all;
+        }
+        .sidebar-header .instance-info .node-name {
+            color: #666;
+            margin-top: 2px;
+        }
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
@@ -417,6 +435,41 @@
             background: rgba(255, 235, 59, 0.5);
             border-radius: 2px;
         }
+
+        /* Loading indicators */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            gap: 12px;
+        }
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-text {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .charts-container {
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -425,6 +478,7 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <h1>Fine-Grained Monitor</h1>
+                <div id="instanceInfo"></div>
             </div>
             <div class="sidebar-content">
                 <!-- REQ-MV-002: Metric selection with fuzzy search -->
@@ -462,6 +516,10 @@
         <!-- Main content -->
         <div class="main-content">
             <div class="charts-container">
+                <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading data...</div>
+                </div>
                 <div class="legend" id="legend"></div>
                 <div id="mainChart"></div>
                 <div id="overviewChart"></div>
@@ -513,6 +571,14 @@
                 containerId: null,
                 previousSelection: [],      // For restore functionality
                 results: {},                // {containerId: periodicity results}
+            },
+
+            // Loading states
+            loading: {
+                initial: true,              // Initial page load
+                containers: false,          // Loading containers for a metric
+                timeseries: false,          // Loading chart data
+                study: false,               // Running periodicity study
             },
 
             // Internal (not persisted)
@@ -595,11 +661,28 @@
             return COLORS[index % COLORS.length];
         }
 
+        // Show/hide loading overlay with custom message
+        function setLoading(isLoading, message = 'Loading data...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const textEl = overlay?.querySelector('.loading-text');
+            if (overlay) {
+                overlay.style.display = isLoading ? 'flex' : 'none';
+                if (textEl && message) {
+                    textEl.textContent = message;
+                }
+            }
+        }
+
         // ============================================================
         // SECTION 5: API FUNCTIONS
         // ============================================================
 
         const Api = {
+            async fetchInstance() {
+                const res = await fetch('/api/instance');
+                return await res.json();
+            },
+
             async fetchMetrics() {
                 const res = await fetch('/api/metrics');
                 const data = await res.json();
@@ -675,7 +758,6 @@
                     return `
                         <div class="metric-item ${selectedClass}" data-metric="${escapeAttr(metric.name)}">
                             <span class="metric-name">${escapeHtml(metric.name)}</span>
-                            <span class="sample-count">${metric.sample_count.toLocaleString()}</span>
                         </div>
                     `;
                 }).join('');
@@ -849,7 +931,13 @@
         const Actions = {
             // Initialize the application
             async initialize() {
-                const metrics = await Api.fetchMetrics();
+                setLoading(true, 'Loading metrics...');
+                try {
+                    // Fetch instance info for in-cluster identification
+                    const instanceInfo = await Api.fetchInstance();
+                    Actions.updateInstanceInfo(instanceInfo);
+
+                    const metrics = await Api.fetchMetrics();
 
                 // Initialize Fuse.js for fuzzy search
                 const fuse = new Fuse(metrics, {
@@ -882,12 +970,44 @@
                         window.location.reload();
                     }, 5000);
                 }
+                } finally {
+                    setLoading(false);
+                }
+            },
+
+            // Update instance info display in header
+            updateInstanceInfo(info) {
+                const container = document.getElementById('instanceInfo');
+                if (!container) return;
+
+                // Only show if we have pod info (i.e., running in-cluster)
+                if (!info.pod_name) {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                let nodeHtml = '';
+                if (info.node_name) {
+                    nodeHtml = `<div class="node-name">Node: ${escapeHtml(info.node_name)}</div>`;
+                }
+
+                container.innerHTML = `
+                    <div class="instance-info">
+                        <div class="pod-name">${escapeHtml(info.pod_name)}</div>
+                        ${nodeHtml}
+                    </div>
+                `;
             },
 
             // User selects a metric
             async selectMetric(metricName) {
-                updateState({ selectedMetric: metricName });
-                await Actions.loadContainers();
+                setLoading(true, 'Loading containers...');
+                try {
+                    updateState({ selectedMetric: metricName });
+                    await Actions.loadContainers();
+                } finally {
+                    setLoading(false);
+                }
             },
 
             // User changes metric search query
@@ -1008,31 +1128,36 @@
                     selectedContainerIds: [containerId],
                 });
 
-                // Load timeseries for single container
-                const timeseries = await Api.fetchTimeseries(
-                    AppState.selectedMetric,
-                    [containerId]
-                );
-                updateState({ timeseries: timeseries });
+                setLoading(true, 'Running periodicity analysis...');
+                try {
+                    // Load timeseries for single container
+                    const timeseries = await Api.fetchTimeseries(
+                        AppState.selectedMetric,
+                        [containerId]
+                    );
+                    updateState({ timeseries: timeseries });
 
-                // Render chart with preserved range
-                ChartRenderer.renderChart(AppState, preservedXRange);
+                    // Render chart with preserved range
+                    ChartRenderer.renderChart(AppState, preservedXRange);
 
-                // Fetch periodicity data
-                const periodicityResult = await Api.fetchPeriodicityStudy(
-                    AppState.selectedMetric,
-                    containerId
-                );
+                    // Fetch periodicity data
+                    const periodicityResult = await Api.fetchPeriodicityStudy(
+                        AppState.selectedMetric,
+                        containerId
+                    );
 
-                const results = {};
-                if (periodicityResult) {
-                    results[containerId] = periodicityResult;
-                }
-                updateState({ study: { results: results } });
+                    const results = {};
+                    if (periodicityResult) {
+                        results[containerId] = periodicityResult;
+                    }
+                    updateState({ study: { results: results } });
 
-                // Redraw to show periodicity overlay
-                if (AppState._mainPlot) {
-                    AppState._mainPlot.redraw();
+                    // Redraw to show periodicity overlay
+                    if (AppState._mainPlot) {
+                        AppState._mainPlot.redraw();
+                    }
+                } finally {
+                    setLoading(false);
                 }
             },
 

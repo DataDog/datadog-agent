@@ -124,8 +124,10 @@ impl LazyDataStore {
         }
 
         // Build container info from index
+        // REQ-PME-003: Use pod_name and namespace from enriched index
         let mut containers = HashMap::new();
         let mut qos_classes = HashSet::new();
+        let mut namespace_set = HashSet::new();
 
         for (short_id, entry) in &container_index.containers {
             containers.insert(
@@ -134,11 +136,14 @@ impl LazyDataStore {
                     id: entry.full_id.clone(),
                     short_id: short_id.clone(),
                     qos_class: Some(entry.qos_class.clone()),
-                    namespace: None, // Not available from basic index
-                    pod_name: None,  // Not available from basic index
+                    namespace: entry.namespace.clone(),
+                    pod_name: entry.pod_name.clone(),
                 },
             );
             qos_classes.insert(entry.qos_class.clone());
+            if let Some(ref ns) = entry.namespace {
+                namespace_set.insert(ns.clone());
+            }
         }
 
         // Build metric_containers map (all containers for all metrics initially)
@@ -148,10 +153,14 @@ impl LazyDataStore {
             .map(|m| (m.name.clone(), all_container_ids.clone()))
             .collect();
 
+        // REQ-PME-003: Include namespaces from enriched index
+        let mut namespaces: Vec<String> = namespace_set.into_iter().collect();
+        namespaces.sort();
+
         let index = MetadataIndex {
             metrics,
             qos_classes: qos_classes.into_iter().collect(),
-            namespaces: Vec::new(), // Not available from basic index
+            namespaces,
             containers,
             metric_containers,
         };
@@ -980,11 +989,15 @@ impl RawContainerData {
     }
 
     fn into_points(self) -> Vec<TimeseriesPoint> {
-        self.times
+        // Sort by time after merging data from parallel file reads
+        let mut points: Vec<TimeseriesPoint> = self
+            .times
             .into_iter()
             .zip(self.values)
             .map(|(time_ms, value)| TimeseriesPoint { time_ms, value })
-            .collect()
+            .collect();
+        points.sort_by_key(|p| p.time_ms);
+        points
     }
 
     /// Merge another RawContainerData into this one.
