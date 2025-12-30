@@ -44,3 +44,6 @@ func (m MockInfo) InitConfig() string { return m.InitConf }
 
 // InstanceConfig returns the instance config of the check
 func (m MockInfo) InstanceConfig() string { return m.InstanceConf }
+
+// ExclusiveMode returns an empty string (no exclusive mode)
+func (m MockInfo) ExclusiveMode() string { return "" }

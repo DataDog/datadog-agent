@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -47,6 +48,12 @@ type WLANCheck struct {
 
 func (c *WLANCheck) String() string {
 	return "wlan"
+}
+
+// ExclusiveMode returns the infrastructure mode this check is exclusive to.
+// This check only runs in end_user_device infrastructure mode.
+func (c *WLANCheck) ExclusiveMode() string {
+	return string(pkgconfigsetup.InfraModeEndUserDevice)
 }
 
 func (c *WLANCheck) isRoaming(wi *wifiInfo) bool {

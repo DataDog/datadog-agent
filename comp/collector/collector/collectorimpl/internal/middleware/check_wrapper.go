@@ -159,3 +159,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// ExclusiveMode implements Check#ExclusiveMode
+func (c *CheckWrapper) ExclusiveMode() string {
+	return c.inner.ExclusiveMode()
+}

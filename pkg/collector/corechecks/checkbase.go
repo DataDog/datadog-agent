@@ -291,3 +291,10 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckBase) IsHASupported() bool {
 	return false
 }
+
+// ExclusiveMode returns the infrastructure mode this check is exclusive to.
+// By default, checks are not exclusive to any mode (returns empty string).
+// Override this method in checks that should only run in a specific mode.
+func (c *CheckBase) ExclusiveMode() string {
+	return ""
+}

@@ -24,7 +24,7 @@ import (
 // CheckFactory factory function type to instantiate checks
 type CheckFactory func() check.Check
 
-// Catalog keeps track of Go checks by name
+// catalog keeps track of Go checks by name
 var catalog = make(map[string]CheckFactory)
 
 // GoCheckLoaderName is the name of the Go loader
@@ -92,7 +92,22 @@ func (gl *GoCheckLoader) String() string {
 	return "Core Check Loader"
 }
 
+// getCheckExclusiveMode returns the exclusive mode for a check, or empty string if none.
+func getCheckExclusiveMode(checkName string) string {
+	factory, found := catalog[checkName]
+	if !found {
+		return ""
+	}
+	if c := factory(); c != nil {
+		return c.ExclusiveMode()
+	}
+	return ""
+}
+
 func init() {
+	// Register the callback for infrastructure mode checking
+	pkgconfigsetup.GetCheckExclusiveModeFunc = getCheckExclusiveMode
+
 	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
 		loader, err := NewGoCheckLoader()
 		priority := 30

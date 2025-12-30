@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,6 @@ func TestCollect(t *testing.T) {
 	cfg := mock.New(t)
 	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	cfg.SetWithoutSource("infrastructure_mode", "full") // Allow all checks in test
-	pkgconfigsetup.ResetInfraModeConfig()               // Reset cached infra mode config
 	paths := []string{"tests", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
@@ -98,7 +96,6 @@ func TestEnvVarReplacement(t *testing.T) {
 
 	cfg := mock.New(t)
 	cfg.SetWithoutSource("infrastructure_mode", "full") // Allow all checks in test
-	pkgconfigsetup.ResetInfraModeConfig()               // Reset cached infra mode config
 
 	paths := []string{"tests"}
 	ResetReader(paths)
