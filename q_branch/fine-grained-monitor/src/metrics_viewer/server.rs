@@ -52,6 +52,7 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/api/health", get(health_handler))
+        .route("/api/instance", get(instance_handler))
         .route("/api/metrics", get(metrics_handler))
         .route("/api/filters", get(filters_handler))
         .route("/api/containers", get(containers_handler))
@@ -83,10 +84,28 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
 
 // --- Handlers ---
 
+/// Default embedded HTML (fallback if external file not found).
+const EMBEDDED_INDEX_HTML: &str = include_str!("static/index.html");
+
 /// Serve the main HTML page.
 /// REQ-MV-001: Display interactive timeseries chart.
-async fn index_handler() -> Html<&'static str> {
-    Html(include_str!("static/index.html"))
+///
+/// Checks for external file first (for fast iteration), falls back to embedded.
+async fn index_handler() -> Html<String> {
+    // Check for external static file (allows hot-reload without recompilation)
+    let external_paths = [
+        "/static/index.html",           // In-container path
+        "src/metrics_viewer/static/index.html", // Local dev path
+    ];
+
+    for path in external_paths {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            return Html(content);
+        }
+    }
+
+    // Fall back to embedded version
+    Html(EMBEDDED_INDEX_HTML.to_string())
 }
 
 /// GET /api/health - health check endpoint for dev tooling.
@@ -99,6 +118,23 @@ async fn health_handler() -> Json<HealthResponse> {
 #[derive(Serialize)]
 struct HealthResponse {
     status: String,
+}
+
+/// GET /api/instance - instance info for in-cluster identification.
+/// Returns pod name and node name from environment variables when running in Kubernetes.
+async fn instance_handler() -> Json<InstanceResponse> {
+    Json(InstanceResponse {
+        pod_name: std::env::var("POD_NAME").ok(),
+        node_name: std::env::var("NODE_NAME").ok(),
+        cluster_name: std::env::var("CLUSTER_NAME").ok(),
+    })
+}
+
+#[derive(Serialize)]
+struct InstanceResponse {
+    pod_name: Option<String>,
+    node_name: Option<String>,
+    cluster_name: Option<String>,
 }
 
 /// Priority metrics shown at top of list (most useful for container monitoring).

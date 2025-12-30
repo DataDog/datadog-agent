@@ -13,6 +13,8 @@ spec:
       labels:
         app: fine-grained-monitor
     spec:
+      # REQ-PME-002: ServiceAccount for Kubernetes API access
+      serviceAccountName: fine-grained-monitor
       hostPID: true  # Needed to read /proc for all processes
       containers:
       - name: monitor
@@ -62,6 +64,17 @@ spec:
           - "/data"
           - "--port=8050"
           - "--no-browser"
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: CLUSTER_NAME
+            value: "gadget-dev"
         ports:
           - containerPort: 8050
             name: http
