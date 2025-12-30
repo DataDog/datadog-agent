@@ -59,7 +59,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
 
-	if params.agentOptions != nil {
+	if awsEnv.AgentDeploy() {
 		if params.fakeintakeOptions != nil {
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", params.fakeintakeOptions...); err != nil {
 				return err
@@ -97,8 +97,8 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		env.FakeIntake = nil
 	}
 
-	// Testing workload
-	if params.testingWorkload {
+	// Testing workload if at least one EC2 node group is present
+	if params.testingWorkload && (clusterParams.LinuxNodeGroup || clusterParams.LinuxARMNodeGroup || clusterParams.WindowsNodeGroup || clusterParams.LinuxBottleRocketNodeGroup) {
 		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	}
 
 	// Deploy Fargate test apps when enabled
-	if params.testingWorkload && params.agentOptions != nil && clusterParams.FargateCapacityProvider {
+	if params.testingWorkload && clusterParams.FargateCapacityProvider {
 		if _, err := redis.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
