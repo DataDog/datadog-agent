@@ -7,6 +7,7 @@ package config
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -65,6 +66,11 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		runnerID = urnParts.RunnerID
 	}
 
+	creds, err := loadCredentials(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load credentials: %w", err)
+	}
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -95,4 +101,18 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
+}
+
+// loadCredentials loads all credentials from privateactionrunner.credentials
+func loadCredentials(config config.Component) (map[string]interface{}, error) {
+	credentialsData := config.Get("privateactionrunner.credentials")
+	if credentialsData == nil {
+		return nil, nil
+	}
+
+	if credMap, ok := credentialsData.(map[string]interface{}); ok {
+		return credMap, nil
+	}
+
+	return nil, errors.New("expected privateactionrunner.credentials to be a map")
 }

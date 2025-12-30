@@ -12,14 +12,17 @@ import (
 type AuthType string
 
 const (
-	TokenAuthType AuthType = "Token Auth"
-	BasicAuthType AuthType = "Basic Auth"
+	TokenAuthType  AuthType = "Token Auth"
+	BasicAuthType  AuthType = "Basic Auth"
+	ConfigAuthType AuthType = "Config Auth"
 )
 
 type PrivateCredentials struct {
 	Type        AuthType
 	Tokens      []PrivateCredentialsToken
 	HttpDetails HttpDetails
+
+	ConfigData interface{} // Raw configuration data (can be map, string, etc.)
 }
 
 type PrivateCredentialsToken struct {
