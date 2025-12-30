@@ -124,7 +124,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",
 			"datadog_agent_ddot_gateway_usage",
-			[]string{"version", "command", "host", "task_arn"},
+			[]string{"version", "command"},
 			"Usage metric for GW deployments with DDOT",
 		),
 	}
