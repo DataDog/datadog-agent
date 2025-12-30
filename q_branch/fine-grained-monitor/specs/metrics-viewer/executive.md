@@ -26,7 +26,7 @@ detection uses sliding-window autocorrelation (60-sample windows, 50% overlap).
 |-------------|--------|-------|
 | **REQ-MV-001:** View Metrics Timeseries | ✅ Complete | uPlot chart with empty state instructions |
 | **REQ-MV-002:** Select Metrics to Display | ✅ Complete | `/api/metrics` endpoint, metric dropdown |
-| **REQ-MV-003:** Filter Containers by Attributes | ✅ Complete | QoS class and namespace filter dropdowns |
+| **REQ-MV-003:** Filter Containers by Attributes | ⚠️ Deprecated | Removed - search (REQ-MV-004) sufficient |
 | **REQ-MV-004:** Search and Select Containers | ✅ Complete | Search box with debounce, Top N buttons |
 | **REQ-MV-005:** Zoom and Pan Through Time | ✅ Complete | Drag zoom, scroll wheel zoom, reset button |
 | **REQ-MV-006:** Navigate with Range Overview | ✅ Complete | Second uPlot instance as overview |
