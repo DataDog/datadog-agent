@@ -194,14 +194,6 @@ func PageFileCallback(
 	pInfo C.PENUM_PAGE_FILE_INFORMATION,
 	lpFilename C.LPCWSTR,
 ) C.BOOL {
-	// Recover from panics
-	defer func() {
-		if r := recover(); r != nil {
-			// Log the panic but don't crash
-			log.Errorf("Panic in callback: %v\n", r)
-		}
-	}()
-
 	if pInfo == nil || lpFilename == nil {
 		log.Errorf("Invalid input in callback: pInfo: %v, lpFilename: %v", pInfo, lpFilename)
 		return C.BOOL(1)
