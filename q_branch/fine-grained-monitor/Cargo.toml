@@ -44,6 +44,9 @@ serde_json = "1"
 # UUID for run_id
 uuid = { version = "1", features = ["v4"] }
 
+# File globbing for directory input
+glob = "0.3"
+
 # Metrics viewer dependencies
 parquet = { version = "54", features = ["arrow"] }
 arrow = "54"

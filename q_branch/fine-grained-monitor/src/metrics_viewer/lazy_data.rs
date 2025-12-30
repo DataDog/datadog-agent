@@ -189,7 +189,20 @@ impl LazyDataStore {
 
 /// Fast metadata-only scan of parquet files.
 /// Uses sampling to quickly discover metrics and containers without reading all rows.
+/// REQ-ICV-003: Returns empty index when no paths provided.
 fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
+    // REQ-ICV-003: Handle empty file list gracefully
+    if paths.is_empty() {
+        eprintln!("No parquet files to scan - returning empty index");
+        return Ok(MetadataIndex {
+            metrics: vec![],
+            qos_classes: vec![],
+            namespaces: vec![],
+            containers: HashMap::new(),
+            metric_containers: HashMap::new(),
+        });
+    }
+
     let start = std::time::Instant::now();
 
     let mut metric_set: HashSet<String> = HashSet::new();
@@ -203,8 +216,31 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     for path in paths {
         eprintln!("Scanning {:?}", path);
 
-        let file = File::open(path).context("Failed to open file")?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+        // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+        // This handles files being actively written by the collector
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("  Skipping (cannot open): {}", e);
+                continue;
+            }
+        };
+
+        // Check file size - parquet files need at least 8 bytes for magic number
+        if let Ok(metadata) = file.metadata() {
+            if metadata.len() < 8 {
+                eprintln!("  Skipping (file too small: {} bytes)", metadata.len());
+                continue;
+            }
+        }
+
+        let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("  Skipping (invalid parquet): {}", e);
+                continue;
+            }
+        };
 
         let file_metadata = builder.metadata();
         let total_rows = file_metadata.file_metadata().num_rows() as usize;
@@ -419,9 +455,23 @@ fn load_metric_from_file(
     container_set: &HashSet<String>,
     is_cumulative_metric: bool,
 ) -> Result<HashMap<String, RawContainerData>> {
-    // First, get metadata to determine row groups
-    let file = File::open(path).context("Failed to open file")?;
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Ok(HashMap::new()),
+    };
+
+    // Check file size
+    if let Ok(metadata) = file.metadata() {
+        if metadata.len() < 8 {
+            return Ok(HashMap::new());
+        }
+    }
+
+    let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
+        Ok(b) => b,
+        Err(_) => return Ok(HashMap::new()),
+    };
     let num_row_groups = builder.metadata().num_row_groups();
 
     // For small files, process sequentially
@@ -480,8 +530,22 @@ fn load_row_groups(
     is_cumulative_metric: bool,
     row_groups: Option<Vec<usize>>,
 ) -> Result<HashMap<String, RawContainerData>> {
-    let file = File::open(path).context("Failed to open file")?;
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Ok(HashMap::new()),
+    };
+
+    if let Ok(metadata) = file.metadata() {
+        if metadata.len() < 8 {
+            return Ok(HashMap::new());
+        }
+    }
+
+    let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
+        Ok(b) => b,
+        Err(_) => return Ok(HashMap::new()),
+    };
 
     let schema = builder.schema().clone();
     let parquet_schema = builder.parquet_schema();
