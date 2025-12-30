@@ -37,10 +37,9 @@ Updates the e2e.yml file with the new Kubernetes version.
 
 **What it does:**
 - Reads the stored versions from `k8s_versions.json`
-- Parses `.gitlab/test/e2e/e2e.yml` to find the `new-e2e-containers` matrix section
-- Checks which versions are already present
-- Adds new versions in the format: `kubernetesVersion=v1.34.0@sha256:...`
-- Inserts new entries after the last Kubernetes version in the matrix
+- Compares with current version in `new-e2e-containers-k8s-latest` job
+- If different, moves current k8s-latest version to the matrix
+- Updates `new-e2e-containers-k8s-latest` job with the new version
 
 **Usage:**
 ```bash
@@ -109,10 +108,10 @@ The task extracts the **index digest** (not the image digest) for the latest ver
 
 ### YAML Update Strategy
 The task:
-1. Locates the `new-e2e-containers` job in `.gitlab/test/e2e/e2e.yml`
-2. Finds the `parallel.matrix` section
-3. Identifies existing Kubernetes version entries
-4. Adds the new version after the last Kubernetes version entry (if not already present)
+1. Locates the `new-e2e-containers` matrix and `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml`
+2. Compares the desired latest version with current version in k8s-latest job
+3. If different, moves current k8s-latest version to the matrix (if not already present)
+4. Updates the k8s-latest job with the new version
 5. Maintains proper YAML indentation (6 spaces)
 
 ### PR Creation
