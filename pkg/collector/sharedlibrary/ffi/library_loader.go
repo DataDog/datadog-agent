@@ -39,7 +39,7 @@ const aggregator_t aggregator = {
 	SubmitEventPlatformEvent,
 };
 
-const aggregator_t *get_aggregator() {
+const aggregator_t *get_aggregator(void) {
 	return &aggregator;
 }
 */
@@ -67,8 +67,8 @@ type Library struct {
 
 // LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
-	Open(name string) (Library, error)
-	Close(lib Library) error
+	Open(name string) (*Library, error)
+	Close(lib *Library) error
 	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Version(versionPtr *C.version_function_t) (string, error)
 }
@@ -80,7 +80,7 @@ type SharedLibraryLoader struct {
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
-func (l *SharedLibraryLoader) Open(name string) (Library, error) {
+func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 
@@ -92,18 +92,14 @@ func (l *SharedLibraryLoader) Open(name string) (Library, error) {
 	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return Library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
+		return nil, fmt.Errorf("failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
-	return Library{
-		Handle:  cLib.handle,
-		Run:     cLib.run,
-		Version: cLib.version,
-	}, nil
+	return newLibrary(&cLib), nil
 }
 
 // Close closes the shared library
-func (l *SharedLibraryLoader) Close(lib Library) error {
+func (l *SharedLibraryLoader) Close(lib *Library) error {
 	var cErr *C.char
 
 	C.close_shared_library(lib.Handle, &cErr)
@@ -156,5 +152,13 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
+	}
+}
+
+func newLibrary(lib *C.library_t) *Library {
+	return &Library{
+		Handle:  lib.handle,
+		Run:     lib.run,
+		Version: lib.version,
 	}
 }

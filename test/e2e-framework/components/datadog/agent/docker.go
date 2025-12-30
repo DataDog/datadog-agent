@@ -7,6 +7,7 @@ package agent
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -124,9 +125,7 @@ func dockerAgentComposeManifest(agentImagePath string, apiKey pulumi.StringInput
 				},
 			},
 		}
-		for key, value := range envVarsResolved {
-			agentManifest.Services["agent"].Environment[key] = value
-		}
+		maps.Copy(agentManifest.Services["agent"].Environment, envVarsResolved)
 		data, err := yaml.Marshal(agentManifest)
 		return string(data), err
 	}).(pulumi.StringOutput)
