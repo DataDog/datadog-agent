@@ -22,6 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
 	github.com/benbjohnson/clock v1.3.5
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.76.0

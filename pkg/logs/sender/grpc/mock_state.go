@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
-	"google.golang.org/protobuf/proto"
 )
 
 const nanoToMillis = 1000000
@@ -204,7 +203,7 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 		*patternDefineParamCount = pd.ParamCount
 	}
 
-	bytesAdded := float64(proto.Size(patternDatum))
+	bytesAdded := float64(patternDatum.SizeVT())
 	tlmPipelinePatternAdded.Inc(mt.pipelineName)
 	tlmPipelinePatternBytesAdded.Add(bytesAdded, mt.pipelineName)
 	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
@@ -220,7 +219,7 @@ func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg 
 func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Message, outputChan chan *message.StatefulMessage) {
 	deleteDatum := buildPatternDelete(patternID)
 
-	bytesRemoved := float64(proto.Size(deleteDatum))
+	bytesRemoved := float64(deleteDatum.SizeVT())
 	tlmPipelinePatternRemoved.Inc(mt.pipelineName)
 	tlmPipelinePatternBytesRemoved.Add(bytesRemoved, mt.pipelineName)
 	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
@@ -235,7 +234,7 @@ func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Me
 func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64, value string) {
 	dictDatum := buildDictEntryDefine(id, value)
 
-	bytesAdded := float64(proto.Size(dictDatum))
+	bytesAdded := float64(dictDatum.SizeVT())
 	tlmPipelineTokenAdded.Inc(mt.pipelineName)
 	tlmPipelineTokenBytesAdded.Add(bytesAdded, mt.pipelineName)
 	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
@@ -251,8 +250,8 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
 	logDatum := buildRawLog(contentStr, ts, tagSet)
 
+	// Count metric only - bytes tracked in batch_strategy after delta encoding
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
@@ -264,8 +263,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) {
 	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet)
 
+	// Count metric only - bytes tracked in batch_strategy after delta encoding
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
