@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -28,7 +29,9 @@ const (
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
+
 type privateCredentialResolver struct {
+	config *config.Config
 }
 
 type PrivateConnectionConfig struct {
@@ -43,8 +46,10 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver() PrivateCredentialResolver {
-	return &privateCredentialResolver{}
+func NewPrivateCredentialResolver(cfg *config.Config) PrivateCredentialResolver {
+	return &privateCredentialResolver{
+		config: cfg,
+	}
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -70,6 +75,8 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			Type:        privateconnection.BasicAuthType,
 			HttpDetails: details,
 		}, nil
+	case privateactionspb.CredentialsType_AGENT_CONFIGURATION:
+		return p.resolveAgentConfigurationCredentials(tokens)
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
@@ -252,4 +259,54 @@ func closeSafely(ctx context.Context, closer io.Closer) {
 	if err != nil {
 		log.FromContext(ctx).Warn("failed to close credentials file safely")
 	}
+}
+
+/*
+Retrieve credentials from the agent configuration
+
+privateactionrunner:
+
+	credentials:
+		scripts:
+			schemaId: script-credentials-v1
+			runPredefinedScript:
+				echo:
+					command: ["echo", "Hello world"]
+				echoParametrized:
+					command: ["echo", "{{ parameters.Name }}"]
+		other-scripts:
+			schemaId: script-credentials-v1
+			runPredefinedScript:
+				bye:
+					command: ["echo", "Good bye"]
+*/
+func (p *privateCredentialResolver) resolveAgentConfigurationCredentials(tokens []*privateactionspb.ConnectionToken) (*privateconnection.PrivateCredentials, error) {
+	// Look for the "credential-name" token
+	credentialName := ""
+	for _, token := range tokens {
+		if connlib.GetName(token) == "credential-name" {
+			if plainText := token.GetPlainText(); plainText != nil {
+				credentialName = plainText.GetValue()
+				break
+			}
+		}
+	}
+
+	if credentialName == "" {
+		return nil, errors.New("credential-name token not found")
+	}
+
+	if p.config == nil || p.config.Credentials == nil {
+		return nil, errors.New("no credentials configured")
+	}
+
+	credData, exists := p.config.Credentials[credentialName]
+	if !exists {
+		return nil, fmt.Errorf("credential '%s' not found in configuration", credentialName)
+	}
+
+	return &privateconnection.PrivateCredentials{
+		Type:       privateconnection.ConfigAuthType,
+		ConfigData: credData,
+	}, nil
 }

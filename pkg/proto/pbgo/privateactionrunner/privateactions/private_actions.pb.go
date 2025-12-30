@@ -122,10 +122,11 @@ func (HashType) EnumDescriptor() ([]byte, []int) {
 type CredentialsType int32
 
 const (
-	CredentialsType_UNSPECIFIED CredentialsType = 0
-	CredentialsType_TOKEN_AUTH  CredentialsType = 1
-	CredentialsType_BASIC_AUTH  CredentialsType = 2
-	CredentialsType_OAUTH2      CredentialsType = 3
+	CredentialsType_UNSPECIFIED         CredentialsType = 0
+	CredentialsType_TOKEN_AUTH          CredentialsType = 1
+	CredentialsType_BASIC_AUTH          CredentialsType = 2
+	CredentialsType_OAUTH2              CredentialsType = 3
+	CredentialsType_AGENT_CONFIGURATION CredentialsType = 4
 )
 
 // Enum value maps for CredentialsType.
@@ -135,12 +136,14 @@ var (
 		1: "TOKEN_AUTH",
 		2: "BASIC_AUTH",
 		3: "OAUTH2",
+		4: "AGENT_CONFIGURATION",
 	}
 	CredentialsType_value = map[string]int32{
-		"UNSPECIFIED": 0,
-		"TOKEN_AUTH":  1,
-		"BASIC_AUTH":  2,
-		"OAUTH2":      3,
+		"UNSPECIFIED":         0,
+		"TOKEN_AUTH":          1,
+		"BASIC_AUTH":          2,
+		"OAUTH2":              3,
+		"AGENT_CONFIGURATION": 4,
 	}
 )
 
@@ -776,7 +779,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\bHashType\x12\x15\n" +
 	"\x11HASH_TYPE_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
-	"\x06SHA256\x10\x01*N\n" +
+	"\x06SHA256\x10\x01*g\n" +
 	"\x0fCredentialsType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -784,7 +787,8 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\n" +
 	"BASIC_AUTH\x10\x02\x12\n" +
 	"\n" +
-	"\x06OAUTH2\x10\x03BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
+	"\x06OAUTH2\x10\x03\x12\x17\n" +
+	"\x13AGENT_CONFIGURATION\x10\x04BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
 
 var (
 	file_datadog_privateactionrunner_private_actions_proto_rawDescOnce sync.Once
