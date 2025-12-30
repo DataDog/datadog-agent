@@ -84,7 +84,7 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
-	refreshEvent             chan string
+	refreshConfig            chan string
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -204,7 +204,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
-		refreshEvent:             make(chan string, 100),
+		refreshConfig:            make(chan string, 100),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
@@ -231,26 +231,10 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
 		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
-		ac.refreshEvent <- origin
+		ac.refreshConfig <- origin
 	})
 
 	return ac
-}
-
-func (ac *AutoConfig) refreshConfig(origin string) integration.ConfigChanges {
-	var changes integration.ConfigChanges
-
-	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
-	if !found {
-		ac.logs.Warnf("no active config found for secret origin %s", origin)
-		return changes
-	}
-
-	ac.logs.Infof("Found config (%v) using refreshed secret. Refreshing config(s).", rawConfig.Name)
-	ac.processRemovedConfigs([]integration.Config{rawConfig})
-	changes = ac.processNewConfig(rawConfig)
-	ac.applyChanges(changes)
-	return changes
 }
 
 // serviceListening is the main management goroutine for services.
@@ -267,8 +251,8 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
-		case origin := <-ac.refreshEvent:
-			ac.refreshConfig(origin)
+		case origin := <-ac.refreshConfig:
+			ac.processRefreshConfig(origin)
 		}
 	}
 }
@@ -703,6 +687,24 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
+}
+
+// processRefreshConfig takes a secret origin and matches it against an active config. If found
+// it will refresh the config to apply the new secret.
+func (ac *AutoConfig) processRefreshConfig(origin string) integration.ConfigChanges {
+	var changes integration.ConfigChanges
+
+	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
+	if !found {
+		ac.logs.Debugf("no active config found for secret origin %s", origin)
+		return changes
+	}
+
+	ac.logs.Infof("Found config '%v' using refreshed secret. Refreshing config.", rawConfig.Name)
+	ac.processRemovedConfigs([]integration.Config{rawConfig})
+	changes = ac.processNewConfig(rawConfig)
+	ac.applyChanges(changes)
+	return changes
 }
 
 // GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The
