@@ -146,7 +146,7 @@ func IsTCPRequired(coreConfig pkgconfigmodel.Reader) bool {
 }
 
 // HTTPConnectivityRetryIntervalMax returns the maximum interval for HTTP connectivity retry attempts.
-func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) int {
+func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).httpConnectivityRetryIntervalMax()
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -48,7 +49,7 @@ func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) er
 
 	a.log.Info("Gracefully stopping logs-agent")
 
-	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
+	timeout := a.config.GetDuration("logs_config.stop_grace_period")
 	_, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -209,16 +210,30 @@ func (a *logAgent) smartHTTPRestart() {
 // Uses a similar backoff strategy as the TCP connection manager:
 // exponential backoff with randomization [2^(n-1), 2^n) seconds, capped at configured max
 func (a *logAgent) httpRetryLoop(ctx context.Context) {
-	maxRetryInterval := time.Duration(config.HTTPConnectivityRetryIntervalMax(a.config)) * time.Second
-	if maxRetryInterval == 0 {
+	maxRetryInterval := config.HTTPConnectivityRetryIntervalMax(a.config)
+	if maxRetryInterval.Seconds() <= 0 {
 		a.log.Warn("HTTP connectivity retry interval max set to 0 seconds, skipping HTTP connectivity retry")
 		return
 	}
 
-	attempt := uint(0)
+	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config)
+	if err != nil {
+		a.log.Errorf("Failed to build HTTP endpoints: %v", err)
+		return
+	}
+
+	policy := backoff.NewExpBackoffPolicy(
+		endpoints.Main.BackoffFactor,
+		endpoints.Main.BackoffBase,
+		maxRetryInterval.Seconds(),
+		endpoints.Main.RecoveryInterval,
+		endpoints.Main.RecoveryReset,
+	)
+
+	attempt := 0
 	for {
 		// Calculate backoff interval similar to connection_manager.go
-		backoffDuration := a.calculateBackoffDuration(attempt, maxRetryInterval)
+		backoffDuration := policy.GetBackoffDuration(attempt)
 
 		a.log.Debugf("Next HTTP connectivity check in %v (attempt %d)", backoffDuration, attempt+1)
 
@@ -253,29 +268,6 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-// calculateBackoffDuration computes the backoff duration using exponential backoff with randomization
-func (a *logAgent) calculateBackoffDuration(attempt uint, maxDuration time.Duration) time.Duration {
-	// Cap the exponent to prevent overflow
-	const maxExpBackoffCount = 10 // ~17min max before capping
-	cappedAttempt := attempt
-	if cappedAttempt > maxExpBackoffCount {
-		cappedAttempt = maxExpBackoffCount
-	}
-
-	// Calculate exponential backoff with randomization: [2^n, 2^(n+1)) seconds
-	backoffMax := int64(1 << (cappedAttempt + 1))
-	backoffMin := int64(1 << cappedAttempt)
-	backoffSeconds := backoffMin + time.Now().UnixNano()%(backoffMax-backoffMin)
-	backoffDuration := time.Duration(backoffSeconds) * time.Second
-
-	// Cap at configured maximum
-	if backoffDuration > maxDuration {
-		backoffDuration = maxDuration
-	}
-
-	return backoffDuration
 }
 
 // checkHTTPConnectivity tests if HTTP endpoints are reachable
