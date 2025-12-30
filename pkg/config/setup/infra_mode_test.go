@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // resetInfraModeConfig resets the infrastructure mode configuration cache for testing.
@@ -24,8 +22,8 @@ func resetInfraModeConfig() {
 func TestIsCheckAllowedByInfraMode(t *testing.T) {
 	t.Run("full mode allows all checks", func(t *testing.T) {
 		cfg := newTestConf(t)
-		cfg.Set("infrastructure_mode", "full", model.SourceFile)
-		SetDatadog(cfg)
+		cfg.SetWithoutSource("infrastructure_mode", "full")
+		SetDatadog(cfg) //nolint:forbidigo // test setup
 		resetInfraModeConfig()
 
 		assert.True(t, IsCheckAllowedByInfraMode("cpu"))
@@ -34,10 +32,10 @@ func TestIsCheckAllowedByInfraMode(t *testing.T) {
 
 	t.Run("non-full mode uses allowlist", func(t *testing.T) {
 		cfg := newTestConf(t)
-		cfg.Set("infrastructure_mode", "minimal", model.SourceFile)
-		cfg.Set("allowed_checks", []string{"cpu", "disk"}, model.SourceFile)
-		cfg.Set("excluded_default_checks", []string{"disk"}, model.SourceFile)
-		SetDatadog(cfg)
+		cfg.SetWithoutSource("infrastructure_mode", "minimal")
+		cfg.SetWithoutSource("allowed_checks", []string{"cpu", "disk"})
+		cfg.SetWithoutSource("excluded_default_checks", []string{"disk"})
+		SetDatadog(cfg) //nolint:forbidigo // test setup
 		resetInfraModeConfig()
 
 		assert.True(t, IsCheckAllowedByInfraMode("cpu"))
@@ -49,8 +47,8 @@ func TestIsCheckAllowedByInfraMode(t *testing.T) {
 
 func TestIsCheckExcludedByInfraMode(t *testing.T) {
 	cfg := newTestConf(t)
-	cfg.Set("excluded_default_checks", []string{"disk", "io"}, model.SourceFile)
-	SetDatadog(cfg)
+	cfg.SetWithoutSource("excluded_default_checks", []string{"disk", "io"})
+	SetDatadog(cfg) //nolint:forbidigo // test setup
 	resetInfraModeConfig()
 
 	assert.True(t, IsCheckExcludedByInfraMode("disk"))
