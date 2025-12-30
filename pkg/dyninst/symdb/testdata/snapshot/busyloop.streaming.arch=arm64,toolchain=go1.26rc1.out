@@ -1,0 +1,36 @@
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+Package: main
+	Function: busyloop (main.busyloop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [21:56] injectible: [21-27], [46-47], [49-51], [53-54], [56-56]
+		Arg: concurrency: int (declared at line 21, available: [21-56])
+		Arg: duration: time.Duration (declared at line 21, available: [21-56])
+		Arg: ~r0: float64 (declared at line 21, available: )
+		Var: ready: chan struct {} (declared at line 22, available: [21-56])
+		Var: start: chan struct {} (declared at line 23, available: [21-56])
+		Var: stop: chan struct {} (declared at line 24, available: [21-56])
+		Var: counts: chan int (declared at line 25, available: [21-56])
+		Var: total: int (declared at line 52, available: [21-56])
+		Scope: 22-46
+			Var: i: int (declared at line 26, available: [23-46])
+		Scope: 26-54
+			Var: i: int (declared at line 46, available: [23-54])
+		Scope: 46-56
+			Var: i: int (declared at line 53, available: [23-46], [53-53], [54-54], [56-56])
+	Function: busyloop.func1 (main.busyloop.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [27:44] injectible: [27-27], [30-32], [35-35], [39-40], [43-44]
+		Var: ready: chan struct {} (declared at line 30, available: [31-31])
+		Var: start: chan struct {} (declared at line 31, available: [27-44])
+		Var: stop: chan struct {} (declared at line 35, available: [27-44])
+		Var: counts: chan int (declared at line 43, available: [27-44])
+		Var: iters: int (declared at line 28, available: [27-44])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [59:96] injectible: [59-62], [65-67], [69-71], [73-75], [77-79], [81-86], [88-88], [90-91], [93-96]
+		Var: round_cnt: int (declared at line 65, available: [59-96])
+		Var: round_sec: int (declared at line 69, available: [61-96])
+		Var: concurrency: int (declared at line 73, available: [61-96])
+		Var: stddev: float64 (declared at line 89, available: [90-90], [91-95])
+		Var: avg: float64 (declared at line 82, available: [83-95])
+		Var: err: error (declared at line 65, available: [66-67], [70-71], [74-75], [78-79])
+		Var: results: []float64 (declared at line 81, available: [61-96])
+		Scope: 61-88
+			Var: i: int (declared at line 83, available: [83-90])
+		Scope: 84-93
+			Var: i: int (declared at line 90, available: [91-95])
+	Function: noop (main.noop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [19:19] injectible: [19-19]

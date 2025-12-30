@@ -369,15 +369,16 @@ func start(log log.Component,
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	ctx := controllers.ControllerContext{
-		InformerFactory:        apiCl.InformerFactory,
-		DynamicClient:          apiCl.DynamicInformerCl,
-		DynamicInformerFactory: apiCl.DynamicInformerFactory,
-		Client:                 apiCl.InformerCl,
-		IsLeaderFunc:           le.IsLeader,
-		EventRecorder:          eventRecorder,
-		WorkloadMeta:           wmeta,
-		StopCh:                 stopCh,
-		DatadogClient:          dc,
+		InformerFactory:             apiCl.InformerFactory,
+		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
+		DynamicClient:               apiCl.DynamicInformerCl,
+		DynamicInformerFactory:      apiCl.DynamicInformerFactory,
+		Client:                      apiCl.InformerCl,
+		IsLeaderFunc:                le.IsLeader,
+		EventRecorder:               eventRecorder,
+		WorkloadMeta:                wmeta,
+		StopCh:                      stopCh,
+		DatadogClient:               dc,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
