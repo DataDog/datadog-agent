@@ -34,6 +34,7 @@ import (
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -220,7 +221,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 	// Create unified issue registry and register all self-registered modules
 	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules() {
+	for _, module := range issuesmod.GetAllModules(reqs.Config) {
 		issueRegistry.RegisterModule(module)
 	}
 
@@ -309,6 +310,8 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.forwarder.Start()
 	}
 
+	go h.startupChecks()
+
 	return nil
 }
 
@@ -386,6 +389,11 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 // If interval is 0 or negative, uses default of 15 minutes
 func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
 	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
+}
+
+// RunCheck runs a single health check immediately
+func (h *healthPlatformImpl) RunCheck(checkID, checkName string, checkFn healthplatformdef.HealthCheckFunc) error {
+	return h.checkRunner.RunCheck(checkID, checkName, checkFn)
 }
 
 // ============================================================================
@@ -745,4 +753,14 @@ func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	}
 
 	return fb.AddFile("health-platform-issues.json", data)
+}
+
+func (h *healthPlatformImpl) startupChecks() {
+	startupChecks := h.issueRegistry.GetStartupChecks()
+	for _, check := range startupChecks {
+		err := h.RunCheck(check.ID, check.Name, check.CheckFn)
+		if err != nil {
+			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)
+		}
+	}
 }

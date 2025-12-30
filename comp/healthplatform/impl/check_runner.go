@@ -131,9 +131,31 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 	return nil
 }
 
+// RunCheck runs a single health check immediately
+func (r *checkRunner) RunCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc) error {
+	if checkID == "" {
+		return errors.New("check ID cannot be empty")
+	}
+	if checkFn == nil {
+		return errors.New("check function cannot be nil")
+	}
+
+	r.checkMux.Lock()
+	defer r.checkMux.Unlock()
+
+	go r.executeCheck(&registeredCheck{
+		checkID:   checkID,
+		checkName: checkName,
+		checkFn:   checkFn,
+		stopCh:    make(chan struct{}),
+	})
+	return nil
+}
+
 // startCheck launches a goroutine to run the check at its interval
 func (r *checkRunner) startCheck(check *registeredCheck) {
 	r.wg.Add(1)
+	r.log.Debugf("Running health check '%s' on interval %v", check.checkName, check.interval)
 	go r.runAndScheduleCheck(check)
 }
 
