@@ -594,6 +594,13 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
+		// Delete the package entry from the database.
+		// This ensures the entry is removed even if os.Remove(packages.db) fails later
+		// due to file locking race conditions on Windows.
+		err = i.db.DeletePackage(pkg.Name)
+		if err != nil {
+			log.Warnf("could not delete package %s from db: %v", pkg.Name, err)
+		}
 	}
 	// NOTE: On Windows, purge must be called from a copy of the installer that
 	//       exists outside of the install directory. If purge is called from
