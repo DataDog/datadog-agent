@@ -7,6 +7,7 @@ package processor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -34,7 +35,7 @@ func (l *Log) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1: // Message
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Message field")
+				return errors.New("invalid wire type for Message field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
@@ -45,7 +46,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 2: // Status
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Status field")
+				return errors.New("invalid wire type for Status field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
@@ -56,7 +57,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 3: // Timestamp
 			if wireType != protowire.VarintType {
-				return fmt.Errorf("invalid wire type for Timestamp field")
+				return errors.New("invalid wire type for Timestamp field")
 			}
 			v, n := protowire.ConsumeVarint(data)
 			if n < 0 {
@@ -67,7 +68,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 4: // Hostname
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Hostname field")
+				return errors.New("invalid wire type for Hostname field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
@@ -78,7 +79,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 5: // Service
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Service field")
+				return errors.New("invalid wire type for Service field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
@@ -89,7 +90,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 6: // Source
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Source field")
+				return errors.New("invalid wire type for Source field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
@@ -100,7 +101,7 @@ func (l *Log) Unmarshal(data []byte) error {
 
 		case 7: // Tags (repeated)
 			if wireType != protowire.BytesType {
-				return fmt.Errorf("invalid wire type for Tags field")
+				return errors.New("invalid wire type for Tags field")
 			}
 			v, n := protowire.ConsumeString(data)
 			if n < 0 {
