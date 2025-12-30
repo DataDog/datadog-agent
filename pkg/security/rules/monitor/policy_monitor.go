@@ -136,12 +136,6 @@ func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled 
 	}
 }
 
-// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
-type RuleSetLoadedReport struct {
-	Rule  *rules.Rule
-	Event *events.CustomEvent
-}
-
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
 func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
