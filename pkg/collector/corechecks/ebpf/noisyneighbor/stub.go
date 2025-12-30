@@ -14,6 +14,6 @@ import (
 )
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(_ tagger.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }
