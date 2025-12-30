@@ -105,30 +105,6 @@
             flex-shrink: 0;
         }
 
-        /* Filter dropdowns */
-        .filter-row {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .filter-group {
-            flex: 1;
-        }
-        .filter-group label {
-            display: block;
-            font-size: 11px;
-            color: #666;
-            margin-bottom: 4px;
-        }
-        .filter-group select {
-            width: 100%;
-            padding: 6px 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 12px;
-            background: white;
-        }
-
         /* Container list */
         .container-list {
             max-height: 250px;
@@ -458,25 +434,6 @@
                     <div class="metric-list" id="metricList"></div>
                 </div>
 
-                <!-- REQ-MV-003: Filters -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Filters</div>
-                    <div class="filter-row">
-                        <div class="filter-group">
-                            <label>QoS Class</label>
-                            <select id="qosFilter">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>Namespace</label>
-                            <select id="namespaceFilter">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- REQ-MV-004: Container search and selection -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Containers</div>
@@ -542,16 +499,6 @@
             selectedContainerIds: [],       // Array of short_ids
             metricSearchQuery: '',
             containerSearchQuery: '',
-
-            // Filter state
-            filters: {
-                qosClass: '',               // '' means "all"
-                namespace: '',              // '' means "all"
-            },
-            filterOptions: {
-                qosClasses: [],
-                namespaces: [],
-            },
 
             // Chart state
             chart: {
@@ -659,23 +606,8 @@
                 return data.metrics;
             },
 
-            async fetchFilters() {
-                const res = await fetch('/api/filters');
-                const data = await res.json();
-                return {
-                    qosClasses: data.qos_classes,
-                    namespaces: data.namespaces,
-                };
-            },
-
-            async fetchContainers(metricName, qosClass, namespace, search) {
+            async fetchContainers(metricName, search) {
                 let url = `/api/containers?metric=${encodeURIComponent(metricName)}`;
-                if (qosClass) {
-                    url += `&qos_class=${encodeURIComponent(qosClass)}`;
-                }
-                if (namespace) {
-                    url += `&namespace=${encodeURIComponent(namespace)}`;
-                }
                 if (search) {
                     url += `&search=${encodeURIComponent(search)}`;
                 }
@@ -893,14 +825,6 @@
                     `;
                 }).join('');
             },
-
-            // REQ-MV-003: Filter dropdowns
-            FilterDropdown(options, selectedValue, emptyLabel) {
-                const optionElements = options.map(opt =>
-                    `<option value="${escapeAttr(opt)}" ${opt === selectedValue ? 'selected' : ''}>${escapeHtml(opt)}</option>`
-                ).join('');
-                return `<option value="">${emptyLabel}</option>${optionElements}`;
-            },
         };
 
         // ============================================================
@@ -934,19 +858,8 @@
                 });
 
                 if (metrics.length > 0) {
-                    await Actions.loadFilters();
                     await Actions.loadContainers();
                 }
-            },
-
-            async loadFilters() {
-                const filters = await Api.fetchFilters();
-                updateState({
-                    filterOptions: {
-                        qosClasses: filters.qosClasses,
-                        namespaces: filters.namespaces,
-                    },
-                });
             },
 
             // User selects a metric
@@ -965,22 +878,12 @@
                 updateState({ containerSearchQuery: query });
             },
 
-            // User changes a filter
-            async setFilter(filterType, value) {
-                const changes = { filters: {} };
-                changes.filters[filterType] = value;
-                updateState(changes);
-                await Actions.loadContainers();
-            },
-
-            // Load containers for current metric and filters
+            // Load containers for current metric
             async loadContainers() {
                 if (!AppState.selectedMetric) return;
 
                 const containers = await Api.fetchContainers(
                     AppState.selectedMetric,
-                    AppState.filters.qosClass,
-                    AppState.filters.namespace,
                     AppState.containerSearchQuery
                 );
 
@@ -1625,18 +1528,6 @@
 
             // Update studies panel
             document.getElementById('studiesContent').innerHTML = Components.StudyPanel(state);
-
-            // Update filter dropdowns
-            document.getElementById('qosFilter').innerHTML = Components.FilterDropdown(
-                state.filterOptions.qosClasses,
-                state.filters.qosClass,
-                'All'
-            );
-            document.getElementById('namespaceFilter').innerHTML = Components.FilterDropdown(
-                state.filterOptions.namespaces,
-                state.filters.namespace,
-                'All'
-            );
         }
 
         // ============================================================
@@ -1659,15 +1550,6 @@
                 metricSearchTimeout = setTimeout(() => {
                     Actions.setMetricSearchQuery(e.target.value);
                 }, 150);
-            });
-
-            // Filter changes
-            document.getElementById('qosFilter').addEventListener('change', (e) => {
-                Actions.setFilter('qosClass', e.target.value);
-            });
-
-            document.getElementById('namespaceFilter').addEventListener('change', (e) => {
-                Actions.setFilter('namespace', e.target.value);
             });
 
             // Container search (debounced)
