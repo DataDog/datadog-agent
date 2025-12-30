@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -80,9 +81,12 @@ class TestDiff(unittest.TestCase):
         # Call the function
         diff('/dir1', '/dir2')
 
-        # Verify size mismatches were printed
-        mock_print.assert_any_call("Size mismatch: /file1.txt 1000 vs 1500 (+500B)")
-        mock_print.assert_any_call("Size mismatch: /file2.txt 2000 vs 1800 (-200B)")
+        # Verify size mismatches were printed (normalize path separators for cross-platform)
+        # Build expected paths separately to avoid escape sequence issues with backslashes
+        expected_file1_path = os.sep + "file1.txt"
+        expected_file2_path = os.sep + "file2.txt"
+        mock_print.assert_any_call(f"Size mismatch: {expected_file1_path} 1000 vs 1500 (+500B)")
+        mock_print.assert_any_call(f"Size mismatch: {expected_file2_path} 2000 vs 1800 (-200B)")
 
     @patch('os.stat')
     @patch('os.path.islink')
@@ -118,10 +122,13 @@ class TestDiff(unittest.TestCase):
         # Call the function
         diff('/dir1', '/dir2')
 
-        # Verify output includes files in dir1 but not in dir2
+        # Verify output includes files in dir1 but not in dir2 (normalize path separators)
+        # Build expected paths separately to avoid escape sequence issues
+        expected_file2_path = os.sep + "file2.txt"
+        expected_file3_path = os.sep + "file3.txt"
         mock_print.assert_any_call("Files in /dir1 but not in /dir2:")
-        mock_print.assert_any_call("/file2.txt (-1000B)")
-        mock_print.assert_any_call("/file3.txt (-1000B)")
+        mock_print.assert_any_call(f"{expected_file2_path} (-1000B)")
+        mock_print.assert_any_call(f"{expected_file3_path} (-1000B)")
 
     @patch('os.stat')
     @patch('os.path.islink')
@@ -154,10 +161,13 @@ class TestDiff(unittest.TestCase):
         # Call the function
         diff('/dir1', '/dir2')
 
-        # Verify output includes files in dir2 but not in dir1
+        # Verify output includes files in dir2 but not in dir1 (normalize path separators)
+        # Build expected paths separately to avoid escape sequence issues
+        expected_file2_path = os.sep + "file2.txt"
+        expected_file3_path = os.sep + "file3.txt"
         mock_print.assert_any_call("Files in /dir2 but not in /dir1:")
-        mock_print.assert_any_call("/file2.txt (+1000B)")
-        mock_print.assert_any_call("/file3.txt (+1000B)")
+        mock_print.assert_any_call(f"{expected_file2_path} (+1000B)")
+        mock_print.assert_any_call(f"{expected_file3_path} (+1000B)")
 
     @patch('os.stat')
     @patch('os.path.islink')
@@ -207,20 +217,27 @@ class TestDiff(unittest.TestCase):
         # Call the function
         diff('/dir1', '/dir2')
 
-        # Verify all expected outputs
+        # Verify all expected outputs (normalize path separators for cross-platform)
+        # Build expected paths separately to avoid escape sequence issues
         # Size mismatch for file1.txt
-        mock_print.assert_any_call("Size mismatch: /file1.txt 1000 vs 1200 (+200B)")
+        expected_file1_path = os.sep + "file1.txt"
+        mock_print.assert_any_call(f"Size mismatch: {expected_file1_path} 1000 vs 1200 (+200B)")
 
         # Files in dir1 but not in dir2
+        expected_file2_path = os.sep + "file2.txt"
+        expected_file3_path = os.path.join(os.sep + "subdir", "file3.txt")
+        expected_file4_path = os.path.join(os.sep + "subdir", "file4.txt")
         mock_print.assert_any_call("Files in /dir1 but not in /dir2:")
-        mock_print.assert_any_call("/file2.txt (-500B)")
-        mock_print.assert_any_call("/subdir/file3.txt (-500B)")
-        mock_print.assert_any_call("/subdir/file4.txt (-500B)")
+        mock_print.assert_any_call(f"{expected_file2_path} (-500B)")
+        mock_print.assert_any_call(f"{expected_file3_path} (-500B)")
+        mock_print.assert_any_call(f"{expected_file4_path} (-500B)")
 
         # Files in dir2 but not in dir1
+        expected_unique_path = os.sep + "unique.txt"
+        expected_file5_path = os.path.join(os.sep + "other", "file5.txt")
         mock_print.assert_any_call("Files in /dir2 but not in /dir1:")
-        mock_print.assert_any_call("/unique.txt (+500B)")
-        mock_print.assert_any_call("/other/file5.txt (+500B)")
+        mock_print.assert_any_call(f"{expected_unique_path} (+500B)")
+        mock_print.assert_any_call(f"{expected_file5_path} (+500B)")
 
     @patch('os.stat')
     @patch('os.path.islink')
@@ -339,7 +356,8 @@ class TestDiff(unittest.TestCase):
         if removed_section_start is not None:
             removed_files = []
             for i in range(removed_section_start + 1, len(print_calls)):
-                if print_calls[i] and '/removed' in str(print_calls[i]):
+                # Check for 'removed' in filename (cross-platform compatible)
+                if print_calls[i] and 'removed' in str(print_calls[i]):
                     removed_files.append(str(print_calls[i]))
                 elif print_calls[i] and 'Files in' in str(print_calls[i]):
                     break
@@ -360,7 +378,8 @@ class TestDiff(unittest.TestCase):
         if new_section_start is not None:
             new_files = []
             for i in range(new_section_start + 1, len(print_calls)):
-                if print_calls[i] and '/new' in str(print_calls[i]):
+                # Check for 'new' in filename (cross-platform compatible)
+                if print_calls[i] and 'new' in str(print_calls[i]):
                     new_files.append(str(print_calls[i]))
 
             self.assertEqual(len(new_files), 2)
