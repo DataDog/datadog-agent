@@ -26,7 +26,7 @@ type eventPlatformDebugEvent struct {
 
 // PrintMetrics prints metrics aggregator in the Demultiplexer's check samplers (series and sketches),
 // service checks buffer, events buffers.
-func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, formatTable bool) {
+func (p AgentDemultiplexerPrinter) PrintMetrics(_ *bytes.Buffer, _ bool) {
 	// series, sketches := p.Aggregator().GetSeriesAndSketches(time.Now())
 	// if len(series) != 0 {
 	// 	fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Series"))
