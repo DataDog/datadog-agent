@@ -216,7 +216,7 @@ def _find_matrix_section(content: str) -> tuple:
     return None, None, None
 
 
-def _parse_existing_k8s_versions(content: str) -> list[dict[str, str]]:
+def _parse_existing_k8s_versions(content: str, matrix_start: int, matrix_end: int) -> list[dict[str, str]]:
     """
     Parse existing Kubernetes versions from the matrix section.
     Returns a list of dicts with 'version' and 'digest' keys.
@@ -227,7 +227,8 @@ def _parse_existing_k8s_versions(content: str) -> list[dict[str, str]]:
     # Pattern to match Kubernetes version entries
     pattern = r'kubernetesVersion=(v?\d+\.\d+(?:\.\d+)?(?:@sha256:[a-f0-9]+)?)'
 
-    for line in lines:
+    for i in range(matrix_start, matrix_end):
+        line = lines[i]
         match = re.search(pattern, line)
         if match:
             version_str = match.group(1)
@@ -354,7 +355,8 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     lines = content.split('\n')
     added_versions = []
 
-    existing_versions = _parse_existing_k8s_versions(content)
+    # Parse versions only from the matrix section to avoid matching the k8s-latest job
+    existing_versions = _parse_existing_k8s_versions(content, matrix_start, matrix_end)
     existing_version_strs = {v['version'] for v in existing_versions}
 
     if current_latest['version'] not in existing_version_strs:
