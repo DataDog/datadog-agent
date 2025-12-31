@@ -203,14 +203,24 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
 
 # Check that the UID of dd-agent is still 100.
 #
-# The exact numeric value of the UID of the dd-agent user shouldn’t matter.
-# But people that don’t want to let the agent run as root might want to explicitly set a non-root user in their k8s security context.
+# The exact numeric value of the UID of the dd-agent user shouldn't matter.
+# But people that don't want to let the agent run as root might want to explicitly set a non-root user in their k8s security context.
 # And, in a k8s security context, we can only specify a numeric UID and not a username.
 # So, if the UID of the dd-agent user happen to change again and cannot be forced to 100 (because of a conflict), we need to update
 # * the documentation https://docs.datadoghq.com/data_security/kubernetes/#running-container-as-root-user
 #   (see PR https://github.com/DataDog/documentation/pull/21889)
 # * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
 RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
+
+# Compress binaries in embedded/bin to reduce image size
+COPY compress-binaries.sh stub-wrapper.sh /tmp/
+RUN apt install --no-install-recommends -y file \
+  && chmod +x /tmp/compress-binaries.sh /tmp/stub-wrapper.sh \
+  && /tmp/compress-binaries.sh /opt/datadog-agent/embedded/bin \
+  && rm /tmp/compress-binaries.sh /tmp/stub-wrapper.sh \
+  && apt purge -y file \
+  && apt autoremove -y \
+  && rm -rf /var/lib/apt/lists/*
 
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
