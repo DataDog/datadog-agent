@@ -70,3 +70,7 @@ path = "src/main.rs"
 [[bin]]
 name = "fgm-viewer"
 path = "src/bin/fgm-viewer.rs"
+
+[[bin]]
+name = "fgm-consolidator"
+path = "src/bin/fgm-consolidator.rs"

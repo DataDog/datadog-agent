@@ -227,13 +227,22 @@ impl LazyDataStore {
     /// Get container stats for a metric.
     /// Computes stats from timeseries data (loading if necessary).
     pub fn get_container_stats(&self, metric: &str) -> Result<HashMap<String, ContainerStats>> {
+        let total_start = std::time::Instant::now();
+
         // Check cache first
         {
             let cache = self.stats_cache.read().unwrap();
             if let Some(stats) = cache.get(metric) {
+                eprintln!(
+                    "[PERF] get_container_stats('{}') cache HIT in {:.1}ms",
+                    metric,
+                    total_start.elapsed().as_secs_f64() * 1000.0
+                );
                 return Ok(stats.clone());
             }
         }
+
+        eprintln!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
 
         // Get all containers for this metric
         let container_ids: Vec<&str> = self
@@ -243,13 +252,23 @@ impl LazyDataStore {
             .map(|set| set.iter().map(|s| s.as_str()).collect())
             .unwrap_or_default();
 
+        eprintln!("[PERF]   {} containers to load", container_ids.len());
+
         if container_ids.is_empty() {
             return Ok(HashMap::new());
         }
 
         // Load timeseries data and compute stats
+        let load_start = std::time::Instant::now();
         let timeseries = self.get_timeseries(metric, &container_ids)?;
+        let load_elapsed = load_start.elapsed();
+        eprintln!(
+            "[PERF]   get_timeseries: {:.1}ms ({} series returned)",
+            load_elapsed.as_secs_f64() * 1000.0,
+            timeseries.len()
+        );
 
+        let stats_start = std::time::Instant::now();
         let mut stats = HashMap::new();
         for (id, points) in timeseries {
             if points.is_empty() {
@@ -272,12 +291,22 @@ impl LazyDataStore {
                 );
             }
         }
+        eprintln!(
+            "[PERF]   compute stats: {:.1}ms",
+            stats_start.elapsed().as_secs_f64() * 1000.0
+        );
 
         // Cache the stats
         {
             let mut cache = self.stats_cache.write().unwrap();
             cache.insert(metric.to_string(), stats.clone());
         }
+
+        eprintln!(
+            "[PERF] get_container_stats('{}') TOTAL: {:.1}ms",
+            metric,
+            total_start.elapsed().as_secs_f64() * 1000.0
+        );
 
         Ok(stats)
     }
@@ -579,15 +608,28 @@ fn load_metric_data(
     let is_cumulative_metric = is_cumulative(metric);
     let metric = metric.to_string();
 
+    eprintln!(
+        "[PERF]     load_metric_data: {} files, {} containers requested",
+        paths.len(),
+        container_ids.len()
+    );
+
     // Process files in parallel, each file returns its own HashMap
+    let parallel_start = std::time::Instant::now();
     let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
         .par_iter()
         .map(|path| {
             load_metric_from_file(path, &metric, &container_set, is_cumulative_metric)
         })
         .collect();
+    let parallel_elapsed = parallel_start.elapsed();
+    eprintln!(
+        "[PERF]       parallel file reads: {:.1}ms",
+        parallel_elapsed.as_secs_f64() * 1000.0
+    );
 
     // Merge results from all files
+    let merge_start = std::time::Instant::now();
     let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
     for result in file_results {
         let file_data = result?;
@@ -602,19 +644,27 @@ fn load_metric_data(
                 .merge(data);
         }
     }
+    eprintln!(
+        "[PERF]       merge results: {:.1}ms",
+        merge_start.elapsed().as_secs_f64() * 1000.0
+    );
 
     // Convert to timeseries
+    let convert_start = std::time::Instant::now();
     let result: Vec<(String, Vec<TimeseriesPoint>)> = raw_data
         .into_iter()
         .map(|(id, raw)| (id, raw.into_points()))
         .filter(|(_, points)| !points.is_empty())
         .collect();
+    eprintln!(
+        "[PERF]       convert to points: {:.1}ms",
+        convert_start.elapsed().as_secs_f64() * 1000.0
+    );
 
     eprintln!(
-        "Loaded {} containers for metric '{}' in {:.2}s",
-        result.len(),
-        metric,
-        start.elapsed().as_secs_f64()
+        "[PERF]     load_metric_data TOTAL: {:.1}ms ({} containers loaded)",
+        start.elapsed().as_secs_f64() * 1000.0,
+        result.len()
     );
 
     Ok(result)
