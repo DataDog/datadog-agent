@@ -70,3 +70,44 @@ deploy/
 
 specs/                   # Requirements and design docs
 ```
+
+## Benchmarks
+
+Performance benchmarks for the parquet query codepath using [divan](https://github.com/nvzqz/divan).
+
+**Generate test data:**
+
+```bash
+# Small dataset (quick iteration)
+cargo run --release --bin generate-bench-data -- --scenario small
+
+# Medium dataset (realistic testing)
+cargo run --release --bin generate-bench-data -- --scenario medium
+```
+
+| Scenario | Files | Containers | Metrics | Rows/File |
+|----------|-------|------------|---------|-----------|
+| small | 2 | 10 | 5 | 10K |
+| medium | 50 | 50 | 30 | 50K |
+| large | 200 | 100 | 30 | 100K |
+| production | 500 | 100 | 30 | 100K |
+
+**Run benchmarks:**
+
+```bash
+# Run all benchmarks (suppress verbose PERF logging)
+cargo bench 2>/dev/null
+
+# Run specific benchmark
+cargo bench -- scan_metadata 2>/dev/null
+
+# Use different dataset
+BENCH_DATA=testdata/bench/medium cargo bench 2>/dev/null
+```
+
+Benchmarks measure:
+- `scan_metadata` - Startup time to build metadata index
+- `get_container_stats_cold` - First query (loads from parquet)
+- `get_container_stats_warm` - Cached query
+- `get_timeseries_*` - Timeseries data retrieval
+- `load_all_metrics` - Full dashboard simulation
