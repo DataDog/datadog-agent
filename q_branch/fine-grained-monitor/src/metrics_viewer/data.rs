@@ -27,7 +27,6 @@ pub struct ContainerInfo {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ContainerStats {
     pub info: ContainerInfo,
-    pub sample_count: usize,
     pub avg: f64,
     pub max: f64,
 }
@@ -36,5 +35,4 @@ pub struct ContainerStats {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MetricInfo {
     pub name: String,
-    pub sample_count: usize,
 }

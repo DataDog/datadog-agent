@@ -558,7 +558,6 @@ impl LazyDataStore {
                     id,
                     ContainerStats {
                         info: info.clone(),
-                        sample_count,
                         avg,
                         max,
                     },
@@ -673,10 +672,7 @@ fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
     // Convert to MetricInfo sorted by name
     let mut metrics: Vec<MetricInfo> = metric_set
         .into_iter()
-        .map(|name| MetricInfo {
-            name,
-            sample_count: 0, // Not known from sampling
-        })
+        .map(|name| MetricInfo { name })
         .collect();
 
     metrics.sort_by(|a, b| a.name.cmp(&b.name));
@@ -900,15 +896,9 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     // Build metric list (without exact counts since we sampled)
     let mut metrics: Vec<MetricInfo> = metric_set
         .into_iter()
-        .map(|name| {
-            let container_count = metric_containers.get(&name).map(|s| s.len()).unwrap_or(0);
-            MetricInfo {
-                name,
-                sample_count: container_count, // Use container count as proxy for importance
-            }
-        })
+        .map(|name| MetricInfo { name })
         .collect();
-    metrics.sort_by(|a, b| b.sample_count.cmp(&a.sample_count));
+    metrics.sort_by(|a, b| a.name.cmp(&b.name));
 
     let mut qos_classes: Vec<String> = qos_set.into_iter().collect();
     qos_classes.sort();

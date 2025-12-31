@@ -1,0 +1,18 @@
+{
+    "6": [
+        "6.62.0",
+        "devel",
+        7384,
+        "bb4c0c1",
+        null
+    ],
+    "7": [
+        "7.75.0",
+        "devel",
+        208,
+        "bb4c0c1",
+        null
+    ],
+    "nightly": false,
+    "dev": false
+}

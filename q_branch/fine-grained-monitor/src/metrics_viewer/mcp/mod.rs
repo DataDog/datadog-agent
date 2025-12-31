@@ -98,7 +98,6 @@ struct ListMetricsResponse {
 #[derive(Debug, Serialize)]
 struct MetricEntry {
     name: String,
-    sample_count: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -201,10 +200,7 @@ impl McpMetricsViewer {
         let response = ListMetricsResponse {
             metrics: metrics
                 .into_iter()
-                .map(|m| MetricEntry {
-                    name: m.name,
-                    sample_count: m.sample_count,
-                })
+                .map(|m| MetricEntry { name: m.name })
                 .collect(),
             studies: studies
                 .into_iter()
@@ -249,19 +245,18 @@ impl McpMetricsViewer {
         let total = containers.len();
         let limit = params.limit.unwrap_or(20);
 
-        // Note: HTTP API returns sorted by avg, we just take the results as-is for now
-        // REQ-MCP-003 specifies last_seen sorting but that requires API changes
+        // Note: HTTP API returns sorted by last_seen descending (REQ-MCP-003)
         let response = ListContainersResponse {
             containers: containers
                 .into_iter()
                 .take(limit)
                 .map(|c| ContainerEntry {
-                    id: c.info.short_id,
-                    pod_name: c.info.pod_name,
-                    container_name: None, // Not in current API
-                    namespace: c.info.namespace,
-                    qos_class: c.info.qos_class,
-                    last_seen: None, // Not in current API
+                    id: c.short_id,
+                    pod_name: c.pod_name,
+                    container_name: c.container_name,
+                    namespace: c.namespace,
+                    qos_class: c.qos_class,
+                    last_seen: c.last_seen_ms,
                 })
                 .collect(),
             total_matching: total,
@@ -392,8 +387,8 @@ impl McpMetricsViewer {
         let response = AnalyzeContainerResponse {
             container: ContainerSummary {
                 id: params.container,
-                pod_name: container_info.as_ref().and_then(|c| c.info.pod_name.clone()),
-                namespace: container_info.as_ref().and_then(|c| c.info.namespace.clone()),
+                pod_name: container_info.as_ref().and_then(|c| c.pod_name.clone()),
+                namespace: container_info.as_ref().and_then(|c| c.namespace.clone()),
             },
             study: params.study_id,
             results,

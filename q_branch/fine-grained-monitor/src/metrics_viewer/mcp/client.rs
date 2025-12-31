@@ -73,7 +73,7 @@ impl MetricsViewerClient {
     }
 
     /// REQ-MCP-002, REQ-MCP-003: Search containers by criteria.
-    pub async fn search_containers(&self, params: &ContainerSearchParams) -> Result<Vec<ContainerStats>> {
+    pub async fn search_containers(&self, params: &ContainerSearchParams) -> Result<Vec<ContainerInfo>> {
         let mut url = format!("{}/api/containers?metric={}", self.base_url, params.metric);
 
         if let Some(ref ns) = params.namespace {
@@ -156,7 +156,6 @@ struct MetricsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricInfo {
     pub name: String,
-    pub sample_count: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,19 +189,10 @@ pub struct ContainerSearchParams {
 
 #[derive(Debug, Deserialize)]
 struct ContainersResponse {
-    containers: Vec<ContainerStats>,
+    containers: Vec<ContainerInfo>,
 }
 
-/// Container with statistics from /api/containers.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContainerStats {
-    pub info: ContainerInfo,
-    pub sample_count: usize,
-    pub avg: f64,
-    pub max: f64,
-}
-
-/// Container metadata.
+/// Container metadata from /api/containers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContainerInfo {
     pub id: String,
@@ -210,6 +200,8 @@ pub struct ContainerInfo {
     pub qos_class: Option<String>,
     pub namespace: Option<String>,
     pub pod_name: Option<String>,
+    pub container_name: Option<String>,
+    pub last_seen_ms: Option<i64>,
 }
 
 /// Study result from /api/study/:id.
