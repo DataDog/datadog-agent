@@ -266,8 +266,10 @@ fn parse_iso_compact(s: &str) -> Option<DateTime<Utc>> {
 
 /// Lazy-loading data store with on-demand parquet reads.
 pub struct LazyDataStore {
-    /// Paths to parquet files.
-    paths: Vec<PathBuf>,
+    /// Paths to parquet files (refreshed on data load).
+    paths: RwLock<Vec<PathBuf>>,
+    /// Data directory for file discovery (None for static file list).
+    data_dir: Option<PathBuf>,
     /// Metadata index (loaded at startup).
     pub index: MetadataIndex,
     /// Cached timeseries data: metric -> container -> points.
@@ -298,7 +300,8 @@ impl LazyDataStore {
         let index = scan_metadata(&paths)?;
 
         Ok(Self {
-            paths,
+            paths: RwLock::new(paths),
+            data_dir: None, // Static file list, no refresh
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
             stats_cache: RwLock::new(HashMap::new()),
@@ -386,20 +389,56 @@ impl LazyDataStore {
         );
 
         Ok(Self {
-            paths: parquet_files, // Start with discovered files
+            paths: RwLock::new(parquet_files), // Start with discovered files
+            data_dir: Some(data_dir),          // Store for refresh
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
             stats_cache: RwLock::new(HashMap::new()),
         })
     }
 
+    /// Refresh the file list by re-discovering parquet files.
+    /// This allows the viewer to see newly written files.
+    fn refresh_files(&self) {
+        if let Some(ref data_dir) = self.data_dir {
+            let start = std::time::Instant::now();
+
+            // Create a default DataRange for discovery (uses lookback window)
+            let data_range = DataRange {
+                earliest: None,
+                latest: Utc::now(),
+                rotation_interval_sec: 90, // Default flush interval
+            };
+
+            let new_files = discover_files_by_time_range(data_dir, &data_range, None);
+            let new_count = new_files.len();
+
+            let mut paths = self.paths.write().unwrap();
+            let old_count = paths.len();
+            *paths = new_files;
+
+            if new_count != old_count {
+                eprintln!(
+                    "[PERF] refresh_files: {} -> {} files in {:.1}ms",
+                    old_count,
+                    new_count,
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
+            }
+        }
+    }
+
     /// Get timeseries data for specific containers.
     /// Loads from parquet on first request, then caches.
+    /// Automatically discovers new parquet files before loading.
     pub fn get_timeseries(
         &self,
         metric: &str,
         container_ids: &[&str],
     ) -> Result<Vec<(String, Vec<TimeseriesPoint>)>> {
+        // Refresh file list to pick up newly written files
+        self.refresh_files();
+
         // Check what's already cached
         let mut result = Vec::new();
         let mut missing: Vec<&str> = Vec::new();
@@ -421,7 +460,8 @@ impl LazyDataStore {
 
         // Load missing data
         if !missing.is_empty() {
-            let loaded = load_metric_data(&self.paths, metric, &missing)?;
+            let paths = self.paths.read().unwrap();
+            let loaded = load_metric_data(&paths, metric, &missing)?;
 
             // Cache the loaded data
             {
