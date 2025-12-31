@@ -120,7 +120,11 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     if (is_amqp(buf, size)) {
         return PROTOCOL_AMQP;
     }
-    if (is_kafka(skb, skb_info, buf, size)) {
+    if (is_kafka_fetch_or_produce(skb, skb_info, buf, size)) {
+        return PROTOCOL_KAFKA;
+    }
+
+    if (is_kafka_api_versions(skb, skb_info, buf, size)) {
         return PROTOCOL_KAFKA;
     }
 

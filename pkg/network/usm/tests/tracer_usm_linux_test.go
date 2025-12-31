@@ -89,8 +89,9 @@ const (
 	rawTrafficPort = "9093"
 	redisPort      = "6379"
 
-	fetchAPIKey   = 1
-	produceAPIKey = 0
+	apiVersionsAPIKey = 18
+	fetchAPIKey       = 1
+	produceAPIKey     = 0
 
 	redisProtocolVersion = 3
 )
