@@ -23,7 +23,6 @@ var (
 	modversion                     = windows.NewLazyDLL("version.dll")
 	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
-	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
 	procGetFileVersionInfoSizeW    = modversion.NewProc("GetFileVersionInfoSizeW")
 	procGetFileVersionInfoW        = modversion.NewProc("GetFileVersionInfoW")
@@ -62,32 +61,23 @@ const (
 // IsWow64Process determines if the specified process is running under WOW64
 // that is, if it's a 32 bit process running on 64 bit winodws
 func IsWow64Process(h windows.Handle) (is32bit bool, err error) {
-	var wow64Process uint32
-
-	r, _, _ := procIsWow64Process.Call(uintptr(h),
-		uintptr(unsafe.Pointer(&wow64Process)))
-
-	if r == 0 {
-		return false, windows.GetLastError()
+	var wow64Process bool
+	err = windows.IsWow64Process(h, &wow64Process)
+	if err != nil {
+		return false, err
 	}
-	if wow64Process == 0 {
-		is32bit = false
-	} else {
-		is32bit = true
-	}
-	return
+	return wow64Process, nil
 }
 
 // NtQueryInformationProcess wraps the Windows NT kernel call of the same name
 func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target, size uintptr) (err error) {
-	r, _, _ := procNtQueryInformationProcess.Call(uintptr(h),
+	r, _, e := procNtQueryInformationProcess.Call(uintptr(h),
 		uintptr(class),
 		target,
 		size,
 		uintptr(0))
 	if r != 0 {
-		err = windows.GetLastError()
-		return err
+		return e
 	}
 	return nil
 }
