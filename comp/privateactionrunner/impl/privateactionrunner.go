@@ -20,7 +20,6 @@ import (
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -74,7 +73,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 
-	keysManager := remoteconfig.New(reqs.RcClient)
+	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
