@@ -680,7 +680,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: never
 
-
 .dynamic_tests:
   - changes:
       paths:
@@ -689,7 +688,6 @@ workflow:
         - comp/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-
 
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1165,6 +1163,7 @@ workflow:
   - changes:
       paths:
         - tasks/**/*
+        - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_or_e2e_changes:
