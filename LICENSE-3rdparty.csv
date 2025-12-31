@@ -916,6 +916,7 @@ core,github.com/expr-lang/expr/patcher,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/types,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/vm,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/vm/runtime,MIT,Copyright (c) 2018 Anton Medvedev
+core,github.com/facebookgo/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/facette/natsort,BSD-3-Clause,"Copyright (c) 2015, Vincent Batoufflet and Marc Falzon"
 core,github.com/fatih/color,MIT,Copyright (c) 2013 Fatih Arslan
 core,github.com/fatih/structtag,BSD-3-Clause,"Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2017, Fatih Arslan"
@@ -1191,6 +1192,9 @@ core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Aut
 core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
@@ -1405,6 +1409,7 @@ core,github.com/netsampler/goflow2/pb,BSD-3-Clause,"Copyright (c) 2021, NetSampl
 core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
@@ -1990,6 +1995,7 @@ core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Copyright (c) 2020 R
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2020 Richard Artoul
 core,github.com/rickar/props,BSD-3-Clause,Copyright (c) 2013 Rick Arnold. All rights reserved
 core,github.com/rivo/uniseg,MIT,Copyright (c) 2019 Oliver Kuederle
+core,github.com/robfig/cron,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/robfig/cron/v3,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/rogpeppe/go-internal/fmtsort,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/rs/cors,MIT,Copyright (c) 2014 Olivier Poitrey <rs@dailymotion.com>
@@ -2634,6 +2640,56 @@ core,go.opentelemetry.io/proto/otlp/logs/v1,Apache-2.0,Copyright The OpenTelemet
 core,go.opentelemetry.io/proto/otlp/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.temporal.io/api/activity/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/batch/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/command/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/common/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/deployment/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/enums/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/errordetails/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/export/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/failure/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/filter/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/history/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/errors,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/genid,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/json,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/order,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/set,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/protojson/strs,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/internal/strcase,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/namespace/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/nexus/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/operatorservice/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/protocol/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/proxy,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/query/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/replication/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/rules/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/schedule/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/sdk/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/serviceerror,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/taskqueue/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/temporalproto,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/update/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/version/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/worker/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/workflow/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/workflowservice/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/workflowservicemock/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/sdk/client,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/converter,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/backoff,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/cache,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/metrics,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/retry,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/serializer,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/util,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/log,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/protocol,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/log,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.uber.org/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
