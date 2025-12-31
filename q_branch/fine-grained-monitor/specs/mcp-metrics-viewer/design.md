@@ -2,180 +2,379 @@
 
 ## Architecture Overview
 
-The MCP server is a separate binary (`mcp-metrics-viewer`) that communicates with
-LLM agents via stdio using the Model Context Protocol. It acts as a thin adapter
-layer between MCP tool calls and the existing metrics-viewer HTTP API.
+The MCP server runs as a Kubernetes Deployment that discovers fine-grained-monitor
+DaemonSet pods and routes node-targeted queries to the correct pod. It exposes
+MCP tools via HTTP/SSE transport, enabling access from both local development
+(via port-forward) and remote AI SRE agents.
 
 ```
-Claude Code (laptop)
-    |
-    v [stdio/JSON-RPC]
-mcp-metrics-viewer binary (laptop)
-    |
-    v [HTTP via port-forward]
-metrics-viewer HTTP API (k8s cluster)
-    |
-    v
-Parquet data files
+┌─────────────────────────────────────────────────────────────────┐
+│                     Kubernetes Cluster                           │
+│                                                                  │
+│  ┌────────────────────┐       ┌────────────────────────────────┐│
+│  │  MCP Deployment    │       │  fine-grained-monitor DaemonSet ││
+│  │  (mcp-metrics)     │       │                                 ││
+│  │                    │       │   Node A        Node B      ... ││
+│  │  - watches pods    │ HTTP  │   ┌──────┐      ┌──────┐        ││
+│  │  - routes by node  │◄─────►│   │viewer│      │viewer│        ││
+│  │  - HTTP/SSE MCP    │       │   │:8050 │      │:8050 │        ││
+│  │                    │       │   └──────┘      └──────┘        ││
+│  └─────────┬──────────┘       │   (node-local   (node-local     ││
+│            │                  │    metrics)      metrics)       ││
+│   Service (ClusterIP)         └────────────────────────────────┘│
+│   mcp-metrics:8080                                               │
+└────────────┼─────────────────────────────────────────────────────┘
+             │
+     ┌───────┴───────┐
+     │               │
+ Claude Code    AI SRE Agents
+(port-forward)  (direct/ingress)
 ```
 
-This architecture reuses the existing HTTP API without modification. The MCP
-binary can be distributed independently and requires only network access to the
-metrics-viewer service.
+### Key Design Principles
 
-## Data Flow
+1. **Node locality is explicit:** Each DaemonSet pod only has metrics for its own
+   node's containers. The MCP server makes this visible to agents via `list_nodes`
+   and requires node targeting on container/analysis queries.
 
-### REQ-MCP-001, REQ-MCP-006: Tool Registration and Discovery
+2. **MCP is the routing layer:** The MCP Deployment handles pod discovery and
+   request routing. Agents don't need to understand Kubernetes internals—they
+   see nodes, not pods or IPs.
 
-At startup, the MCP server registers three tools with the MCP runtime:
-- `list_metrics` - calls `/api/metrics` and `/api/studies`
-- `list_containers` - calls `/api/containers` and `/api/filters`
-- `analyze_container` - calls `/api/study/:id` and `/api/timeseries`
+3. **No aggregation:** The MCP server always queries a single node. Cluster-wide
+   analysis is the agent's responsibility (iterate nodes, synthesize results).
 
-The rmcp SDK handles schema generation from Rust types automatically.
+## Design Decisions
 
-### REQ-MCP-002, REQ-MCP-003: Container Search Flow
+### Discovery and Routing Strategy
 
-1. Agent calls `list_containers` with optional filters
-2. MCP server calls `/api/containers?metric=X&namespace=Y&search=Z`
-3. HTTP API returns containers with stats (avg, max, sample_count)
-4. Returns sorted results to agent (no raw timeseries)
+**Decision:** Use Kubernetes API list/watch for discovery, route directly to pod IP.
 
-### REQ-MCP-004, REQ-MCP-005: Analysis Flow
+| Alternative | Pros | Cons |
+|-------------|------|------|
+| **API + Pod IP (chosen)** | Simple, rich metadata, no extra resources | Pod IP changes on restart |
+| Headless Service DNS | Stable per-pod hostname | Extra Service resource, less metadata |
+| EndpointSlices | "Proper" k8s pattern | Same IP instability, more complex |
 
-1. Agent calls `analyze_container` with container ID and study type
-2. MCP server calls `/api/study/:id?metric=X&containers=Y`
-3. HTTP API runs study, returns findings with timestamps
-4. MCP server computes trend from stats
-5. Returns structured result with findings and trend (no raw timeseries)
+**Rationale:** For a research project, simplicity wins. The watch handles IP
+changes quickly (<1s typically). Production deployments should consider DNS-based
+routing via headless Service for stability.
+
+### Staleness and Caching
+
+- **Max staleness:** 60 seconds. If a node's `last_seen` exceeds this and the pod
+  is not in the latest watch state, refuse to route.
+- **Pod restart race:** Watch events propagate quickly. Accept small race window,
+  rely on retry-once semantics.
+- **Cache invalidation:** Watch events (ADDED, MODIFIED, DELETED) update cache
+  immediately.
+
+### Ready vs Serving
+
+"Ready" means Kubernetes PodReady condition is true. This does not guarantee the
+viewer HTTP server is responding. Mitigations:
+
+- **Aggressive HTTP timeouts:** 5 seconds per request
+- **Retry-once:** On timeout or 5xx, try the same node once more
+- **No health probe:** Unnecessary complexity for research phase
+
+### Heterogeneous Metrics
+
+`list_metrics` returns metrics from one node. If clusters have nodes with
+different metric schemas (e.g., different kernel versions), agents should:
+1. Call `list_nodes` to enumerate nodes
+2. Call `list_metrics` per-node if needed (optional `node` param supported)
+
+## Pod Discovery (REQ-MCP-007, REQ-MCP-008)
+
+The MCP server discovers DaemonSet pods using the Kubernetes API:
+
+```
+PodWatcher
+  - namespace: String (e.g., "default")
+  - label_selector: String (e.g., "app=fine-grained-monitor")
+  - cache: HashMap<NodeName, PodInfo>
+
+PodInfo (internal, not exposed to agents)
+  - node_name: String
+  - pod_name: String
+  - pod_ip: String
+  - ready: bool
+  - last_seen: Timestamp
+
+Methods:
+  - start() -> watch pods, update cache on changes
+  - list_nodes() -> Vec<NodeInfo>  (sanitized, no pod details)
+  - get_pod_for_node(node: &str) -> Option<PodInfo>
+```
+
+The watcher uses `kube-rs` to list/watch pods with the label selector, updating
+an in-memory cache. The cache maps node names to pod info, enabling O(1) routing.
+Pod details (IP, name) are internal implementation—agents only see node names.
+
+## Node Routing
+
+When a tool call specifies a node:
+
+1. Look up node in pod cache
+2. If not found → return error "node 'X' not found"
+3. If found but not ready → return error "node 'X' is not ready"
+4. If found but stale (>60s, not in watch) → return error "node 'X' is stale"
+5. Construct URL: `http://{pod_ip}:8050/api/...`
+6. Forward request with 5s timeout
+7. On timeout/5xx → retry once
+8. Return response or error
 
 ## Tool Schemas
 
-### list_metrics
+### list_nodes (REQ-MCP-007)
 
 **Input:** None
 
 **Output:**
-```
+```json
 {
-  metrics: [{ name, sample_count }],
-  studies: [{ id, name, description }]
+  "nodes": [
+    {
+      "name": "worker-1",
+      "ready": true,
+      "last_seen": 1704067200000
+    }
+  ]
 }
 ```
 
-### list_containers
+Note: Pod details (IP, name) are intentionally hidden. Agents route by node name.
+
+### list_metrics (REQ-MCP-001)
 
 **Input:**
-- `metric` (required): Metric name to filter containers (only returns containers with data for this metric)
+- `node` (optional): Specific node to query. If omitted, picks first ready node.
+
+**Output:**
+```json
+{
+  "node": "worker-1",
+  "metrics": [{ "name": "cgroup.v2.cpu.stat.usage_usec" }],
+  "studies": [{ "id": "periodicity", "name": "Periodicity Study", "description": "..." }]
+}
+```
+
+**Fallback behavior:**
+1. If `node` specified → query that node
+2. If `node` omitted → pick first ready node
+3. If no nodes ready → return error "no nodes available"
+4. If selected node errors → try next ready node once
+5. If all fail → return last error
+
+### list_containers (REQ-MCP-002, REQ-MCP-003, REQ-MCP-008)
+
+**Input:**
+- `node` (required): Node name to query
+- `metric` (optional): Metric name to filter containers (only those with data for this metric)
 - `namespace` (optional): Kubernetes namespace filter
 - `qos_class` (optional): QoS class filter
 - `search` (optional): Text search in pod/container names
 - `limit` (optional): Max results (default 20)
 
 **Output:**
-```
+```json
 {
-  containers: [{
-    id, pod_name, container_name, namespace, qos_class, last_seen
+  "node": "worker-1",
+  "containers": [{
+    "id": "abc123def456",
+    "short_id": "abc123def456",
+    "pod_name": "nginx-xyz",
+    "container_name": "nginx",
+    "namespace": "default",
+    "qos_class": "Burstable",
+    "last_seen": 1704067200000
   }],
-  total_matching: 47
+  "total_matching": 47
 }
 ```
 
-Results sorted by `last_seen` descending (most recent first).
-
-### analyze_container
+### analyze_container (REQ-MCP-004, REQ-MCP-005, REQ-MCP-008)
 
 **Input:**
-- `container` (required): Container ID (short or full)
+- `node` (required): Node name to query
+- `container` (required): Container ID (short 12-char or full 64-char)
 - `study_id` (required): "periodicity" or "changepoint"
 - `metric` (optional): Single metric name
 - `metric_prefix` (optional): Metric prefix to analyze all matching metrics
 
 **Output:**
-```
+```json
 {
-  container: { id, pod_name, namespace },
-  study: "periodicity",
-  results: [{
-    metric,
-    stats: { avg, max, min, stddev, trend, sample_count, time_range },
-    findings: [{ type, timestamp, label, details }]
+  "node": "worker-1",
+  "container": { "id": "abc123def456", "pod_name": "nginx-xyz", "namespace": "default" },
+  "study": "periodicity",
+  "results": [{
+    "metric": "cgroup.v2.cpu.stat.usage_usec",
+    "stats": { "avg": 1234.5, "max": 5000, "min": 100, "stddev": 500, "trend": "stable", "sample_count": 1000 },
+    "findings": [{ "type": "periodicity", "timestamp_ms": 1704067200000, "label": "period=60000ms", "details": {...} }]
   }]
 }
 ```
 
-## Metric Prefix Matching
+**Container ID collision handling:**
 
-REQ-MCP-004 supports analyzing multiple metrics via prefix matching. The MCP
-server queries `/api/metrics` and filters locally by prefix. Examples:
-
-- `cgroup.v2.cpu` matches `cgroup.v2.cpu.stat.usage_usec`, `cgroup.v2.cpu.stat.throttled_usec`, etc.
-- `cgroup.v2.memory` matches `cgroup.v2.memory.current`, `cgroup.v2.memory.max`, etc.
-- `cgroup.v2.io` matches `cgroup.v2.io.stat.rbytes`, `cgroup.v2.io.stat.wbytes`, etc.
-
-Each matching metric is analyzed separately and included in the results array.
-
-## Trend Detection (REQ-MCP-005)
-
-Trend classification uses linear regression on the timeseries values:
-
-1. Compute slope via least-squares fit
-2. Normalize slope by mean value to get relative change rate
-3. Classify based on thresholds:
-   - `increasing`: relative slope > 1% per sample
-   - `decreasing`: relative slope < -1% per sample
-   - `volatile`: stddev/mean > 30%
-   - `stable`: otherwise
-
-## HTTP Client
-
-The MCP server uses reqwest to call the existing HTTP API:
-
+If a short ID matches multiple containers on the node, return an error:
+```json
+{
+  "error": "ambiguous_container_id",
+  "message": "Container ID 'abc123' matches 3 containers. Use full ID or list_containers to disambiguate.",
+  "matches": ["abc123def456...", "abc123789abc...", "abc123000111..."]
+}
 ```
-MetricsViewerClient
-  - base_url: String (e.g., "http://localhost:8050")
-  - client: reqwest::Client
 
-Methods:
-  - list_metrics() -> Vec<MetricInfo>
-  - list_filters() -> FiltersResponse
-  - search_containers(params) -> Vec<ContainerStats>
-  - run_study(study_id, metric, containers) -> StudyResponse
+## HTTP/SSE Transport (REQ-MCP-006)
+
+The MCP server uses `rmcp` with HTTP/SSE transport:
+
+```rust
+use rmcp::transport::sse::SseServer;
+
+let server = McpMetricsViewer::new(pod_watcher);
+let sse = SseServer::new("0.0.0.0:8080");
+server.serve(sse).await?;
+```
+
+Clients connect via:
+- **Claude Code:** `kubectl port-forward svc/mcp-metrics 8888:8080`, then configure MCP with `http://localhost:8888`
+- **AI SRE Agents:** Direct HTTP to `http://mcp-metrics.{namespace}.svc.cluster.local:8080`
+
+## Kubernetes Manifests
+
+### Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-metrics
+  labels:
+    app: mcp-metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-metrics
+  template:
+    metadata:
+      labels:
+        app: mcp-metrics
+    spec:
+      serviceAccountName: mcp-metrics
+      containers:
+      - name: mcp
+        image: fine-grained-monitor:latest
+        command: ["/usr/local/bin/mcp-metrics-viewer"]
+        args:
+          - "--port=8080"
+          - "--daemonset-label=app=fine-grained-monitor"
+          - "--daemonset-namespace=default"
+        ports:
+          - containerPort: 8080
+            name: mcp
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+```
+
+### Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-metrics
+spec:
+  selector:
+    app: mcp-metrics
+  ports:
+    - name: mcp
+      port: 8080
+      targetPort: 8080
+```
+
+### RBAC
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-metrics
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-metrics
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-metrics
+subjects:
+  - kind: ServiceAccount
+    name: mcp-metrics
+roleRef:
+  kind: Role
+  name: mcp-metrics
+  apiGroup: rbac.authorization.k8s.io
 ```
 
 ## Configuration
 
-The binary accepts configuration via CLI args:
+The MCP server binary accepts:
 
-- `--api-url` (required): Base URL of metrics-viewer API
-- `--timeout` (optional): HTTP request timeout (default 30s)
-
-Example: `mcp-metrics-viewer --api-url http://localhost:8050`
+- `--port` (default: 8080): HTTP/SSE listen port
+- `--daemonset-namespace` (default: "default"): Namespace containing DaemonSet
+- `--daemonset-label` (default: "app=fine-grained-monitor"): Label selector for pods
+- `--viewer-port` (default: 8050): Port on viewer containers
+- `--stale-threshold` (default: 60): Seconds before node considered stale
+- `--http-timeout` (default: 5): Seconds for viewer HTTP requests
 
 ## File Locations
 
 | File | Purpose |
 |------|---------|
-| `Cargo.toml` | rmcp 0.12, reqwest, schemars dependencies; mcp-metrics-viewer binary |
-| `src/bin/mcp_metrics_viewer.rs` | Binary entry point with CLI args |
-| `src/metrics_viewer/mcp/mod.rs` | MCP server, tool implementations, trend detection |
-| `src/metrics_viewer/mcp/client.rs` | HTTP client wrapper for metrics-viewer API |
+| `Cargo.toml` | rmcp, kube-rs, reqwest dependencies |
+| `src/bin/mcp_metrics_viewer.rs` | Binary entry point, HTTP/SSE server setup |
+| `src/metrics_viewer/mcp/mod.rs` | MCP server, tool implementations |
+| `src/metrics_viewer/mcp/pod_watcher.rs` | Kubernetes pod discovery and caching |
+| `src/metrics_viewer/mcp/router.rs` | Node→pod routing logic |
+| `deploy/mcp-deployment.yaml` | Kubernetes Deployment manifest |
+| `deploy/mcp-service.yaml` | Kubernetes Service manifest |
+| `deploy/mcp-rbac.yaml` | ServiceAccount, Role, RoleBinding |
 
 ## Error Handling
 
-- HTTP errors: Return MCP error response with status code and message
-- Timeout: Return MCP error with timeout indication
-- Invalid container ID: Return empty results (not an error)
-- Invalid study ID: Return MCP error listing valid study IDs
-- Missing required params: rmcp SDK validates automatically
+| Condition | Error Message |
+|-----------|---------------|
+| Node not found | "node 'X' not found" |
+| Node not specified | "node parameter is required" |
+| Node not ready | "node 'X' is not ready" |
+| Node stale | "node 'X' is stale (last seen Xs ago)" |
+| No nodes available | "no nodes available" |
+| Ambiguous container ID | "Container ID 'X' matches N containers..." |
+| HTTP timeout | "request to node 'X' timed out" |
+| Viewer error | Forward HTTP status and message |
 
 ## Dependencies
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| rmcp | 0.8 | Official Rust MCP SDK |
-| reqwest | 0.12 | HTTP client |
-| tokio | 1.x | Async runtime (existing) |
-| serde | 1.x | Serialization (existing) |
-| clap | 4.x | CLI argument parsing (existing) |
+| rmcp | 0.12 | MCP SDK with SSE transport |
+| kube | 0.98 | Kubernetes API client |
+| k8s-openapi | 0.24 | Kubernetes types |
+| reqwest | 0.12 | HTTP client for viewer calls |
+| tokio | 1.x | Async runtime |
