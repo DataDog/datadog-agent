@@ -40,3 +40,4 @@ local_package: str = "Path to a local package to install, it can be either a fol
 pull_secret_path: str = "Path to the OpenShift pull secret file (required for OpenShift cluster creation)."
 local_chart_path: str = "Path to a local helm chart to install the Datadog Agent."
 latest_ami: str = "Use the latest AMI for the OS and architecture (default False)."
+kube_version: str = "The Kubernetes version for the GKE cluster (default to 1.34)"

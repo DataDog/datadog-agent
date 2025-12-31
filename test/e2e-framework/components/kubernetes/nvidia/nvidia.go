@@ -180,7 +180,7 @@ func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterO
 func initNvkindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (*kubernetes.Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *kubernetes.Cluster) error {
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
-		kindVersionConfig, err := kubernetes.GetKindVersionConfig(clusterOpts.kubeVersion)
+		kindVersionConfig, err := kubernetes.GetKindVersionConfig(env, clusterOpts.kubeVersion)
 		if err != nil {
 			return err
 		}
