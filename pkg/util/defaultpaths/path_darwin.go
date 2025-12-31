@@ -7,6 +7,7 @@ package defaultpaths
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
@@ -47,4 +48,14 @@ func GetDistPath() string {
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
 	return _here
+}
+
+// CommonRootOrPath will replace the known darwin filesystem paths with a common root
+//
+//	/opt/datadog-agent/etc/** -> {root}/etc/**
+//	/opt/datadog-agent/logs/** -> {root}/logs/**
+//	/opt/datadog-agent/run/** -> {root}/run/**
+func CommonRootOrPath(root, path string) string {
+	rest := strings.TrimPrefix(path, "/opt/datadog-agent/")
+	return filepath.Join(root, rest)
 }

@@ -100,3 +100,8 @@ func GetDistPath() string {
 	}
 	return distPath
 }
+
+// CommonRootOrPath is not supported on Windows currently
+func CommonRootOrPath(_, path string) string {
+	return path
+}
