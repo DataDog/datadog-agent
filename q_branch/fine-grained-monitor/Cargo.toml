@@ -62,6 +62,11 @@ k8s-openapi = { version = "0.22", features = ["v1_29"] }
 proptest = "1.5"
 proptest-derive = "0.5"
 tempfile = "3"
+divan = "0.1"
+
+[[bench]]
+name = "query_benchmarks"
+harness = false
 
 [[bin]]
 name = "fine-grained-monitor"
@@ -74,3 +79,7 @@ path = "src/bin/fgm-viewer.rs"
 [[bin]]
 name = "fgm-consolidator"
 path = "src/bin/fgm-consolidator.rs"
+
+[[bin]]
+name = "generate-bench-data"
+path = "src/bin/generate-bench-data.rs"

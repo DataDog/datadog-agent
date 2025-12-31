@@ -2,3 +2,6 @@ target/
 
 # dev.py state directory
 .dev/
+
+# Generated benchmark data
+testdata/bench/
