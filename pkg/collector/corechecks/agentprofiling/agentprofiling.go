@@ -19,6 +19,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
@@ -195,9 +196,9 @@ func (m *Check) Run() error {
 	return nil
 }
 
-// terminateAgent terminates the agent process after flare generation completes.
-// It attempts graceful shutdown via SIGINT, falling back to os.Exit(1) if signal fails.
-// Note: Termination is skipped when running in test mode to avoid killing the test process.
+// terminateAgent requests graceful shutdown of the agent process after flare generation completes.
+// It uses the agent's established shutdown mechanism (signals.Stopper) which ensures proper cleanup
+// via stopAgent(). Termination is skipped when running in test mode to avoid killing the test process.
 func (m *Check) terminateAgent() {
 	// Skip termination when running in test mode
 	// Check if we're running under go test by looking for test-related arguments
@@ -221,28 +222,20 @@ func (m *Check) terminateAgent() {
 			return
 		}
 	}
+
 	log.Warnf("Terminating agent process due to threshold exceeded (terminate_agent_on_threshold is enabled)")
 
-	// Get the current process
-	selfProcess, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		log.Errorf("Failed to find agent process for termination: %v. Using os.Exit(1)", err)
-		os.Exit(1)
-		return
-	}
+	// Flush logs to ensure termination message is written before triggering shutdown
+	log.Flush()
 
-	// Attempt graceful shutdown via SIGINT (works cross-platform)
-	// This allows the agent to clean up resources before exiting
-	if err := selfProcess.Signal(os.Interrupt); err != nil {
-		log.Errorf("Failed to send termination signal to agent process: %v. Using os.Exit(1)", err)
-		os.Exit(1)
-		return
-	}
-
-	log.Info("Agent Profiling check: Termination signal (SIGINT) sent to agent process. Agent will exit after cleanup.")
-	// Note: We don't call os.Exit here because the signal handler should handle cleanup.
-	// However, if the signal fails, we fall back to os.Exit(1) above.
-	// The agent's signal handler will process SIGINT and initiate graceful shutdown.
+	// Use the agent's established shutdown mechanism to trigger graceful shutdown.
+	// This ensures all cleanup happens properly via stopAgent() in command.go.
+	// The channel is unbuffered, but since the agent's run() function sets up a listener
+	// before starting the agent, this is safe. If the channel is not being listened to
+	// (e.g., in tests), this will block, but we've already checked for test mode above.
+	signals.Stopper <- true
+	log.Info("Agent Profiling check: Graceful shutdown requested. Agent will exit after cleanup.")
+	log.Flush()
 }
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally

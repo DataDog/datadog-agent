@@ -149,8 +149,9 @@ func TestTerminateAgentOnThresholdConfig(t *testing.T) {
 	assert.Equal(t, uint(1), check.memoryThreshold)
 
 	// Verify that when threshold is exceeded, flare is generated
-	// Note: We can't actually test os.Exit() in unit tests, but we can verify
-	// that the config is set correctly and the check would attempt termination
+	// Note: Termination is skipped in test mode (detected via os.Args), so we can't test
+	// the actual shutdown behavior. However, we verify that the config is parsed correctly
+	// and that the check would attempt termination in a non-test environment.
 	err := check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareGenerated)
