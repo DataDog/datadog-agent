@@ -172,9 +172,10 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
 **Input:**
 - `node` (required): Node name to query
 - `metric` (optional): Metric name to filter containers (only those with data for this metric)
-- `namespace` (optional): Kubernetes namespace filter
-- `qos_class` (optional): QoS class filter
-- `search` (optional): Text search in pod/container names
+- `namespace` (optional): Kubernetes namespace filter (exact match)
+- `qos_class` (optional): QoS class filter (exact match)
+- `pod_name` (optional): Pod name prefix filter
+- `container_name` (optional): Container name prefix filter
 - `limit` (optional): Max results (default 20)
 
 **Output:**

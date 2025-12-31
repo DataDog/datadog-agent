@@ -36,8 +36,11 @@ THE SYSTEM SHALL return containers matching the search criteria from that node
 WHEN filtering by namespace
 THE SYSTEM SHALL return only containers in that Kubernetes namespace
 
-WHEN filtering by text search
-THE SYSTEM SHALL match against pod name and container name
+WHEN filtering by pod name
+THE SYSTEM SHALL return only containers whose pod name starts with the given prefix
+
+WHEN filtering by container name
+THE SYSTEM SHALL return only containers whose container name starts with the given prefix
 
 WHEN results exceed the requested limit
 THE SYSTEM SHALL return only the top N containers sorted by the specified criteria
