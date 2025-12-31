@@ -22,7 +22,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

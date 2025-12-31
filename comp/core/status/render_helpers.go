@@ -17,10 +17,11 @@ import (
 	"time"
 	"unicode"
 
+	"unicode/utf8"
+
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
-	"golang.org/x/text/unicode/norm"
 
 	pkghtmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
 	pkgtexttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
@@ -263,17 +264,9 @@ func stringLength(s string) int {
 	/*
 		len(string) is wrong if the string has unicode characters in it,
 		for example, something like 'Agent (v6.0.0+Χελωνη)' has len(s) == 27.
-		This is a better way of counting a string length
-		(credit goes to https://stackoverflow.com/a/12668840)
+		utf8.RuneCountInString counts Unicode code points (runes) instead of bytes.
 	*/
-	var ia norm.Iter
-	ia.InitString(norm.NFKD, s)
-	nc := 0
-	for !ia.Done() {
-		nc = nc + 1
-		ia.Next()
-	}
-	return nc
+	return utf8.RuneCountInString(s)
 }
 
 // add two integer together

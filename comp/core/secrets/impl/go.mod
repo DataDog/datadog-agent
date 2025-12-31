@@ -77,7 +77,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
