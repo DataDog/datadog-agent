@@ -25,7 +25,7 @@ pub struct Container {
     pub pod_uid: Option<String>,
     /// QoS class inferred from cgroup path
     pub qos_class: QosClass,
-    // REQ-PME-003: Kubernetes metadata from API (populated by kubernetes.rs)
+    // REQ-MV-016: Kubernetes metadata from API (populated by kubernetes.rs)
     /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
     pub pod_name: Option<String>,
     /// Namespace from Kubernetes API (e.g., "kube-system")

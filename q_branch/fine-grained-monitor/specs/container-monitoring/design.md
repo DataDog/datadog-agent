@@ -370,77 +370,15 @@ Environment variables (typically set via Kubernetes downward API):
 - `NODE_NAME` - Node name for labels
 - `CLUSTER_NAME` - Cluster name for labels
 
-## REQ-FM-005: Interactive Visualization
-
-### Technology Choice
-
-The visualization tool uses a Rust backend with embedded Plotly.js frontend:
-- **axum** HTTP server for fast startup and low memory overhead
-- **arrow-rs/parquet** for native Parquet reading (~10s for 35M rows)
-- **Plotly.js** embedded as static HTML, served from the binary
-- **cargo-script** for single-file deployment with inline dependencies
-
-This approach was chosen over Python/Dash for faster data loading. The Rust
-backend handles Parquet parsing and CPU delta computation, while the browser
-handles all visualization via Plotly.js.
-
-### Data Pipeline
-
-1. **Metadata Phase**: Open file, read Parquet footer (schema, row groups)
-2. **Decode Phase**: ZSTD decompress, Arrow decode, filter to CPU metric, compute deltas
-3. **Serve Phase**: axum REST API serves container list and timeseries data as JSON
-
-### REST API
-
-| Endpoint | Response | Purpose |
-|----------|----------|---------|
-| `GET /` | HTML | Embedded Plotly.js frontend |
-| `GET /api/containers` | JSON array | List of containers sorted by avg CPU |
-| `GET /api/timeseries?containers=a,b,c` | JSON array | Timeseries data for selected containers |
-
-### Performance Characteristics
-
-For 35M row datasets:
-- Parquet metadata read: ~0.02s
-- ZSTD decompress + Arrow decode + delta computation: ~10s
-- Struct building + sorting: ~0.01s
-- Frontend renders 170K+ points smoothly via WebGL `scattergl`
-
-### UI Components
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│ CPU Metrics │ Containers: [multi-select ▾] │ Top5 Top10 Clear │ ... │
-├──────────────────────────────────────────────────────────────────────┤
-│  Legend: container-a (Burstable)  container-b (Guaranteed)  ...      │
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │                                                                │  │
-│  │     ∿∿∿∿∿∿∿∿∿∿∿   container A                                │  │
-│  │   ───────────────  container B                                │  │
-│  │                                                                │  │
-│  ├────────────────────────────────────────────────────────────────┤  │
-│  │ [═══════════════════════▓▓▓══════════════] Range Slider       │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### Script Location
-
-`scripts/metrics_viewer.rs` - cargo-script with inline dependencies (axum,
-arrow, parquet, tokio, serde). Run directly: `./scripts/metrics_viewer.rs <file>`
-
 ## File Structure
 
 ```text
 fine-grained-monitor/
 ├── Cargo.toml
 ├── specs/
-│   └── container-monitoring/
-│       ├── requirements.md
-│       ├── design.md
-│       └── executive.md
-├── scripts/                      # Analysis and visualization tools
-│   └── metrics_viewer.rs         # REQ-FM-005: Interactive visualization (Rust/axum)
+│   ├── container-monitoring/    # Data collection spec
+│   ├── metrics-viewer/          # Interactive visualization spec
+│   └── streaming-consolidator/  # Multi-file consolidation spec
 └── src/
     ├── main.rs              # CLI, lifecycle orchestration
     ├── lib.rs

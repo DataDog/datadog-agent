@@ -13,7 +13,7 @@ spec:
       labels:
         app: fine-grained-monitor
     spec:
-      # REQ-PME-002: ServiceAccount for Kubernetes API access
+      # REQ-MV-015: ServiceAccount for Kubernetes API access
       serviceAccountName: fine-grained-monitor
       hostPID: true  # Needed to read /proc for all processes
       containers:
@@ -55,7 +55,7 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-      # REQ-ICV-001: Viewer sidecar for in-cluster access
+      # REQ-MV-010: Viewer sidecar for in-cluster access
       - name: viewer
         image: fine-grained-monitor:latest
         imagePullPolicy: Never

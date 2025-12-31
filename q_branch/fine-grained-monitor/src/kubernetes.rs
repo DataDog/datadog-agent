@@ -1,4 +1,4 @@
-//! Kubernetes API client for pod metadata enrichment (REQ-PME-002)
+//! Kubernetes API client for pod metadata enrichment (REQ-MV-015)
 //!
 //! Queries the Kubernetes API server to obtain pod metadata for containers
 //! discovered via cgroup scanning. Uses in-cluster configuration and queries

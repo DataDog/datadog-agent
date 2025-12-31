@@ -212,14 +212,14 @@ async fn run(args: Args) -> anyhow::Result<()> {
     // Write session manifest
     write_session_manifest(&args, &identifier, &run_id, &node_name, &cluster_name).await?;
 
-    // REQ-ICV-003: Load or create container index for fast viewer startup
+    // REQ-MV-012: Load or create container index for fast viewer startup
     let index_path = args.output_dir.join("index.json");
     let container_index = Arc::new(RwLock::new(ContainerIndex::load_or_create(
         &index_path,
         args.rotation_seconds,
     )));
 
-    // REQ-PME-002: Initialize Kubernetes API client for pod metadata enrichment
+    // REQ-MV-015: Initialize Kubernetes API client for pod metadata enrichment
     // Gracefully degrades if API unavailable (returns None)
     let k8s_client = KubernetesClient::try_new().await;
     let k8s_client = k8s_client.map(Arc::new);
@@ -416,7 +416,7 @@ async fn run_rotation_loop(
                         );
                         current_output_path = new_output_path;
 
-                        // REQ-ICV-003: Update index data range on successful rotation
+                        // REQ-MV-012: Update index data range on successful rotation
                         if let Ok(mut index) = container_index.write() {
                             index.update_data_range(Utc::now());
                             if let Err(e) = index.save(&index_path) {
@@ -483,7 +483,7 @@ async fn observer_loop(
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
     let mut observer = observer::Observer::new();
 
-    // REQ-PME-002: Track last Kubernetes metadata refresh
+    // REQ-MV-015: Track last Kubernetes metadata refresh
     let mut last_k8s_refresh = std::time::Instant::now()
         .checked_sub(Duration::from_secs(K8S_REFRESH_INTERVAL_SECS))
         .unwrap_or_else(std::time::Instant::now);
@@ -491,7 +491,7 @@ async fn observer_loop(
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                // REQ-PME-002: Refresh Kubernetes metadata periodically
+                // REQ-MV-015: Refresh Kubernetes metadata periodically
                 if let Some(ref client) = k8s_client {
                     let now = std::time::Instant::now();
                     if now.duration_since(last_k8s_refresh) >= Duration::from_secs(K8S_REFRESH_INTERVAL_SECS) {
@@ -510,7 +510,7 @@ async fn observer_loop(
                     continue;
                 }
 
-                // REQ-PME-002: Enrich containers with Kubernetes metadata
+                // REQ-MV-015: Enrich containers with Kubernetes metadata
                 if let Some(ref client) = k8s_client {
                     let metadata_cache = client.get_cache().await;
                     for container in &mut containers {
@@ -524,7 +524,7 @@ async fn observer_loop(
 
                 tracing::debug!(count = containers.len(), "Discovered containers");
 
-                // REQ-ICV-003: Update container index if containers changed
+                // REQ-MV-012: Update container index if containers changed
                 let index_changed = {
                     if let Ok(mut index) = container_index.write() {
                         index.update(&containers)

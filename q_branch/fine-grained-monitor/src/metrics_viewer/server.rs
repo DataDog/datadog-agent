@@ -2,10 +2,9 @@
 //!
 //! REQ-MV-001: Serves interactive timeseries chart.
 //! REQ-MV-002: GET /api/metrics - list available metrics.
-//! REQ-MV-003: GET /api/filters - list filter options.
-//! REQ-MV-003: GET /api/containers - list containers with optional filters.
-//! REQ-MV-007: GET /api/studies - list available studies.
-//! REQ-MV-007: GET /api/study/:id - run study on selected containers.
+//! REQ-MV-003: GET /api/containers - list and search containers.
+//! REQ-MV-006: GET /api/studies - list available studies.
+//! REQ-MV-006: GET /api/study/:id - run study on selected containers.
 
 use crate::metrics_viewer::data::{ContainerStats, MetricInfo, TimeseriesPoint};
 use crate::metrics_viewer::lazy_data::LazyDataStore;
@@ -195,7 +194,7 @@ struct MetricsResponse {
 }
 
 /// GET /api/filters - list filter options.
-/// REQ-MV-003: Returns available qos_class and namespace values.
+/// Returns available qos_class and namespace values for filtering.
 async fn filters_handler(State(state): State<Arc<AppState>>) -> Json<FiltersResponse> {
     Json(FiltersResponse {
         qos_classes: state.data.index.qos_classes.clone(),
@@ -210,8 +209,7 @@ struct FiltersResponse {
 }
 
 /// GET /api/containers - list containers for a metric with optional filters.
-/// REQ-MV-003: Filter containers by qos_class and namespace.
-/// REQ-MV-004: Search containers by name.
+/// REQ-MV-003: Search and select containers by name, qos_class, or namespace.
 #[derive(Deserialize)]
 struct ContainersQuery {
     metric: String,
@@ -251,7 +249,7 @@ async fn containers_handler(
                     return false;
                 }
             }
-            // REQ-MV-004: Search by container ID or pod name
+            // REQ-MV-003: Search by container ID or pod name
             if let Some(ref search) = query.search {
                 let search_lower = search.to_lowercase();
                 let matches_id = c.info.short_id.to_lowercase().contains(&search_lower);
@@ -322,7 +320,7 @@ async fn timeseries_handler(
 }
 
 /// GET /api/studies - list available studies.
-/// REQ-MV-007: Returns available study types.
+/// REQ-MV-006: Returns available study types.
 async fn studies_handler(State(state): State<Arc<AppState>>) -> Json<StudiesResponse> {
     Json(StudiesResponse {
         studies: state.studies.list(),
@@ -335,7 +333,7 @@ struct StudiesResponse {
 }
 
 /// GET /api/study/:id - run a study on selected containers.
-/// REQ-MV-007: Analyze timeseries for patterns.
+/// REQ-MV-006: Analyze timeseries for patterns.
 #[derive(Deserialize)]
 struct StudyQuery {
     metric: String,

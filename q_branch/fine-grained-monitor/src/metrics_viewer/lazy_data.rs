@@ -4,7 +4,7 @@
 //! - Phase 1 (startup): Fast metadata scan - metric names, containers, counts
 //! - Phase 2 (on-demand): Load actual timeseries data when requested
 //!
-//! REQ-ICV-003: Supports index-based fast startup for in-cluster viewer.
+//! REQ-MV-012: Supports index-based fast startup for in-cluster viewer.
 //!
 //! This dramatically reduces startup time for large parquet files.
 
@@ -80,7 +80,7 @@ impl LazyDataStore {
         })
     }
 
-    /// REQ-ICV-003: Create from container index for instant startup.
+    /// REQ-MV-012: Create from container index for instant startup.
     /// Uses index for container metadata, reads metrics from parquet schema.
     pub fn from_index(container_index: ContainerIndex, data_dir: PathBuf) -> Result<Self> {
         eprintln!("Building metadata from index...");
@@ -124,7 +124,7 @@ impl LazyDataStore {
         }
 
         // Build container info from index
-        // REQ-PME-003: Use pod_name and namespace from enriched index
+        // REQ-MV-016: Use pod_name and namespace from enriched index
         let mut containers = HashMap::new();
         let mut qos_classes = HashSet::new();
         let mut namespace_set = HashSet::new();
@@ -153,7 +153,7 @@ impl LazyDataStore {
             .map(|m| (m.name.clone(), all_container_ids.clone()))
             .collect();
 
-        // REQ-PME-003: Include namespaces from enriched index
+        // REQ-MV-016: Include namespaces from enriched index
         let mut namespaces: Vec<String> = namespace_set.into_iter().collect();
         namespaces.sort();
 
@@ -319,7 +319,7 @@ impl LazyDataStore {
     }
 }
 
-/// REQ-ICV-003: Read metric names from a parquet file's metric_name column.
+/// REQ-MV-012: Read metric names from a parquet file's metric_name column.
 /// Samples the first row group to get unique metric names efficiently.
 fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
     let file = File::open(path).context("Failed to open parquet file")?;
@@ -390,9 +390,9 @@ fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
 
 /// Fast metadata-only scan of parquet files.
 /// Uses sampling to quickly discover metrics and containers without reading all rows.
-/// REQ-ICV-003: Returns empty index when no paths provided.
+/// REQ-MV-012: Returns empty index when no paths provided.
 fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
-    // REQ-ICV-003: Handle empty file list gracefully
+    // REQ-MV-012: Handle empty file list gracefully
     if paths.is_empty() {
         eprintln!("No parquet files to scan - returning empty index");
         return Ok(MetadataIndex {
@@ -417,7 +417,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     for path in paths {
         eprintln!("Scanning {:?}", path);
 
-        // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+        // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
         // This handles files being actively written by the collector
         let file = match File::open(path) {
             Ok(f) => f,
@@ -677,7 +677,7 @@ fn load_metric_from_file(
     container_set: &HashSet<String>,
     is_cumulative_metric: bool,
 ) -> Result<HashMap<String, RawContainerData>> {
-    // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+    // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
     let file = match File::open(path) {
         Ok(f) => f,
         Err(_) => return Ok(HashMap::new()),
@@ -752,7 +752,7 @@ fn load_row_groups(
     is_cumulative_metric: bool,
     row_groups: Option<Vec<usize>>,
 ) -> Result<HashMap<String, RawContainerData>> {
-    // REQ-ICV-003: Skip invalid/incomplete parquet files gracefully
+    // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
     let file = match File::open(path) {
         Ok(f) => f,
         Err(_) => return Ok(HashMap::new()),

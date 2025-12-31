@@ -1,8 +1,8 @@
 //! CLI binary for the metrics viewer.
 //!
 //! REQ-MV-001: Loads parquet file and serves HTTP on configurable port.
-//! REQ-ICV-002: Supports directory input with glob for `*.parquet` files.
-//! REQ-ICV-003: Fast startup via index file - no scanning of all parquet files.
+//! REQ-MV-011: Supports directory input with glob for `*.parquet` files.
+//! REQ-MV-012: Fast startup via index file - no scanning of all parquet files.
 //!
 //! # Usage
 //!
@@ -45,7 +45,7 @@ struct Args {
     timeout_secs: u64,
 }
 
-/// REQ-ICV-003: Wait for index.json to appear, with timeout.
+/// REQ-MV-012: Wait for index.json to appear, with timeout.
 /// Returns the loaded index and the data directory.
 fn wait_for_index(data_dir: &PathBuf, timeout: Duration) -> Result<ContainerIndex> {
     let index_path = data_dir.join("index.json");
@@ -112,7 +112,7 @@ fn fallback_scan_for_index(data_dir: &PathBuf) -> Result<ContainerIndex> {
     Ok(index)
 }
 
-/// REQ-ICV-002: Expand input paths, handling directories by globbing for parquet files.
+/// REQ-MV-011: Expand input paths, handling directories by globbing for parquet files.
 /// Used for legacy mode (explicit file list) when not using index.
 fn expand_inputs(inputs: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
@@ -175,7 +175,7 @@ async fn main() -> Result<()> {
     let is_directory_mode = args.input.len() == 1 && args.input[0].is_dir();
 
     let store = if is_directory_mode {
-        // REQ-ICV-003: Use index-based fast startup
+        // REQ-MV-012: Use index-based fast startup
         let data_dir = &args.input[0];
         eprintln!("Index-based mode: loading from {:?}", data_dir);
 

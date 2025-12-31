@@ -7,7 +7,7 @@
 //!
 //! - `data` - Parquet loading and metric discovery (REQ-MV-002, REQ-MV-003)
 //! - `server` - HTTP server and API handlers (REQ-MV-001)
-//! - `studies` - Analysis framework with Study trait (REQ-MV-007)
+//! - `studies` - Analysis framework with Study trait (REQ-MV-006)
 //!
 //! # Usage
 //!

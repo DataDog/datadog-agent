@@ -1,7 +1,7 @@
 //! Periodicity detection study using autocorrelation.
 //!
-//! REQ-MV-007: Detects periodic patterns in timeseries data.
-//! REQ-MV-008: Provides window data for visualization.
+//! REQ-MV-006: Detects periodic patterns in timeseries data.
+//! REQ-MV-007: Provides window data for visualization.
 
 use super::{Study, StudyResult, StudyWindow};
 use crate::metrics_viewer::data::TimeseriesPoint;
@@ -26,7 +26,7 @@ pub struct PeriodicityConfig {
 
 impl Default for PeriodicityConfig {
     fn default() -> Self {
-        // REQ-MV-007: Default parameters from design.md
+        // REQ-MV-006: Default parameters from design.md
         Self {
             window_size: 60,
             step_size: 30, // 50% overlap

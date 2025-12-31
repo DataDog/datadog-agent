@@ -51,9 +51,8 @@ via the standard `metrics` crate facade.
 | **REQ-FM-002:** View Detailed Memory Usage | ✅ Complete | Uses lading's `smaps_rollup` for PSS metrics per-PID, `cgroup_v2::poll()` for memory.stat/memory.current |
 | **REQ-FM-003:** View Detailed CPU Usage | ✅ Complete | Uses lading's `cgroup_v2::cpu::Sampler` for CPU delta calculations with percentage and millicores |
 | **REQ-FM-004:** Analyze Data Post-Hoc | ✅ Complete | 90s rotation, dt/identifier partitioning, standardized labels, session manifest all implemented and verified |
-| **REQ-FM-005:** Visualize Metrics Interactively | ✅ Complete | Rust/axum backend with Plotly.js frontend, ~10s load for 35M rows |
 
-**Progress:** 5 of 5 complete
+**Progress:** 4 of 4 complete
 
 ## Implementation Notes
 
@@ -118,15 +117,3 @@ CPU metrics collection uses lading's observer APIs:
 - **Per-container state** stored in `Observer.container_states` HashMap for delta calculations
 - **State cleanup** removes entries for containers that no longer exist
 
-### REQ-FM-005 Implementation (Completed)
-
-Interactive metrics visualization via `scripts/metrics_viewer.rs`:
-
-- **Rust backend** with axum HTTP server for fast Parquet loading (~10s for 35M rows)
-- **Plotly.js frontend** embedded in the binary, served as static HTML
-- **WebGL rendering** via `scattergl` for smooth performance with 170K+ points
-- **Compact header bar** with container multi-select, quick-select buttons, and action controls
-- **Range slider** for time navigation, legend positioned above chart to avoid overlap
-- **Automatic Y-axis scaling** adjusts Y scale to fit visible data
-- **Detailed timing output** shows each loading phase (metadata read, ZSTD decompress, struct building)
-- **Automatic browser launch** opens viewer in default browser after server starts

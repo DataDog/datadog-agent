@@ -1,4 +1,4 @@
-//! Container index for fast viewer startup (REQ-ICV-003)
+//! Container index for fast viewer startup (REQ-MV-012)
 //!
 //! The collector maintains a lightweight index.json with container metadata,
 //! enabling the viewer to start instantly without scanning all parquet files.
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::discovery::{Container, QosClass};
 
 /// Current schema version for forward compatibility
-/// v2: Added pod_name, namespace, labels from Kubernetes API (REQ-PME-003)
+/// v2: Added pod_name, namespace, labels from Kubernetes API (REQ-MV-016)
 const SCHEMA_VERSION: u32 = 2;
 
 /// Container metadata stored in the index
@@ -29,7 +29,7 @@ pub struct ContainerEntry {
     pub first_seen: DateTime<Utc>,
     /// When this container was last observed
     pub last_seen: DateTime<Utc>,
-    // REQ-PME-003: Kubernetes metadata from API
+    // REQ-MV-016: Kubernetes metadata from API
     /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pod_name: Option<String>,

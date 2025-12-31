@@ -2,48 +2,81 @@
 
 ## Architecture Overview
 
-Library + binary architecture enabling reuse:
-
-- `src/metrics_viewer/` - Core library module
-- `src/bin/fgm-viewer.rs` - CLI binary wrapper
+Library + binary architecture enabling reuse, with in-cluster deployment as a
+sidecar alongside the monitor.
 
 ```
 src/metrics_viewer/
 ├── mod.rs           # Module exports
 ├── data.rs          # Parquet loading, metric discovery
+├── lazy_data.rs     # Index-based queries, time-range file discovery
 ├── server.rs        # HTTP server, API handlers
 ├── studies/
 │   ├── mod.rs       # Study trait, registry
 │   └── periodicity.rs  # Periodicity detection study
 └── static/          # Embedded frontend assets
+
+src/bin/fgm-viewer.rs  # CLI binary wrapper
+src/index.rs           # Index data structures and I/O
+src/kubernetes.rs      # Kubernetes API client for metadata enrichment
 ```
 
-## REQ-MV-001: View Metrics Timeseries
+### Deployment Architecture
 
-### Frontend: uPlot
+The viewer runs as a sidecar container alongside the fine-grained-monitor
+collector in the DaemonSet. Both containers share a volume for parquet file
+access.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               DaemonSet Pod (per node)                       │
+│                                                              │
+│  ┌─────────────────┐           ┌─────────────────┐          │
+│  │    monitor      │           │     viewer      │          │
+│  │   container     │           │   container     │          │
+│  │                 │           │   port 8050     │          │
+│  └────────┬────────┘           └────────┬────────┘          │
+│           │ write                       │ read              │
+│           └─────────────┬───────────────┘                   │
+│                         ▼                                   │
+│                ┌───────────────┐                            │
+│                │  /data volume │                            │
+│                │  index.json   │                            │
+│                │  *.parquet    │                            │
+│                └───────────────┘                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Core Viewer Implementation
+
+### REQ-MV-001: View Metrics Timeseries
+
+#### Frontend: uPlot
 
 uPlot selected for canvas-based rendering with smooth pan/zoom on large datasets.
 Lightweight (~40KB), plugin hooks for custom overlays, direct scale/series access.
 
-### Static Asset Embedding
+#### Static Asset Embedding
 
 Frontend assets embedded in binary via `include_str!` or `rust-embed` crate.
 Single binary distribution, no external file dependencies.
 
-### Initial Display
+#### Initial Display
 
 On startup, load parquet file and serve HTTP on configurable port. Browser opens
 automatically unless `--no-browser` flag. Empty chart shown until containers
 selected.
 
-## REQ-MV-002: Select Metrics to Display
+### REQ-MV-002: Select Metrics to Display
 
-### Metric Discovery
+#### Metric Discovery
 
 On parquet load, scan `metric_name` column to build unique metric list.
 Cache metric names in `AppState` for fast `/api/metrics` responses.
 
-### API: GET /api/metrics
+#### API: GET /api/metrics
 
 Returns list of available metric names with sample counts:
 
@@ -56,44 +89,37 @@ Returns list of available metric names with sample counts:
 }
 ```
 
-### Context Preservation
+#### Context Preservation
 
 Frontend maintains current container selection and zoom range when metric
 changes. Only timeseries data is re-fetched.
 
-## REQ-MV-003: Filter Containers by Attributes
+### REQ-MV-003: Search and Select Containers
 
-### Label Extraction
-
-During parquet load, extract unique values for filter-relevant labels:
-`qos_class`, `namespace`, `pod_name`. Store in `AppState` for filter dropdowns.
-
-### API: GET /api/containers
-
-Query params: `metric` (required), `qos_class`, `namespace` (optional filters).
-
-Returns containers matching filters with summary stats:
-
-```json
-{
-  "containers": [
-    {"id": "abc123...", "short_id": "abc123", "qos_class": "Guaranteed",
-     "namespace": "default", "avg": 45.2, "max": 98.1, "samples": 1000}
-  ]
-}
-```
-
-## REQ-MV-004: Search and Select Containers
-
-### Frontend Implementation
+#### Frontend Implementation
 
 Searchable multi-select list. Client-side filtering of container list by
 name substring. "Top N" buttons trigger selection of first N containers
 sorted by average value descending.
 
-## REQ-MV-005: Zoom and Pan Through Time
+#### API: GET /api/containers
 
-### uPlot Configuration
+Query params: `metric` (required).
+
+Returns containers with summary stats:
+
+```json
+{
+  "containers": [
+    {"id": "abc123...", "short_id": "abc123", "qos_class": "Guaranteed",
+     "namespace": "default", "pod_name": "my-pod", "avg": 45.2, "max": 98.1, "samples": 1000}
+  ]
+}
+```
+
+### REQ-MV-004: Zoom and Pan Through Time
+
+#### uPlot Configuration
 
 Enable built-in zoom (drag select) and pan (shift+drag or touch). Scroll
 wheel zoom centered on cursor. Configure via uPlot options:
@@ -103,14 +129,14 @@ scales: { x: { time: true } },
 cursor: { drag: { x: true, y: false } }
 ```
 
-### Reset Button
+#### Reset Button
 
 Frontend reset button calls `uplot.setScale('x', {min, max})` with original
 data bounds.
 
-## REQ-MV-006: Navigate with Range Overview
+### REQ-MV-005: Navigate with Range Overview
 
-### Implementation Options
+#### Implementation Options
 
 1. **Second uPlot instance** - Synchronized mini chart showing full range
 2. **Custom canvas overlay** - Draw simplified range indicator below main chart
@@ -118,9 +144,9 @@ data bounds.
 Start with option 1 (simpler). Use uPlot's `setSeries` hooks to sync selection
 rectangle with main chart zoom state.
 
-## REQ-MV-007: Detect Periodic Patterns
+### REQ-MV-006: Detect Periodic Patterns
 
-### Study Abstraction
+#### Study Abstraction
 
 Periodicity detection is implemented as a `Study` trait, establishing a pattern
 for future analysis features:
@@ -148,7 +174,7 @@ pub struct StudyWindow {
 `StudyRegistry` holds available studies. This pattern allows adding new
 analysis types without API changes.
 
-### Per-Container Study Initiation
+#### Per-Container Study Initiation
 
 Studies are initiated per-container via a study icon in the container list,
 rather than a global button. This makes the action intentional and ensures
@@ -157,13 +183,13 @@ single-container focus.
 Container list item with study action:
 ```
 ┌─────────────────────────────────────────┐
-│ ☑ d7cd12621111  avg: 64.1  [📊]        │
+│ ☑ my-pod           avg: 64.1  [📊]      │
 │                             ^           │
 │                     study icon button   │
 └─────────────────────────────────────────┘
 ```
 
-### Selection State Management
+#### Selection State Management
 
 When user clicks study icon on container X:
 
@@ -181,7 +207,7 @@ let studyActive = false;
 let studyContainer = null;      // Container ID being studied
 ```
 
-### Periodicity Detection Algorithm
+#### Periodicity Detection Algorithm
 
 Sliding window autocorrelation:
 
@@ -192,7 +218,7 @@ Sliding window autocorrelation:
 
 Metrics returned per window: `period`, `periodicity_score`, `amplitude`.
 
-### API: GET /api/studies
+#### API: GET /api/studies
 
 Returns available studies:
 
@@ -205,7 +231,7 @@ Returns available studies:
 }
 ```
 
-### API: GET /api/study/periodicity
+#### API: GET /api/study/periodicity
 
 Query params: `metric`, `container` (single container ID).
 
@@ -228,9 +254,9 @@ Returns periodicity detection results:
 }
 ```
 
-## REQ-MV-008: Visualize Periodicity Patterns
+### REQ-MV-007: Visualize Periodicity Patterns
 
-### Results Panel
+#### Results Panel
 
 When periodicity study is active, the Studies section in the sidebar transforms
 into a results panel:
@@ -238,7 +264,7 @@ into a results panel:
 ```
 ┌─────────────────────────────┐
 │ Periodicity Study     [✕]  │
-│ Container: d7cd12621111    │
+│ Container: my-pod          │
 ├─────────────────────────────┤
 │ 52 windows detected        │
 │ Dominant period: 20s       │
@@ -254,7 +280,7 @@ Panel elements:
 - Summary statistics computed from StudyResult
 - Restoration button (visible when previousSelection is non-empty)
 
-### Exit Study Flow
+#### Exit Study Flow
 
 When user clicks [✕] or "Restore previous view":
 
@@ -265,19 +291,19 @@ When user clicks [✕] or "Restore previous view":
 5. Preserve current time range (critical: do not reset zoom/pan)
 6. Clear `previousSelection`
 
-### Frontend Visualization Plugin
+#### Frontend Visualization Plugin
 
 uPlot hooks API for custom drawing. Periodicity visualization plugin receives
 `StudyResult` and draws overlays during `drawAxes` or `drawSeries` hooks.
 
-### Periodicity Markers
+#### Periodicity Markers
 
 Vertical dashed lines at period intervals within each detected window.
 Lines colored to match associated container trace. Semi-transparent to
 avoid obscuring data. Detected regions highlighted with subtle background
 shading.
 
-### Tooltip Interaction
+#### Tooltip Interaction
 
 Hover detection on periodicity markers and regions. Tooltip displays:
 - Period duration (e.g., "10.2s period")
@@ -286,9 +312,9 @@ Hover detection on periodicity markers and regions. Tooltip displays:
 
 Tooltip positioned near cursor, auto-repositions to stay within chart bounds.
 
-## REQ-MV-009: Automatic Y-Axis Scaling
+### REQ-MV-008: Automatic Y-Axis Scaling
 
-### Implementation
+#### Implementation
 
 uPlot configured with custom range function:
 ```javascript
@@ -299,13 +325,13 @@ This automatically scales Y-axis to fit visible data (0 to max + 10% padding)
 whenever the visible time range or displayed data changes. No manual button
 required.
 
-### Reset Behavior
+#### Reset Behavior
 
 When user clicks reset (full time range), Y-axis auto-scales to fit all data.
 
-## REQ-MV-010: Graceful Empty Data Display
+### REQ-MV-009: Graceful Empty Data Display
 
-### Empty Data Detection
+#### Empty Data Detection
 
 After building series arrays in `renderChart()`, check for valid data:
 
@@ -313,7 +339,7 @@ After building series arrays in `renderChart()`, check for valid data:
 2. If all values are null → show "No data available" message
 3. If all values are zero/constant → ensure minimum Y-axis range
 
-### Y-Axis Minimum Range
+#### Y-Axis Minimum Range
 
 When `yMax` is 0 or very small, use a fallback range to prevent chart collapse:
 
@@ -325,7 +351,7 @@ if (yMax === 0) {
 originalYRange = [0, yMax * 1.1];
 ```
 
-### Empty State Message
+#### Empty State Message
 
 New variant of `showEmptyState()` for metrics with timestamps but no values:
 
@@ -336,15 +362,328 @@ function showNoDataState(metricName) {
 }
 ```
 
+---
+
+## Cluster Deployment Implementation
+
+### REQ-MV-010: Cluster Access Implementation
+
+#### Container Configuration
+
+The viewer runs as a second container in the DaemonSet pod:
+
+- **Image:** Same `fine-grained-monitor` image (contains both binaries)
+- **Command:** `/usr/local/bin/fgm-viewer`
+- **Arguments:** `/data --port=8050 --no-browser`
+- **Port:** 8050 (TCP)
+
+#### Access Method
+
+Users access via kubectl port-forward:
+
+```bash
+kubectl port-forward ds/fine-grained-monitor 8050:8050
+```
+
+This connects to an arbitrary pod in the DaemonSet. For specific node access:
+
+```bash
+kubectl port-forward pod/fine-grained-monitor-<hash> 8050:8050
+```
+
+#### Image Changes
+
+The Dockerfile copies both binaries to the final image:
+
+```dockerfile
+COPY --from=builder /build/target/release/fine-grained-monitor /usr/local/bin/
+COPY --from=builder /build/target/release/fgm-viewer /usr/local/bin/
+```
+
+### REQ-MV-011: Node-Local Data Access
+
+#### Shared Volume
+
+Both containers mount the same volume:
+
+| Container | Mount | Access |
+|-----------|-------|--------|
+| monitor | /data | read-write |
+| viewer | /data | read-only |
+
+#### Volume Type
+
+Use `hostPath` volume pointing to `/var/lib/fine-grained-monitor`:
+
+- Persists across pod restarts for post-mortem analysis
+- Node-local storage (no cross-node access)
+- Already configured in existing DaemonSet
+
+#### Directory Input Support
+
+The `fgm-viewer` binary accepts a directory path and globs for `*.parquet`:
+
+```rust
+// In fgm-viewer.rs
+if path.is_dir() {
+    let pattern = format!("{}/**/*.parquet", path.display());
+    let files: Vec<PathBuf> = glob(&pattern)?.filter_map(Result::ok).collect();
+}
+```
+
+### REQ-MV-012: Fast Startup via Index
+
+#### Problem
+
+Scanning all parquet files at startup to build metadata (metrics list, container
+info) is O(n) with file count. With 90-second rotation and days of accumulated
+data, file count reaches thousands, causing 30+ minute startup times.
+
+#### Solution: Separate Index File
+
+The collector maintains a lightweight `index.json` that the viewer loads
+instantly. Data files are loaded on-demand based on query time range.
+
+```
+/data/
+  index.json                              # Metadata (~10-50 KB)
+  dt=2025-12-30/
+    identifier=pod-xyz/
+      metrics-20251230T160000Z.parquet    # Pure timeseries data
+      metrics-20251230T160130Z.parquet
+```
+
+#### Index File Schema
+
+```json
+{
+  "schema_version": 2,
+  "updated_at": "2025-12-30T16:05:00Z",
+
+  "containers": {
+    "abc123def456": {
+      "full_id": "abc123def456789abcdef...",
+      "pod_name": "coredns-5dd5756b68-xyz",
+      "namespace": "kube-system",
+      "qos_class": "Burstable",
+      "first_seen": "2025-12-28T10:00:00Z",
+      "last_seen": "2025-12-30T16:05:00Z",
+      "labels": {"app": "coredns"}
+    }
+  },
+
+  "data_range": {
+    "earliest": "2025-12-22T00:00:00Z",
+    "latest": "2025-12-30T16:05:00Z",
+    "rotation_interval_sec": 90
+  }
+}
+```
+
+**Note:** Metric names are derived from parquet file schema, not stored in index.
+This avoids hard-coding and ensures the metric list expands naturally as new
+metrics are added to the collector.
+
+#### Collector Index Management
+
+```
+On startup:
+  - Load existing index.json or create empty
+  - Track known_containers: HashSet<ContainerId>
+
+On each collection cycle (every 1s):
+  - current_containers = containers observed this cycle
+
+  If current_containers != known_containers:
+    - New containers: Add to index with first_seen = now
+    - Gone containers: Update last_seen timestamp
+    - Write index atomically (write .tmp, rename)
+    - known_containers = current_containers
+
+On rotation (every 90s):
+  - Write parquet file with predictable name: metrics-{ISO8601}Z.parquet
+  - Update index.data_range.latest
+  - Update last_seen for all active containers
+```
+
+Container churn is infrequent (minutes/hours), so index writes are rare.
+
+#### Viewer Startup Sequence
+
+```
+1. Attempt to load /data/index.json
+2. If index exists:
+   - Load container metadata from index
+   - Read metric names from schema of most recent parquet file
+   - Start server immediately
+3. If index missing:
+   - Poll for index.json every 5 seconds
+   - Timeout after 3 minutes with error message
+   - If parquet files exist but no index, rebuild index from files (fallback)
+4. Serve UI on port 8050
+```
+
+#### Time-Range Based File Discovery
+
+Instead of globbing all files, the viewer computes file paths from time range:
+
+```rust
+fn find_files_for_range(data_dir: &Path, start: DateTime, end: DateTime) -> Vec<PathBuf> {
+    // Predictable naming: /data/dt={date}/identifier={id}/metrics-{timestamp}Z.parquet
+    // Compute expected file timestamps based on rotation interval (90s)
+    // Return paths that fall within [start, end]
+}
+```
+
+This avoids expensive glob operations over thousands of files.
+
+#### Atomic Index Writes
+
+```rust
+fn write_index(path: &Path, index: &Index) -> Result<()> {
+    let tmp_path = path.with_extension("json.tmp");
+    let json = serde_json::to_string_pretty(index)?;
+    std::fs::write(&tmp_path, json)?;
+    std::fs::rename(&tmp_path, path)?;  // Atomic on POSIX
+    Ok(())
+}
+```
+
+#### Edge Case: No Data Files
+
+When viewer starts with no index and no parquet files:
+
+1. Display "Waiting for metrics data..." page
+2. Poll every 5 seconds for either index.json or parquet files
+3. After 3 minutes, display timeout error with troubleshooting guidance
+4. If parquet files appear before index, rebuild index from files
+
+#### Currently-Writing Files
+
+The collector's in-progress parquet file (not yet rotated) is excluded from
+queries. Users see data with 0-90 second lag, which is acceptable for debugging
+use cases.
+
+### REQ-MV-013: Container Independence
+
+#### Sidecar Pattern
+
+Using Kubernetes sidecar pattern ensures:
+
+- Containers share pod lifecycle but run independently
+- Shared volumes enable data exchange
+- Resource limits apply per-container
+- Restart policies apply per-container
+
+#### Resource Allocation
+
+| Container | Memory Request | Memory Limit | CPU Request | CPU Limit |
+|-----------|---------------|--------------|-------------|-----------|
+| monitor | 64Mi | 256Mi | 100m | 500m |
+| viewer | 32Mi | 128Mi | 10m | 100m |
+
+#### Failure Isolation
+
+- Monitor crash: Viewer continues serving existing data
+- Viewer crash: Monitor continues collecting (Kubernetes restarts viewer)
+- Both share termination grace period for clean shutdown
+
+---
+
+## Metadata Enrichment Implementation
+
+### REQ-MV-014: Display Pod Names
+
+The viewer displays pod names from the index instead of container short IDs.
+The container list and tooltips show human-readable pod names with fallback
+to short IDs when metadata is unavailable.
+
+### REQ-MV-015: Kubernetes API Client
+
+New module `src/kubernetes.rs`:
+
+- Uses `kube` crate with in-cluster config
+- Queries pods filtered by node name (from `NODE_NAME` env var)
+- Extracts container ID to pod metadata mapping
+- Refresh interval: 30 seconds
+
+#### Container ID Matching
+
+Kubernetes API returns container IDs with runtime prefix:
+- `containerd://abc123def456...`
+- `docker://abc123def456...`
+- `cri-o://abc123def456...`
+
+Strip prefix to match cgroup-discovered IDs:
+
+```rust
+fn strip_runtime_prefix(id: &str) -> &str {
+    id.find("://").map(|i| &id[i+3..]).unwrap_or(id)
+}
+```
+
+#### Metadata Extraction
+
+For each pod, extract:
+- `pod_name`: `pod.metadata.name`
+- `namespace`: `pod.metadata.namespace`
+- `labels`: `pod.metadata.labels` (optional HashMap)
+
+Map each container status to these values using the container ID.
+
+#### Graceful Degradation
+
+If Kubernetes API unavailable:
+1. Log info message at startup: "Kubernetes API not available, running without pod metadata enrichment"
+2. Continue with cgroup-only discovery
+3. Containers display as short IDs (existing behavior)
+4. No error state - this is expected for non-k8s environments
+
+#### RBAC Requirements
+
+Minimal permissions needed (pods list only):
+
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+```
+
+### REQ-MV-016: Persist Metadata in Index
+
+`ContainerEntry` includes metadata fields (schema version 2):
+
+```rust
+pub struct ContainerEntry {
+    pub full_id: String,
+    pub pod_uid: Option<String>,
+    pub qos_class: String,
+    pub first_seen: DateTime<Utc>,
+    pub last_seen: DateTime<Utc>,
+    // Metadata enrichment fields
+    pub pod_name: Option<String>,
+    pub namespace: Option<String>,
+    pub labels: Option<HashMap<String, String>>,
+}
+```
+
+Schema version bumped to 2 for forward compatibility. Fields are optional
+to support graceful degradation when API unavailable.
+
+---
+
 ## Data Flow Summary
 
 ```
 Startup:
-  load_parquet() -> AppState { metrics, containers_by_metric, timeseries_cache }
+  load_index() -> ContainerMetadata from index.json
+  read_schema() -> metric names from parquet file schema
+  Start server immediately (5 second startup target)
 
 User flow:
   1. /api/metrics -> populate metric dropdown
-  2. Select metric -> /api/containers?metric=X -> populate container list
+  2. Select metric -> /api/containers?metric=X -> populate container list (with pod names)
   3. Select containers -> /api/timeseries?metric=X&containers=a,b,c -> render chart
 
 Study flow:
@@ -354,3 +693,4 @@ Study flow:
   4. /api/study/periodicity?metric=X&container=Y -> display results panel + overlay
   5. Exit study -> restore previousSelection OR keep Y -> preserve time range
 ```
+

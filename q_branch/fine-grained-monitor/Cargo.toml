@@ -54,7 +54,7 @@ axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 rayon = "1.10"
 
-# Kubernetes API client (REQ-PME-002)
+# Kubernetes API client (REQ-MV-015)
 kube = { version = "0.93", features = ["client", "runtime"] }
 k8s-openapi = { version = "0.22", features = ["v1_29"] }
 

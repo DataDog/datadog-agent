@@ -1,7 +1,7 @@
 //! Parquet loading and metric discovery for metrics viewer.
 //!
 //! REQ-MV-002: Discovers all available metric types from parquet files.
-//! REQ-MV-003: Extracts container attributes (qos_class, namespace) for filtering.
+//! REQ-MV-003: Extracts container attributes (qos_class, namespace) for search/filtering.
 
 use anyhow::{Context, Result};
 use arrow::array::{Array, Float64Array, MapArray, StringArray, StructArray, UInt64Array};
@@ -126,7 +126,7 @@ fn extract_labels_from_column(col: &dyn Array, row: usize) -> Result<Vec<(String
 /// Load data from one or more parquet files.
 ///
 /// REQ-MV-002: Scans metric_name column to build unique metric list.
-/// REQ-MV-003: Extracts qos_class, namespace for filtering.
+/// REQ-MV-003: Extracts qos_class, namespace for search/filtering.
 pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
     let start = std::time::Instant::now();
 

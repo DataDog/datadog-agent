@@ -243,7 +243,7 @@
             position: relative;
         }
 
-        /* REQ-MV-006: Range selector overlay */
+        /* REQ-MV-005: Range selector overlay */
         .range-overlay {
             position: absolute;
             top: 8px;
@@ -299,7 +299,7 @@
             font-size: 16px;
         }
 
-        /* REQ-MV-007: Per-container study icon */
+        /* REQ-MV-006: Per-container study icon */
         .study-btn {
             background: none;
             border: 1px solid #ccc;
@@ -328,7 +328,7 @@
             margin-right: 8px;
         }
 
-        /* REQ-MV-008: Study results panel */
+        /* REQ-MV-007: Study results panel */
         .study-panel {
             background: #f0f7ff;
             border: 1px solid #b8daff;
@@ -417,7 +417,7 @@
             background: #cce5ff;
         }
 
-        /* REQ-MV-008: Periodicity tooltip */
+        /* REQ-MV-007: Periodicity tooltip */
         .periodicity-tooltip {
             position: absolute;
             background: rgba(0,0,0,0.8);
@@ -488,7 +488,7 @@
                     <div class="metric-list" id="metricList"></div>
                 </div>
 
-                <!-- REQ-MV-004: Container search and selection -->
+                <!-- REQ-MV-003: Container search and selection -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Containers</div>
                     <input type="text" id="containerSearch" class="search-input" placeholder="Search containers...">
@@ -501,7 +501,7 @@
                     </div>
                 </div>
 
-                <!-- REQ-MV-007, REQ-MV-008: Studies section (dynamic content) -->
+                <!-- REQ-MV-006, REQ-MV-007: Studies section (dynamic content) -->
                 <div class="sidebar-section" id="studiesSection">
                     <div class="sidebar-section-title">Studies</div>
                     <div id="studiesContent">
@@ -527,7 +527,7 @@
         </div>
     </div>
 
-    <!-- REQ-MV-008: Periodicity tooltip -->
+    <!-- REQ-MV-007: Periodicity tooltip -->
     <div class="periodicity-tooltip" id="periodicityTooltip"></div>
 
     <script>
@@ -565,7 +565,7 @@
                 originalYRange: null,       // [min, max] for reset
             },
 
-            // REQ-MV-007: Study state
+            // REQ-MV-006: Study state
             study: {
                 active: false,
                 containerId: null,
@@ -729,9 +729,9 @@
 
         const Components = {
             // REQ-MV-002: Metric list with search
-            // REQ-ICV-003: Show waiting message when no metrics available
+            // REQ-MV-012: Show waiting message when no metrics available
             MetricList(state) {
-                // REQ-ICV-003: Show waiting message when no data collected yet
+                // REQ-MV-012: Show waiting message when no data collected yet
                 if (state.metrics.length === 0) {
                     return `
                         <div style="padding: 16px; text-align: center;">
@@ -763,7 +763,7 @@
                 }).join('');
             },
 
-            // REQ-MV-004: Container list with checkboxes and study buttons
+            // REQ-MV-003: Container list with checkboxes and study buttons
             ContainerList(state) {
                 if (state.containers.length === 0) {
                     return '<div style="padding: 8px; color: #888; font-size: 12px;">No containers found</div>';
@@ -778,7 +778,7 @@
                     const color = getContainerColor(containerId, state.selectedContainerIds);
                     const selectedClass = isSelected ? 'selected' : '';
 
-                    // REQ-MV-007: Study icon - highlight if this container is being studied
+                    // REQ-MV-006: Study icon - highlight if this container is being studied
                     const isStudied = state.study.active && state.study.containerId === containerId;
                     const studyBtnStyle = isStudied
                         ? 'background: #007bff; color: white; opacity: 1;'
@@ -802,7 +802,7 @@
                 }).join('');
             },
 
-            // REQ-MV-008: Study results panel
+            // REQ-MV-007: Study results panel
             StudyPanel(state) {
                 if (!state.study.active) {
                     return `
@@ -963,7 +963,7 @@
                 if (metrics.length > 0) {
                     await Actions.loadContainers();
                 } else {
-                    // REQ-ICV-003: Auto-refresh when no data available
+                    // REQ-MV-012: Auto-refresh when no data available
                     console.log('No metrics found, will auto-refresh in 5 seconds...');
                     setTimeout(() => {
                         console.log('Refreshing to check for new data...');
@@ -1077,7 +1077,7 @@
                 Actions.loadTimeseries();
             },
 
-            // REQ-MV-002, REQ-MV-003, REQ-MV-004: Load timeseries data
+            // REQ-MV-002, REQ-MV-003, REQ-MV-003: Load timeseries data
             async loadTimeseries() {
                 // Capture current time range FIRST
                 const preservedXRange = ChartRenderer.getCurrentXRange();
@@ -1095,7 +1095,7 @@
                     selectedIds
                 );
 
-                // REQ-MV-007: If study is active and user changes selection externally, exit study
+                // REQ-MV-006: If study is active and user changes selection externally, exit study
                 if (AppState.study.active) {
                     Actions.exitStudy(false);
                 }
@@ -1104,7 +1104,7 @@
                 ChartRenderer.renderChart(AppState, preservedXRange);
             },
 
-            // REQ-MV-007: Start periodicity study on specific container
+            // REQ-MV-006: Start periodicity study on specific container
             async startStudy(containerId) {
                 // If already studying this container, exit instead
                 if (AppState.study.active && AppState.study.containerId === containerId) {
@@ -1161,7 +1161,7 @@
                 }
             },
 
-            // REQ-MV-007, REQ-MV-008: Exit study mode
+            // REQ-MV-006, REQ-MV-007: Exit study mode
             async exitStudy(restorePrevious) {
                 // Capture current time range BEFORE any changes
                 const preservedXRange = ChartRenderer.getCurrentXRange();
@@ -1193,7 +1193,7 @@
                 ChartRenderer.renderChart(AppState, preservedXRange);
             },
 
-            // REQ-MV-005: Reset zoom
+            // REQ-MV-004: Reset zoom
             resetZoom() {
                 ChartRenderer.resetZoom();
             },
@@ -1240,7 +1240,7 @@
                 AppState._overviewPlot = null;
             },
 
-            // REQ-MV-010: Show state when metric has timestamps but no actual values
+            // REQ-MV-009: Show state when metric has timestamps but no actual values
             showNoDataState(metricName) {
                 document.getElementById('mainChart').innerHTML =
                     `<div class="empty-state">
@@ -1291,7 +1291,7 @@
                     return values;
                 });
 
-                // REQ-MV-010: Check if all series values are null (no actual data)
+                // REQ-MV-009: Check if all series values are null (no actual data)
                 let hasAnyData = false;
                 series.forEach(s => {
                     s.forEach(v => {
@@ -1336,7 +1336,7 @@
                         }
                     });
                 });
-                // REQ-MV-010: Ensure minimum Y-axis range for all-zero/constant data
+                // REQ-MV-009: Ensure minimum Y-axis range for all-zero/constant data
                 if (yMax === 0) {
                     yMax = 1;
                 }
@@ -1362,8 +1362,8 @@
                     }
                 }
 
-                // REQ-MV-005: uPlot options with zoom/pan
-                // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
+                // REQ-MV-004: uPlot options with zoom/pan
+                // REQ-MV-009: Y-axis range function ensures minimum range for zero/constant data
                 const opts = {
                     width: chartDiv.clientWidth,
                     height: chartDiv.clientHeight,
@@ -1400,8 +1400,8 @@
 
                 AppState._mainPlot = new uPlot(opts, uplotData, chartDiv);
 
-                // REQ-MV-006: Overview chart
-                // REQ-MV-010: Y-axis range function ensures minimum range for zero/constant data
+                // REQ-MV-005: Overview chart
+                // REQ-MV-009: Y-axis range function ensures minimum range for zero/constant data
                 const overviewOpts = {
                     width: overviewDiv.clientWidth,
                     height: 60,
@@ -1420,7 +1420,7 @@
 
                 AppState._overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
 
-                // REQ-MV-006: Add HTML overlay for range selection
+                // REQ-MV-005: Add HTML overlay for range selection
                 ChartRenderer.createRangeOverlay(overviewDiv);
 
                 // REQ-MV-002: Sync overview after chart creation to reflect preserved zoom
@@ -1429,14 +1429,14 @@
                 });
             },
 
-            // REQ-MV-006: Sync range overlay with main chart zoom
+            // REQ-MV-005: Sync range overlay with main chart zoom
             syncOverview(u) {
                 if (AppState._rangeOverlay && AppState._rangeOverlay.update) {
                     AppState._rangeOverlay.update();
                 }
             },
 
-            // REQ-MV-008: Draw periodicity overlay
+            // REQ-MV-007: Draw periodicity overlay
             drawPeriodicityOverlay(u) {
                 if (!AppState.study.active) return;
 
@@ -1617,7 +1617,7 @@
                 plot.setScale('y', { min: originalY[0], max: originalY[1] });
             },
 
-            // REQ-MV-008: Find periodicity window at a given time value
+            // REQ-MV-007: Find periodicity window at a given time value
             findPeriodicityWindowAtTime(timeVal) {
                 if (!AppState.study.active) return null;
 
@@ -1637,7 +1637,7 @@
                 return null;
             },
 
-            // REQ-MV-008: Zoom to periodicity window
+            // REQ-MV-007: Zoom to periodicity window
             zoomToPeriodicityWindow(windowData) {
                 const plot = AppState._mainPlot;
                 if (!plot) return;
@@ -1777,7 +1777,7 @@
                 }
             });
 
-            // REQ-MV-005: Scroll wheel zoom on main chart
+            // REQ-MV-004: Scroll wheel zoom on main chart
             document.getElementById('mainChart').addEventListener('wheel', (e) => {
                 const plot = AppState._mainPlot;
                 if (!plot) return;
@@ -1873,11 +1873,11 @@
                 }
             });
 
-            // REQ-MV-008: Periodicity interaction handlers
+            // REQ-MV-007: Periodicity interaction handlers
             setupPeriodicityInteraction();
         }
 
-        // REQ-MV-008: Set up periodicity interaction handlers on chart
+        // REQ-MV-007: Set up periodicity interaction handlers on chart
         function setupPeriodicityInteraction() {
             const chartDiv = document.getElementById('mainChart');
             const tooltip = document.getElementById('periodicityTooltip');
