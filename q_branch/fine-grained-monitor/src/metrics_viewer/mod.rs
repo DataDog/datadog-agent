@@ -12,6 +12,7 @@
 
 pub mod data;
 pub mod lazy_data;
+pub mod mcp;
 pub mod server;
 pub mod studies;
 

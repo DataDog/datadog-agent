@@ -30,11 +30,11 @@ No raw timeseries data is ever returned to agents.
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
-| **REQ-MCP-001:** Discover Available Metrics | ❌ Not Started | - |
-| **REQ-MCP-002:** Find Containers by Criteria | ❌ Not Started | - |
-| **REQ-MCP-003:** Sort Containers by Recency | ❌ Not Started | - |
-| **REQ-MCP-004:** Analyze Container Behavior | ❌ Not Started | - |
-| **REQ-MCP-005:** Identify Behavioral Trends | ❌ Not Started | - |
-| **REQ-MCP-006:** Operate via Standard Protocol | ❌ Not Started | - |
+| **REQ-MCP-001:** Discover Available Metrics | ✅ Complete | `list_metrics` tool in `mcp/mod.rs` |
+| **REQ-MCP-002:** Find Containers by Criteria | ✅ Complete | `list_containers` tool with namespace, qos_class, search filters |
+| **REQ-MCP-003:** Sort Containers by Recency | 🟡 Partial | Structure in place; uses API default sort (avg) pending API changes |
+| **REQ-MCP-004:** Analyze Container Behavior | ✅ Complete | `analyze_container` tool with metric prefix support |
+| **REQ-MCP-005:** Identify Behavioral Trends | ✅ Complete | Linear regression trend detection in `detect_trend()` |
+| **REQ-MCP-006:** Operate via Standard Protocol | ✅ Complete | rmcp 0.12 with stdio transport |
 
-**Progress:** 0 of 6 complete
+**Progress:** 5 of 6 complete (1 partial)

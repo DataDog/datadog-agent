@@ -157,11 +157,10 @@ Example: `mcp-metrics-viewer --api-url http://localhost:8050`
 
 | File | Purpose |
 |------|---------|
-| `Cargo.toml` | Add rmcp, reqwest dependencies; new binary target |
-| `src/bin/mcp_metrics_viewer.rs` | Binary entry point |
-| `src/metrics_viewer/mcp/mod.rs` | Module exports |
-| `src/metrics_viewer/mcp/client.rs` | HTTP client wrapper |
-| `src/metrics_viewer/mcp/tools.rs` | Tool implementations |
+| `Cargo.toml` | rmcp 0.12, reqwest, schemars dependencies; mcp-metrics-viewer binary |
+| `src/bin/mcp_metrics_viewer.rs` | Binary entry point with CLI args |
+| `src/metrics_viewer/mcp/mod.rs` | MCP server, tool implementations, trend detection |
+| `src/metrics_viewer/mcp/client.rs` | HTTP client wrapper for metrics-viewer API |
 
 ## Error Handling
 
