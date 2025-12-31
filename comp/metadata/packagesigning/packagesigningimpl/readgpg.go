@@ -14,8 +14,9 @@ import (
 	"strings"
 	"time"
 
+	pgp "golang.org/x/crypto/openpgp"
+
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
-	pgp "github.com/ProtonMail/go-crypto/openpgp"
 )
 
 // signingKey represents relevant fields for a package signature key
@@ -81,13 +82,17 @@ func readGPGContent(cacheKeys map[string]signingKey, content []byte, keyType str
 		}
 	}
 	for _, key := range keyList {
-		fingerprint := strings.ToUpper(hex.EncodeToString(key.PrimaryKey.Fingerprint))
-		i := key.PrimaryIdentity()
-		keyLifetime := i.SelfSignature.KeyLifetimeSecs
+		fingerprint := strings.ToUpper(hex.EncodeToString(key.PrimaryKey.Fingerprint[:]))
+		var keyLifetime *uint32
+		// Get primary identity
+		for _, identity := range key.Identities {
+			keyLifetime = identity.SelfSignature.KeyLifetimeSecs
+			break
+		}
 		insertKey(cacheKeys, fingerprint, key.PrimaryKey.CreationTime, keyLifetime, keyType, repositories)
 		// Insert also subkeys
 		for _, subkey := range key.Subkeys {
-			fingerprint = strings.ToUpper(hex.EncodeToString(subkey.PublicKey.Fingerprint))
+			fingerprint = strings.ToUpper(hex.EncodeToString(subkey.PublicKey.Fingerprint[:]))
 			keyLifetime = subkey.Sig.KeyLifetimeSecs
 			insertKey(cacheKeys, fingerprint, subkey.PublicKey.CreationTime, keyLifetime, keyType, repositories)
 		}
