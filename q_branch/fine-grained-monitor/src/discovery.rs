@@ -28,6 +28,8 @@ pub struct Container {
     // REQ-MV-016: Kubernetes metadata from API (populated by kubernetes.rs)
     /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
     pub pod_name: Option<String>,
+    /// Container name from Kubernetes API (e.g., "monitor", "viewer")
+    pub container_name: Option<String>,
     /// Namespace from Kubernetes API (e.g., "kube-system")
     pub namespace: Option<String>,
     /// Pod labels from Kubernetes API
@@ -197,6 +199,7 @@ fn try_parse_container_scope(path: &Path, name: &str) -> Option<Container> {
         qos_class,
         // Kubernetes metadata populated later by kubernetes.rs
         pod_name: None,
+        container_name: None,
         namespace: None,
         labels: None,
     })
@@ -272,6 +275,21 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[allow(dead_code)]
+    fn make_container(id: &str, pod_uid: Option<&str>, qos: QosClass) -> Container {
+        Container {
+            id: id.to_string(),
+            cgroup_path: std::path::PathBuf::from("/test"),
+            pids: vec![1],
+            pod_uid: pod_uid.map(String::from),
+            qos_class: qos,
+            pod_name: None,
+            container_name: None,
+            namespace: None,
+            labels: None,
+        }
+    }
 
     fn create_test_cgroup(
         root: &Path,

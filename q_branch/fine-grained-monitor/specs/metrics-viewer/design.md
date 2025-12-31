@@ -312,6 +312,103 @@ Hover detection on periodicity markers and regions. Tooltip displays:
 
 Tooltip positioned near cursor, auto-repositions to stay within chart bounds.
 
+### REQ-MV-017: Detect Changepoints in Metrics
+
+#### Changepoint Detection Algorithm
+
+Uses Bayesian Online Changepoint Detection (BOCPD) via the `augurs-changepoint`
+crate. BOCPD maintains a probability distribution over run lengths (time since
+last changepoint) and updates it with each observation.
+
+Implementation uses `NormalGammaDetector` with tunable hazard rate:
+
+- **Hazard lambda:** 250.0 (expected mean run length between changepoints)
+- **Prior:** NormalGamma(0.0, 1.0, 1.0, 1.0) - uninformative prior
+
+The detector processes the full timeseries and returns indices where changepoints
+were detected. These indices map back to timestamps via the timeseries data.
+
+#### Study Implementation
+
+New file `src/metrics_viewer/studies/changepoint.rs` implements the `Study` trait:
+
+- `id()`: "changepoint"
+- `name()`: "Changepoint Study"
+- `description()`: "Detects abrupt changes using Bayesian Online Changepoint Detection"
+- `analyze()`: Runs BOCPD, returns `StudyResult` with one `StudyWindow` per changepoint
+
+Each `StudyWindow` represents a single changepoint with metrics:
+- `timestamp_ms`: Time of the changepoint
+- `value_before`: Average value in window before changepoint
+- `value_after`: Average value in window after changepoint
+- `magnitude`: Absolute difference between before/after averages
+- `direction`: "increase" or "decrease"
+
+#### API: GET /api/study/changepoint
+
+Query params: `metric`, `container` (single container ID).
+
+Returns changepoint detection results:
+
+```json
+{
+  "study": "changepoint",
+  "container": "abc123",
+  "windows": [
+    {"start_time_ms": 5000, "end_time_ms": 5000,
+     "metrics": {"value_before": 45.2, "value_after": 78.5, "magnitude": 33.3},
+     "label": "+33.3 at 10:05:00"}
+  ],
+  "summary": {
+    "changepoint_count": 3,
+    "largest_magnitude": 33.3
+  }
+}
+```
+
+### REQ-MV-018: Visualize Changepoint Locations
+
+#### Results Panel
+
+When changepoint study is active, displays in the Studies sidebar section:
+
+```
+┌─────────────────────────────┐
+│ Changepoint Study     [✕]   │
+│ Container: my-pod           │
+├─────────────────────────────┤
+│ 3 changepoints detected     │
+│ Largest change: +33.3       │
+├─────────────────────────────┤
+│ [Restore previous view]     │
+└─────────────────────────────┘
+```
+
+#### Changepoint Markers
+
+Vertical solid lines at each detected changepoint. Color matches container trace.
+Line style distinguishes from periodicity markers (solid vs dashed).
+
+Marker rendering in uPlot draw hook:
+- Full-height vertical line at changepoint timestamp
+- Small arrow indicator showing direction (up for increase, down for decrease)
+
+#### Tooltip Content
+
+On hover over changepoint marker:
+- Timestamp of change
+- Value before (5-sample average)
+- Value after (5-sample average)
+- Magnitude and direction
+- "Click to zoom" hint
+
+#### Click-to-Zoom Behavior
+
+Clicking a changepoint marker zooms to show ±30 seconds around the changepoint,
+providing context for the transition.
+
+---
+
 ### REQ-MV-008: Automatic Y-Axis Scaling
 
 #### Implementation

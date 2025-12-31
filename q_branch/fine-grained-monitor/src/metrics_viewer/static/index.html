@@ -494,16 +494,20 @@
                     <input type="text" id="containerSearch" class="search-input" placeholder="Search containers...">
                     <div class="container-list" id="containerList"></div>
                     <div class="action-buttons">
-                        <button class="btn-primary btn-sm" data-action="top5">Top 5</button>
-                        <button class="btn-primary btn-sm" data-action="top10">Top 10</button>
-                        <button class="btn-secondary btn-sm" data-action="clear">Clear</button>
+                        <button class="btn-secondary btn-sm" data-action="clear">Clear All</button>
                         <button class="btn-warning btn-sm" data-action="reset">Reset Zoom</button>
                     </div>
                 </div>
 
-                <!-- REQ-MV-006, REQ-MV-007: Studies section (dynamic content) -->
+                <!-- REQ-MV-006, REQ-MV-007, REQ-MV-017, REQ-MV-018: Studies section -->
                 <div class="sidebar-section" id="studiesSection">
                     <div class="sidebar-section-title">Studies</div>
+                    <div id="studyTypeSelector" style="margin-bottom: 8px;">
+                        <select id="studyTypeSelect" class="search-input" style="margin-bottom: 0;">
+                            <option value="periodicity">Periodicity (patterns)</option>
+                            <option value="changepoint">Changepoint (shifts)</option>
+                        </select>
+                    </div>
                     <div id="studiesContent">
                         <div style="color: #888; font-size: 12px;">
                             Click the study icon on a container to analyze
@@ -565,12 +569,13 @@
                 originalYRange: null,       // [min, max] for reset
             },
 
-            // REQ-MV-006: Study state
+            // REQ-MV-006, REQ-MV-017: Study state
             study: {
                 active: false,
+                type: 'periodicity',        // 'periodicity' or 'changepoint'
                 containerId: null,
                 previousSelection: [],      // For restore functionality
-                results: {},                // {containerId: periodicity results}
+                results: {},                // {containerId: study results}
             },
 
             // Loading states
@@ -641,6 +646,14 @@
         function escapeAttr(str) {
             if (str == null) return '';
             return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // Get display name for a container: pod_name/container_name or pod_name or short_id
+        function getContainerDisplayName(containerInfo, fallbackId) {
+            if (containerInfo?.pod_name && containerInfo?.container_name) {
+                return `${containerInfo.pod_name}/${containerInfo.container_name}`;
+            }
+            return containerInfo?.pod_name || fallbackId;
         }
 
         function filterMetrics(metrics, query) {
@@ -721,6 +734,18 @@
                 }
                 return null;
             },
+
+            // REQ-MV-017: Changepoint study API
+            async fetchChangepointStudy(metricName, containerId) {
+                const res = await fetch(
+                    `/api/study/changepoint?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
+                );
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    return data.results[0];
+                }
+                return null;
+            },
         };
 
         // ============================================================
@@ -764,19 +789,28 @@
             },
 
             // REQ-MV-003: Container list with checkboxes and study buttons
+            // REQ-MV-019: Containers sorted by last_seen (most recent first)
             ContainerList(state) {
                 if (state.containers.length === 0) {
                     return '<div style="padding: 8px; color: #888; font-size: 12px;">No containers found</div>';
                 }
 
+                const now = Date.now();
+                const ONE_HOUR_MS = 60 * 60 * 1000;
+
                 return state.containers.map((c, index) => {
-                    const containerId = c.info.short_id;
-                    // Show pod name if available, otherwise fall back to container ID
-                    const displayName = c.info.pod_name || containerId;
+                    // REQ-MV-019: API now returns flat ContainerInfo, not {info: ContainerInfo}
+                    const containerId = c.short_id;
+                    // Show pod_name/container_name if available, otherwise fall back to container ID
+                    const displayName = getContainerDisplayName(c, containerId);
                     const isSelected = state.selectedContainerIds.includes(containerId);
-                    const avgStr = c.avg != null ? c.avg.toFixed(1) : 'N/A';
                     const color = getContainerColor(containerId, state.selectedContainerIds);
                     const selectedClass = isSelected ? 'selected' : '';
+
+                    // REQ-MV-019: Show reduced prominence for containers not seen in last hour
+                    const lastSeenMs = c.last_seen_ms || 0;
+                    const isStale = lastSeenMs > 0 && (now - lastSeenMs) > ONE_HOUR_MS;
+                    const staleStyle = isStale ? 'opacity: 0.6;' : '';
 
                     // REQ-MV-006: Study icon - highlight if this container is being studied
                     const isStudied = state.study.active && state.study.containerId === containerId;
@@ -785,24 +819,23 @@
                         : '';
 
                     return `
-                        <label class="container-item ${selectedClass}">
+                        <label class="container-item ${selectedClass}" style="${staleStyle}">
                             <input type="checkbox"
                                    value="${escapeAttr(containerId)}"
                                    ${isSelected ? 'checked' : ''}
                                    data-container-checkbox>
                             <span class="container-color" style="background: ${color}"></span>
                             <span class="container-id" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</span>
-                            <span class="container-avg">avg: ${avgStr}</span>
                             <button class="study-btn"
                                     style="${studyBtnStyle}"
                                     data-study-btn="${escapeAttr(containerId)}"
-                                    title="Run Periodicity Study">📊</button>
+                                    title="Run Study">📊</button>
                         </label>
                     `;
                 }).join('');
             },
 
-            // REQ-MV-007: Study results panel
+            // REQ-MV-007, REQ-MV-018: Study results panel
             StudyPanel(state) {
                 if (!state.study.active) {
                     return `
@@ -813,9 +846,22 @@
                 }
 
                 const containerId = state.study.containerId;
-                const container = state.containers.find(c => c.info.short_id === containerId);
-                const displayName = container?.info.pod_name || containerId;
+                // REQ-MV-019: API now returns flat ContainerInfo
+                const container = state.containers.find(c => c.short_id === containerId);
+                const displayName = getContainerDisplayName(container, containerId);
                 const result = state.study.results[containerId];
+                const studyType = state.study.type;
+
+                // Dispatch to study-specific panel
+                if (studyType === 'changepoint') {
+                    return Components.ChangepointPanel(state, containerId, displayName, result);
+                } else {
+                    return Components.PeriodicityPanel(state, containerId, displayName, result);
+                }
+            },
+
+            // REQ-MV-007: Periodicity study panel
+            PeriodicityPanel(state, containerId, displayName, result) {
                 const windowCount = result?.windows?.length || 0;
 
                 // Compute summary stats
@@ -905,15 +951,78 @@
                 `;
             },
 
+            // REQ-MV-018: Changepoint study panel
+            ChangepointPanel(state, containerId, displayName, result) {
+                const changepoints = result?.windows || [];
+                const count = changepoints.length;
+
+                // Find largest magnitude
+                let largestMagnitude = 0;
+                let summaryHtml = '';
+
+                if (count > 0) {
+                    largestMagnitude = changepoints.reduce((max, w) =>
+                        Math.max(max, w.metrics?.magnitude || 0), 0);
+
+                    // Format time helper
+                    const formatTime = (ms) => {
+                        const d = new Date(ms);
+                        return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    };
+
+                    // Build changepoint list
+                    const changepointLines = changepoints
+                        .sort((a, b) => a.start_time_ms - b.start_time_ms)
+                        .map(w => {
+                            const time = formatTime(w.start_time_ms);
+                            const direction = (w.metrics?.direction || 0) > 0 ? '+' : '';
+                            const magnitude = (w.metrics?.magnitude || 0).toFixed(1);
+                            const before = (w.metrics?.value_before || 0).toFixed(1);
+                            const after = (w.metrics?.value_after || 0).toFixed(1);
+                            return `<div class="period-window-item"
+                                        data-changepoint-time="${w.start_time_ms}"
+                                        title="Click to zoom: ${before} → ${after}">${time}: ${direction}${magnitude}</div>`;
+                        }).join('');
+
+                    summaryHtml = `
+                        <div class="study-panel-summary">
+                            <div class="study-panel-summary-title">Detected Changes</div>
+                            <div class="period-group-windows">${changepointLines}</div>
+                        </div>
+                    `;
+                }
+
+                const restoreBtn = state.study.previousSelection.length > 0
+                    ? `<button class="study-panel-restore" data-restore-btn>Restore previous view (${state.study.previousSelection.length} containers)</button>`
+                    : '';
+
+                return `
+                    <div class="study-panel" style="background: #fff7e6; border-color: #ffd591;">
+                        <div class="study-panel-header">
+                            <span>Changepoint Study</span>
+                            <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
+                        </div>
+                        <div class="study-panel-container" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</div>
+                        <div class="study-panel-stats">
+                            <div><strong>${count}</strong> changepoint${count !== 1 ? 's' : ''} detected</div>
+                            <div>Largest change: <strong>${largestMagnitude.toFixed(1)}</strong></div>
+                        </div>
+                        ${summaryHtml}
+                        ${restoreBtn}
+                    </div>
+                `;
+            },
+
             Legend(state) {
                 if (state.selectedContainerIds.length === 0) {
                     return '';
                 }
 
                 return state.selectedContainerIds.map((id, i) => {
-                    const container = state.containers.find(c => c.info.short_id === id);
-                    const displayName = container?.info.pod_name || id;
-                    const qos = container?.info.qos_class || '?';
+                    // REQ-MV-019: API now returns flat ContainerInfo
+                    const container = state.containers.find(c => c.short_id === id);
+                    const displayName = getContainerDisplayName(container, id);
+                    const qos = container?.qos_class || '?';
                     return `
                         <div class="legend-item">
                             <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
@@ -1021,6 +1130,7 @@
             },
 
             // Load containers for current metric
+            // REQ-MV-019: Containers are now returned instantly, sorted by last_seen
             async loadContainers() {
                 if (!AppState.selectedMetric) return;
 
@@ -1031,12 +1141,13 @@
 
                 // Determine selected containers
                 const currentlySelected = AppState.selectedContainerIds;
-                const newContainerIds = containers.map(c => c.info.short_id);
+                // REQ-MV-019: API now returns flat ContainerInfo
+                const newContainerIds = containers.map(c => c.short_id);
                 const anyMatch = currentlySelected.some(id => newContainerIds.includes(id));
 
                 let selectedContainerIds;
                 if (currentlySelected.length === 0 || !anyMatch) {
-                    // Auto-select first 5 if no match
+                    // Auto-select first 5 (most recently seen)
                     selectedContainerIds = newContainerIds.slice(0, 5);
                 } else {
                     // Keep existing selection that still exists
@@ -1061,13 +1172,6 @@
                     updated = [...current, containerId];
                 }
                 updateState({ selectedContainerIds: updated });
-                Actions.loadTimeseries();
-            },
-
-            // User clicks "Top N" button
-            selectTopN(n) {
-                const containerIds = AppState.containers.slice(0, n).map(c => c.info.short_id);
-                updateState({ selectedContainerIds: containerIds });
                 Actions.loadTimeseries();
             },
 
@@ -1104,10 +1208,16 @@
                 ChartRenderer.renderChart(AppState, preservedXRange);
             },
 
-            // REQ-MV-006: Start periodicity study on specific container
+            // REQ-MV-006, REQ-MV-017: Start study on specific container
             async startStudy(containerId) {
-                // If already studying this container, exit instead
-                if (AppState.study.active && AppState.study.containerId === containerId) {
+                // Get selected study type from dropdown
+                const studyTypeSelect = document.getElementById('studyTypeSelect');
+                const studyType = studyTypeSelect ? studyTypeSelect.value : 'periodicity';
+
+                // If already studying this container with same type, exit instead
+                if (AppState.study.active &&
+                    AppState.study.containerId === containerId &&
+                    AppState.study.type === studyType) {
                     Actions.exitStudy(false);
                     return;
                 }
@@ -1121,6 +1231,7 @@
                 updateState({
                     study: {
                         active: true,
+                        type: studyType,
                         containerId: containerId,
                         previousSelection: previousSelection,
                         results: {},
@@ -1128,7 +1239,11 @@
                     selectedContainerIds: [containerId],
                 });
 
-                setLoading(true, 'Running periodicity analysis...');
+                const loadingMsg = studyType === 'changepoint'
+                    ? 'Running changepoint analysis...'
+                    : 'Running periodicity analysis...';
+                setLoading(true, loadingMsg);
+
                 try {
                     // Load timeseries for single container
                     const timeseries = await Api.fetchTimeseries(
@@ -1140,19 +1255,27 @@
                     // Render chart with preserved range
                     ChartRenderer.renderChart(AppState, preservedXRange);
 
-                    // Fetch periodicity data
-                    const periodicityResult = await Api.fetchPeriodicityStudy(
-                        AppState.selectedMetric,
-                        containerId
-                    );
+                    // Fetch study-specific data
+                    let studyResult = null;
+                    if (studyType === 'changepoint') {
+                        studyResult = await Api.fetchChangepointStudy(
+                            AppState.selectedMetric,
+                            containerId
+                        );
+                    } else {
+                        studyResult = await Api.fetchPeriodicityStudy(
+                            AppState.selectedMetric,
+                            containerId
+                        );
+                    }
 
                     const results = {};
-                    if (periodicityResult) {
-                        results[containerId] = periodicityResult;
+                    if (studyResult) {
+                        results[containerId] = studyResult;
                     }
                     updateState({ study: { results: results } });
 
-                    // Redraw to show periodicity overlay
+                    // Redraw to show study overlay
                     if (AppState._mainPlot) {
                         AppState._mainPlot.redraw();
                     }
@@ -1376,7 +1499,7 @@
                         drag: { x: true, y: false, setScale: true }
                     },
                     hooks: {
-                        draw: [ChartRenderer.drawPeriodicityOverlay],
+                        draw: [ChartRenderer.drawStudyOverlay],
                         setScale: [ChartRenderer.syncOverview]
                     },
                     axes: [
@@ -1436,10 +1559,20 @@
                 }
             },
 
-            // REQ-MV-007: Draw periodicity overlay
-            drawPeriodicityOverlay(u) {
+            // REQ-MV-007, REQ-MV-018: Draw study overlay (periodicity or changepoint)
+            drawStudyOverlay(u) {
                 if (!AppState.study.active) return;
 
+                const studyType = AppState.study.type;
+                if (studyType === 'changepoint') {
+                    ChartRenderer.drawChangepointOverlay(u);
+                } else {
+                    ChartRenderer.drawPeriodicityOverlay(u);
+                }
+            },
+
+            // REQ-MV-007: Draw periodicity overlay
+            drawPeriodicityOverlay(u) {
                 const ctx = u.ctx;
                 const { left, top, width, height } = u.bbox;
                 const plotRight = left + width;
@@ -1474,7 +1607,7 @@
                         ctx.fillStyle = color + '20';
                         ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
 
-                        // Draw period markers
+                        // Draw period markers (dashed lines)
                         const period = w.metrics.period || 10;
                         const periodMs = period * 1000;
                         ctx.strokeStyle = color;
@@ -1491,6 +1624,62 @@
                             }
                         }
                         ctx.setLineDash([]);
+                    });
+                });
+
+                ctx.restore();
+            },
+
+            // REQ-MV-018: Draw changepoint overlay
+            drawChangepointOverlay(u) {
+                const ctx = u.ctx;
+                const { left, top, width, height } = u.bbox;
+                const plotRight = left + width;
+                const plotBottom = top + height;
+
+                const selectedIds = AppState.selectedContainerIds;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(left, top, width, height);
+                ctx.clip();
+
+                selectedIds.forEach((id, idx) => {
+                    const result = AppState.study.results[id];
+                    if (!result || !result.windows) return;
+
+                    const color = COLORS[idx % COLORS.length];
+
+                    result.windows.forEach(w => {
+                        const x = u.valToPos(w.start_time_ms / 1000, 'x', true);
+
+                        if (x < left || x > plotRight) return;
+
+                        const y1 = top;
+                        const y2 = plotBottom;
+
+                        // Draw solid vertical line (distinguishes from periodicity's dashed lines)
+                        ctx.strokeStyle = color;
+                        ctx.setLineDash([]);
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(x, y1);
+                        ctx.lineTo(x, y2);
+                        ctx.stroke();
+
+                        // Draw direction indicator (small arrow)
+                        const direction = w.metrics?.direction || 0;
+                        const arrowSize = 8;
+                        const arrowY = direction > 0 ? y1 + 15 : y2 - 15;
+                        const arrowDir = direction > 0 ? 1 : -1;
+
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.moveTo(x, arrowY);
+                        ctx.lineTo(x - arrowSize/2, arrowY + arrowDir * arrowSize);
+                        ctx.lineTo(x + arrowSize/2, arrowY + arrowDir * arrowSize);
+                        ctx.closePath();
+                        ctx.fill();
                     });
                 });
 
@@ -1617,42 +1806,64 @@
                 plot.setScale('y', { min: originalY[0], max: originalY[1] });
             },
 
-            // REQ-MV-007: Find periodicity window at a given time value
-            findPeriodicityWindowAtTime(timeVal) {
+            // REQ-MV-007, REQ-MV-018: Find study window at a given time value
+            findStudyWindowAtTime(timeVal) {
                 if (!AppState.study.active) return null;
 
+                const studyType = AppState.study.type;
                 const selectedIds = AppState.selectedContainerIds;
+
                 for (const id of selectedIds) {
                     const result = AppState.study.results[id];
                     if (!result || !result.windows) continue;
 
                     for (const w of result.windows) {
-                        const startSec = w.start_time_ms / 1000;
-                        const endSec = w.end_time_ms / 1000;
-                        if (timeVal >= startSec && timeVal <= endSec) {
-                            return { window: w, containerId: id };
+                        if (studyType === 'changepoint') {
+                            // Changepoints are point events - check if near the time
+                            const changepointSec = w.start_time_ms / 1000;
+                            const tolerance = 5; // 5 seconds tolerance for clicking
+                            if (Math.abs(timeVal - changepointSec) < tolerance) {
+                                return { window: w, containerId: id, type: 'changepoint' };
+                            }
+                        } else {
+                            // Periodicity windows are ranges
+                            const startSec = w.start_time_ms / 1000;
+                            const endSec = w.end_time_ms / 1000;
+                            if (timeVal >= startSec && timeVal <= endSec) {
+                                return { window: w, containerId: id, type: 'periodicity' };
+                            }
                         }
                     }
                 }
                 return null;
             },
 
-            // REQ-MV-007: Zoom to periodicity window
-            zoomToPeriodicityWindow(windowData) {
+            // REQ-MV-007, REQ-MV-018: Zoom to study window
+            zoomToStudyWindow(windowData) {
                 const plot = AppState._mainPlot;
                 if (!plot) return;
 
                 const w = windowData.window;
-                const startSec = w.start_time_ms / 1000;
-                const endSec = w.end_time_ms / 1000;
 
-                const duration = endSec - startSec;
-                const padding = duration * 0.1;
-
-                plot.setScale('x', {
-                    min: startSec - padding,
-                    max: endSec + padding
-                });
+                if (windowData.type === 'changepoint') {
+                    // For changepoints, zoom to ±30 seconds around the point
+                    const centerSec = w.start_time_ms / 1000;
+                    const padding = 30; // 30 seconds context
+                    plot.setScale('x', {
+                        min: centerSec - padding,
+                        max: centerSec + padding
+                    });
+                } else {
+                    // For periodicity, zoom to the window range
+                    const startSec = w.start_time_ms / 1000;
+                    const endSec = w.end_time_ms / 1000;
+                    const duration = endSec - startSec;
+                    const padding = duration * 0.1;
+                    plot.setScale('x', {
+                        min: startSec - padding,
+                        max: endSec + padding
+                    });
+                }
             },
         };
 
@@ -1731,12 +1942,6 @@
 
                 const action = btn.dataset.action;
                 switch (action) {
-                    case 'top5':
-                        Actions.selectTopN(5);
-                        break;
-                    case 'top10':
-                        Actions.selectTopN(10);
-                        break;
                     case 'clear':
                         Actions.clearSelection();
                         break;
@@ -1746,7 +1951,7 @@
                 }
             });
 
-            // Study panel interactions (event delegation)
+            // REQ-MV-007, REQ-MV-018: Study panel interactions (event delegation)
             document.getElementById('studiesContent').addEventListener('click', (e) => {
                 if (e.target.closest('[data-close-study]')) {
                     Actions.exitStudy(false);
@@ -1754,10 +1959,20 @@
                     Actions.exitStudy(true);
                 } else if (e.target.closest('.period-window-item')) {
                     const item = e.target.closest('.period-window-item');
-                    const startMs = parseFloat(item.dataset.windowStart);
-                    const endMs = parseFloat(item.dataset.windowEnd);
-                    if (!isNaN(startMs) && !isNaN(endMs)) {
-                        Actions.zoomToTimeRange(startMs, endMs);
+                    // Check if this is a changepoint item
+                    const changepointTime = item.dataset.changepointTime;
+                    if (changepointTime) {
+                        // Zoom to ±30 seconds around changepoint
+                        const centerMs = parseFloat(changepointTime);
+                        const padding = 30000; // 30 seconds in ms
+                        Actions.zoomToTimeRange(centerMs - padding, centerMs + padding);
+                    } else {
+                        // Periodicity window
+                        const startMs = parseFloat(item.dataset.windowStart);
+                        const endMs = parseFloat(item.dataset.windowEnd);
+                        if (!isNaN(startMs) && !isNaN(endMs)) {
+                            Actions.zoomToTimeRange(startMs, endMs);
+                        }
                     }
                 }
             });
@@ -1873,12 +2088,12 @@
                 }
             });
 
-            // REQ-MV-007: Periodicity interaction handlers
-            setupPeriodicityInteraction();
+            // REQ-MV-007, REQ-MV-018: Study interaction handlers
+            setupStudyInteraction();
         }
 
-        // REQ-MV-007: Set up periodicity interaction handlers on chart
-        function setupPeriodicityInteraction() {
+        // REQ-MV-007, REQ-MV-018: Set up study interaction handlers on chart
+        function setupStudyInteraction() {
             const chartDiv = document.getElementById('mainChart');
             const tooltip = document.getElementById('periodicityTooltip');
 
@@ -1933,24 +2148,46 @@
                 }
 
                 const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findPeriodicityWindowAtTime(timeVal);
+                const windowData = ChartRenderer.findStudyWindowAtTime(timeVal);
 
                 if (windowData) {
                     overWindow = windowData;
                     chartDiv.style.cursor = 'pointer';
 
                     const w = windowData.window;
-                    const period = w.metrics.period || 0;
-                    const score = w.metrics.score || 0;
-                    const amplitude = w.metrics.amplitude || 0;
 
-                    tooltip.innerHTML = `
-                        <div style="font-weight: 600; margin-bottom: 4px;">Periodic Pattern Detected</div>
-                        <div>Period: <strong>${period.toFixed(1)}s</strong></div>
-                        <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
-                        <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
-                        <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
-                    `;
+                    // Build tooltip based on study type
+                    let tooltipContent;
+                    if (windowData.type === 'changepoint') {
+                        const valueBefore = (w.metrics?.value_before || 0).toFixed(1);
+                        const valueAfter = (w.metrics?.value_after || 0).toFixed(1);
+                        const magnitude = (w.metrics?.magnitude || 0).toFixed(1);
+                        const direction = (w.metrics?.direction || 0) > 0 ? 'increase' : 'decrease';
+                        const time = new Date(w.start_time_ms).toLocaleTimeString('en-US', { hour12: false });
+
+                        tooltipContent = `
+                            <div style="font-weight: 600; margin-bottom: 4px;">Changepoint Detected</div>
+                            <div>Time: <strong>${time}</strong></div>
+                            <div>Before: <strong>${valueBefore}</strong></div>
+                            <div>After: <strong>${valueAfter}</strong></div>
+                            <div>Change: <strong>${magnitude}</strong> (${direction})</div>
+                            <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
+                        `;
+                    } else {
+                        const period = w.metrics?.period || 0;
+                        const score = w.metrics?.score || 0;
+                        const amplitude = w.metrics?.amplitude || 0;
+
+                        tooltipContent = `
+                            <div style="font-weight: 600; margin-bottom: 4px;">Periodic Pattern Detected</div>
+                            <div>Period: <strong>${period.toFixed(1)}s</strong></div>
+                            <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
+                            <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
+                            <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
+                        `;
+                    }
+
+                    tooltip.innerHTML = tooltipContent;
 
                     const offsetX = 15;
                     const offsetY = 15;
@@ -2003,11 +2240,11 @@
                 const x = e.clientX - rect.left;
 
                 const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findPeriodicityWindowAtTime(timeVal);
+                const windowData = ChartRenderer.findStudyWindowAtTime(timeVal);
 
                 if (windowData) {
                     e.stopPropagation();
-                    ChartRenderer.zoomToPeriodicityWindow(windowData);
+                    ChartRenderer.zoomToStudyWindow(windowData);
                     tooltip.style.display = 'none';
                 }
             }, true);

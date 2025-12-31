@@ -516,6 +516,7 @@ async fn observer_loop(
                     for container in &mut containers {
                         if let Some(metadata) = metadata_cache.get(&container.id) {
                             container.pod_name = Some(metadata.pod_name.clone());
+                            container.container_name = Some(metadata.container_name.clone());
                             container.namespace = Some(metadata.namespace.clone());
                             container.labels = Some(metadata.labels.clone());
                         }

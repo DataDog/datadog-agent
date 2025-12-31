@@ -58,6 +58,9 @@ rayon = "1.10"
 kube = { version = "0.93", features = ["client", "runtime"] }
 k8s-openapi = { version = "0.22", features = ["v1_29"] }
 
+# Changepoint detection (REQ-MV-017)
+augurs = { version = "0.8", features = ["changepoint"] }
+
 [dev-dependencies]
 proptest = "1.5"
 proptest-derive = "0.5"

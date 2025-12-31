@@ -6,8 +6,10 @@ Engineers need to visually explore container metrics to diagnose issues like CPU
 throttling, memory pressure, and IO bottlenecks. The viewer loads parquet files
 containing fine-grained metrics and provides interactive charts with searching,
 zooming, and analytical studies. The Periodicity Study detects periodic patterns
-that often indicate throttling or resource contention, surfacing insights that
-would require tedious manual scanning to discover.
+that often indicate throttling or resource contention. The Changepoint Study
+identifies abrupt shifts in metric behavior, surfacing deployment impacts or
+incident onset. Both studies surface insights that would require tedious manual
+scanning to discover.
 
 The viewer runs as a sidecar in the DaemonSet, accessible via kubectl
 port-forward without copying files locally. Engineers see pod names instead of
@@ -22,7 +24,8 @@ Library module at `src/metrics_viewer/` provides reusable components. CLI binary
 serves REST API for metrics discovery, container filtering, timeseries data, and
 study analysis. Frontend uses uPlot for canvas-based rendering with smooth
 pan/zoom on large datasets. Study trait abstraction enables extensible analysis;
-periodicity detection uses sliding-window autocorrelation.
+periodicity detection uses sliding-window autocorrelation; changepoint detection
+uses Bayesian Online Changepoint Detection via the `augurs` crate.
 
 The collector maintains `index.json` with container metadata including pod names
 from the Kubernetes API. The viewer loads this index instantly at startup and
@@ -37,7 +40,7 @@ collector operate independently with shared volume access.
 |-------------|--------|-------|
 | **REQ-MV-001:** View Metrics Timeseries | ✅ Complete | uPlot chart with empty state instructions |
 | **REQ-MV-002:** Select Metrics to Display | ✅ Complete | `/api/metrics` endpoint, metric dropdown |
-| **REQ-MV-003:** Search and Select Containers | ✅ Complete | Search box with debounce, Top N buttons |
+| **REQ-MV-003:** Search and Select Containers | ✅ Complete | Search box with debounce; Top N deprecated |
 | **REQ-MV-004:** Zoom and Pan Through Time | ✅ Complete | Drag zoom, scroll wheel zoom, reset button |
 | **REQ-MV-005:** Navigate with Range Overview | ✅ Complete | Second uPlot instance as overview |
 | **REQ-MV-006:** Detect Periodic Patterns | ✅ Complete | Per-container study initiation via icon button |
@@ -62,7 +65,15 @@ collector operate independently with shared volume access.
 | **REQ-MV-015:** Enrich with Kubernetes Metadata | ✅ Complete | `kube-rs` client with in-cluster config |
 | **REQ-MV-016:** Persist Metadata in Index | ✅ Complete | `index.json` schema v2 with pod_name, namespace |
 
-**Progress:** 16 of 16 complete
+### Studies
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| **REQ-MV-017:** Detect Changepoints in Metrics | ✅ Complete | BOCPD via `augurs-changepoint` crate |
+| **REQ-MV-018:** Visualize Changepoint Locations | ✅ Complete | Solid vertical lines with direction arrows |
+| **REQ-MV-019:** Container List Sorted by Recency | ✅ Complete | Replaces Top N; 0ms via index.json |
+
+**Progress:** 19 of 19 complete
 
 ## Terminology Note
 

@@ -19,6 +19,8 @@ use tokio::sync::RwLock;
 pub struct PodMetadata {
     /// Pod name (e.g., "coredns-5dd5756b68-abc12")
     pub pod_name: String,
+    /// Container name within the pod (e.g., "monitor", "viewer", "consolidator")
+    pub container_name: String,
     /// Namespace (e.g., "kube-system")
     pub namespace: String,
     /// Pod labels (optional)
@@ -115,6 +117,7 @@ impl KubernetesClient {
                                 stripped_id.to_string(),
                                 PodMetadata {
                                     pod_name: pod_name.clone(),
+                                    container_name: cs.name.clone(),
                                     namespace: namespace.clone(),
                                     labels: labels.clone(),
                                 },
@@ -132,6 +135,7 @@ impl KubernetesClient {
                                 stripped_id.to_string(),
                                 PodMetadata {
                                     pod_name: pod_name.clone(),
+                                    container_name: cs.name.clone(),
                                     namespace: namespace.clone(),
                                     labels: labels.clone(),
                                 },
@@ -149,6 +153,7 @@ impl KubernetesClient {
                                 stripped_id.to_string(),
                                 PodMetadata {
                                     pod_name: pod_name.clone(),
+                                    container_name: cs.name.clone(),
                                     namespace: namespace.clone(),
                                     labels: labels.clone(),
                                 },

@@ -26,6 +26,10 @@ pub struct ContainerInfo {
     pub qos_class: Option<String>,
     pub namespace: Option<String>,
     pub pod_name: Option<String>,
+    pub container_name: Option<String>,
+    /// REQ-MV-019: When this container was last observed (epoch millis)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen_ms: Option<i64>,
 }
 
 /// Summary statistics for a container's metric.
@@ -231,6 +235,7 @@ pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
                 let qos_class = extract_label(&labels, "qos_class");
                 let namespace = extract_label(&labels, "namespace");
                 let pod_name = extract_label(&labels, "pod_name");
+                let container_name = extract_label(&labels, "container_name");
 
                 // Track unique filter values
                 if let Some(ref qos) = qos_class {
@@ -254,6 +259,8 @@ pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
                         qos_class: qos_class.clone(),
                         namespace: namespace.clone(),
                         pod_name: pod_name.clone(),
+                        container_name: container_name.clone(),
+                        last_seen_ms: None, // Not tracked in direct parquet load path
                     }
                 });
 

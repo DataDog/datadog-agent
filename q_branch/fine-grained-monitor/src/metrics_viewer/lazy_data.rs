@@ -13,16 +13,16 @@ use arrow::array::{
     Array, BooleanArray, Float64Array, MapArray, StringArray, StructArray, UInt64Array,
 };
 use arrow::datatypes::DataType;
-use glob::glob;
+use chrono::{DateTime, Duration, Utc};
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeseriesPoint};
-use crate::index::ContainerIndex;
+use crate::index::{ContainerIndex, DataRange};
 
 /// Metrics that represent cumulative counters (need rate conversion).
 const CUMULATIVE_METRICS: &[&str] = &[
@@ -37,6 +37,195 @@ const CUMULATIVE_METRICS: &[&str] = &[
 
 fn is_cumulative(metric_name: &str) -> bool {
     CUMULATIVE_METRICS.iter().any(|m| metric_name.contains(m))
+}
+
+/// Default time window for data loading (1 hour).
+/// Limits initial data load to recent files for faster startup.
+const DEFAULT_LOOKBACK_HOURS: i64 = 1;
+
+/// Discover parquet files using time-range based path computation.
+/// REQ-MV-012: Avoids expensive glob operations by computing paths from timestamps.
+///
+/// Instead of globbing `**/*.parquet`, this function:
+/// 1. Determines which date directories to scan based on time range
+/// 2. Lists identifier subdirectories in each date directory
+/// 3. Lists parquet files in each identifier directory
+/// 4. Filters to files within the requested time range based on filename timestamps
+fn discover_files_by_time_range(
+    data_dir: &Path,
+    data_range: &DataRange,
+    lookback_hours: Option<i64>,
+) -> Vec<PathBuf> {
+    let start_time = std::time::Instant::now();
+
+    // Determine time range to load
+    let lookback = Duration::hours(lookback_hours.unwrap_or(DEFAULT_LOOKBACK_HOURS));
+    let now = Utc::now();
+    let earliest_wanted = now - lookback;
+
+    // Use data_range to bound our search, but don't go earlier than lookback window
+    let search_start = match data_range.earliest {
+        Some(earliest) => earliest.max(earliest_wanted),
+        None => earliest_wanted,
+    };
+    let search_end = data_range.latest.min(now);
+
+    eprintln!(
+        "[PERF] Time-range discovery: {} to {} ({} hours lookback)",
+        search_start.format("%Y-%m-%dT%H:%M:%S"),
+        search_end.format("%Y-%m-%dT%H:%M:%S"),
+        lookback.num_hours()
+    );
+
+    // Determine which date directories to scan
+    let mut dates_to_scan = Vec::new();
+    let mut current_date = search_start.date_naive();
+    let end_date = search_end.date_naive();
+    while current_date <= end_date {
+        dates_to_scan.push(current_date);
+        current_date = current_date.succ_opt().unwrap_or(current_date);
+    }
+
+    let mut parquet_files = Vec::new();
+    let mut dirs_scanned = 0;
+    let mut files_found = 0;
+    let mut files_filtered = 0;
+
+    for date in &dates_to_scan {
+        let date_dir = data_dir.join(format!("dt={}", date.format("%Y-%m-%d")));
+        if !date_dir.exists() {
+            continue;
+        }
+
+        // List identifier subdirectories
+        let identifier_dirs = match fs::read_dir(&date_dir) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+
+        for entry in identifier_dirs.filter_map(Result::ok) {
+            let id_path = entry.path();
+            if !id_path.is_dir() {
+                continue;
+            }
+
+            // Check if it's an identifier directory
+            if let Some(name) = id_path.file_name().and_then(|n| n.to_str()) {
+                if !name.starts_with("identifier=") {
+                    continue;
+                }
+            }
+
+            dirs_scanned += 1;
+
+            // List parquet files in this identifier directory
+            let files = match fs::read_dir(&id_path) {
+                Ok(entries) => entries,
+                Err(_) => continue,
+            };
+
+            for file_entry in files.filter_map(Result::ok) {
+                let file_path = file_entry.path();
+                if !file_path.is_file() {
+                    continue;
+                }
+
+                let file_name = match file_path.file_name().and_then(|n| n.to_str()) {
+                    Some(name) => name,
+                    None => continue,
+                };
+
+                // Only consider parquet files
+                if !file_name.ends_with(".parquet") {
+                    continue;
+                }
+
+                files_found += 1;
+
+                // Parse timestamp from filename to filter by time range
+                if let Some(file_time) = parse_file_timestamp(file_name) {
+                    // For consolidated files, use the end timestamp for filtering
+                    if file_time >= search_start && file_time <= search_end {
+                        parquet_files.push(file_path);
+                    } else {
+                        files_filtered += 1;
+                    }
+                } else {
+                    // If we can't parse timestamp, include the file to be safe
+                    parquet_files.push(file_path);
+                }
+            }
+        }
+    }
+
+    // Sort by modification time (newest first) for better cache behavior
+    parquet_files.sort_by(|a, b| {
+        let a_time = a.metadata().and_then(|m| m.modified()).ok();
+        let b_time = b.metadata().and_then(|m| m.modified()).ok();
+        b_time.cmp(&a_time)
+    });
+
+    let elapsed = start_time.elapsed();
+    eprintln!(
+        "[PERF] Time-range discovery complete: {} dirs, {} files found, {} filtered out, {} selected in {:.1}ms",
+        dirs_scanned,
+        files_found,
+        files_filtered,
+        parquet_files.len(),
+        elapsed.as_secs_f64() * 1000.0
+    );
+
+    parquet_files
+}
+
+/// Parse timestamp from parquet filename.
+/// Handles both formats:
+/// - metrics-20251230T120000Z.parquet -> single timestamp
+/// - consolidated-20251230T120000Z-20251230T130000Z.parquet -> uses end timestamp
+fn parse_file_timestamp(filename: &str) -> Option<DateTime<Utc>> {
+    if filename.starts_with("metrics-") {
+        // Format: metrics-YYYYMMDDTHHMMSSZ.parquet
+        let ts_part = filename
+            .strip_prefix("metrics-")?
+            .strip_suffix(".parquet")?;
+        parse_iso_compact(ts_part)
+    } else if filename.starts_with("consolidated-") {
+        // Format: consolidated-START-END.parquet, use END timestamp
+        let rest = filename
+            .strip_prefix("consolidated-")?
+            .strip_suffix(".parquet")?;
+        // Find the second timestamp (after the hyphen between timestamps)
+        // Format: YYYYMMDDTHHMMSSZ-YYYYMMDDTHHMMSSZ
+        if rest.len() >= 31 {
+            // 15 chars for first timestamp + 1 hyphen + 15 chars for second
+            let end_ts = &rest[16..]; // Skip first timestamp and hyphen
+            parse_iso_compact(end_ts)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+/// Parse compact ISO 8601 timestamp: YYYYMMDDTHHMMSSZ
+fn parse_iso_compact(s: &str) -> Option<DateTime<Utc>> {
+    if s.len() < 15 {
+        return None;
+    }
+
+    let year: i32 = s[0..4].parse().ok()?;
+    let month: u32 = s[4..6].parse().ok()?;
+    let day: u32 = s[6..8].parse().ok()?;
+    // Skip 'T' at position 8
+    let hour: u32 = s[9..11].parse().ok()?;
+    let min: u32 = s[11..13].parse().ok()?;
+    let sec: u32 = s[13..15].parse().ok()?;
+
+    chrono::NaiveDate::from_ymd_opt(year, month, day)?
+        .and_hms_opt(hour, min, sec)?
+        .and_utc()
+        .into()
 }
 
 /// Lazy-loading data store with on-demand parquet reads.
@@ -85,24 +274,10 @@ impl LazyDataStore {
     pub fn from_index(container_index: ContainerIndex, data_dir: PathBuf) -> Result<Self> {
         eprintln!("Building metadata from index...");
 
-        // Find a recent parquet file to read schema from
-        // Sort by modification time (newest first) to avoid stale/empty files
-        let pattern = format!("{}/**/*.parquet", data_dir.display());
-        let mut parquet_files: Vec<PathBuf> = glob(&pattern)?
-            .filter_map(Result::ok)
-            .collect();
-
-        // Sort by modification time - newest first
-        parquet_files.sort_by(|a, b| {
-            let a_time = a.metadata().and_then(|m| m.modified()).ok();
-            let b_time = b.metadata().and_then(|m| m.modified()).ok();
-            b_time.cmp(&a_time)
-        });
-
-        // Keep recent files for data loading (limit to avoid memory issues)
-        // These will be used for actual data queries
-        parquet_files.truncate(500);
-        eprintln!("Using {} recent parquet files for data", parquet_files.len());
+        // REQ-MV-012: Use time-range based discovery instead of expensive glob
+        // This dramatically reduces startup time by only scanning relevant date directories
+        let parquet_files = discover_files_by_time_range(&data_dir, &container_index.data_range, None);
+        eprintln!("Using {} parquet files from time-range discovery", parquet_files.len());
 
         // Get metric names from parquet schema - try multiple files
         let mut metrics = Vec::new();
@@ -138,6 +313,9 @@ impl LazyDataStore {
                     qos_class: Some(entry.qos_class.clone()),
                     namespace: entry.namespace.clone(),
                     pod_name: entry.pod_name.clone(),
+                    container_name: entry.container_name.clone(),
+                    // REQ-MV-019: Store last_seen for sorting
+                    last_seen_ms: Some(entry.last_seen.timestamp_millis()),
                 },
             );
             qos_classes.insert(entry.qos_class.clone());
@@ -309,6 +487,29 @@ impl LazyDataStore {
         );
 
         Ok(stats)
+    }
+
+    /// REQ-MV-019: Get containers sorted by last_seen (most recent first).
+    /// This is instant as it only reads from the index, avoiding expensive parquet reads.
+    pub fn get_containers_by_recency(&self) -> Vec<ContainerInfo> {
+        let start = std::time::Instant::now();
+
+        let mut containers: Vec<ContainerInfo> = self.index.containers.values().cloned().collect();
+
+        // Sort by last_seen descending (most recent first)
+        containers.sort_by(|a, b| {
+            let a_time = a.last_seen_ms.unwrap_or(0);
+            let b_time = b.last_seen_ms.unwrap_or(0);
+            b_time.cmp(&a_time)
+        });
+
+        eprintln!(
+            "[PERF] get_containers_by_recency: {} containers in {:.1}ms",
+            containers.len(),
+            start.elapsed().as_secs_f64() * 1000.0
+        );
+
+        containers
     }
 
     /// Clear all caches (useful for testing or memory pressure).
@@ -532,6 +733,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                     let qos_class = extract_label(&labels, "qos_class");
                     let namespace = extract_label(&labels, "namespace");
                     let pod_name = extract_label(&labels, "pod_name");
+                    let container_name = extract_label(&labels, "container_name");
 
                     if let Some(ref qos) = qos_class {
                         qos_set.insert(qos.clone());
@@ -548,6 +750,8 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                             qos_class,
                             namespace,
                             pod_name,
+                            container_name,
+                            last_seen_ms: None, // Not available from parquet scan
                         },
                     );
                 }
@@ -677,6 +881,8 @@ fn load_metric_from_file(
     container_set: &HashSet<String>,
     is_cumulative_metric: bool,
 ) -> Result<HashMap<String, RawContainerData>> {
+    let file_start = std::time::Instant::now();
+
     // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
     let file = match File::open(path) {
         Ok(f) => f,
@@ -698,7 +904,18 @@ fn load_metric_from_file(
 
     // For small files, process sequentially
     if num_row_groups <= 4 {
-        return load_row_groups(path, metric, container_set, is_cumulative_metric, None);
+        let result = load_row_groups(path, metric, container_set, is_cumulative_metric, None)?;
+        let elapsed = file_start.elapsed();
+        if elapsed.as_millis() > 100 || !result.is_empty() {
+            eprintln!(
+                "[PERF-FILE] {:?}: {}ms, {} row_groups, {} containers matched",
+                path.file_name().unwrap_or_default(),
+                elapsed.as_millis(),
+                num_row_groups,
+                result.len()
+            );
+        }
+        return Ok(result);
     }
 
     // Split row groups across threads for parallel processing
@@ -739,6 +956,17 @@ fn load_metric_from_file(
                 })
                 .merge(data);
         }
+    }
+
+    let elapsed = file_start.elapsed();
+    if elapsed.as_millis() > 100 || !raw_data.is_empty() {
+        eprintln!(
+            "[PERF-FILE] {:?}: {}ms, {} row_groups, {} containers matched",
+            path.file_name().unwrap_or_default(),
+            elapsed.as_millis(),
+            num_row_groups,
+            raw_data.len()
+        );
     }
 
     Ok(raw_data)

@@ -85,6 +85,18 @@ impl Observer {
                     container.pod_uid.clone().unwrap_or_default(),
                 ),
                 ("qos_class".to_string(), format!("{:?}", container.qos_class)),
+                (
+                    "pod_name".to_string(),
+                    container.pod_name.clone().unwrap_or_default(),
+                ),
+                (
+                    "container_name".to_string(),
+                    container.container_name.clone().unwrap_or_default(),
+                ),
+                (
+                    "namespace".to_string(),
+                    container.namespace.clone().unwrap_or_default(),
+                ),
             ];
 
             // Emit basic container metrics
@@ -115,13 +127,25 @@ impl Observer {
             // Sample procfs metrics for each PID in the container
             // Use static labels for smaps_rollup (it expects &[(&'static str, String)])
             for &pid in &container.pids {
-                let pid_labels: [(&'static str, String); 4] = [
+                let pid_labels: [(&'static str, String); 7] = [
                     ("container_id", container.id.clone()),
                     (
                         "pod_uid",
                         container.pod_uid.clone().unwrap_or_default(),
                     ),
                     ("qos_class", format!("{:?}", container.qos_class)),
+                    (
+                        "pod_name",
+                        container.pod_name.clone().unwrap_or_default(),
+                    ),
+                    (
+                        "container_name",
+                        container.container_name.clone().unwrap_or_default(),
+                    ),
+                    (
+                        "namespace",
+                        container.namespace.clone().unwrap_or_default(),
+                    ),
                     ("pid", pid.to_string()),
                 ];
 
