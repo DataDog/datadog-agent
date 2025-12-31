@@ -437,7 +437,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// 	- `nodes`
 	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
-	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
