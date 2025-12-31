@@ -39,6 +39,7 @@ impl Default for PeriodicityConfig {
 }
 
 /// Periodicity detection study.
+#[derive(Default)]
 pub struct PeriodicityStudy {
     config: PeriodicityConfig,
 }
@@ -47,14 +48,6 @@ impl PeriodicityStudy {
     /// Create with custom configuration.
     pub fn with_config(config: PeriodicityConfig) -> Self {
         Self { config }
-    }
-}
-
-impl Default for PeriodicityStudy {
-    fn default() -> Self {
-        Self {
-            config: PeriodicityConfig::default(),
-        }
     }
 }
 

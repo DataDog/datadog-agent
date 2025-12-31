@@ -920,7 +920,7 @@ fn load_metric_from_file(
 
     // Split row groups across threads for parallel processing
     let num_threads = rayon::current_num_threads().min(num_row_groups);
-    let chunk_size = (num_row_groups + num_threads - 1) / num_threads;
+    let chunk_size = num_row_groups.div_ceil(num_threads);
 
     let row_group_chunks: Vec<Vec<usize>> = (0..num_row_groups)
         .collect::<Vec<_>>()
@@ -1097,7 +1097,7 @@ fn load_row_groups(
             _ => anyhow::bail!("Unexpected time column type"),
         };
 
-        for row in 0..batch.num_rows() {
+        for (row, &time) in time_values.iter().enumerate() {
             // Direct container_id extraction - no intermediate Vec allocation
             let container_id =
                 match extract_container_id_direct(map_array, label_keys, label_vals, row) {
@@ -1139,8 +1139,6 @@ fn load_row_groups(
                 continue;
             };
 
-            let time = time_values[row];
-
             raw_data
                 .entry(short_id.to_string())
                 .or_default()
@@ -1168,10 +1166,8 @@ fn extract_container_id_direct<'a>(
     let end = map_array.value_offsets()[row + 1] as usize;
 
     for i in start..end {
-        if !keys.is_null(i) && keys.value(i) == "container_id" {
-            if !vals.is_null(i) {
-                return Some(vals.value(i));
-            }
+        if !keys.is_null(i) && keys.value(i) == "container_id" && !vals.is_null(i) {
+            return Some(vals.value(i));
         }
     }
 

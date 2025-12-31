@@ -392,8 +392,7 @@ fn consolidate_files(
 
     let props = WriterProperties::builder()
         .set_compression(Compression::ZSTD(
-            parquet::basic::ZstdLevel::try_new(compression_level)
-                .unwrap_or(parquet::basic::ZstdLevel::default()),
+            parquet::basic::ZstdLevel::try_new(compression_level).unwrap_or_default(),
         ))
         .build();
 

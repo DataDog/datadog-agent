@@ -281,6 +281,7 @@ async fn run(args: Args) -> anyhow::Result<()> {
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_rotation_loop(
     args: Args,
     identifier: String,

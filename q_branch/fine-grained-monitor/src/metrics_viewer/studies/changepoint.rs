@@ -31,6 +31,7 @@ impl Default for ChangepointConfig {
 }
 
 /// Changepoint detection study using BOCPD.
+#[derive(Default)]
 pub struct ChangepointStudy {
     config: ChangepointConfig,
 }
@@ -39,14 +40,6 @@ impl ChangepointStudy {
     /// Create with custom configuration.
     pub fn with_config(config: ChangepointConfig) -> Self {
         Self { config }
-    }
-}
-
-impl Default for ChangepointStudy {
-    fn default() -> Self {
-        Self {
-            config: ChangepointConfig::default(),
-        }
     }
 }
 
@@ -219,7 +212,7 @@ mod tests {
         let detected_times: Vec<i64> = result.windows.iter().map(|w| w.start_time_ms).collect();
         let has_near_50 = detected_times.iter().any(|&t| {
             let idx = t / 1000;
-            idx >= 45 && idx <= 55
+            (45..=55).contains(&idx)
         });
         assert!(
             has_near_50,
