@@ -6,7 +6,7 @@
 //! REQ-MV-006: GET /api/studies - list available studies.
 //! REQ-MV-006: GET /api/study/:id - run study on selected containers.
 
-use crate::metrics_viewer::data::{ContainerStats, MetricInfo, TimeseriesPoint};
+use crate::metrics_viewer::data::{ContainerInfo, MetricInfo, TimeseriesPoint};
 use crate::metrics_viewer::lazy_data::LazyDataStore;
 use crate::metrics_viewer::studies::{StudyInfo, StudyRegistry, StudyResult};
 use axum::{
@@ -210,9 +210,11 @@ struct FiltersResponse {
 
 /// GET /api/containers - list containers for a metric with optional filters.
 /// REQ-MV-003: Search and select containers by name, qos_class, or namespace.
+/// REQ-MV-019: Containers sorted by last_seen (most recent first) - instant response.
 #[derive(Deserialize)]
 struct ContainersQuery {
-    metric: String,
+    #[allow(dead_code)]
+    metric: String, // Kept for API compatibility, but not used for filtering anymore
     #[serde(default)]
     qos_class: Option<String>,
     #[serde(default)]
@@ -225,62 +227,54 @@ async fn containers_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ContainersQuery>,
 ) -> Json<ContainersResponse> {
-    // Load stats on demand
-    let metric_stats = match state.data.get_container_stats(&query.metric) {
-        Ok(stats) => stats,
-        Err(e) => {
-            eprintln!("Error loading container stats: {}", e);
-            return Json(ContainersResponse { containers: vec![] });
-        }
-    };
+    // REQ-MV-019: Get containers from index sorted by last_seen (instant!)
+    // This replaces the slow get_container_stats() which read all parquet files
+    let all_containers = state.data.get_containers_by_recency();
 
-    let mut containers: Vec<ContainerStats> = metric_stats
-        .values()
+    let containers: Vec<ContainerInfo> = all_containers
+        .into_iter()
         .filter(|c| {
             // REQ-MV-003: Filter by qos_class
             if let Some(ref qos) = query.qos_class {
-                if c.info.qos_class.as_ref() != Some(qos) {
+                if c.qos_class.as_ref() != Some(qos) {
                     return false;
                 }
             }
             // REQ-MV-003: Filter by namespace
             if let Some(ref ns) = query.namespace {
-                if c.info.namespace.as_ref() != Some(ns) {
+                if c.namespace.as_ref() != Some(ns) {
                     return false;
                 }
             }
-            // REQ-MV-003: Search by container ID or pod name
+            // REQ-MV-003: Search by container ID, pod name, or container name
             if let Some(ref search) = query.search {
                 let search_lower = search.to_lowercase();
-                let matches_id = c.info.short_id.to_lowercase().contains(&search_lower);
+                let matches_id = c.short_id.to_lowercase().contains(&search_lower);
                 let matches_pod = c
-                    .info
                     .pod_name
                     .as_ref()
                     .map(|p| p.to_lowercase().contains(&search_lower))
                     .unwrap_or(false);
-                if !matches_id && !matches_pod {
+                let matches_container = c
+                    .container_name
+                    .as_ref()
+                    .map(|n| n.to_lowercase().contains(&search_lower))
+                    .unwrap_or(false);
+                if !matches_id && !matches_pod && !matches_container {
                     return false;
                 }
             }
             true
         })
-        .cloned()
         .collect();
 
-    // Sort by average value descending (for Top N selection)
-    containers.sort_by(|a, b| {
-        b.avg
-            .partial_cmp(&a.avg)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
+    // Already sorted by last_seen from get_containers_by_recency()
     Json(ContainersResponse { containers })
 }
 
 #[derive(Serialize)]
 struct ContainersResponse {
-    containers: Vec<ContainerStats>,
+    containers: Vec<ContainerInfo>,
 }
 
 /// GET /api/timeseries - get timeseries data for selected containers.

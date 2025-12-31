@@ -51,16 +51,16 @@ THE SYSTEM SHALL add their timeseries to the chart
 WHEN user deselects a container
 THE SYSTEM SHALL remove its timeseries from the chart
 
-WHEN user selects "Top N by average"
-THE SYSTEM SHALL select the N containers with highest average value
-
-WHEN user changes container selection (add, remove, or Top N)
+WHEN user changes container selection
 THE SYSTEM SHALL preserve the current time range
 
-**Rationale:** Users often know which container they want to investigate, or
-want to focus on the busiest containers. Search and quick-select accelerate
-this workflow. Preserving the time window lets users compare different
-containers at the same moment.
+**Rationale:** Users often know which container they want to investigate.
+Search accelerates finding specific containers. Preserving the time window lets
+users compare different containers at the same moment.
+
+**DEPRECATED:** The "Top N by average" capability was removed. Computing average
+values required reading all parquet files (30+ seconds), making metric switching
+unacceptably slow. See REQ-MV-019 for the replacement container ordering strategy.
 
 ---
 
@@ -299,5 +299,75 @@ THE SYSTEM SHALL display the persisted metadata without requiring API access
 
 **Rationale:** The viewer sidecar should display pod names instantly without needing
 its own Kubernetes API access.
+
+---
+
+### REQ-MV-017: Detect Changepoints in Metrics
+
+WHEN user initiates changepoint study on a specific container
+THE SYSTEM SHALL analyze that container's timeseries for abrupt changes in behavior
+
+WHEN user initiates changepoint study while multiple containers are selected
+THE SYSTEM SHALL deselect other containers and focus on the target container
+
+WHEN changepoints are detected
+THE SYSTEM SHALL report each changepoint location with a confidence indicator
+
+WHEN no changepoints meet detection threshold
+THE SYSTEM SHALL indicate that no significant changes were found
+
+WHEN user initiates changepoint study
+THE SYSTEM SHALL preserve the current time range
+
+**Rationale:** Sudden changes in metrics often indicate deployments, configuration
+changes, or the onset of problems. Engineers investigating incidents need to quickly
+identify when behavior shifted rather than manually scanning timeseries for step
+changes or trend breaks.
+
+---
+
+### REQ-MV-018: Visualize Changepoint Locations
+
+WHEN changepoint study is active
+THE SYSTEM SHALL display a results panel showing the target container and
+detected changepoint count
+
+WHEN changepoints are detected
+THE SYSTEM SHALL draw vertical markers at each changepoint location on the chart
+
+WHEN user hovers over a changepoint marker
+THE SYSTEM SHALL display a tooltip with the timestamp and metric values before/after
+
+WHEN user clicks a changepoint marker
+THE SYSTEM SHALL zoom the chart to show context around that changepoint
+
+WHEN user exits changepoint study
+THE SYSTEM SHALL remove all changepoint markers and the results panel
+
+WHEN user exits changepoint study
+THE SYSTEM SHALL offer to restore the previous container selection
+
+**Rationale:** Visual markers on the chart confirm detection accuracy and show exactly
+when changes occurred. Engineers can correlate changepoint timing with deployments,
+alerts, or external events. Click-to-zoom enables rapid drill-down into specific
+transitions.
+
+---
+
+### REQ-MV-019: Container List Sorted by Recency
+
+WHEN user views the container list
+THE SYSTEM SHALL order containers by most recently observed first
+
+WHEN user selects a metric
+THE SYSTEM SHALL display the container list within 100ms
+
+WHEN a container has not been observed for more than 1 hour
+THE SYSTEM SHALL display the container with reduced visual prominence
+
+**Rationale:** Engineers investigating current issues care most about actively
+running containers. Containers that were recently observed are more likely to be
+relevant to ongoing investigations. Instant container list loading enables rapid
+metric switching during incident triage.
 
 ---

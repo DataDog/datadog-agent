@@ -13,7 +13,8 @@ use crate::discovery::{Container, QosClass};
 
 /// Current schema version for forward compatibility
 /// v2: Added pod_name, namespace, labels from Kubernetes API (REQ-MV-016)
-const SCHEMA_VERSION: u32 = 2;
+/// v3: Added container_name to disambiguate multiple containers per pod
+const SCHEMA_VERSION: u32 = 3;
 
 /// Container metadata stored in the index
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,9 @@ pub struct ContainerEntry {
     /// Pod name from Kubernetes API (e.g., "coredns-5dd5756b68-abc12")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pod_name: Option<String>,
+    /// Container name within the pod (e.g., "monitor", "viewer", "consolidator")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_name: Option<String>,
     /// Namespace from Kubernetes API (e.g., "kube-system")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
@@ -102,7 +106,7 @@ impl ContainerIndex {
     /// Load index from file
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let index: Self = serde_json::from_str(&content)?;
+        let mut index: Self = serde_json::from_str(&content)?;
 
         // Check schema version
         if index.schema_version > SCHEMA_VERSION {
@@ -111,6 +115,17 @@ impl ContainerIndex {
                 index.schema_version,
                 SCHEMA_VERSION
             );
+        }
+
+        // Migrate older schemas to current version
+        if index.schema_version < SCHEMA_VERSION {
+            tracing::info!(
+                from = index.schema_version,
+                to = SCHEMA_VERSION,
+                "Migrating index schema"
+            );
+            index.schema_version = SCHEMA_VERSION;
+            // v2 -> v3: container_name field added (defaults to None via serde)
         }
 
         Ok(index)
@@ -156,14 +171,21 @@ impl ContainerIndex {
             let sid = short_id(&container.id);
             if let Some(entry) = self.containers.get_mut(&sid) {
                 // Update existing container with new Kubernetes metadata if available
-                if container.pod_name.is_some() && entry.pod_name.is_none() {
-                    entry.pod_name = container.pod_name.clone();
-                    entry.namespace = container.namespace.clone();
-                    entry.labels = container.labels.clone();
+                // Also update if container_name is missing (schema v2 -> v3 migration)
+                let needs_pod_name = container.pod_name.is_some() && entry.pod_name.is_none();
+                let needs_container_name = container.container_name.is_some() && entry.container_name.is_none();
+                if needs_pod_name || needs_container_name {
+                    entry.pod_name = entry.pod_name.clone().or(container.pod_name.clone());
+                    entry.container_name = entry.container_name.clone().or(container.container_name.clone());
+                    entry.namespace = entry.namespace.clone().or(container.namespace.clone());
+                    if entry.labels.is_none() {
+                        entry.labels = container.labels.clone();
+                    }
                     tracing::info!(
                         container_id = %sid,
-                        pod_name = ?container.pod_name,
-                        namespace = ?container.namespace,
+                        pod_name = ?entry.pod_name,
+                        container_name = ?entry.container_name,
+                        namespace = ?entry.namespace,
                         "Updated container with Kubernetes metadata"
                     );
                     changed = true;
@@ -178,6 +200,7 @@ impl ContainerIndex {
                         first_seen: now,
                         last_seen: now,
                         pod_name: container.pod_name.clone(),
+                        container_name: container.container_name.clone(),
                         namespace: container.namespace.clone(),
                         labels: container.labels.clone(),
                     },
@@ -186,6 +209,7 @@ impl ContainerIndex {
                     container_id = %sid,
                     pod_uid = ?container.pod_uid,
                     pod_name = ?container.pod_name,
+                    container_name = ?container.container_name,
                     qos_class = %qos_to_string(container.qos_class),
                     "New container discovered"
                 );
@@ -243,6 +267,7 @@ mod tests {
             pod_uid: pod_uid.map(String::from),
             qos_class: qos,
             pod_name: None,
+            container_name: None,
             namespace: None,
             labels: None,
         }

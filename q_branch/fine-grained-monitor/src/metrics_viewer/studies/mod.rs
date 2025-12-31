@@ -1,7 +1,9 @@
 //! Study abstraction for timeseries analysis.
 //!
 //! REQ-MV-006: Provides extensible framework for analytical studies.
+//! REQ-MV-017: Changepoint detection study.
 
+pub mod changepoint;
 pub mod periodicity;
 
 use crate::metrics_viewer::data::TimeseriesPoint;
@@ -80,6 +82,7 @@ impl StudyRegistry {
             studies: Vec::new(),
         };
         registry.register(Box::new(periodicity::PeriodicityStudy::default()));
+        registry.register(Box::new(changepoint::ChangepointStudy::default()));
         registry
     }
 
