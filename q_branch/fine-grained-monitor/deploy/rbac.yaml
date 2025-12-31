@@ -1,4 +1,4 @@
-# REQ-PME-002: RBAC for Kubernetes API access (pod metadata enrichment)
+# REQ-MV-015: RBAC for Kubernetes API access (pod metadata enrichment)
 #
 # Minimal permissions needed - pods list only.
 # This is significantly simpler than kubelet RBAC which requires

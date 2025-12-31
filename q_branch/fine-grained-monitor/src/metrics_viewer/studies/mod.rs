@@ -1,6 +1,6 @@
 //! Study abstraction for timeseries analysis.
 //!
-//! REQ-MV-007: Provides extensible framework for analytical studies.
+//! REQ-MV-006: Provides extensible framework for analytical studies.
 
 pub mod periodicity;
 

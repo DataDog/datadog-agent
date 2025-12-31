@@ -2,11 +2,12 @@
 
 ## User Story
 
-As an engineer investigating container behavior, I need to explore metrics
-timeseries interactively so that I can identify patterns, anomalies, and
-apply analytical studies across containers and metric types.
+As an engineer investigating container behavior in a Kubernetes cluster, I need
+to explore metrics timeseries interactively so that I can identify patterns,
+anomalies, and correlate pod names with resource usage without manually copying
+files to my local machine.
 
-## Requirements
+## Core Viewer Requirements
 
 ### REQ-MV-001: View Metrics Timeseries
 
@@ -39,38 +40,7 @@ Users need to switch freely without losing context.
 
 ---
 
-### REQ-MV-003: Filter Containers by Attributes
-
-**DEPRECATED:** Feature removed from UI.
-
-WHEN user applies a QoS class filter
-THE SYSTEM SHALL show only containers matching that class
-
-WHEN user applies a namespace filter
-THE SYSTEM SHALL show only containers in that namespace
-
-WHEN user combines multiple filters
-THE SYSTEM SHALL show containers matching ALL applied filters
-
-WHEN user clears filters
-THE SYSTEM SHALL show all containers
-
-WHEN user applies or changes any filter
-THE SYSTEM SHALL preserve the current time range
-
-**Rationale:** Large clusters have hundreds of containers. Quick filtering by
-QoS class or namespace lets users focus on relevant workloads without scrolling
-through long lists. Preserving the time window lets users compare different
-container subsets at the same point in time.
-
-**Deprecation Reason:** In practice, the QoS class and namespace filters were
-not useful. The search functionality (REQ-MV-004) provides sufficient filtering
-capability, and the filter dropdowns added UI clutter without corresponding
-value.
-
----
-
-### REQ-MV-004: Search and Select Containers
+### REQ-MV-003: Search and Select Containers
 
 WHEN user types in the container search box
 THE SYSTEM SHALL filter the container list to matching names
@@ -90,12 +60,11 @@ THE SYSTEM SHALL preserve the current time range
 **Rationale:** Users often know which container they want to investigate, or
 want to focus on the busiest containers. Search and quick-select accelerate
 this workflow. Preserving the time window lets users compare different
-containers at the same moment—seeing how container A and B behaved during
-the same incident.
+containers at the same moment.
 
 ---
 
-### REQ-MV-005: Zoom and Pan Through Time
+### REQ-MV-004: Zoom and Pan Through Time
 
 WHEN user drags on the chart to select a time region
 THE SYSTEM SHALL zoom to show only that region
@@ -115,7 +84,7 @@ picture.
 
 ---
 
-### REQ-MV-006: Navigate with Range Overview
+### REQ-MV-005: Navigate with Range Overview
 
 WHEN viewing a zoomed region
 THE SYSTEM SHALL display a miniature overview of the full time range
@@ -131,7 +100,7 @@ the overall timeline. The overview provides spatial context and fast navigation.
 
 ---
 
-### REQ-MV-007: Detect Periodic Patterns
+### REQ-MV-006: Detect Periodic Patterns
 
 WHEN user initiates periodicity study on a specific container
 THE SYSTEM SHALL analyze that container's timeseries for periodic patterns
@@ -159,7 +128,7 @@ focus eliminates visual noise and makes the study action intentional.
 
 ---
 
-### REQ-MV-008: Visualize Periodicity Patterns
+### REQ-MV-007: Visualize Periodicity Patterns
 
 WHEN periodicity study is active
 THE SYSTEM SHALL display a results panel showing the target container, window
@@ -191,7 +160,7 @@ Restoration of previous selection supports the explore-then-deep-dive workflow.
 
 ---
 
-### REQ-MV-009: Automatic Y-Axis Scaling
+### REQ-MV-008: Automatic Y-Axis Scaling
 
 WHEN the visible time range changes (via zoom, pan, or reset)
 THE SYSTEM SHALL automatically adjust Y-axis bounds to fit the visible data
@@ -205,7 +174,7 @@ compressed if the scale remained fixed to the original full-range bounds.
 
 ---
 
-### REQ-MV-010: Graceful Empty Data Display
+### REQ-MV-009: Graceful Empty Data Display
 
 WHEN selected containers have no data points for the chosen metric
 THE SYSTEM SHALL display a clear message indicating no data is available
@@ -217,5 +186,118 @@ THE SYSTEM SHALL display the chart with a reasonable Y-axis range
 conditions (e.g., hugetlb usage). Users need clear feedback when data is absent
 rather than a broken chart display, helping them understand the metric is valid
 but simply has no recorded activity.
+
+---
+
+## Cluster Deployment Requirements
+
+### REQ-MV-010: Access Viewer From Cluster
+
+WHEN user port-forwards to the fine-grained-monitor DaemonSet
+THE SYSTEM SHALL serve the metrics viewer UI on port 8050
+
+WHEN user connects from outside the cluster
+THE SYSTEM SHALL display the same interactive chart interface as the local viewer
+
+**Rationale:** Engineers currently must `kubectl cp` parquet files from pods and
+run the viewer locally. Direct in-cluster access eliminates this friction,
+enabling faster debugging workflows during incident investigation.
+
+---
+
+### REQ-MV-011: View Node-Local Metrics
+
+WHEN user accesses the in-cluster viewer
+THE SYSTEM SHALL display metrics collected on that specific node
+
+WHEN multiple parquet files exist from rotation
+THE SYSTEM SHALL load all available files as a unified dataset
+
+WHEN new parquet files are written by the collector
+THE SYSTEM SHALL include them in subsequent data loads
+
+**Rationale:** Each node collects independent metrics. Users investigating
+node-specific issues (CPU throttling, memory pressure) need to see that node's
+data without cross-node confusion.
+
+---
+
+### REQ-MV-012: Fast Startup via Index
+
+WHEN the viewer starts with thousands of parquet files present
+THE SYSTEM SHALL begin serving the UI within 5 seconds
+
+WHEN the viewer starts before any data exists
+THE SYSTEM SHALL poll for data with a 3-minute timeout before displaying an error
+
+WHEN new containers appear during collection
+THE SYSTEM SHALL make them available in the viewer without restart
+
+WHEN containers disappear
+THE SYSTEM SHALL retain their metadata for historical queries
+
+**Rationale:** Engineers need immediate access to the viewer during incidents.
+Scanning thousands of accumulated parquet files at startup creates unacceptable
+delays (30+ minutes observed with 11k files). A lightweight index enables
+instant startup while preserving full historical queryability.
+
+---
+
+### REQ-MV-013: Viewer Operates Independently
+
+WHEN the metrics collector container restarts
+THE SYSTEM SHALL continue serving the viewer UI
+
+WHEN the viewer container restarts
+THE SYSTEM SHALL NOT affect metrics collection
+
+WHEN either container experiences issues
+THE SYSTEM SHALL allow the other to continue operating normally
+
+**Rationale:** Separation of concerns ensures debugging the viewer doesn't
+disrupt data collection, and collector issues don't prevent viewing historical
+data.
+
+---
+
+## Metadata Display Requirements
+
+### REQ-MV-014: Display Pod Names in Viewer
+
+WHEN viewing the metrics viewer container list
+THE SYSTEM SHALL display pod names instead of container short IDs for containers
+running in Kubernetes pods
+
+WHEN a container's pod name cannot be determined
+THE SYSTEM SHALL fall back to displaying the container short ID
+
+**Rationale:** Engineers recognize pod names from their deployments; container IDs
+are opaque 12-character hex strings that require manual lookup.
+
+---
+
+### REQ-MV-015: Enrich Containers with Kubernetes Metadata
+
+WHEN discovering containers via cgroup scanning
+THE SYSTEM SHALL query the Kubernetes API to obtain pod metadata for each container
+
+WHEN the Kubernetes API is unavailable
+THE SYSTEM SHALL continue operation without metadata enrichment and log an info message
+
+**Rationale:** Graceful degradation ensures the monitor works in non-Kubernetes
+environments or when API access is restricted.
+
+---
+
+### REQ-MV-016: Persist Metadata in Index
+
+WHEN container metadata is obtained from Kubernetes API
+THE SYSTEM SHALL persist pod_name, namespace, and labels in the index.json file
+
+WHEN the viewer loads from index.json
+THE SYSTEM SHALL display the persisted metadata without requiring API access
+
+**Rationale:** The viewer sidecar should display pod names instantly without needing
+its own Kubernetes API access.
 
 ---
