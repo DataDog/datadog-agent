@@ -7,12 +7,24 @@
 //! REQ-MV-012: Supports index-based fast startup for in-cluster viewer.
 //!
 //! This dramatically reduces startup time for large parquet files.
+//!
+//! ## Label Schema Support
+//!
+//! Supports two parquet schemas for labels:
+//! - **New schema (preferred)**: Flattened `l_<key>` columns (e.g., `l_container_id`, `l_namespace`)
+//!   - Enables predicate pushdown for efficient filtering
+//!   - Each label is a nullable Utf8 column
+//! - **Legacy schema**: Single `labels` column as MapArray
+//!   - Requires post-read filtering (no predicate pushdown)
+//!   - Kept for backwards compatibility
+//!
+//! Schema detection is automatic per-file based on column presence.
 
 use anyhow::{Context, Result};
 use arrow::array::{
     Array, BooleanArray, Float64Array, MapArray, StringArray, StructArray, UInt64Array,
 };
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, SchemaRef};
 use chrono::{DateTime, Duration, Utc};
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter};
 use rayon::prelude::*;
@@ -23,6 +35,30 @@ use std::sync::{Arc, RwLock};
 
 use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeseriesPoint};
 use crate::index::{ContainerIndex, DataRange};
+
+/// Prefix for flattened label columns in new parquet schema.
+const LABEL_COLUMN_PREFIX: &str = "l_";
+
+/// Describes which label schema a parquet file uses.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum LabelSchema {
+    /// New schema with `l_<key>` columns (enables predicate pushdown)
+    FlatColumns,
+    /// Legacy schema with `labels` MapArray column
+    MapArray,
+}
+
+/// Detect which label schema a parquet file uses.
+fn detect_label_schema(schema: &SchemaRef) -> LabelSchema {
+    // Check for any l_* column - if present, use flat columns schema
+    for field in schema.fields() {
+        if field.name().starts_with(LABEL_COLUMN_PREFIX) {
+            return LabelSchema::FlatColumns;
+        }
+    }
+    // Fall back to MapArray schema
+    LabelSchema::MapArray
+}
 
 /// Metrics that represent cumulative counters (need rate conversion).
 const CUMULATIVE_METRICS: &[&str] = &[
@@ -648,14 +684,35 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         let total_rows = file_metadata.file_metadata().num_rows() as usize;
         let num_row_groups = file_metadata.num_row_groups();
 
-        let schema = builder.schema();
+        let schema = builder.schema().clone();
         let parquet_schema = builder.parquet_schema();
 
-        // Only project metric_name and labels - skip values for speed
-        let projection: Vec<usize> = ["metric_name", "labels"]
-            .iter()
-            .filter_map(|name| schema.index_of(name).ok())
-            .collect();
+        // Detect schema type for this file
+        let label_schema = detect_label_schema(&schema);
+
+        // Only project metric_name and label columns - skip values for speed
+        let mut projection: Vec<usize> = vec![];
+        if let Ok(idx) = schema.index_of("metric_name") {
+            projection.push(idx);
+        }
+
+        match label_schema {
+            LabelSchema::FlatColumns => {
+                // Project individual l_* columns for known labels
+                for label_key in &["container_id", "qos_class", "namespace", "pod_name", "container_name"] {
+                    let col_name = format!("l_{}", label_key);
+                    if let Ok(idx) = schema.index_of(&col_name) {
+                        projection.push(idx);
+                    }
+                }
+            }
+            LabelSchema::MapArray => {
+                // Project the labels MapArray
+                if let Ok(idx) = schema.index_of("labels") {
+                    projection.push(idx);
+                }
+            }
+        }
 
         let projection_mask = parquet::arrow::ProjectionMask::roots(parquet_schema, projection);
 
@@ -702,18 +759,44 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>())
                 .context("Missing metric_name column")?;
 
-            let labels_col = batch
-                .column_by_name("labels")
-                .context("Missing labels column")?;
+            // Get label columns based on schema type
+            let labels_col = batch.column_by_name("labels");
+            let l_container_id_col = batch
+                .column_by_name("l_container_id")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let l_qos_class_col = batch
+                .column_by_name("l_qos_class")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let l_namespace_col = batch
+                .column_by_name("l_namespace")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let l_pod_name_col = batch
+                .column_by_name("l_pod_name")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let l_container_name_col = batch
+                .column_by_name("l_container_name")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
             for row in 0..batch.num_rows() {
                 let metric = metric_names.value(row);
                 metric_set.insert(metric.to_string());
 
-                let labels = extract_labels_from_column(labels_col.as_ref(), row)?;
-                let container_id = match extract_label(&labels, "container_id") {
-                    Some(id) => id,
-                    None => continue,
+                // Extract container_id based on schema type
+                let container_id = if let Some(col) = l_container_id_col {
+                    // FlatColumns schema
+                    if col.is_null(row) {
+                        continue;
+                    }
+                    col.value(row).to_string()
+                } else if let Some(labels_arr) = labels_col {
+                    // MapArray schema
+                    let labels = extract_labels_from_column(labels_arr.as_ref(), row)?;
+                    match extract_label(&labels, "container_id") {
+                        Some(id) => id,
+                        None => continue,
+                    }
+                } else {
+                    continue;
                 };
 
                 let short_id = if container_id.len() > 12 {
@@ -730,10 +813,36 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
 
                 // Only process container info once per container
                 if !all_containers.contains_key(&short_id) {
-                    let qos_class = extract_label(&labels, "qos_class");
-                    let namespace = extract_label(&labels, "namespace");
-                    let pod_name = extract_label(&labels, "pod_name");
-                    let container_name = extract_label(&labels, "container_name");
+                    // Extract other labels based on schema type
+                    let (qos_class, namespace, pod_name, container_name) =
+                        if l_container_id_col.is_some() {
+                            // FlatColumns schema - read from l_* columns
+                            (
+                                l_qos_class_col
+                                    .filter(|c| !c.is_null(row))
+                                    .map(|c| c.value(row).to_string()),
+                                l_namespace_col
+                                    .filter(|c| !c.is_null(row))
+                                    .map(|c| c.value(row).to_string()),
+                                l_pod_name_col
+                                    .filter(|c| !c.is_null(row))
+                                    .map(|c| c.value(row).to_string()),
+                                l_container_name_col
+                                    .filter(|c| !c.is_null(row))
+                                    .map(|c| c.value(row).to_string()),
+                            )
+                        } else if let Some(labels_arr) = labels_col {
+                            // MapArray schema
+                            let labels = extract_labels_from_column(labels_arr.as_ref(), row)?;
+                            (
+                                extract_label(&labels, "qos_class"),
+                                extract_label(&labels, "namespace"),
+                                extract_label(&labels, "pod_name"),
+                                extract_label(&labels, "container_name"),
+                            )
+                        } else {
+                            (None, None, None, None)
+                        };
 
                     if let Some(ref qos) = qos_class {
                         qos_set.insert(qos.clone());
@@ -973,6 +1082,7 @@ fn load_metric_from_file(
 }
 
 /// Load specific row groups from a parquet file.
+/// Supports both flat `l_*` columns (new schema) and MapArray `labels` (legacy schema).
 fn load_row_groups(
     path: &PathBuf,
     metric: &str,
@@ -998,21 +1108,51 @@ fn load_row_groups(
     };
 
     let schema = builder.schema().clone();
-    let parquet_schema = builder.parquet_schema();
 
-    // Project needed columns for data reading
-    let projection: Vec<usize> = ["metric_name", "time", "value_int", "value_float", "labels"]
+    // Detect which label schema this file uses
+    let label_schema = detect_label_schema(&schema);
+
+    // Build projection based on schema type
+    let mut projection: Vec<usize> = ["metric_name", "time", "value_int", "value_float"]
         .iter()
         .filter_map(|name| schema.index_of(name).ok())
         .collect();
 
-    let projection_mask = parquet::arrow::ProjectionMask::roots(parquet_schema, projection.clone());
+    match label_schema {
+        LabelSchema::FlatColumns => {
+            // Project l_container_id column (required for filtering)
+            if let Ok(idx) = schema.index_of("l_container_id") {
+                projection.push(idx);
+            }
+            // Optionally project other l_* columns if needed later
+        }
+        LabelSchema::MapArray => {
+            // Project the labels MapArray column
+            if let Ok(idx) = schema.index_of("labels") {
+                projection.push(idx);
+            }
+        }
+    }
 
-    // Create predicate mask before consuming builder
+    // Build predicates for filtering
+    // For flat columns, we can push down BOTH metric_name AND l_container_id filters!
     let metric_name_idx = schema.index_of("metric_name").ok();
-    let predicate_mask = metric_name_idx
+    let l_container_id_idx = if label_schema == LabelSchema::FlatColumns {
+        schema.index_of("l_container_id").ok()
+    } else {
+        None
+    };
+
+    // Build all projection masks BEFORE consuming the builder (parquet_schema borrows builder)
+    let parquet_schema = builder.parquet_schema();
+    let projection_mask =
+        parquet::arrow::ProjectionMask::roots(parquet_schema, projection.clone());
+    let metric_pred_mask = metric_name_idx
+        .map(|idx| parquet::arrow::ProjectionMask::roots(parquet_schema, vec![idx]));
+    let container_pred_mask = l_container_id_idx
         .map(|idx| parquet::arrow::ProjectionMask::roots(parquet_schema, vec![idx]));
 
+    // Now consume builder
     let mut reader_builder = builder.with_projection(projection_mask).with_batch_size(65536);
 
     // Apply row group filter if specified
@@ -1020,11 +1160,14 @@ fn load_row_groups(
         reader_builder = reader_builder.with_row_groups(rgs);
     }
 
-    let reader = if let Some(pred_mask) = predicate_mask {
+    // Build row filter with predicates
+    let mut predicates: Vec<Box<dyn parquet::arrow::arrow_reader::ArrowPredicate>> = Vec::new();
+
+    // Predicate 1: metric_name filter (works for both schemas)
+    if let Some(pred_mask) = metric_pred_mask {
         let target_metric = Arc::new(metric.to_string());
         let predicate = ArrowPredicateFn::new(pred_mask, move |batch| {
             let metric_col = batch.column(0).as_any().downcast_ref::<StringArray>();
-
             match metric_col {
                 Some(arr) => {
                     let matches: BooleanArray = arr
@@ -1036,8 +1179,42 @@ fn load_row_groups(
                 None => Ok(BooleanArray::from(vec![true; batch.num_rows()])),
             }
         });
+        predicates.push(Box::new(predicate));
+    }
 
-        let row_filter = RowFilter::new(vec![Box::new(predicate)]);
+    // Predicate 2: l_container_id filter (ONLY for flat columns schema!)
+    // This is the key optimization - skip rows at parquet level based on container_id
+    if let Some(pred_mask) = container_pred_mask {
+        let container_filter: Arc<HashSet<String>> = Arc::new(
+            container_set
+                .iter()
+                .cloned()
+                .collect(),
+        );
+        let predicate = ArrowPredicateFn::new(pred_mask, move |batch| {
+            let container_col = batch.column(0).as_any().downcast_ref::<StringArray>();
+            match container_col {
+                Some(arr) => {
+                    let matches: BooleanArray = arr
+                        .iter()
+                        .map(|opt| {
+                            opt.map(|s| {
+                                // Match either full ID or short (12-char) ID
+                                let short_id = if s.len() > 12 { &s[..12] } else { s };
+                                container_filter.contains(short_id)
+                            })
+                        })
+                        .collect();
+                    Ok(matches)
+                }
+                None => Ok(BooleanArray::from(vec![true; batch.num_rows()])),
+            }
+        });
+        predicates.push(Box::new(predicate));
+    }
+
+    let reader = if !predicates.is_empty() {
+        let row_filter = RowFilter::new(predicates);
         reader_builder.with_row_filter(row_filter).build()?
     } else {
         reader_builder.build()?
@@ -1058,34 +1235,6 @@ fn load_row_groups(
             .column_by_name("value_float")
             .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
 
-        let labels_col = batch
-            .column_by_name("labels")
-            .context("Missing labels column")?;
-
-        // Hoist downcasts outside the row loop - do once per batch
-        let map_array = labels_col
-            .as_any()
-            .downcast_ref::<MapArray>()
-            .context("Labels column is not a MapArray")?;
-
-        let entries = map_array.entries();
-        let struct_array = entries
-            .as_any()
-            .downcast_ref::<StructArray>()
-            .context("Map entries is not a StructArray")?;
-
-        let label_keys = struct_array
-            .column(0)
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("Missing key column in labels")?;
-
-        let label_vals = struct_array
-            .column(1)
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("Missing value column in labels")?;
-
         let time_values: Vec<i64> = match times.data_type() {
             DataType::Timestamp(_, _) => {
                 let ts_array = times
@@ -1097,56 +1246,121 @@ fn load_row_groups(
             _ => anyhow::bail!("Unexpected time column type"),
         };
 
-        for (row, &time) in time_values.iter().enumerate() {
-            // Direct container_id extraction - no intermediate Vec allocation
-            let container_id =
-                match extract_container_id_direct(map_array, label_keys, label_vals, row) {
-                    Some(id) => id,
-                    None => continue,
-                };
+        // Extract container_id based on schema type
+        match label_schema {
+            LabelSchema::FlatColumns => {
+                // Fast path: direct column access
+                let l_container_id_col = batch
+                    .column_by_name("l_container_id")
+                    .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
-            let short_id = if container_id.len() > 12 {
-                &container_id[..12]
-            } else {
-                container_id
-            };
+                for (row, &time) in time_values.iter().enumerate() {
+                    // Extract container_id from l_container_id column
+                    let container_id = match l_container_id_col {
+                        Some(arr) if !arr.is_null(row) => arr.value(row),
+                        _ => continue,
+                    };
 
-            // Filter by container
-            if !container_set.contains(short_id) {
-                continue;
-            }
-
-            // Get value
-            let value = if let Some(arr) = values_float {
-                if !arr.is_null(row) {
-                    arr.value(row)
-                } else if let Some(int_arr) = values_int {
-                    if !int_arr.is_null(row) {
-                        int_arr.value(row) as f64
+                    let short_id = if container_id.len() > 12 {
+                        &container_id[..12]
                     } else {
+                        container_id
+                    };
+
+                    // Note: If we have predicate pushdown, this check is redundant
+                    // but we keep it for safety and for cases where pushdown isn't applied
+                    if !container_set.contains(short_id) {
                         continue;
                     }
-                } else {
-                    continue;
-                }
-            } else if let Some(int_arr) = values_int {
-                if !int_arr.is_null(row) {
-                    int_arr.value(row) as f64
-                } else {
-                    continue;
-                }
-            } else {
-                continue;
-            };
 
-            raw_data
-                .entry(short_id.to_string())
-                .or_default()
-                .add_point(time, value, is_cumulative_metric);
+                    let value = extract_value(values_float, values_int, row);
+                    if let Some(v) = value {
+                        raw_data
+                            .entry(short_id.to_string())
+                            .or_default()
+                            .add_point(time, v, is_cumulative_metric);
+                    }
+                }
+            }
+            LabelSchema::MapArray => {
+                // Legacy path: MapArray extraction
+                let labels_col = batch
+                    .column_by_name("labels")
+                    .context("Missing labels column")?;
+
+                let map_array = labels_col
+                    .as_any()
+                    .downcast_ref::<MapArray>()
+                    .context("Labels column is not a MapArray")?;
+
+                let entries = map_array.entries();
+                let struct_array = entries
+                    .as_any()
+                    .downcast_ref::<StructArray>()
+                    .context("Map entries is not a StructArray")?;
+
+                let label_keys = struct_array
+                    .column(0)
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .context("Missing key column in labels")?;
+
+                let label_vals = struct_array
+                    .column(1)
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .context("Missing value column in labels")?;
+
+                for (row, &time) in time_values.iter().enumerate() {
+                    let container_id =
+                        match extract_container_id_direct(map_array, label_keys, label_vals, row) {
+                            Some(id) => id,
+                            None => continue,
+                        };
+
+                    let short_id = if container_id.len() > 12 {
+                        &container_id[..12]
+                    } else {
+                        container_id
+                    };
+
+                    if !container_set.contains(short_id) {
+                        continue;
+                    }
+
+                    let value = extract_value(values_float, values_int, row);
+                    if let Some(v) = value {
+                        raw_data
+                            .entry(short_id.to_string())
+                            .or_default()
+                            .add_point(time, v, is_cumulative_metric);
+                    }
+                }
+            }
         }
     }
 
     Ok(raw_data)
+}
+
+/// Extract value from either float or int column.
+#[inline]
+fn extract_value(
+    values_float: Option<&Float64Array>,
+    values_int: Option<&UInt64Array>,
+    row: usize,
+) -> Option<f64> {
+    if let Some(arr) = values_float {
+        if !arr.is_null(row) {
+            return Some(arr.value(row));
+        }
+    }
+    if let Some(arr) = values_int {
+        if !arr.is_null(row) {
+            return Some(arr.value(row) as f64);
+        }
+    }
+    None
 }
 
 /// Extract container_id directly from MapArray without creating intermediate Vec.
