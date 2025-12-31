@@ -56,20 +56,18 @@ const (
 func makeNetstatCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var showTCP bool
 	var showUDP bool
-	var showListening bool
 
 	cmd := makeOneShotCommand(
 		globalParams,
 		"netstat",
 		"Show network connections similar to netstat -antpu",
 		func(_ sysconfigcomponent.Component, _ *command.GlobalParams) error {
-			return runNetstat(showTCP, showUDP, showListening)
+			return runNetstat(showTCP, showUDP)
 		},
 	)
 
 	cmd.Flags().BoolVarP(&showTCP, "tcp", "t", true, "Show TCP connections")
 	cmd.Flags().BoolVarP(&showUDP, "udp", "u", true, "Show UDP connections")
-	cmd.Flags().BoolVarP(&showListening, "listening", "l", false, "Show only listening sockets")
 
 	return cmd
 }
@@ -87,7 +85,7 @@ type NetConnection struct {
 	ProcessName string
 }
 
-func runNetstat(showTCP, showUDP, showListening bool) error {
+func runNetstat(showTCP, showUDP bool) error {
 	var connections []*NetConnection
 
 	// Read TCP connections using procnet package (provides robust parsing and PID/FD mapping)
@@ -140,17 +138,6 @@ func runNetstat(showTCP, showUDP, showListening bool) error {
 				}
 			}
 		}
-	}
-
-	// Filter listening if requested
-	if showListening {
-		filtered := make([]*NetConnection, 0)
-		for _, conn := range connections {
-			if conn.State == "LISTEN" || conn.Protocol == "udp" || conn.Protocol == "udp6" {
-				filtered = append(filtered, conn)
-			}
-		}
-		connections = filtered
 	}
 
 	// Sort by protocol, then local port

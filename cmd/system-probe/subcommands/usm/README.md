@@ -90,14 +90,11 @@ Shows network connections similar to `netstat -antpu`. Displays TCP and UDP conn
 sudo ./system-probe usm netstat                    # Show all TCP and UDP connections
 sudo ./system-probe usm netstat --tcp=false        # Show only UDP connections
 sudo ./system-probe usm netstat --udp=false        # Show only TCP connections
-sudo ./system-probe usm netstat --listening        # Show only listening sockets
-sudo ./system-probe usm netstat -l                 # Short form for --listening
 ```
 
 **Options:**
 - `--tcp` / `-t` - Show TCP connections (default: true)
 - `--udp` / `-u` - Show UDP connections (default: true)
-- `--listening` / `-l` - Show only listening sockets (default: false)
 
 **Output:**
 - Protocol (tcp, tcp6, udp, udp6)
@@ -223,14 +220,15 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 - Use `--max-cmdline-length 0`, `--max-name-length 0`, and `--max-service-length 0` for unlimited display
 
 ### Netstat Command
-- Reads connection information from `/proc/net/tcp`, `/proc/net/tcp6`, `/proc/net/udp`, `/proc/net/udp6`
-- Maps socket inodes to processes by reading `/proc/*/fd/*` symlinks
+- Uses `procnet.GetTCPConnections()` for robust TCP connection parsing with PID/FD mapping
+- Reads UDP connections from `/proc/net/udp` and `/proc/net/udp6` (manual parsing)
+- Maps socket inodes to processes by reading `/proc/*/fd/*` symlinks for UDP
 - Parses hexadecimal IP addresses and ports to human-readable format
 - Shows TCP connection states (ESTABLISHED, LISTEN, TIME_WAIT, etc.)
 - Filters connections based on protocol flags (`--tcp`, `--udp`)
-- Supports filtering for listening sockets only (`--listening`)
 - Connections sorted by protocol and local port
-- Linux-only implementation (returns nil on other platforms)
+- Use standard Unix tools like `grep` for additional filtering (e.g., `| grep LISTEN`)
+- Linux with eBPF support only (requires `linux_bpf` build tag)
 
 ### Symbols Ls Command
 - Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading
