@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -725,7 +724,7 @@ func (r *secretResolver) performRefresh() (string, error) {
 	defer r.lock.Unlock()
 
 	// get handles from the cache that match the allowlist
-	newHandles := maps.Keys(r.cache)
+	newHandles := slices.Collect(stdmaps.Keys(r.cache))
 	filteredHandles := make([]string, 0, len(newHandles))
 	for _, handle := range newHandles {
 		if r.matchesAllowlist(handle) {

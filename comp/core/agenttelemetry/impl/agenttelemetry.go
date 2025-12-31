@@ -12,13 +12,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -275,7 +275,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	}
 
 	// Convert the map to a slice
-	return maps.Values(amMap)
+	return slices.Collect(maps.Values(amMap))
 }
 
 // Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.

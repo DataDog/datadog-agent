@@ -19,7 +19,6 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
 	golang.org/x/sys v0.39.0
 	gopkg.in/yaml.v2 v2.4.0
 )

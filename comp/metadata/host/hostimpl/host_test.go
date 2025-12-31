@@ -7,13 +7,13 @@ package hostimpl
 
 import (
 	"bytes"
+	"maps"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"

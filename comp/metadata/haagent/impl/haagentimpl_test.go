@@ -7,11 +7,11 @@ package haagentimpl
 
 import (
 	"bytes"
+	"maps"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"

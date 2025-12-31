@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"

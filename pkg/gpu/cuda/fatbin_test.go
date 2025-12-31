@@ -9,10 +9,9 @@ package cuda
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/require"
 

@@ -8,6 +8,7 @@ package inventoryagentimpl
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"runtime"
 	"sort"
 	"testing"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"

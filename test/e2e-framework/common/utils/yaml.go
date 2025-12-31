@@ -6,7 +6,8 @@
 package utils
 
 import (
-	"golang.org/x/exp/maps"
+	"maps"
+
 	"gopkg.in/yaml.v3"
 )
 

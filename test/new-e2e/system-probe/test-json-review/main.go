@@ -15,13 +15,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -196,7 +197,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 		}
 	}
 
-	sortedFailedPkgs := maps.Keys(failedTests)
+	sortedFailedPkgs := slices.Collect(maps.Keys(failedTests))
 	sort.Strings(sortedFailedPkgs)
 
 	for _, pkg := range sortedFailedPkgs {

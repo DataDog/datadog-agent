@@ -9,6 +9,7 @@ package verifier
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/exp/maps"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"

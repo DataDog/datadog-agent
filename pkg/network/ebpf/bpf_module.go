@@ -9,9 +9,9 @@ package ebpf
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
@@ -82,5 +82,5 @@ func GetModulesInUse() []string {
 	telemetryMu.Lock()
 	defer telemetryMu.Unlock()
 
-	return maps.Keys(prebuiltModulesInUse)
+	return slices.Collect(maps.Keys(prebuiltModulesInUse))
 }
