@@ -21,7 +21,6 @@ var (
 	modntdll                       = windows.NewLazyDLL("ntdll.dll")
 	modkernel                      = windows.NewLazyDLL("kernel32.dll")
 	modversion                     = windows.NewLazyDLL("version.dll")
-	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
 	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
@@ -78,20 +77,6 @@ func IsWow64Process(h windows.Handle) (is32bit bool, err error) {
 	return
 }
 
-// NtQueryInformationProcess wraps the Windows NT kernel call of the same name
-func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target, size uintptr) (err error) {
-	r, _, _ := procNtQueryInformationProcess.Call(uintptr(h),
-		uintptr(class),
-		target,
-		size,
-		uintptr(0))
-	if r != 0 {
-		err = windows.GetLastError()
-		return err
-	}
-	return nil
-}
-
 // IsProcessProtected checks if the process has any level of protection and returns true if any protection is present
 // more info https://learn.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess
 // NOTE: in user mode, NtQueryInformationProcess and ZwQueryInformationProcess behave the same
@@ -99,7 +84,7 @@ func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target,
 func IsProcessProtected(h windows.Handle) (bool, error) {
 	var processProtection uint8
 	// returns 1 byte of protection information when passed in with param 61
-	err := NtQueryInformationProcess(h, ProcessProtectionInformation, uintptr(unsafe.Pointer(&processProtection)), unsafe.Sizeof(processProtection))
+	err := windows.NtQueryInformationProcess(h, int32(ProcessProtectionInformation), unsafe.Pointer(&processProtection), uint32(unsafe.Sizeof(processProtection)), nil)
 	if err != nil {
 		return false, err
 	}
@@ -181,7 +166,7 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 	// get the pointer to the PEB
 	var procmem uintptr
 	size := unsafe.Sizeof(procmem)
-	err := NtQueryInformationProcess(h, ProcessWow64Information, uintptr(unsafe.Pointer(&procmem)), size)
+	err := windows.NtQueryInformationProcess(h, int32(ProcessWow64Information), unsafe.Pointer(&procmem), uint32(size), nil)
 	if err != nil {
 		// this shouldn't happen because we already know we're asking about
 		// a 32 bit process.
@@ -288,7 +273,7 @@ type processBasicInformationStruct struct {
 func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*ProcessCommandParams, error) {
 	var pbi processBasicInformationStruct
 	pbisize := unsafe.Sizeof(pbi)
-	err := NtQueryInformationProcess(h, ProcessBasicInformation, uintptr(unsafe.Pointer(&pbi)), pbisize)
+	err := windows.NtQueryInformationProcess(h, int32(ProcessBasicInformation), unsafe.Pointer(&pbi), uint32(pbisize), nil)
 	if err != nil {
 		return nil, err
 	}
