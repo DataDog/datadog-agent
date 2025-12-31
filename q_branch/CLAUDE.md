@@ -1,5 +1,30 @@
 # q_branch Development Rules
 
+## Fine-Grained Monitor Development
+
+Use `./dev.py` for all fine-grained-monitor (fgm-*) development workflows:
+
+```bash
+cd q_branch/fine-grained-monitor
+
+# Local development
+./dev.py local build              # Build all release binaries
+./dev.py local test               # Run tests
+./dev.py local clippy             # Run clippy lints
+./dev.py local viewer start       # Start fgm-viewer with default data
+./dev.py local viewer start --data /path/to/file.parquet
+./dev.py local viewer stop        # Stop fgm-viewer
+./dev.py local viewer status      # Check fgm-viewer status
+
+# Cluster deployment (Kind via Lima)
+./dev.py cluster deploy           # Build image, load to Kind, restart pods
+./dev.py cluster status           # Show cluster pod status
+./dev.py cluster forward          # Port-forward to cluster pod
+./dev.py cluster forward-stop     # Stop port-forward
+```
+
+**Prefer dev.py over raw commands** - it handles image loading into Lima VM, Kind cluster operations, and port management automatically.
+
 ## Architecture: aarch64 (ARM64)
 
 All local development and testing runs on Apple Silicon (aarch64/ARM64).
