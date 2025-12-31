@@ -62,21 +62,45 @@ routing via headless Service for stability.
 
 ### Staleness and Caching
 
-- **Max staleness:** 60 seconds. If a node's `last_seen` exceeds this and the pod
-  is not in the latest watch state, refuse to route.
-- **Pod restart race:** Watch events propagate quickly. Accept small race window,
-  rely on retry-once semantics.
-- **Cache invalidation:** Watch events (ADDED, MODIFIED, DELETED) update cache
-  immediately.
+The watcher maintains two distinct staleness concepts:
+
+**Global watcher staleness:** Detects Kubernetes API connectivity issues.
+- Track `last_k8s_sync_ms`: updated on every successful list or watch resync
+- If `now - last_k8s_sync_ms > 120s`, the entire cache is considered stale
+- `list_nodes` should indicate `watcher_stale: true` when this occurs
+
+**Per-node staleness:** Detects individual pods disappearing.
+- Track `last_observed_ms` per node: updated when pod is seen in list/resync
+- If `now - last_observed_ms > 60s` and pod not in latest resync, node is stale
+- Return error "node 'X' is stale (not observed in recent sync)"
+
+**Why this matters:** Stable pods generate zero watch events. If we only updated
+timestamps on MODIFIED events, every healthy pod would appear "stale" after 60s.
+The resync-based approach ensures quiet clusters remain healthy.
+
+**Implementation:** Use kube-rs watcher with periodic resync (default ~5 minutes
+in kube-rs, configurable). On each resync, update `last_observed_ms` for all
+pods seen. This handles both the "quiet cluster" case and detects pods that
+disappeared without generating DELETE events (rare but possible).
+
+**Cache invalidation:** Watch events (ADDED, MODIFIED, DELETED) update cache
+immediately. Resync updates `last_observed_ms` for all current pods.
 
 ### Ready vs Serving
 
-"Ready" means Kubernetes PodReady condition is true. This does not guarantee the
-viewer HTTP server is responding. Mitigations:
+"Ready" means Kubernetes PodReady condition is true. For production reliability,
+readiness must actually indicate "viewer HTTP server is responding."
 
-- **Aggressive HTTP timeouts:** 5 seconds per request
-- **Retry-once:** On timeout or 5xx, try the same node once more
-- **No health probe:** Unnecessary complexity for research phase
+**Viewer DaemonSet pods must have:**
+- `readinessProbe`: HTTP GET to `/api/health` (or similar lightweight endpoint)
+- `startupProbe`: Same endpoint, with longer timeout for initialization
+
+**MCP Deployment must have:**
+- `readinessProbe`: Verify watcher is connected and cache is populated
+- `livenessProbe`: Basic health check
+
+Once readiness is meaningful, routing logic simplifies: "Ready" actually means
+"will answer HTTP." This eliminates spurious timeouts and agent flakiness.
 
 ### Heterogeneous Metrics
 
@@ -119,11 +143,49 @@ When a tool call specifies a node:
 1. Look up node in pod cache
 2. If not found → return error "node 'X' not found"
 3. If found but not ready → return error "node 'X' is not ready"
-4. If found but stale (>60s, not in watch) → return error "node 'X' is stale"
+4. If found but stale (not observed in recent resync) → return error "node 'X' is stale"
 5. Construct URL: `http://{pod_ip}:8050/api/...`
-6. Forward request with 5s timeout
-7. On timeout/5xx → retry once
+6. Forward request with operation-specific timeout (see below)
+7. On failure, apply retry policy (see below)
 8. Return response or error
+
+### Operation Timeouts
+
+Different operations have different latency characteristics:
+
+| Operation | Timeout | Rationale |
+|-----------|---------|-----------|
+| list_metrics | 5s | Small response, fast |
+| list_containers | 5s | Bounded by limit parameter |
+| analyze_container | 30s | Analysis can scan large windows |
+
+Timeouts are hardcoded; no configuration surface exposed (KISS).
+
+### Retry Policy
+
+On failure, retry behavior depends on error type:
+
+| Error Type | Action |
+|------------|--------|
+| 4xx from viewer | Don't retry (client error) |
+| 5xx from viewer | Retry once after re-resolving node→pod |
+| Connection timeout | Retry once after re-resolving node→pod |
+| Connection refused | Retry once after re-resolving node→pod |
+
+**Re-resolve on retry:** Before retrying, look up the node again in the pod cache.
+The pod IP may have changed due to a restart detected by the watcher.
+
+**Jitter:** Add 50-200ms random delay before retry to avoid thundering herds.
+
+### Multiple Pods Per Node
+
+During DaemonSet rollouts, multiple pods may exist for the same node briefly.
+
+**Policy:** Select the pod that is:
+1. Ready (PodReady condition true)
+2. If multiple ready, pick the one with newest `creationTimestamp`
+
+This ensures we route to the new pod during rolling updates.
 
 ## Tool Schemas
 
@@ -134,15 +196,22 @@ When a tool call specifies a node:
 **Output:**
 ```json
 {
+  "watcher_stale": false,
+  "last_sync_ms": 1704067200000,
   "nodes": [
     {
       "name": "worker-1",
       "ready": true,
-      "last_seen": 1704067200000
+      "last_observed_ms": 1704067200000
     }
   ]
 }
 ```
+
+**Field definitions:**
+- `watcher_stale`: true if `now - last_sync_ms > 120s` (Kubernetes API may be unreachable)
+- `last_sync_ms`: timestamp of last successful Kubernetes list/watch resync
+- `last_observed_ms`: per-node timestamp when pod was last seen in a resync
 
 Note: Pod details (IP, name) are intentionally hidden. Agents route by node name.
 
@@ -155,14 +224,20 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
 ```json
 {
   "node": "worker-1",
+  "node_selection": "explicit",
   "metrics": [{ "name": "cgroup.v2.cpu.stat.usage_usec" }],
   "studies": [{ "id": "periodicity", "name": "Periodicity Study", "description": "..." }]
 }
 ```
 
+**Field definitions:**
+- `node_selection`: How the node was chosen:
+  - `"explicit"`: caller specified `node` parameter
+  - `"first_ready"`: node was auto-selected (caller should be aware this may differ across calls)
+
 **Fallback behavior:**
 1. If `node` specified → query that node
-2. If `node` omitted → pick first ready node
+2. If `node` omitted → pick first ready node (alphabetically by name for determinism)
 3. If no nodes ready → return error "no nodes available"
 4. If selected node errors → try next ready node once
 5. If all fail → return last error
@@ -176,7 +251,8 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
 - `qos_class` (optional): QoS class filter (exact match)
 - `pod_name` (optional): Pod name prefix filter
 - `container_name` (optional): Container name prefix filter
-- `limit` (optional): Max results (default 20)
+- `limit` (optional): Max results per page (default 20, max 100)
+- `cursor` (optional): Pagination cursor from previous response
 
 **Output:**
 ```json
@@ -191,7 +267,8 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
     "qos_class": "Burstable",
     "last_seen": 1704067200000
   }],
-  "total_matching": 47
+  "total_matching": 47,
+  "next_cursor": "eyJvZmZzZXQiOjIwfQ=="
 }
 ```
 
@@ -201,8 +278,7 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
 - `node` (required): Node name to query
 - `container` (required): Container ID (short 12-char or full 64-char)
 - `study_id` (required): "periodicity" or "changepoint"
-- `metric` (optional): Single metric name
-- `metric_prefix` (optional): Metric prefix to analyze all matching metrics
+- `metric` (required): Metric name to analyze
 
 **Output:**
 ```json
@@ -210,13 +286,15 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
   "node": "worker-1",
   "container": { "id": "abc123def456", "pod_name": "nginx-xyz", "namespace": "default" },
   "study": "periodicity",
-  "results": [{
-    "metric": "cgroup.v2.cpu.stat.usage_usec",
-    "stats": { "avg": 1234.5, "max": 5000, "min": 100, "stddev": 500, "trend": "stable", "sample_count": 1000 },
-    "findings": [{ "type": "periodicity", "timestamp_ms": 1704067200000, "label": "period=60000ms", "details": {...} }]
-  }]
+  "metric": "cgroup.v2.cpu.stat.usage_usec",
+  "stats": { "avg": 1234.5, "max": 5000, "min": 100, "stddev": 500, "trend": "stable", "sample_count": 1000 },
+  "findings": [{ "type": "periodicity", "timestamp_ms": 1704067200000, "label": "period=60000ms", "details": {...} }]
 }
 ```
+
+**Design note:** `metric` is required (not optional, no prefix matching). This avoids
+unbounded analysis cost. Agents should call `list_metrics` first to discover available
+metrics, then call `analyze_container` once per metric of interest.
 
 **Container ID collision handling:**
 
@@ -341,8 +419,9 @@ The MCP server binary accepts:
 - `--daemonset-namespace` (default: "default"): Namespace containing DaemonSet
 - `--daemonset-label` (default: "app=fine-grained-monitor"): Label selector for pods
 - `--viewer-port` (default: 8050): Port on viewer containers
-- `--stale-threshold` (default: 60): Seconds before node considered stale
-- `--http-timeout` (default: 5): Seconds for viewer HTTP requests
+
+Note: Timeouts and staleness thresholds are hardcoded (KISS). See "Operation Timeouts"
+and "Staleness and Caching" sections for values.
 
 ## File Locations
 
@@ -379,3 +458,106 @@ The MCP server binary accepts:
 | k8s-openapi | 0.24 | Kubernetes types |
 | reqwest | 0.12 | HTTP client for viewer calls |
 | tokio | 1.x | Async runtime |
+
+## Production Hardening
+
+This section documents the production-readiness path. Not all items are required
+for initial deployment, but they should be implemented before production use.
+
+### High Availability
+
+For production:
+- `replicas: 2` (minimum)
+- `podAntiAffinity` to spread across nodes
+- `PodDisruptionBudget` with `minAvailable: 1`
+
+SSE clients will reconnect on pod restarts; this is acceptable.
+
+### Network Security
+
+The MCP server exposes powerful introspection tools. Even read-only, they reveal:
+- Namespace and pod names
+- Container names and IDs
+- Node topology
+
+**Current posture:** ClusterIP-only. Only in-cluster callers can reach the service.
+No authentication/authorization beyond Kubernetes network isolation.
+
+**Recommended hardening:**
+- NetworkPolicy: default-deny ingress, allow only from known agent namespaces
+- If exposing via Ingress, add authentication (mTLS, OIDC, etc.)
+
+### Probes
+
+**MCP Deployment:**
+```yaml
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 30
+```
+
+Readiness should verify watcher is connected and cache is populated.
+
+**Viewer DaemonSet (separate concern, but noted here):**
+- `readinessProbe`: HTTP GET `/api/health`
+- `startupProbe`: Same endpoint, longer timeout
+
+### Watch Failure Handling
+
+The Kubernetes watcher can fail due to:
+- Watch stream ends (normal, reconnect)
+- Transient apiserver errors (retry with backoff)
+- 410 Gone / resourceVersion too old (full relist)
+- Apiserver throttling (backoff)
+
+**Implementation:** Use kube-rs `watcher()` which handles most of these. Add:
+- Exponential backoff on repeated failures
+- Health signal: expose `watcher_healthy` and `last_sync_age_seconds`
+
+### Graceful Shutdown
+
+For SSE connections:
+- `terminationGracePeriodSeconds: 30`
+- Signal handler to stop accepting new connections
+- Allow in-flight requests to complete
+
+## Observability
+
+### Structured Logging
+
+Every tool call should log:
+- `tool`: tool name
+- `node`: target node (if applicable)
+- `container_id`: container ID (shortened, if applicable)
+- `latency_ms`: request duration
+- `outcome`: `success`, `user_error`, `transient_error`, `internal_error`
+- `viewer_status`: HTTP status from viewer (if applicable)
+
+Use JSON format for machine parsing.
+
+### Metrics
+
+Export via Prometheus/OpenMetrics or Datadog dogstatsd:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `mcp_tool_requests_total` | counter | tool, outcome | Request count by tool and outcome |
+| `mcp_tool_latency_seconds` | histogram | tool | Request latency distribution |
+| `mcp_viewer_proxy_errors_total` | counter | node, error_type | Proxy errors by node |
+| `mcp_watcher_sync_age_seconds` | gauge | | Time since last successful K8s sync |
+| `mcp_nodes_total` | gauge | status | Node count by status (ready/not_ready/stale) |
+
+### Alerting (Suggested)
+
+- `mcp_watcher_sync_age_seconds > 300`: Watcher may be disconnected
+- `rate(mcp_viewer_proxy_errors_total[5m]) > 0.1`: High error rate to viewers
+- `mcp_nodes_total{status="ready"} == 0`: No ready nodes

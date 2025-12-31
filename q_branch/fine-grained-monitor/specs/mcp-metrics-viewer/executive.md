@@ -59,7 +59,7 @@ demonstrated the MCP tool interface but does not support:
 
 ## Implementation Milestones
 
-1. **Infrastructure:** Headless Service for DaemonSet, MCP Deployment + RBAC
+1. **Infrastructure:** MCP Deployment + RBAC
 2. **Pod Discovery:** kube-rs watcher, node→pod cache
 3. **HTTP/SSE Transport:** Replace stdio with SSE server
 4. **Node Routing:** Route tool calls to correct viewer pod

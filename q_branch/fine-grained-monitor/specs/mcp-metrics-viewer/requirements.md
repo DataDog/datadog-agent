@@ -68,13 +68,7 @@ provides a reasonable default for discovery.
 ### REQ-MCP-004: Analyze Container Behavior
 
 WHEN an agent requests analysis of a container on a specific node
-THE SYSTEM SHALL run the specified study on that container's metrics
-
-WHEN analyzing a single metric
-THE SYSTEM SHALL return findings specific to that metric
-
-WHEN analyzing by metric prefix
-THE SYSTEM SHALL return findings for all metrics matching that prefix
+THE SYSTEM SHALL run the specified study on that container's metric
 
 WHEN the study completes
 THE SYSTEM SHALL return detected patterns with timestamps and magnitudes
@@ -125,7 +119,7 @@ WHEN an agent requests node discovery
 THE SYSTEM SHALL return all nodes running fine-grained-monitor pods
 
 WHEN listing nodes
-THE SYSTEM SHALL include node name, pod IP, and availability status
+THE SYSTEM SHALL include node name and availability status
 
 **Rationale:** Data is node-local—each DaemonSet pod only has metrics for
 containers on its own node. Agents must understand cluster topology to target
