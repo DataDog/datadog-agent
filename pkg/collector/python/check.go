@@ -431,6 +431,11 @@ func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
 }
 
+// ExclusiveMode returns empty string as Python checks are not exclusive to any mode
+func (c *PythonCheck) ExclusiveMode() string {
+	return ""
+}
+
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
 // by the PythonCheck.
 func pythonCheckFinalizer(c *PythonCheck) {

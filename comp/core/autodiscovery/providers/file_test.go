@@ -24,6 +24,7 @@ func TestCollect(t *testing.T) {
 	ctx := context.Background()
 	cfg := mock.New(t)
 	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
+	cfg.SetWithoutSource("infrastructure_mode", "full") // Allow all checks in test
 	paths := []string{"tests", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
@@ -92,6 +93,9 @@ func TestEnvVarReplacement(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
+
+	cfg := mock.New(t)
+	cfg.SetWithoutSource("infrastructure_mode", "full") // Allow all checks in test
 
 	paths := []string{"tests"}
 	ResetReader(paths)

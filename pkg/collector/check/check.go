@@ -56,6 +56,9 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
+	// ExclusiveMode returns the infrastructure mode this check is exclusive to, or empty string if none.
+	// Checks that return a non-empty value will only run when the agent is in that specific infrastructure mode.
+	ExclusiveMode() string
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
@@ -75,6 +78,8 @@ type Info interface {
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
 	InstanceConfig() string
+	// ExclusiveMode returns the infrastructure mode this check is exclusive to, or empty string if none.
+	ExclusiveMode() string
 }
 
 // ErrSkipCheckInstance is returned from Configure() when a check is intentionally refusing to load a

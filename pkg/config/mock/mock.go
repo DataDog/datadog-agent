@@ -54,6 +54,8 @@ func New(t testing.TB) model.BuildableConfig {
 	setup.InitConfig(newCfg)
 	newCfg.BuildSchema()
 	newCfg.SetTestOnlyDynamicSchema(true)
+	// Reset the infrastructure mode config cache so it picks up new mock config values
+	setup.ResetInfraModeConfig()
 	return &mockConfig{newCfg}
 }
 

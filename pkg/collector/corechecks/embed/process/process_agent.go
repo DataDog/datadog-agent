@@ -253,6 +253,11 @@ func (c *ProcessAgentCheck) IsHASupported() bool {
 	return false
 }
 
+// ExclusiveMode returns the infrastructure mode this check is exclusive to (empty = none)
+func (c *ProcessAgentCheck) ExclusiveMode() string {
+	return ""
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

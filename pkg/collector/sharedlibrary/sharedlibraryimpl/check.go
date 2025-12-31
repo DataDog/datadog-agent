@@ -188,3 +188,8 @@ func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *Check) IsHASupported() bool {
 	return false
 }
+
+// ExclusiveMode returns empty string as shared library checks are not exclusive to any mode
+func (c *Check) ExclusiveMode() string {
+	return ""
+}
