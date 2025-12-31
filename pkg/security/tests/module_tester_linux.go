@@ -1146,8 +1146,8 @@ type eventKeyValueFilter struct {
 // contain a rule on "open.file.path"
 //
 //nolint:deadcode,unused
-func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
-	return test.GetProbeEvent(action, func(event *model.Event) bool {
+func waitForProbeEvent(tb testing.TB, test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
+	return test.GetProbeEvent(tb, action, func(event *model.Event) bool {
 		for _, filter := range filters {
 			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
 				return false
@@ -1158,25 +1158,11 @@ func waitForProbeEvent(test *testModule, action func() error, eventType model.Ev
 }
 
 //nolint:deadcode,unused
-func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
-	return waitForProbeEvent(test, action, model.FileOpenEventType, eventKeyValueFilter{
+func waitForOpenProbeEvent(tb testing.TB, test *testModule, action func() error, filename string) error {
+	return waitForProbeEvent(tb, test, action, model.FileOpenEventType, eventKeyValueFilter{
 		key:   "open.file.path",
 		value: filename,
 	})
-}
-
-//nolint:deadcode,unused
-func waitForIMDSResponseProbeEvent(test *testModule, action func() error, processFileName string) error {
-	return waitForProbeEvent(test, action, model.IMDSEventType, []eventKeyValueFilter{
-		{
-			key:   "process.file.name",
-			value: processFileName,
-		},
-		{
-			key:   "imds.type",
-			value: "response",
-		},
-	}...)
 }
 
 //nolint:deadcode,unused
