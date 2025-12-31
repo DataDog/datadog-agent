@@ -398,6 +398,12 @@ func MultiLineSourceTag(source string) string {
 	return "multiline:" + source
 }
 
+// LogSourceTag returns a tag indicating the stream a container log line came from.
+// Example values: "logsource:stdout", "logsource:stderr".
+func LogSourceTag(stream string) string {
+	return "logsource:" + stream
+}
+
 // IsMRF returns true if the payload should be sent to MRF endpoints.
 func (m *Payload) IsMRF() bool {
 	if len(m.MessageMetas) == 0 {
