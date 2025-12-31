@@ -42,7 +42,7 @@ func NewWorkflowRunner(
 	opmsClient opms.Client,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(),
+		registry:     privatebundles.NewRegistry(configuration),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
