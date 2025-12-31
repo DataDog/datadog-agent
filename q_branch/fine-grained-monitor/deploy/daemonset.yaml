@@ -90,6 +90,30 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "100m"
+      # REQ-CON-005: Consolidator sidecar for background file merging
+      - name: consolidator
+        image: fine-grained-monitor:latest
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/fgm-consolidator"]
+        args:
+          - "--data-dir=/data"
+          - "--check-interval=300"
+          - "--min-files=10"
+          - "--min-age-secs=300"
+          - "--max-output-size-mb=500"
+        env:
+          - name: RUST_LOG
+            value: "info"
+        volumeMounts:
+          - name: data
+            mountPath: /data
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
       terminationGracePeriodSeconds: 60  # Allow time for parquet footer to be written
       volumes:
         - name: cgroup
