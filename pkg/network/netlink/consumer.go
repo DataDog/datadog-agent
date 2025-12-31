@@ -13,8 +13,8 @@ import (
 	"strings"
 	"syscall"
 
+	"errors"
 	"github.com/mdlayher/netlink"
-	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"

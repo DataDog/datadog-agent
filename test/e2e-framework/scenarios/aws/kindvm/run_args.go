@@ -45,16 +45,16 @@ type RunOption = func(*RunParams) error
 
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
-		Name:               defaultKindName,
-		vmOptions:          []ec2.VMOption{},
-		agentOptions:       []kubernetesagentparams.Option{},
-		fakeintakeOptions:  []fakeintake.Option{},
-		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
+		Name:                defaultKindName,
+		vmOptions:           []ec2.VMOption{},
+		agentOptions:        []kubernetesagentparams.Option{},
+		fakeintakeOptions:   []fakeintake.Option{},
+		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
 		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
-		operatorOptions:    []operatorparams.Option{},
-		operatorDDAOptions: []agentwithoperatorparams.Option{},
-		deployDogstatsd:    false,
-		deployOperator:     false,
+		operatorOptions:     []operatorparams.Option{},
+		operatorDDAOptions:  []agentwithoperatorparams.Option{},
+		deployDogstatsd:     false,
+		deployOperator:      false,
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))

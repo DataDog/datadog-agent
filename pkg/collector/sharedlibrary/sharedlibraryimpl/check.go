@@ -84,7 +84,7 @@ func (c *Check) Stop() {}
 
 // Cancel closes the associated shared library and prevents the check from running
 func (c *Check) Cancel() {
-	// don't close the lib again if the check is already cancelled
+	// don't close the lib again if the check is alread cancelled
 	if c.cancelled {
 		return
 	}

@@ -556,7 +556,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	for _, regex := range c.config.instance.UnitRegexes {
 		pattern, err := regexp.Compile(regex)
 		if err != nil {
-			return errors.Wrapf(err, "cannot compile regular expression %q to monitor systemd units", regex)
+			return fmt.Errorf("cannot compile regular expression %q to monitor systemd units: %w", regex, err)
 		}
 		log.Debugf("Compiled regex %q to Regexp %q", regex, pattern)
 		c.unitPatterns = append(c.unitPatterns, pattern)

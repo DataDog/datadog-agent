@@ -14,9 +14,9 @@ import (
 	"net"
 	"time"
 
+	"errors"
 	"github.com/cenkalti/backoff"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
