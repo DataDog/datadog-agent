@@ -9,56 +9,76 @@
 package converters
 
 import (
-	"context"
+	"slices"
 
-	"go.opentelemetry.io/collector/confmap"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/go-viper/mapstructure/v2"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 )
 
-// NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
-func NewFactoryWithoutAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithoutAgent)
+var (
+	// Component IDs
+	hostprofilerID      = component.MustNewID("hostprofiler")
+	otlpReceiverID      = component.MustNewID("otlp")
+	otlpHTTPExporterID  = component.MustNewID("otlphttp")
+	infraattributesID   = component.MustNewIDWithName("infraattributes", "default")
+	resourcedetectionID = component.MustNewID("resourcedetection")
+	ddprofilingID       = component.MustNewIDWithName("ddprofiling", "default")
+	hpflareID           = component.MustNewIDWithName("hpflare", "default")
+
+	// Component Types
+	infraattributesType   = component.MustNewType("infraattributes")
+	resourcedetectionType = component.MustNewType("resourcedetection")
+)
+
+// hasProcessorType returns true if the processors list contains a processor of the given type.
+func hasProcessorType(processors []component.ID, processorType component.Type) bool {
+	return slices.ContainsFunc(processors, func(comp component.ID) bool {
+		return comp.Type() == processorType
+	})
 }
 
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
-}
-
-type converterWithoutAgent struct{}
-
-func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithoutAgent{}
-}
-
-type converterWithAgent struct{}
-
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithAgent{}
-}
-
-func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeResourceDetectionProcessor(confStringMap); err != nil {
-		return err
+func ensureOtlpHTTPConfig(otlpHTTP component.Config) component.Config {
+	otlpHTTPConfig := &otlphttpexporter.Config{}
+	if err := mapstructure.Decode(otlphttpexporter.NewFactory().CreateDefaultConfig(), otlpHTTPConfig); err != nil {
+		log.Warnf("Failed to decode default otlphttp config: %v", err)
 	}
 
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
+	if otlpHTTP != nil {
+		if err := mapstructure.Decode(otlpHTTP, otlpHTTPConfig); err != nil {
+			log.Warnf("Failed to decode user otlphttp config, using defaults: %v", err)
+		}
+	}
+
+	// Ensure dd-api-key header is always present and non-empty
+	if key, ok := otlpHTTPConfig.ClientConfig.Headers.Get("dd-api-key"); !ok || len(key) == 0 {
+		// TODO: fetch api key
+		otlpHTTPConfig.ClientConfig.Headers.Set("dd-api-key", "tbd")
+		log.Debug("Added dd-api-key to otlp headers")
+	}
+
+	return otlpHTTPConfig
 }
 
-func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeInfraAttributesProcessor(confStringMap); err != nil {
-		return err
-	}
-	if err := removeDDProfilingExtension(confStringMap); err != nil {
-		return err
-	}
-	if err := removeHpFlareExtension(confStringMap); err != nil {
-		return err
+func ensureHostProfilerConfig(cfg component.Config) *receiver.Config {
+	hostProfilerConfig := &receiver.Config{}
+	if err := mapstructure.Decode(cfg, hostProfilerConfig); err != nil {
+		log.Warnf("Failed to decode hostprofiler config, using defaults: %v", err)
 	}
 
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
+	for _, endpoint := range hostProfilerConfig.SymbolUploader.SymbolEndpoints {
+		if len(endpoint.APIKey) == 0 {
+			// TODO: fetch necessary object to get keys
+			log.Debugf("Adding agent provided API key to %s", endpoint.Site)
+		}
 
+		if len(endpoint.AppKey) == 0 {
+			// TODO: fetch necessary object to get keys
+			log.Debugf("Adding agent provided App key to %s", endpoint.Site)
+		}
+	}
+
+	return hostProfilerConfig
 }

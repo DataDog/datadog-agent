@@ -8,51 +8,6 @@
 // Package converters implements the converters for the host profiler collector.
 package converters
 
-import (
-	"fmt"
-	"slices"
-)
-
-func removeInfraAttributesProcessor(confStringMap map[string]any) error {
-	if err := removeFromMap(confStringMap, []string{"processors"}, infraAttributesName()); err != nil {
-		return err
-	}
-
-	err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
-	if err != nil {
-		return err
-	}
-	return removeFromList(confStringMap, []string{"service", "pipelines", "metrics"}, "processors", infraAttributesName())
-}
-
-func removeResourceDetectionProcessor(confStringMap map[string]any) error {
-	if err := removeFromMap(confStringMap, []string{"processors"}, resourceDetectionName()); err != nil {
-		return err
-	}
-
-	err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", resourceDetectionName())
-	if err != nil {
-		return err
-	}
-	return removeFromList(confStringMap, []string{"service", "pipelines", "metrics"}, "processors", resourceDetectionName())
-}
-
-func removeDDProfilingExtension(confStringMap map[string]any) error {
-	if err := removeFromMap(confStringMap, []string{"extensions"}, ddprofilingName()); err != nil {
-		return err
-	}
-
-	return removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName())
-}
-
-func removeHpFlareExtension(confStringMap map[string]any) error {
-	if err := removeFromMap(confStringMap, []string{"extensions"}, hpflareName()); err != nil {
-		return err
-	}
-
-	return removeFromList(confStringMap, []string{"service"}, "extensions", hpflareName())
-}
-
 func infraAttributesName() string {
 	return "infraattributes/default"
 }
@@ -67,52 +22,4 @@ func ddprofilingName() string {
 
 func hpflareName() string {
 	return "hpflare/default"
-}
-
-func removeFromMap(confStringMap map[string]any, parentNames []string, mapName string) error {
-	parentMap, err := getMapStr(confStringMap, parentNames)
-	if err != nil {
-		return err
-	}
-	if parentMap != nil {
-		delete(parentMap, mapName)
-	}
-	return nil
-}
-
-func removeFromList(confStringMap map[string]any, parentNames []string, listName string, itemToRemove string) error {
-	parentMap, err := getMapStr(confStringMap, parentNames)
-	if err != nil {
-		return err
-	}
-
-	if parentMap != nil {
-		children, ok := parentMap[listName].([]any)
-		if !ok {
-			return nil
-		}
-		children = slices.DeleteFunc(children, func(item any) bool {
-			str, ok := item.(string)
-			if !ok {
-				return false
-			}
-			return str == itemToRemove
-		})
-		parentMap[listName] = children
-	}
-	return nil
-}
-
-func getMapStr(confStringMap map[string]any, keys []string) (map[string]any, error) {
-	for _, key := range keys {
-		value, ok := confStringMap[key]
-		if !ok {
-			return nil, nil
-		}
-		confStringMap, ok = value.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("value is not a map[string]any:%v", value)
-		}
-	}
-	return confStringMap, nil
 }
