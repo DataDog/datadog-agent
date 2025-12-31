@@ -114,6 +114,9 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
+
+	// SourceServiceNaming represents the service name computed by the service naming collector
+	SourceServiceNaming Source = "service_naming"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -652,6 +655,9 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	// ComputedServiceName is the service name computed by the service naming collector
+	ComputedServiceName string
 }
 
 // GetID implements Entity#GetID.
@@ -744,6 +750,11 @@ func (c Container) String(verbose bool) string {
 
 	if c.ECSContainer != nil {
 		_, _ = fmt.Fprint(&sb, c.ECSContainer.String(verbose))
+	}
+
+	if c.ComputedServiceName != "" {
+		_, _ = fmt.Fprintln(&sb, "----------- Computed Service Name -----------")
+		_, _ = fmt.Fprintln(&sb, "Service:", c.ComputedServiceName)
 	}
 
 	return sb.String()
