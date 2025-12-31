@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.75.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.75.0-rc.2
 	github.com/golangci/plugin-module-register v0.1.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.40.0
