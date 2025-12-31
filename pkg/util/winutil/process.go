@@ -18,7 +18,6 @@ import (
 )
 
 var (
-	modntdll                       = windows.NewLazyDLL("ntdll.dll")
 	modkernel                      = windows.NewLazyDLL("kernel32.dll")
 	modversion                     = windows.NewLazyDLL("version.dll")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
