@@ -3,19 +3,26 @@
 # requires-python = ">=3.10"
 # ///
 """
-Development server lifecycle manager for fgm-viewer.
+Development workflow manager for fine-grained-monitor (fgm-*) binaries.
+
+Binaries:
+    fine-grained-monitor  - DaemonSet collecting 1Hz container metrics
+    fgm-viewer            - Interactive web UI for viewing collected data
+    fgm-consolidator      - Merges parquet files from multiple pods
 
 Local development:
-    ./dev.py status              # Check server state
-    ./dev.py start [--data PATH] # Build and start server
-    ./dev.py stop                # Stop running server
-    ./dev.py restart [--data]    # Stop, rebuild, start
+    ./dev.py local build               # Build all release binaries
+    ./dev.py local test                # Run tests
+    ./dev.py local clippy              # Run clippy lints
+    ./dev.py local viewer start        # Start fgm-viewer with data file
+    ./dev.py local viewer stop         # Stop fgm-viewer
+    ./dev.py local viewer status       # Check fgm-viewer status
 
 Cluster deployment (Kind via Lima):
-    ./dev.py deploy              # Build image, load to Kind, restart pods
-    ./dev.py cluster-status      # Show cluster pod status
-    ./dev.py forward             # Port-forward to viewer (managed, survives restarts)
-    ./dev.py forward-stop        # Stop port-forward
+    ./dev.py cluster deploy            # Build image, load to Kind, restart pods
+    ./dev.py cluster status            # Show cluster pod status
+    ./dev.py cluster forward           # Port-forward to viewer in cluster
+    ./dev.py cluster forward-stop      # Stop port-forward
 """
 
 import argparse
@@ -369,6 +376,64 @@ def cmd_restart(data_file: str | None):
 
     # Start (includes build)
     return cmd_start(data_file)
+
+
+# --- Local development commands (non-viewer) ---
+
+
+def cmd_build():
+    """Build all release binaries."""
+    print("Building all release binaries...")
+    start = time.time()
+
+    result = subprocess.run(
+        ["cargo", "build", "--release"],
+        cwd=PROJECT_ROOT,
+    )
+
+    elapsed = time.time() - start
+
+    if result.returncode != 0:
+        print(f"\nBuild failed after {elapsed:.1f}s")
+        return 1
+
+    print(f"\nBuild complete ({elapsed:.1f}s)")
+
+    # List built binaries
+    target_dir = PROJECT_ROOT / "target" / "release"
+    binaries = ["fine-grained-monitor", "fgm-viewer", "fgm-consolidator", "generate-bench-data"]
+    print("\nBinaries:")
+    for name in binaries:
+        path = target_dir / name
+        if path.exists():
+            size_mb = path.stat().st_size / (1024 * 1024)
+            print(f"  {name}: {size_mb:.1f}MB")
+
+    return 0
+
+
+def cmd_test():
+    """Run tests."""
+    print("Running tests...")
+
+    result = subprocess.run(
+        ["cargo", "test"],
+        cwd=PROJECT_ROOT,
+    )
+
+    return result.returncode
+
+
+def cmd_clippy():
+    """Run clippy lints."""
+    print("Running clippy...")
+
+    result = subprocess.run(
+        ["cargo", "clippy", "--all-targets", "--", "-D", "warnings"],
+        cwd=PROJECT_ROOT,
+    )
+
+    return result.returncode
 
 
 # --- Cluster deployment commands ---
@@ -735,32 +800,50 @@ def cmd_forward_stop():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Development server lifecycle manager for fgm-viewer",
+        description="Development workflow manager for fine-grained-monitor (fgm-*) binaries",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Local development examples:
-  ./dev.py status              # Check if server is running
-  ./dev.py start               # Build and start with default data
-  ./dev.py start --data /path/to/file.parquet
-  ./dev.py stop                # Stop the server
-  ./dev.py restart             # Rebuild and restart
+Examples:
+  ./dev.py local build                     # Build all release binaries
+  ./dev.py local test                      # Run tests
+  ./dev.py local clippy                    # Run clippy lints
+  ./dev.py local viewer start              # Start fgm-viewer with default data
+  ./dev.py local viewer start --data /path/to/file.parquet
+  ./dev.py local viewer stop               # Stop fgm-viewer
+  ./dev.py local viewer status             # Check fgm-viewer status
 
-Cluster deployment examples:
-  ./dev.py deploy              # Build image, load to Kind, restart pods
-  ./dev.py cluster-status      # Show cluster pod status
-  ./dev.py forward             # Port-forward to first pod
-  ./dev.py forward --pod NAME  # Port-forward to specific pod
-  ./dev.py forward-stop        # Stop port-forward
+  ./dev.py cluster deploy                  # Build image, load to Kind, restart pods
+  ./dev.py cluster status                  # Show cluster pod status
+  ./dev.py cluster forward                 # Port-forward to first pod
+  ./dev.py cluster forward --pod NAME      # Port-forward to specific pod
+  ./dev.py cluster forward-stop            # Stop port-forward
 """,
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="group", required=True)
 
-    # status
-    subparsers.add_parser("status", help="Show local server status")
+    # --- Local subcommands ---
+    local_parser = subparsers.add_parser("local", help="Local development commands")
+    local_subs = local_parser.add_subparsers(dest="command", required=True)
 
-    # start
-    start_parser = subparsers.add_parser("start", help="Build and start local server")
+    # local build
+    local_subs.add_parser("build", help="Build all release binaries")
+
+    # local test
+    local_subs.add_parser("test", help="Run tests")
+
+    # local clippy
+    local_subs.add_parser("clippy", help="Run clippy lints")
+
+    # local viewer (nested)
+    viewer_parser = local_subs.add_parser("viewer", help="fgm-viewer lifecycle commands")
+    viewer_subs = viewer_parser.add_subparsers(dest="viewer_command", required=True)
+
+    # local viewer status
+    viewer_subs.add_parser("status", help="Show viewer server status")
+
+    # local viewer start
+    start_parser = viewer_subs.add_parser("start", help="Build and start viewer server")
     start_parser.add_argument(
         "--data",
         type=str,
@@ -768,11 +851,11 @@ Cluster deployment examples:
         help="Absolute path to parquet data file",
     )
 
-    # stop
-    subparsers.add_parser("stop", help="Stop local server")
+    # local viewer stop
+    viewer_subs.add_parser("stop", help="Stop viewer server")
 
-    # restart
-    restart_parser = subparsers.add_parser("restart", help="Stop, rebuild, start local server")
+    # local viewer restart
+    restart_parser = viewer_subs.add_parser("restart", help="Stop, rebuild, start viewer server")
     restart_parser.add_argument(
         "--data",
         type=str,
@@ -780,14 +863,18 @@ Cluster deployment examples:
         help="Absolute path to parquet data file (uses current if not specified)",
     )
 
-    # deploy
-    subparsers.add_parser("deploy", help="Build image, load to Kind cluster, restart pods")
+    # --- Cluster subcommands ---
+    cluster_parser = subparsers.add_parser("cluster", help="Cluster deployment commands (Kind via Lima)")
+    cluster_subs = cluster_parser.add_subparsers(dest="command", required=True)
 
-    # cluster-status
-    subparsers.add_parser("cluster-status", help="Show cluster pod status")
+    # cluster deploy
+    cluster_subs.add_parser("deploy", help="Build image, load to Kind cluster, restart pods")
 
-    # forward
-    forward_parser = subparsers.add_parser("forward", help="Port-forward to cluster viewer pod")
+    # cluster status
+    cluster_subs.add_parser("status", help="Show cluster pod status")
+
+    # cluster forward
+    forward_parser = cluster_subs.add_parser("forward", help="Port-forward to cluster pod")
     forward_parser.add_argument(
         "--pod",
         type=str,
@@ -795,27 +882,36 @@ Cluster deployment examples:
         help="Specific pod name (default: first available pod)",
     )
 
-    # forward-stop
-    subparsers.add_parser("forward-stop", help="Stop port-forward")
+    # cluster forward-stop
+    cluster_subs.add_parser("forward-stop", help="Stop port-forward")
 
     args = parser.parse_args()
 
-    if args.command == "status":
-        sys.exit(cmd_status())
-    elif args.command == "start":
-        sys.exit(cmd_start(args.data))
-    elif args.command == "stop":
-        sys.exit(cmd_stop())
-    elif args.command == "restart":
-        sys.exit(cmd_restart(args.data))
-    elif args.command == "deploy":
-        sys.exit(cmd_deploy())
-    elif args.command == "cluster-status":
-        sys.exit(cmd_cluster_status())
-    elif args.command == "forward":
-        sys.exit(cmd_forward(args.pod))
-    elif args.command == "forward-stop":
-        sys.exit(cmd_forward_stop())
+    if args.group == "local":
+        if args.command == "build":
+            sys.exit(cmd_build())
+        elif args.command == "test":
+            sys.exit(cmd_test())
+        elif args.command == "clippy":
+            sys.exit(cmd_clippy())
+        elif args.command == "viewer":
+            if args.viewer_command == "status":
+                sys.exit(cmd_status())
+            elif args.viewer_command == "start":
+                sys.exit(cmd_start(args.data))
+            elif args.viewer_command == "stop":
+                sys.exit(cmd_stop())
+            elif args.viewer_command == "restart":
+                sys.exit(cmd_restart(args.data))
+    elif args.group == "cluster":
+        if args.command == "deploy":
+            sys.exit(cmd_deploy())
+        elif args.command == "status":
+            sys.exit(cmd_cluster_status())
+        elif args.command == "forward":
+            sys.exit(cmd_forward(args.pod))
+        elif args.command == "forward-stop":
+            sys.exit(cmd_forward_stop())
 
 
 if __name__ == "__main__":
