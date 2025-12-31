@@ -45,7 +45,7 @@ func getInfraModeConfig() *infraModeConfigType {
 		cfg := Datadog()
 		infraModeConfig = infraModeConfigType{
 			mode:             InfrastructureMode(cfg.GetString("infrastructure_mode")),
-			allowedChecks:    cfg.GetStringSlice("infrastructure_mode.allowed_checks"),
+			allowedChecks:    cfg.GetStringSlice("allowed_checks"),
 			additionalChecks: cfg.GetStringSlice("allowed_additional_checks"),
 			excludedChecks:   cfg.GetStringSlice("excluded_default_checks"),
 		}
@@ -56,7 +56,7 @@ func getInfraModeConfig() *infraModeConfigType {
 // IsCheckAllowedByInfraMode returns true if the check is allowed based on infrastructure mode settings.
 // When infrastructure_mode is "full", all checks are allowed except mode-exclusive checks for other modes.
 // When in a specific mode (e.g., "end_user_device"), checks exclusive to that mode are included.
-// Otherwise, only checks in the allowlist (infrastructure_mode.allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted.
+// Otherwise, only checks in the allowlist (allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted.
 // Custom checks (starting with "custom_") are always allowed.
 func IsCheckAllowedByInfraMode(checkName string) bool {
 	cfg := getInfraModeConfig()

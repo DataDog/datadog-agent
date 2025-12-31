@@ -1341,7 +1341,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// When infrastructure_mode is set, only a limited set of checks are allowed to run for given infrastructure mode.
 	// When the list is empty, all checks are allowed, to disable every check please refer to `agent_checks.enabled` setting.
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("infrastructure_mode.allowed_checks", []string{})
+	config.BindEnvAndSetDefault("allowed_checks", []string{})
 
 	// Infrastructure mode - additional checks
 	// When infrastructure_mode is set, only a limited set of checks are allowed to run.
@@ -2790,7 +2790,7 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "basic" {
 		// Enable default checks
-		config.Set("infrastructure_mode.allowed_checks", []string{
+		config.Set("allowed_checks", []string{
 			"cpu",
 			"agent_telemetry",
 			"agentcrashdetect",
