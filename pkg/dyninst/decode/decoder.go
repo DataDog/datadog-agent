@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"time"
 
+	pkgerrors "errors"
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"

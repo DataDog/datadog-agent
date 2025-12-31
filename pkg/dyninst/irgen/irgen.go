@@ -40,7 +40,7 @@ import (
 	"strings"
 	"time"
 
-	pkgerrors "github.com/pkg/errors"
+	pkgerrors "errors"
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"

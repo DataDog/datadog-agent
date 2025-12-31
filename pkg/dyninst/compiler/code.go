@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // CodeMetadata contains metadata about the generated code.

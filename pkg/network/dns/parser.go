@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"errors"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"

@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	"github.com/coreos/go-systemd/v22/dbus"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
