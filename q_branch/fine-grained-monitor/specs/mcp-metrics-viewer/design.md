@@ -65,26 +65,35 @@ routing via headless Service for stability.
 The watcher maintains two distinct staleness concepts:
 
 **Global watcher staleness:** Detects Kubernetes API connectivity issues.
-- Track `last_k8s_sync_ms`: updated on every successful list or watch resync
+- Track `last_k8s_sync_ms`: updated on any proof-of-life from the watcher
+  (successful list, watch reconnect, or any watch event received)
 - If `now - last_k8s_sync_ms > 120s`, the entire cache is considered stale
-- `list_nodes` should indicate `watcher_stale: true` when this occurs
+- `list_nodes` returns `watcher_stale: true` when this occurs
 
 **Per-node staleness:** Detects individual pods disappearing.
 - Track `last_observed_ms` per node: updated when pod is seen in list/resync
-- If `now - last_observed_ms > 60s` and pod not in latest resync, node is stale
-- Return error "node 'X' is stale (not observed in recent sync)"
+- A node is stale if: `now - last_observed_ms > 60s` AND pod not in latest resync
+- `list_nodes` returns `stale: true` for that node
+
+**Resync cadence:** Force periodic relist every 60 seconds (not the kube-rs default
+of ~5 minutes). This ensures `last_k8s_sync_ms` updates frequently enough that
+the 120s watcher-stale threshold is meaningful. On each relist, update
+`last_observed_ms` for all pods seen.
 
 **Why this matters:** Stable pods generate zero watch events. If we only updated
 timestamps on MODIFIED events, every healthy pod would appear "stale" after 60s.
 The resync-based approach ensures quiet clusters remain healthy.
 
-**Implementation:** Use kube-rs watcher with periodic resync (default ~5 minutes
-in kube-rs, configurable). On each resync, update `last_observed_ms` for all
-pods seen. This handles both the "quiet cluster" case and detects pods that
-disappeared without generating DELETE events (rare but possible).
-
 **Cache invalidation:** Watch events (ADDED, MODIFIED, DELETED) update cache
-immediately. Resync updates `last_observed_ms` for all current pods.
+immediately. Relist updates `last_observed_ms` for all current pods.
+
+**Behavior when watcher is stale:**
+- `list_nodes`: Returns cached data with `watcher_stale: true` (operators/agents
+  can see what's going on)
+- `list_containers`, `analyze_container`: Fail fast with error "watcher is stale,
+  Kubernetes API may be unreachable" (safety over availability)
+- `list_metrics` with auto-selected node: Fail fast (same as above)
+- `list_metrics` with explicit node: Fail fast (same as above)
 
 ### Ready vs Serving
 
@@ -172,10 +181,17 @@ On failure, retry behavior depends on error type:
 | Connection timeout | Retry once after re-resolving node→pod |
 | Connection refused | Retry once after re-resolving node→pod |
 
+**Retry limit:** Exactly one retry attempt, then return the error. No exponential
+backoff or multiple retries—keep it simple.
+
 **Re-resolve on retry:** Before retrying, look up the node again in the pod cache.
 The pod IP may have changed due to a restart detected by the watcher.
 
 **Jitter:** Add 50-200ms random delay before retry to avoid thundering herds.
+
+**Idempotency note:** All viewer operations (`list_metrics`, `list_containers`,
+`analyze_container`) are read-only and safe to retry. Analysis results are
+deterministic for the same time window.
 
 ### Multiple Pods Per Node
 
@@ -202,6 +218,7 @@ This ensures we route to the new pod during rolling updates.
     {
       "name": "worker-1",
       "ready": true,
+      "stale": false,
       "last_observed_ms": 1704067200000
     }
   ]
@@ -211,9 +228,13 @@ This ensures we route to the new pod during rolling updates.
 **Field definitions:**
 - `watcher_stale`: true if `now - last_sync_ms > 120s` (Kubernetes API may be unreachable)
 - `last_sync_ms`: timestamp of last successful Kubernetes list/watch resync
+- `ready`: Kubernetes PodReady condition is true
+- `stale`: true if `now - last_observed_ms > 60s` AND pod not in latest resync
+  (pre-computed so agents don't need to implement staleness logic)
 - `last_observed_ms`: per-node timestamp when pod was last seen in a resync
 
 Note: Pod details (IP, name) are intentionally hidden. Agents route by node name.
+Agents should check `watcher_stale` first, then use nodes where `ready && !stale`.
 
 ### list_metrics (REQ-MCP-001)
 
@@ -234,13 +255,18 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
 - `node_selection`: How the node was chosen:
   - `"explicit"`: caller specified `node` parameter
   - `"first_ready"`: node was auto-selected (caller should be aware this may differ across calls)
+  - `"fallback"`: auto-selected node failed, fell back to next ready node
 
 **Fallback behavior:**
-1. If `node` specified → query that node
+1. If `node` specified → query that node; on error, return the error (no fallback)
 2. If `node` omitted → pick first ready node (alphabetically by name for determinism)
 3. If no nodes ready → return error "no nodes available"
-4. If selected node errors → try next ready node once
+4. If auto-selected node errors → try next ready node once, set `node_selection: "fallback"`
 5. If all fail → return last error
+
+**Why no fallback for explicit node:** The "node locality is explicit" principle
+means callers who specify a node expect data from that node. Silently falling
+back would produce misleading results on heterogeneous clusters.
 
 ### list_containers (REQ-MCP-002, REQ-MCP-003, REQ-MCP-008)
 
@@ -271,6 +297,14 @@ Note: Pod details (IP, name) are intentionally hidden. Agents route by node name
   "next_cursor": "eyJvZmZzZXQiOjIwfQ=="
 }
 ```
+
+**Pagination semantics:**
+- `cursor` is opaque. Clients must not decode, inspect, or construct cursors.
+- **Best-effort pagination:** Results are sorted by recency (`last_seen` descending).
+  Between page fetches, containers may appear/disappear and shift ordering. Clients
+  may see duplicates or miss items across pages. This is acceptable for research;
+  production use cases requiring stable pagination should snapshot results.
+- `next_cursor` is null/absent when no more results exist.
 
 ### analyze_container (REQ-MCP-004, REQ-MCP-005, REQ-MCP-008)
 
@@ -505,7 +539,13 @@ livenessProbe:
   periodSeconds: 30
 ```
 
-Readiness should verify watcher is connected and cache is populated.
+**Probe behavior:**
+- **Readiness** (`/health/ready`): Returns OK only if watcher is connected and cache
+  is populated. Controls whether traffic is routed to this pod.
+- **Liveness** (`/health/live`): Returns OK if the process is alive and HTTP server
+  is responsive. **Must NOT depend on watcher health.** If the Kubernetes apiserver
+  has a brownout, liveness must still pass—otherwise Kubernetes will restart MCP
+  pods in a loop, making the situation worse.
 
 **Viewer DaemonSet (separate concern, but noted here):**
 - `readinessProbe`: HTTP GET `/api/health`
