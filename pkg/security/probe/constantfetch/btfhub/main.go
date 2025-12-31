@@ -12,6 +12,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"cmp"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -42,11 +43,13 @@ func main() {
 	var archiveRootPath string
 	var constantOutputPath string
 	var combineConstants bool
+	var deflate string
 	var cpuPprofPath string
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
 	flag.BoolVar(&combineConstants, "combine", false, "Don't read btf files, but read constants")
+	flag.StringVar(&deflate, "deflate", "", "Deflate the json files")
 	flag.StringVar(&cpuPprofPath, "cpu-prof", "", "Path to the CPU profile to generate")
 	flag.Parse()
 
@@ -61,6 +64,11 @@ func main() {
 			panic(err)
 		}
 		defer pprof.StopCPUProfile()
+	}
+
+	if len(deflate) != 0 {
+		deflateDirJsons(deflate)
+		return
 	}
 
 	if combineConstants {
@@ -106,6 +114,41 @@ func main() {
 	if err := outputConstants(&export, constantOutputPath); err != nil {
 		panic(err)
 	}
+}
+
+func deflateDirJsons(dir string) {
+	deflateFile := func(in string, out string) error {
+
+		fileOut, err := os.OpenFile(out, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			return err
+		}
+		defer fileOut.Close()
+		writer := gzip.NewWriter(fileOut)
+
+		defer writer.Close()
+		s, err := os.ReadFile(in)
+		if err != nil {
+			return err
+		}
+		writer.Write(s)
+		writer.Flush()
+
+		return nil
+	}
+
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if len(path) > 5 && path[len(path)-5:] == ".json" {
+			fmt.Println("Deflating", path)
+			err := deflateFile(path, path+".gz")
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+		return nil
+	})
+
+	return
 }
 
 func outputConstants(export *constantfetch.BTFHubConstants, outputPath string) error {
