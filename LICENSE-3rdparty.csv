@@ -1844,7 +1844,6 @@ core,github.com/pierrec/lz4/v4/internal/lz4errors,BSD-3-Clause,"Copyright (c) 20
 core,github.com/pierrec/lz4/v4/internal/lz4stream,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/xxh32,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pkg/browser,BSD-2-Clause,"Copyright (c) 2014, Dave Cheney <dave@cheney.net>"
-core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/planetscale/vtprotobuf/protohelpers,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/planetscale/vtprotobuf/types/known/anypb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/planetscale/vtprotobuf/types/known/durationpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
