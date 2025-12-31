@@ -29,6 +29,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -1259,6 +1260,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetDefault("proxy.http", "")
 	config.SetDefault("proxy.https", "")
 	config.SetDefault("proxy.no_proxy", []string{})
+	config.BindEnvAndSetDefault("common_root", "", "DD_COMMON_ROOT") //nolint:forbidigo
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -2382,6 +2384,10 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		return err
 	}
 
+	if config.GetString("common_root") != "" {
+		SetCommonRootPaths(config)
+	}
+
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
@@ -2416,6 +2422,23 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	return setupFipsEndpoints(config)
+}
+
+func SetCommonRootPaths(config pkgconfigmodel.Config) {
+	root := config.GetString("common_root")
+	config.Set("conf_path", defaultpaths.CommonRootOrPath(root, defaultpaths.ConfPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("confd_path", defaultpaths.CommonRootOrPath(root, defaultConfdPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("additional_checksd", defaultpaths.CommonRootOrPath(root, defaultAdditionalChecksPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("run_path", defaultpaths.CommonRootOrPath(root, defaultRunPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("logs_config.run_path", defaultpaths.CommonRootOrPath(root, defaultRunPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("log_file", defaultpaths.CommonRootOrPath(root, defaultpaths.LogFile), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dogstatsd_log_file", defaultpaths.CommonRootOrPath(root, defaultpaths.DogstatsDLogFile), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("logs_config.streaming.streamlogs_log_file", defaultpaths.CommonRootOrPath(root, DefaultStreamlogsLogFile), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("trace_agent_host_socket_path", defaultpaths.CommonRootOrPath(root, defaultRunPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dogstatsd_host_socket_path", defaultpaths.CommonRootOrPath(root, defaultRunPath), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dogstatsd_socket", defaultpaths.CommonRootOrPath(root, defaultStatsdSocket), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("runtime_security_config.socket", defaultpaths.CommonRootOrPath(root, ""), pkgconfigmodel.SourceAgentRuntime)
+
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

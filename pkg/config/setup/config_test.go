@@ -1446,3 +1446,26 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("proxy.http"))
 }
+
+func TestCommonRootFilePathDefaults(t *testing.T) {
+	cfg := newTestConf(t)
+
+	t.Setenv("DD_COMMON_ROOT", "/tmp/datadog-agent")
+	cfg.BuildSchema()
+
+	SetCommonRootPaths(cfg)
+
+	assert.Equal(t, "/tmp/datadog-agent", cfg.Get("common_root"))
+	assert.Equal(t, "/tmp/datadog-agent/etc", cfg.Get("conf_path"))
+	assert.Equal(t, "/tmp/datadog-agent/etc/conf.d", cfg.Get("confd_path"))
+	assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("run_path"))
+	assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("logs_config.run_path"))
+	assert.Equal(t, "/tmp/datadog-agent/etc/checks.d", cfg.Get("additional_checksd"))
+	assert.Equal(t, "/tmp/datadog-agent/logs/agent.log", cfg.Get("log_file"))
+	assert.Equal(t, "/tmp/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", cfg.Get("dogstatsd_log_file"))
+	assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("trace_agent_host_socket_path"))
+	// TODO: these are unix specific
+	// assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("dogstatsd_host_socket_path"))
+	// assert.Equal(t, "/tmp/datadog-agent/run/dsd.socket", cfg.Get("dogstatsd_socket"))
+	// assert.Equal(t, "/tmp/datadog-agent/run/runtime-security.sock", cfg.Get("runtime_security_config.socket"))
+}
