@@ -3,8 +3,7 @@
 		"pkg/security": {
 			"exclude": false,
 			"run-only": [
-				"TestActivityDump",
-				"TestSecurityProfile"
+				"TestEnv"
 			]
 		}
 	},
