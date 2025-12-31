@@ -48,10 +48,11 @@ func (s *LogStatus) Error(err error) {
 	defer s.mu.Unlock()
 	s.status = isError
 	if strings.Contains(err.Error(), "permission denied") {
-        s.err = fmt.Sprintf("Error: %s. See https://docs.datadoghq.com/logs/guide/log-collection-troubleshooting-guide/?tab=linux#permission-issues-tailing-log-files for details on how to troubleshoot this issue", err.Error())
-    } else {
-        s.err = fmt.Sprintf("Error: %s", err.Error())
-    }
+		s.err = "Error: " + err.Error() +
+			". See https://docs.datadoghq.com/logs/guide/log-collection-troubleshooting-guide/?tab=linux#permission-issues-tailing-log-files for details on how to troubleshoot this issue"
+	} else {
+		s.err = "Error: " + err.Error()
+	}
 }
 
 // IsPending returns whether the current status is not yet determined.
