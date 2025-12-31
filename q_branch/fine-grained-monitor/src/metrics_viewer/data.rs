@@ -199,7 +199,7 @@ pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
                 _ => anyhow::bail!("Unexpected time column type"),
             };
 
-            for row in 0..batch.num_rows() {
+            for (row, &time) in time_values.iter().enumerate() {
                 let metric = metric_names.value(row);
 
                 let value = if let Some(arr) = values_float {
@@ -223,8 +223,6 @@ pub fn load_parquet_files<P: AsRef<Path>>(paths: &[P]) -> Result<LoadedData> {
                 } else {
                     continue;
                 };
-
-                let time = time_values[row];
 
                 let labels = extract_labels_from_column(labels_col.as_ref(), row)?;
                 let container_id = match extract_label(&labels, "container_id") {

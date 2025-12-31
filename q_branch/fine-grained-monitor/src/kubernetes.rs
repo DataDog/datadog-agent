@@ -178,6 +178,7 @@ impl KubernetesClient {
     }
 
     /// Get metadata for a container by its full ID
+    #[allow(dead_code)]
     pub async fn get_metadata(&self, container_id: &str) -> Option<PodMetadata> {
         let cache = self.cache.read().await;
         cache.get(container_id).cloned()
