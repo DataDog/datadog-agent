@@ -308,10 +308,8 @@ func mapInodestoProcesses() map[uint64]int32 {
 				continue
 			}
 
-			// Check if it's a socket
-			if strings.HasPrefix(target, "socket:[") {
-				// Extract inode
-				inodeStr := strings.TrimPrefix(target, "socket:[")
+			// Check if it's a socket and extract inode
+			if inodeStr, ok := strings.CutPrefix(target, "socket:["); ok {
 				inodeStr = strings.TrimSuffix(inodeStr, "]")
 				inode, err := strconv.ParseUint(inodeStr, 10, 64)
 				if err != nil {
