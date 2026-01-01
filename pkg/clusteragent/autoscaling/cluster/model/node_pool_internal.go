@@ -210,10 +210,10 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 
 	// Update NodePool with recommendation
 	instanceTypeLabelFound := false
-	for _, r := range knp.Spec.Template.Spec.Requirements {
-		if r.NodeSelectorRequirement.Key == corev1.LabelInstanceTypeStable {
-			r.Operator = corev1.NodeSelectorOpIn
-			r.Values = npi.RecommendedInstanceTypes()
+	for i := range knp.Spec.Template.Spec.Requirements {
+		if knp.Spec.Template.Spec.Requirements[i].Key == corev1.LabelInstanceTypeStable {
+			knp.Spec.Template.Spec.Requirements[i].Operator = corev1.NodeSelectorOpIn
+			knp.Spec.Template.Spec.Requirements[i].Values = npi.RecommendedInstanceTypes()
 
 			instanceTypeLabelFound = true
 			break
@@ -249,6 +249,9 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 
 	// Append to NodeClaimTemplate labels
+	if knp.Spec.Template.ObjectMeta.Labels == nil {
+		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
 	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
 }
 
