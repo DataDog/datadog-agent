@@ -194,6 +194,107 @@ func TestBuildNodePoolSpec(t *testing.T) {
 	}
 }
 
+func TestBuildReplicaNodePool(t *testing.T) {
+	tests := []struct {
+		name        string
+		nodePool    karpenterv1.NodePool
+		minNodePool NodePoolInternal
+	}{
+		{
+			name: "nil template labels, no instance type requirement",
+			minNodePool: NodePoolInternal{
+				name:                     "dd-linux-amd64-test",
+				recommendedInstanceTypes: []string{"m5.large"},
+				targetName:               "default",
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "existing instance type requirement",
+			minNodePool: NodePoolInternal{
+				name:                     "dd-linux-amd64-test",
+				recommendedInstanceTypes: []string{"m5.large"},
+				targetName:               "default",
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						ObjectMeta: karpenterv1.ObjectMeta{
+							Labels: map[string]string{"existing": "label"},
+						},
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"t3.micro"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "existing requirements, no instance type requirement",
+			minNodePool: NodePoolInternal{
+				name:                     "dd-linux-amd64-test",
+				recommendedInstanceTypes: []string{"m5.large"},
+				targetName:               "default",
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						ObjectMeta: karpenterv1.ObjectMeta{
+							Labels: map[string]string{"existing": "label"},
+						},
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "karpenter.k8s.aws/instance-family",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"t3"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			np := tt.nodePool.DeepCopy()
+			BuildReplicaNodePool(np, tt.minNodePool)
+
+			assert.Equal(t, "true", np.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey])
+			assert.Equal(t, "true", np.ObjectMeta.Labels[DatadogCreatedLabelKey])
+			foundInstanceType := false
+			for _, r := range np.Spec.Template.Spec.Requirements {
+				if r.Key == corev1.LabelInstanceTypeStable {
+					assert.Equal(t, tt.minNodePool.recommendedInstanceTypes, r.Values)
+					foundInstanceType = true
+					break
+				}
+			}
+			assert.True(t, foundInstanceType, "instance type requirement should be present")
+		})
+	}
+}
+
 func TestBuildNodePoolPatch(t *testing.T) {
 	tests := []struct {
 		name        string
