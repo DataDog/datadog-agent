@@ -241,6 +241,10 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 	knp.Spec.Weight = &weight
 
+	knp.TypeMeta = metav1.TypeMeta{
+		Kind:       "NodePool",
+		APIVersion: "karpenter.sh/v1",
+	}
 	// Reset the top-level labels and annotations
 	knp.ObjectMeta = metav1.ObjectMeta{
 		Name:        npi.Name(),
