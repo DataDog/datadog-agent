@@ -648,10 +648,6 @@ def docker_build(
         f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
         f"-e DD_CC={cc}",
         f"-e DD_CXX={cxx}",
-        # Set git safe.directory via env vars (doesn't persist to global config)
-        "-e GIT_CONFIG_COUNT=1",
-        "-e GIT_CONFIG_KEY_0=safe.directory",
-        "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
         # Skip XZ compression - faster for local dev, use omnibus.build for CI
         "-e SKIP_PKG_COMPRESSION=true",
     ]
@@ -677,15 +673,13 @@ def docker_build(
         'mkdir -p /omnibus-state/opt/datadog-agent && '
         'rm -rf /opt/datadog-agent && '
         'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
+        # Disable git dubious ownership check (needed because host-owned files in Docker containers)
+        'git config --global --add safe.directory \'*\' && '
         'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
         '"'
     )
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
