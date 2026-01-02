@@ -4085,7 +4085,7 @@ api_key:
 #
 #     discovery_allowed_failures: 3
 
-#     # @param loader - string - optional - default: python
+#     # @param loader - string - optional - default: core
 #     # Check loader to use. Available loaders:
 #     # - core: (recommended) Uses new corecheck SNMP integration
 #     # - python: Uses legacy python SNMP integration
@@ -4274,10 +4274,10 @@ api_key:
 #
 #         ad_identifier: snmp
 
-#         # @param loader - string - optional - default: python
+#         # @param loader - string - optional - default: core
 #         # Check loader to use. Available loaders:
-#         # - core: will use corecheck SNMP integration
-#         # - python: will use python SNMP integration
+#         # - core: (recommended) Uses new corecheck SNMP integration
+#         # - python: Uses legacy python SNMP integration
 #
 #         loader: core
 

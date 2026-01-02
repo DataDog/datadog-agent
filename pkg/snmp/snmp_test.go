@@ -295,7 +295,7 @@ network_devices:
 	assert.Equal(t, "127.0.0.6/30", conf.Configs[2].Network)
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
-	// incorrect snmp_listener config and correct network_devices config
+	// correct snmp_listener config and incorrect network_devices config
 	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
@@ -311,6 +311,7 @@ network_devices:
 
 	conf, err = NewListenerConfig()
 	assert.Error(t, err)
+	assert.ErrorContains(t, err, "expected a map or struct, got \"slice\"")
 }
 
 func Test_AuthenticationsConfig(t *testing.T) {
@@ -402,7 +403,7 @@ network_devices:
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, "", conf.Configs[0].Loader)
+	assert.Equal(t, "core", conf.Configs[0].Loader)
 	assert.Equal(t, "core", conf.Configs[1].Loader)
 	assert.Equal(t, "python", conf.Configs[2].Loader)
 
