@@ -1,5 +1,5 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes","pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 
 rust_binary(
@@ -12,6 +12,9 @@ rust_binary(
 pkg_files(
     name = "sd-agent_pkg",
     srcs = [":sd-agent"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
 )
 
 pkg_install(

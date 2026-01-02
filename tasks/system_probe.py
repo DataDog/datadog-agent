@@ -93,9 +93,9 @@ LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
-RUST_BINARIES = {
-    "sd-agent": "pkg/collector/corechecks/servicediscovery/module/rust",
-}
+RUST_BINARIES = [
+    "pkg/collector/corechecks/servicediscovery/module/rust",
+]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -1633,13 +1633,12 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if arch.kmt_arch in platform_map:
         platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
 
-    for binary_name, source_path in RUST_BINARIES.items():
+    for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
-        (install_dest / binary_name).chmod(0o755)
 
 
 def build_cws_object_files(
