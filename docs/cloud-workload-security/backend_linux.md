@@ -237,21 +237,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupContextSerializer serializes a cgroup context to JSON"
         },
-        "CGroupWriteEvent": {
-            "properties": {
-                "file": {
-                    "$ref": "#/$defs/File",
-                    "description": "File pointing to the cgroup"
-                },
-                "pid": {
-                    "type": "integer",
-                    "description": "PID of the process added to the cgroup"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
-        },
         "CapabilitiesEvent": {
             "properties": {
                 "caps_attempted": {
@@ -2386,9 +2371,6 @@ Workload Protection events for Linux systems have the following JSON schema:
         "setsockopt": {
             "$ref": "#/$defs/SetSockOptEvent"
         },
-        "cgroup_write": {
-            "$ref": "#/$defs/CGroupWriteEvent"
-        },
         "capabilities": {
             "$ref": "#/$defs/CapabilitiesEvent"
         },
@@ -2445,7 +2427,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 | `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
-| `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
@@ -2808,37 +2789,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [Variables](#variables) |
-
-## `CGroupWriteEvent`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "file": {
-            "$ref": "#/$defs/File",
-            "description": "File pointing to the cgroup"
-        },
-        "pid": {
-            "type": "integer",
-            "description": "PID of the process added to the cgroup"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `file` | File pointing to the cgroup |
-| `pid` | PID of the process added to the cgroup |
-
-| References |
-| ---------- |
-| [File](#file) |
 
 ## `CapabilitiesEvent`
 

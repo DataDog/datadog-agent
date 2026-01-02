@@ -651,15 +651,6 @@ type SetrlimitEventSerializer struct {
 	Target *ProcessContextSerializer `json:"target,omitempty"`
 }
 
-// CGroupWriteEventSerializer serializes a cgroup_write event
-// easyjson:json
-type CGroupWriteEventSerializer struct {
-	// File pointing to the cgroup
-	File *FileSerializer `json:"file,omitempty"`
-	// PID of the process added to the cgroup
-	Pid uint32 `json:"pid,omitempty"`
-}
-
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -803,7 +794,6 @@ type EventSerializer struct {
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
-	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
@@ -1481,7 +1471,6 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		EventTypeState: e.EventTypeState.String(),
 	}
 }
-
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	SetSockOptEventSerializer := SetSockOptEventSerializer{
 		SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
@@ -1529,13 +1518,6 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
 		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent),
-	}
-}
-
-func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
-	return &CGroupWriteEventSerializer{
-		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
-		Pid:  e.CgroupWrite.Pid,
 	}
 }
 
@@ -1843,8 +1825,6 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
 	case model.SetSockOptEventType:
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
-	case model.CgroupWriteEventType:
-		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
 	case model.CapabilitiesEventType:
 		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
 	case model.PrCtlEventType:

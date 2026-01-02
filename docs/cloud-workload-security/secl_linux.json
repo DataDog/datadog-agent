@@ -1850,155 +1850,6 @@
       ]
     },
     {
-      "name": "cgroup_write",
-      "definition": "A process migrated another process to a cgroup",
-      "type": "Kernel",
-      "from_agent_version": "7.68",
-      "experimental": false,
-      "properties": [
-        {
-          "name": "cgroup_write.file.change_time",
-          "definition": "Change time (ctime) of the file",
-          "property_doc_link": "common-filefields-change_time-doc"
-        },
-        {
-          "name": "cgroup_write.file.extension",
-          "definition": "File's extension",
-          "property_doc_link": "common-fileevent-extension-doc"
-        },
-        {
-          "name": "cgroup_write.file.filesystem",
-          "definition": "File's filesystem",
-          "property_doc_link": "common-fileevent-filesystem-doc"
-        },
-        {
-          "name": "cgroup_write.file.gid",
-          "definition": "GID of the file's owner",
-          "property_doc_link": "common-filefields-gid-doc"
-        },
-        {
-          "name": "cgroup_write.file.group",
-          "definition": "Group of the file's owner",
-          "property_doc_link": "common-filefields-group-doc"
-        },
-        {
-          "name": "cgroup_write.file.hashes",
-          "definition": "[Experimental] List of cryptographic hashes computed for this file",
-          "property_doc_link": "common-fileevent-hashes-doc"
-        },
-        {
-          "name": "cgroup_write.file.in_upper_layer",
-          "definition": "Indicator of the file layer, for example, in an OverlayFS",
-          "property_doc_link": "common-filefields-in_upper_layer-doc"
-        },
-        {
-          "name": "cgroup_write.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "cgroup_write.file.mode",
-          "definition": "Mode of the file",
-          "property_doc_link": "common-filefields-mode-doc"
-        },
-        {
-          "name": "cgroup_write.file.modification_time",
-          "definition": "Modification time (mtime) of the file",
-          "property_doc_link": "common-filefields-modification_time-doc"
-        },
-        {
-          "name": "cgroup_write.file.mount_detached",
-          "definition": "Indicates whether the file's mount is detached from the VFS",
-          "property_doc_link": "common-fileevent-mount_detached-doc"
-        },
-        {
-          "name": "cgroup_write.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "cgroup_write.file.mount_visible",
-          "definition": "Indicates whether the file's mount is visible in the VFS",
-          "property_doc_link": "common-fileevent-mount_visible-doc"
-        },
-        {
-          "name": "cgroup_write.file.name",
-          "definition": "File's basename",
-          "property_doc_link": "common-fileevent-name-doc"
-        },
-        {
-          "name": "cgroup_write.file.name.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.epoch",
-          "definition": "[Experimental] Epoch of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-epoch-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.name",
-          "definition": "[Experimental] Name of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-name-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.release",
-          "definition": "[Experimental] Release of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-release-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.source_epoch",
-          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-source_epoch-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.source_release",
-          "definition": "[Experimental] Release of the source package of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-source_release-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.source_version",
-          "definition": "[Experimental] Full version of the source package of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-source_version-doc"
-        },
-        {
-          "name": "cgroup_write.file.package.version",
-          "definition": "[Experimental] Full version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-version-doc"
-        },
-        {
-          "name": "cgroup_write.file.path",
-          "definition": "File's path",
-          "property_doc_link": "common-fileevent-path-doc"
-        },
-        {
-          "name": "cgroup_write.file.path.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "cgroup_write.file.rights",
-          "definition": "Rights of the file",
-          "property_doc_link": "common-filefields-rights-doc"
-        },
-        {
-          "name": "cgroup_write.file.uid",
-          "definition": "UID of the file's owner",
-          "property_doc_link": "common-filefields-uid-doc"
-        },
-        {
-          "name": "cgroup_write.file.user",
-          "definition": "User of the file's owner",
-          "property_doc_link": "common-filefields-user-doc"
-        },
-        {
-          "name": "cgroup_write.pid",
-          "definition": "PID of the process added to the cgroup",
-          "property_doc_link": "cgroup_write-pid-doc"
-        }
-      ]
-    },
-    {
       "name": "chdir",
       "definition": "A process changed the current directory",
       "type": "File",
@@ -11961,7 +11812,6 @@
       "type": "int",
       "definition": "Change time (ctime) of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12281,7 +12131,6 @@
       "type": "string",
       "definition": "File's extension",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12364,7 +12213,6 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12546,7 +12394,6 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12628,7 +12475,6 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12685,7 +12531,6 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12856,7 +12701,6 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -12913,7 +12757,6 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13225,8 +13068,6 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
-        "cgroup_write.file.name",
-        "cgroup_write.file.path",
         "chdir.file.name",
         "chdir.file.path",
         "chmod.file.name",
@@ -13334,7 +13175,6 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13391,7 +13231,6 @@
       "type": "int",
       "definition": "Modification time (mtime) of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13448,7 +13287,6 @@
       "type": "bool",
       "definition": "Indicates whether the file's mount is detached from the VFS",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13505,7 +13343,6 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13576,7 +13413,6 @@
       "type": "bool",
       "definition": "Indicates whether the file's mount is visible in the VFS",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13633,7 +13469,6 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13708,7 +13543,6 @@
       "type": "int",
       "definition": "[Experimental] Epoch of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13765,7 +13599,6 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13822,7 +13655,6 @@
       "type": "string",
       "definition": "[Experimental] Release of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13879,7 +13711,6 @@
       "type": "int",
       "definition": "[Experimental] Epoch of the source package of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13936,7 +13767,6 @@
       "type": "string",
       "definition": "[Experimental] Release of the source package of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -13993,7 +13823,6 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14050,7 +13879,6 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14120,7 +13948,6 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14294,7 +14121,6 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14627,7 +14453,6 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14714,7 +14539,6 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
-        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -14980,18 +14804,6 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
-      "examples": []
-    },
-    {
-      "name": "cgroup_write.pid",
-      "link": "cgroup_write-pid-doc",
-      "type": "int",
-      "definition": "PID of the process added to the cgroup",
-      "prefixes": [
-        "cgroup_write"
-      ],
-      "constants": "",
-      "constants_link": "",
       "examples": []
     },
     {
