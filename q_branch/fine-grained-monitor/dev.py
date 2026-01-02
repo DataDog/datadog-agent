@@ -586,12 +586,74 @@ def merge_kubeconfig(cluster_name: str):
     kubeconfig_file.unlink()
 
 
+def get_kind_containers(exclude_cluster: str | None = None) -> list[str]:
+    """Get names of all running Kind containers, optionally excluding a cluster."""
+    result = subprocess.run(
+        [
+            "limactl",
+            "shell",
+            LIMA_VM,
+            "--",
+            "docker",
+            "ps",
+            "--filter",
+            "label=io.x-k8s.kind.cluster",
+            "--format",
+            "{{.Names}}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return []
+    containers = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
+    if exclude_cluster:
+        containers = [c for c in containers if not c.startswith(f"{exclude_cluster}-")]
+    return containers
+
+
+def stop_containers(containers: list[str]) -> bool:
+    """Stop Docker containers by name."""
+    if not containers:
+        return True
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "docker", "stop"] + containers,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def start_containers(containers: list[str]) -> bool:
+    """Start Docker containers by name."""
+    if not containers:
+        return True
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "docker", "start"] + containers,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
 def create_cluster() -> bool:
-    """Create Kind cluster for this worktree."""
+    """Create Kind cluster for this worktree.
+
+    Note: Kind multi-node cluster creation can fail if other Kind clusters
+    are running concurrently due to resource contention during kubeadm init.
+    This function temporarily stops other clusters during creation.
+    """
     cluster_name = get_cluster_name()
     api_port = calculate_api_port()
 
     print(f"Creating Kind cluster '{cluster_name}' (API port {api_port})...")
+
+    # Kind multi-node creation fails with other clusters running - stop them temporarily
+    other_containers = get_kind_containers(exclude_cluster=cluster_name)
+    if other_containers:
+        print(f"Temporarily stopping {len(other_containers)} containers from other clusters...")
+        if not stop_containers(other_containers):
+            print("Warning: Failed to stop some containers")
 
     # Kind cluster config
     config = f"""kind: Cluster
@@ -624,6 +686,12 @@ nodes:
         capture_output=True,
         text=True,
     )
+
+    # Restart other clusters regardless of success/failure
+    if other_containers:
+        print(f"Restarting {len(other_containers)} containers from other clusters...")
+        if not start_containers(other_containers):
+            print("Warning: Failed to restart some containers")
 
     if result.returncode != 0:
         print(f"Failed to create cluster: {result.stderr}")
