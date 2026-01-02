@@ -82,6 +82,8 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+		// Those get removed during conversion but are needed to allow
+		// marshalling.
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
 	}
@@ -113,6 +115,8 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
+		// Gets removed at conversion stage but needed for marshalling
+		infraattributesprocessor.NewFactory(),
 	}
 }
 
