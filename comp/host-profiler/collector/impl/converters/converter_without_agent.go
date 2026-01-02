@@ -167,7 +167,7 @@ func (c *converterWithoutAgent) ensureProfilePipeline(profilePipeline *pipelines
 }
 
 func (c *converterWithoutAgent) ensureMetricsPipeline(metricsPipeline *pipelines.PipelineConfig) {
-	metricsPipeline.Processors = slices.DeleteFunc(metricsPipeline.Processors, func (comp component.ID) bool {
+	metricsPipeline.Processors = slices.DeleteFunc(metricsPipeline.Processors, func(comp component.ID) bool {
 		return comp.Type() == infraattributesType
 	})
 }

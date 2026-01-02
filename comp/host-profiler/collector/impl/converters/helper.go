@@ -8,14 +8,6 @@
 // Package converters implements the converters for the host profiler collector.
 package converters
 
-func infraAttributesName() string {
-	return "infraattributes/default"
-}
-
-func resourceDetectionName() string {
-	return "resourcedetection"
-}
-
 func ddprofilingName() string {
 	return "ddprofiling/default"
 }
