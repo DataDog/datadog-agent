@@ -11,11 +11,13 @@ package ffi
 import (
 	"errors"
 	"fmt"
+	"os/user"
 	"path"
 	"runtime"
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -84,6 +86,10 @@ type SharedLibraryLoader struct {
 func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
+
+	if err := checkSharedLibraryPermissions(libPath); err != nil {
+		return nil, err
+	}
 
 	cLibPath := C.CString(libPath)
 	defer C.free(unsafe.Pointer(cLibPath))
@@ -166,4 +172,35 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
 	}
+}
+
+func checkSharedLibraryPermissions(path string) error {
+	p, err := filesystem.NewPermission()
+	if err != nil {
+		return err
+	}
+
+	// verify that the library owner is either the current user or 'root'
+	owner, err := p.GetOwner(path)
+	if err != nil {
+		return err
+	}
+	currentUser, err := user.Current()
+	if err != nil {
+		return err
+	}
+	if owner != "root" && owner != currentUser.Username {
+		return fmt.Errorf("%q should be owned by the current user '%s' or 'root', got '%s'", path, currentUser.Username, owner)
+	}
+
+	// verify that other users don't have write access to the library
+	otherWriteAccess, err := p.GetOtherUsersWriteAccess(path)
+	if err != nil {
+		return err
+	}
+	if otherWriteAccess {
+		return fmt.Errorf("Other users should not have write access to %q", path)
+	}
+
+	return nil
 }
