@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -137,6 +138,9 @@ func TestUpdateLeaderIP(t *testing.T) {
 // TestHandlerRun tests the full lifecycle of the handling/dispatching
 // lifecycle: unknown -> follower -> leader -> follower -> leader -> stop
 func TestHandlerRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Cluster Agent is not supported on Windows")
+	}
 	dummyT := &testing.T{}
 	ac := &mockedPluggableAutoConfig{}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
