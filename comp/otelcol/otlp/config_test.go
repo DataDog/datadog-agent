@@ -902,3 +902,31 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		})
 	}
 }
+
+func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
+	env := map[string]string{
+		"DD_DATA_PLANE_OTLP_PROXY_ENABLED":                          "true",
+		"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":           "0.0.0.0:4317",
+		"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT":           "0.0.0.0:4318",
+		"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "127.0.0.1:4319",
+		"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "127.0.0.1:4320",
+	}
+
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
+
+	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
+	require.NoError(t, err)
+	pcfg, err := FromAgentConfig(cfg)
+	require.NoError(t, err)
+
+	receiverConfig := pcfg.OTLPReceiverConfig
+	protocols, _ := receiverConfig["protocols"].(map[string]interface{})
+
+	grpc, _ := protocols["grpc"].(map[string]interface{})
+	assert.Equal(t, "127.0.0.1:4319", grpc["endpoint"])
+
+	http, _ := protocols["http"].(map[string]interface{})
+	assert.Equal(t, "127.0.0.1:4320", http["endpoint"])
+}
