@@ -348,6 +348,65 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 	return resp.List.Value, nil
 }
 
+// GetTopology retrieves topology data for for a specific appliance and tenant
+func (client *Client) GetTopology(applianceName string) ([]Neighbor, error) {
+
+	if applianceName == "" {
+		return nil, fmt.Errorf("applianceName cannot be empty")
+	}
+	// if tenantName == "" {
+	// 	return nil, fmt.Errorf("tenantName cannot be empty")
+	// }
+
+	// params := map[string]string{
+	// 	"tenantName": tenantName,
+	// }
+
+	// command := 'lldp/neighbor/detail/interface-detail'
+	// path := fmt.Sprintf("/vnms/dashboard/appliance/%s/live?uuid=%s&command%s", applianceName, UUID, command)
+
+	// resp, err := get[LldpNeighborInterfaceDetailResponse](client, path, params, false)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get topology: %v", err)
+	// }
+	// if resp == nil {
+	// 	return nil, errors.New("failed to get topology: returned nil")
+	// }
+
+	return []Neighbor{
+		Neighbor{
+			SystemName: "Mock System Name",
+			SystemDescription: "Mock System Description",
+			ChassisID: "1",
+			DeviceIDType: "chassisID",
+			IPAddress: "10.0.0.1",
+			PortID: "1",
+			PortIDType: "portID",
+			PortDescription: "Port Description 1",
+		},
+		Neighbor{
+			SystemName: "Mock System Name 2",
+			SystemDescription: "Mock System Description 2",
+			ChassisID: "2",
+			DeviceIDType: "chassisID",
+			IPAddress: "10.0.0.2",
+			PortID: "2",
+			PortIDType: "portID",
+			PortDescription: "Port Description 2",
+		},
+		Neighbor{
+			SystemName: "Mock System Name 3",
+			SystemDescription: "Mock System Description 3",
+			ChassisID: "3",
+			DeviceIDType: "chassisID",
+			IPAddress: "10.0.0.3",
+			PortID: "3",
+			PortIDType: "portID",
+			PortDescription: "Port Description 3",
+		},
+	}, nil
+}
+
 // GetInterfaceMetrics retrieves interface metrics for a specific appliance and tenant using pagination
 func (client *Client) GetInterfaceMetrics(applianceName string, tenantName string) ([]InterfaceMetrics, error) {
 	if applianceName == "" {
