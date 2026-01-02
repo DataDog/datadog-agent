@@ -116,3 +116,9 @@ func TestConfigAndPackageStates(t *testing.T) {
 
 	assert.Equal(t, expected, res)
 }
+
+func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
+	cmd := setupCommand()
+	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
+		"setup command should have human-readable-errors annotation")
+}

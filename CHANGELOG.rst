@@ -2,6 +2,38 @@
 Release Notes
 =============
 
+.. _Release Notes_7.73.3:
+
+7.73.3
+======
+
+.. _Release Notes_7.73.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-31
+
+- Please refer to the `7.73.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7733>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed device-mapper (LVM) device tagging in the diskv2 check to match Python psutil behavior.
+  Previously, devices were reported as ``dm-X`` (e.g., ``device:dm-0``) instead of their friendly
+  ``/dev/mapper/*`` names (e.g., ``device:ocivolume-root``). This ensures backward compatibility
+  with the Python disk check and preserves existing dashboards and monitors.
+
+- Fix an issue introduced in 7.73.0 that can cause the MSI to overwrite the ``site`` option in ``datadog.yaml`` with the default value of ``datadoghq.com``.
+  
+  This issue impacts users who do not provide the ``SITE`` option to the MSI when upgrading AND who have an error in their ``datadog.yaml`` file that prevents the MSI from reading the existing ``site`` option (MSI log contains ``ReadConfig. User config could not be read``).
+  
+  This issue also impacts users of ``datadog-installer.exe`` and ``Install-Datadog.ps1``, introduced in 7.72.0, who do not provide the ``DD_SITE`` environment variable when upgrading.
+
+
 .. _Release Notes_7.73.2:
 
 7.73.2

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -20,7 +21,6 @@ import (
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -74,7 +74,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 
-	keysManager := remoteconfig.New(reqs.RcClient)
+	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
@@ -112,10 +112,13 @@ func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *pa
 	appKey := ddConfig.GetString("app_key")
 
 	env.DetectFeatures(ddConfig)
-	runnerName, err := hostname.Get(context.Background())
+	runnerHostname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
+	now := time.Now().UTC()
+	formattedTime := now.Format("20060102150405")
+	runnerName := runnerHostname + "-" + formattedTime
 
 	enrollmentResult, err := enrollment.SelfEnroll(ddSite, runnerName, apiKey, appKey)
 	if err != nil {
