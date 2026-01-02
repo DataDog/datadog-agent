@@ -1,0 +1,8 @@
+[package]
+name = "sd-agent"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sd-agent"
+path = "src/main.rs"
