@@ -1330,6 +1330,10 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Agent checks enabled
+	// This setting allows to enable or disable all agent checks, regardless of the infrastructure mode.
+	config.BindEnvAndSetDefault("agent_checks.enabled", true)
+
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
 	// The possible values are: full, basic, end_user_device.
