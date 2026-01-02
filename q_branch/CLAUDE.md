@@ -47,7 +47,11 @@ Multiple worktrees can run concurrently without conflicts.
 
 ### Benchmarking
 
-Benchmarks run in background to avoid blocking and allow multiple analysis passes on the same run:
+**ALWAYS use `./dev.py bench`** - NEVER run `cargo bench` directly. The dev.py wrapper:
+- Runs benchmarks in background (non-blocking)
+- Tracks runs with GUIDs for comparison
+- Manages benchmark data scenarios
+- Stores logs for later analysis
 
 ```bash
 # Run a specific benchmark (preferred for quick iterations)
@@ -55,17 +59,21 @@ Benchmarks run in background to avoid blocking and allow multiple analysis passe
 # Returns: Running benchmark a1b2c3d4
 #          Wait: ./dev.py bench wait a1b2c3d4
 
+# Run with different data scenarios
+./dev.py bench --filter get_timeseries_single_container --data multipod
+./dev.py bench --filter get_timeseries_single_container --data container-churn
+
 # Run full suite (for comprehensive testing)
 ./dev.py bench --full-suite
 
 # Wait for completion and see results
 ./dev.py bench wait a1b2c3d4
 
-# List recent runs
+# List recent runs (shows scenario, filter, status)
 ./dev.py bench list
 ```
 
-**Available benchmarks:**
+**Available benchmarks (--filter):**
 - `scan_metadata` - Startup path, measures parquet file scanning
 - `get_container_stats_cold` - Cold query including data loading
 - `get_container_stats_warm` - Warm query from cache
@@ -73,7 +81,14 @@ Benchmarks run in background to avoid blocking and allow multiple analysis passe
 - `get_timeseries_all_containers` - All containers timeseries query
 - `load_all_metrics` - Full dashboard load simulation
 
-Benchmark data is auto-generated on first run. Logs are stored in `.dev/bench/<guid>/` and auto-cleaned after 30 days.
+**Available data scenarios (--data):**
+- `realistic1h` - Single pod, same containers throughout (default)
+- `multipod` - Multiple pods with different containers per pod
+- `container-churn` - Single pod with container restarts over time
+
+Generate new scenarios: `cargo run --release --bin generate-bench-data -- --scenario <name>`
+
+Logs stored in `.dev/bench/<guid>/` and auto-cleaned after 30 days.
 
 ## Architecture: aarch64 (ARM64)
 
