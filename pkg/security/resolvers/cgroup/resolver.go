@@ -230,13 +230,13 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
 		process.ContainerContext.ContainerID = cid
-		seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
+		seclog.Debugf("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
 		return true
 	}
 
 	// fallback can fail for short lived processes, in this case we try to assign the parent cgroup
 	if process.PPid == process.Pid || process.PPid <= 0 {
-		seclog.Infof("Failed to fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
+		seclog.Debugf("Failed to fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
 		return false
 	}
 
@@ -248,7 +248,7 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 			process.CGroup.CGroupFile.Inode = cgroup.CGroupFile.Inode
 			process.CGroup.CGroupID = cgroup.CGroupID
 			process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
-			seclog.Infof("Fallback to resolve cgroup for pid %d from parent: %d", process.Pid, process.PPid)
+			seclog.Debugf("Fallback to resolve cgroup for pid %d from parent: %d", process.Pid, process.PPid)
 			return true
 		}
 	}
@@ -260,14 +260,14 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
 		process.ContainerContext.ContainerID = cid
-		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
+		seclog.Debugf("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
 		return true
 	}
 
 	if err == nil {
 		err = errors.New("FindCGroupContext returned an empty cgroup")
 	}
-	seclog.Infof("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
+	seclog.Debugf("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
 	return false
 }
 
@@ -334,15 +334,11 @@ func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry) bool) {
 }
 
 func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
-	for _, cgroup := range cr.hostWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.hostWorkloads.Values(), cb) {
+		return
 	}
-	for _, cgroup := range cr.containerWorkloads.Values() {
-		if cb(cgroup) {
-			return
-		}
+	if slices.ContainsFunc(cr.containerWorkloads.Values(), cb) {
+		return
 	}
 }
 

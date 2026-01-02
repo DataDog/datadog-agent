@@ -206,9 +206,5 @@ func callAgentsForService[PbType any, StructuredType any](
 }
 
 func sanitizeString(in string) string {
-	out := []string{}
-	for s := range strings.SplitSeq(in, " ") {
-		out = append(out, strings.ToLower(s))
-	}
-	return strings.Join(out, "-")
+	return strings.ReplaceAll(strings.ToLower(in), " ", "-")
 }

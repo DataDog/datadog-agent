@@ -67,9 +67,11 @@
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
+/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 /.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
+
 
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
@@ -115,7 +117,7 @@
 /.gitlab/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
 /.gitlab/internal_kubernetes_deploy/include.yml                     @DataDog/agent-devx
 /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
-/.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
+/.gitlab/internal_kubernetes_deploy/k8s_staging_deployment_pr.yml  @DataDog/agent-delivery
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/source_test/*                               @DataDog/agent-devx
@@ -685,7 +687,9 @@
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
+/tasks/python_version.py                @DataDog/agent-integrations
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
+/tasks/unit_tests/python_version_tests.py @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
@@ -780,6 +784,7 @@
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
+/test/new-e2e/tests/sbom                      @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
