@@ -1,9 +1,10 @@
 ---
 blank_issues_enabled: false
 contact_links:
-  - name: Bug Report (High Priority)
+  - name: Support Request (recommended)
     url: https://help.datadoghq.com/hc/en-us/requests/new?tf_1260824651490=pt_product_type:agent
-    about: Create an expedited Bug Report via the helpdesk (no login required). This will allow us to look up your account and allows you to provide additional information in private. Please do not create a GitHub issue to report a bug.
-  - name: Feature Request (High Priority)
+    about: Click this option to open a support ticket to helpdesk (no login required). Problems involving configuration, integrations, Kubernetes workloads, crashes, missing metrics, or anything that needs logs/flares should go through Datadog Support for optimal processing.
+
+  - name: Feature Request
     url: https://help.datadoghq.com/hc/en-us/requests/new?tf_1260824651490=pt_product_type:agent&tf_4415956267547=pt_agent_category:feature_request
-    about: Create an expedited Feature Request via the helpdesk (no login required). This helps with prioritization and allows you to provide additional information in private. Please do not create a GitHub issue to request a feature.
+    about: Click this option to create a feature request ticket to helpdesk. This helps us with prioritization and allows you to share additional information in private. Please do not open a GitHub issue to request a feature.

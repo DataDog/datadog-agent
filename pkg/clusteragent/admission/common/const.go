@@ -33,12 +33,6 @@ const (
 	// TypeSocketVolumesLabelKey pod label to decide if socket volume type should be used.
 	TypeSocketVolumesLabelKey = "admission.datadoghq.com/config.type_socket_volumes"
 
-	// LibVersionAnnotKeyFormat is the format of the library version annotation
-	LibVersionAnnotKeyFormat = "admission.datadoghq.com/%s-lib.version"
-
-	// LibConfigV1AnnotKeyFormat is the format of the library config annotation
-	LibConfigV1AnnotKeyFormat = "admission.datadoghq.com/%s-lib.config.v1"
-
 	// NamespaceLabelKey label to select resources based on namespace.
 	// This label was added in Kubernetes 1.22, and won't work on older k8s versions.
 	// See https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/#automatic-labelling

@@ -101,6 +101,21 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -1995,6 +2010,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "event.signature":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSignature(ev)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "event.source":
@@ -36231,6 +36257,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.os",
 		"event.rule.tags",
 		"event.service",
+		"event.signature",
 		"event.source",
 		"event.timestamp",
 		"exec.args",
@@ -38314,6 +38341,8 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 	return fields
 }
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
@@ -38660,6 +38689,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "event.rule.tags":
 		return "", reflect.String, "string", true, nil
 	case "event.service":
+		return "", reflect.String, "string", false, nil
+	case "event.signature":
 		return "", reflect.String, "string", false, nil
 	case "event.source":
 		return "", reflect.String, "string", false, nil
@@ -43192,6 +43223,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("event.rule.tags", &ev.BaseEvent.RuleTags, value)
 	case "event.service":
 		return ev.setStringFieldValue("event.service", &ev.BaseEvent.Service, value)
+	case "event.signature":
+		return ev.setStringFieldValue("event.signature", &ev.Signature, value)
 	case "event.source":
 		return ev.setStringFieldValue("event.source", &ev.BaseEvent.Source, value)
 	case "event.timestamp":

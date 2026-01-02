@@ -28,6 +28,10 @@ type timeSamplerWorker struct {
 	// flushInterval is the automatic flush interval
 	flushInterval time.Duration
 
+	// tagFilterList is used to filter tags for specific metrics during context tracking.
+	// It determines which tags should be kept or stripped for distribution metrics.
+	tagFilterList *TagMatcher
+
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
 	// process, such as histograms which create several metrics.
@@ -59,7 +63,8 @@ type dumpTrigger struct {
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
+	tagFilterList *TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -67,6 +72,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		parallelSerialization: parallelSerialization,
 
 		flushInterval: flushInterval,
+		tagFilterList: tagFilterList,
 
 		samplesChan:    make(chan []metrics.MetricSample, bufferSize),
 		stopChan:       make(chan struct{}),
@@ -97,7 +103,7 @@ func (w *timeSamplerWorker) run() {
 			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
-				w.sampler.sample(&ms[i], t)
+				w.sampler.sample(&ms[i], t, w.tagFilterList)
 			}
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.filterListChan:
