@@ -250,3 +250,5 @@ CLAUDE_PERSONAL.md
 
 .claude/settings.local.json
 .playwright-mcp
+.mcp.json
+.claude/agents
