@@ -197,14 +197,8 @@ struct Finding {
     finding_type: String,
     timestamp_ms: i64,
     label: String,
-    details: FindingDetails,
-}
-
-#[derive(Debug, Serialize)]
-struct FindingDetails {
-    period_ms: Option<f64>,
-    confidence: Option<f64>,
-    amplitude: Option<f64>,
+    /// Study-specific metrics (pass-through from study output)
+    metrics: std::collections::HashMap<String, f64>,
 }
 
 // --- API Response Types (from viewer HTTP API) ---
@@ -562,7 +556,7 @@ impl McpMetricsViewer {
             let stats = compute_stats(ts_data);
             let trend = detect_trend(ts_data);
 
-            // Convert study windows to findings
+            // Convert study windows to findings (pass through metrics directly)
             let findings: Vec<Finding> = study_resp
                 .results
                 .first()
@@ -574,11 +568,7 @@ impl McpMetricsViewer {
                             finding_type: params.study_id.clone(),
                             timestamp_ms: w.start_time_ms,
                             label: w.label.clone(),
-                            details: FindingDetails {
-                                period_ms: w.metrics.get("period").copied(),
-                                confidence: w.metrics.get("confidence").copied(),
-                                amplitude: w.metrics.get("amplitude").copied(),
-                            },
+                            metrics: w.metrics.clone(),
                         })
                         .collect()
                 })
