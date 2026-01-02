@@ -32,12 +32,11 @@ import (
 //
 // Key behaviors:
 //   - Adds required receivers: hostprofiler, otlp
-//   - Adds required exporters: otlphttp with dd-api-key header
+//   - Adds required exporters: otlphttp & warns about missing API keys
 //   - Ensures resourcedetection processor with system detector enabled
 //   - Removes all infraattributes processors (replaced by resourcedetection)
-//     Note: All infraattributes variants are removed as they require agent integration
 //   - Removes ddprofiling and hpflare extensions (require agent integration)
-//   - Ensures profiles pipeline has all required components
+//   - Ensures profiles & metrics pipelines have all required components
 type converterWithoutAgent struct{}
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
