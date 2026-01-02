@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["http_check", "shlib", "standalone"]
+members = [
+    "http_check/native",
+    "http_check/shlib",
+    "standalone",
+]
 
 [profile.release]
 opt-level = "z"     # Optimize for size.

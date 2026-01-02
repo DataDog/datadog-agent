@@ -1,0 +1,12 @@
+[package]
+name = "shlib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+libc = "0.2"
+
+[lib]
+name = "hc_shlib"
+crate-type = ["cdylib"]
