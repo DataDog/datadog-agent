@@ -1330,10 +1330,29 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Agent checks enabled
+	// This setting allows to enable or disable all agent checks, regardless of the infrastructure mode.
+	config.BindEnvAndSetDefault("agent_checks.enabled", true)
+
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
 	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+
+	// Infrastructure mode - allowed checks (UNDOCUMENTED)
+	// Note: All checks starting with "custom_" are always allowed.
+	// Note: when the list is empty, all checks are allowed.
+	config.BindEnvAndSetDefault("allowed_checks", []string{})
+
+	// Infrastructure mode - Exclusive checks
+	// This setting allows to run checks that are exclusive to a specific infrastructure mode.
+	// For example, the wlan check is exclusive to end_user_device mode.
+	// The map keys are infrastructure mode names, values are lists of check names exclusive to that mode.
+	config.BindEnvAndSetDefault("exclusive_checks", map[string][]string{
+		"full":            {},
+		"basic":           {},
+		"end_user_device": {"wlan"},
+	})
 
 	// Infrastructure mode - additional checks
 	// When infrastructure_mode is set, only a limited set of checks are allowed to run.
@@ -1344,10 +1363,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// When infrastructure_mode is set, this setting allows customers to remove checks
 	// from the default allowlist that would otherwise be allowed to run.
 	config.BindEnvAndSetDefault("excluded_default_checks", []string{})
-
-	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
-	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

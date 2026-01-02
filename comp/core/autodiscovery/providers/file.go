@@ -34,7 +34,7 @@ func NewFileConfigProvider(telemetryStore *telemetry.Store) *FileConfigProvider 
 func (c *FileConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	// Compose filters: WithoutAdvancedAD AND WithInfrastructureModeFilter
 	combinedFilter := func(cfg integration.Config) bool {
-		return WithoutAdvancedAD(cfg) && WithInfrastructureModeFilter(cfg)
+		return WithoutAdvancedAD(cfg) && WithIntegrationsFilter(cfg)
 	}
 
 	configs, errors, err := ReadConfigFiles(combinedFilter)
