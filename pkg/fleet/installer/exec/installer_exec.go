@@ -253,7 +253,7 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
 	}
 	var defaultPackages []string
-	for _, line := range strings.Split(stdout.String(), "\n") {
+	for line := range strings.SplitSeq(stdout.String(), "\n") {
 		if line == "" {
 			continue
 		}

@@ -39,7 +39,7 @@ type MetricFamily struct {
 // trimHistogramSuffix removes histogram-specific suffixes (_bucket, _sum, _count).
 func trimHistogramSuffix(name string) string {
 	for _, suffix := range []string{"_bucket", "_sum", "_count"} {
-		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
+		if trimmed, ok := strings.CutSuffix(name, suffix); ok {
 			return trimmed
 		}
 	}
@@ -49,7 +49,7 @@ func trimHistogramSuffix(name string) string {
 // trimSummarySuffix removes summary-specific suffixes (_sum, _count).
 func trimSummarySuffix(name string) string {
 	for _, suffix := range []string{"_sum", "_count"} {
-		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
+		if trimmed, ok := strings.CutSuffix(name, suffix); ok {
 			return trimmed
 		}
 	}

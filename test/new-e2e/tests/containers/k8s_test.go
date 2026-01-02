@@ -515,9 +515,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Output:\n%s", stdout)
 
 			validEntryCount := 0
-			lines := strings.Split(stdout, "\n")
+			lines := strings.SplitSeq(stdout, "\n")
 
-			for _, line := range lines {
+			for line := range lines {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue

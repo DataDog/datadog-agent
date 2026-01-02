@@ -195,8 +195,8 @@ func CapEffCapEprm(pid uint32) (uint64, uint64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	lines := strings.Split(string(contents), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(contents), "\n")
+	for line := range lines {
 		capKind, value, found := strings.Cut(line, "\t")
 		if !found {
 			continue
@@ -358,8 +358,8 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 	}
 
 	output := make(map[string]ProcFSModule)
-	lines := strings.Split(string(procModules), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(procModules), "\n")
+	for line := range lines {
 		split := strings.Split(line, " ")
 		if len(split) < 6 {
 			continue
@@ -436,11 +436,11 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 		return nil, fmt.Errorf("failed to read status file: %w", err)
 	}
 
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "NSpid:") {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
+		if after, ok := strings.CutPrefix(line, "NSpid:"); ok {
 			// Remove "NSpid:" prefix and trim spaces
-			values := strings.TrimPrefix(line, "NSpid:")
+			values := after
 			values = strings.TrimSpace(values)
 
 			// Split the remaining string into fields
@@ -525,11 +525,11 @@ func GetTracerPid(pid uint32) (uint32, error) {
 		return 0, fmt.Errorf("failed to read status file: %w", err)
 	}
 
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "TracerPid:") {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
+		if after, ok := strings.CutPrefix(line, "TracerPid:"); ok {
 			// Remove "NSpid:" prefix and trim spaces
-			line = strings.TrimPrefix(line, "TracerPid:")
+			line = after
 			line = strings.TrimSpace(line)
 
 			tracerPid, err := strconv.ParseUint(line, 10, 32)
@@ -567,8 +567,8 @@ var isNsPidAvailable = sync.OnceValue(func() bool {
 	if err != nil {
 		return false
 	}
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
 		if strings.HasPrefix(line, "NSpid:") {
 			return true
 		}

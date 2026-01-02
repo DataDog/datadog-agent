@@ -136,7 +136,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 
 	// Create a set of paths installed by the package
 	installedByPkgSet := make(map[string]struct{})
-	for _, line := range strings.Split(string(installedByPkg), "\n") {
+	for line := range strings.SplitSeq(string(installedByPkg), "\n") {
 		if line != "" {
 			// Make sure the path is absolute so we can compare apples to apples
 			if !filepath.IsAbs(line) && !strings.HasPrefix(line, "#") {
@@ -171,7 +171,7 @@ func RemoveCompiledFiles(installPath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read compiled files list: %w", err)
 		}
-		for _, file := range strings.Split(string(compiledFiles), "\n") {
+		for file := range strings.SplitSeq(string(compiledFiles), "\n") {
 			if strings.HasPrefix(file, installPath) {
 				if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
 					return fmt.Errorf("failed to remove compiled file %s: %w", file, err)

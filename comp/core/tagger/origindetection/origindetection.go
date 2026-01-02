@@ -102,8 +102,8 @@ func ParseLocalData(rawLocalData string) (LocalData, error) {
 
 	if strings.Contains(rawLocalData, ",") {
 		// The Local Data can contain a list.
-		items := strings.Split(rawLocalData, ",")
-		for _, item := range items {
+		items := strings.SplitSeq(rawLocalData, ",")
+		for item := range items {
 			if strings.HasPrefix(item, LocalDataContainerIDPrefix) {
 				localData.ContainerID = item[len(LocalDataContainerIDPrefix):]
 			} else if strings.HasPrefix(item, LocalDataInodePrefix) {
@@ -137,7 +137,7 @@ func ParseExternalData(externalEnv string) (ExternalData, error) {
 	var externalData ExternalData
 	var parsingError error
 
-	for _, item := range strings.Split(externalEnv, ",") {
+	for item := range strings.SplitSeq(externalEnv, ",") {
 		switch {
 		case strings.HasPrefix(item, ExternalDataInitPrefix):
 			externalData.Init, parsingError = strconv.ParseBool(item[len(ExternalDataInitPrefix):])

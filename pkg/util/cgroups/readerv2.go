@@ -77,8 +77,8 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 func readCgroupControllers(cgroupRoot string) (map[string]struct{}, error) {
 	controllersMap := make(map[string]struct{})
 	err := parseFile(defaultFileReader, path.Join(cgroupRoot, controllersFile), func(s string) error {
-		controllers := strings.Fields(s)
-		for _, c := range controllers {
+		controllers := strings.FieldsSeq(s)
+		for c := range controllers {
 			controllersMap[c] = struct{}{}
 		}
 		return nil

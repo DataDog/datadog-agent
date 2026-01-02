@@ -287,8 +287,8 @@ func parseAnalyzedSpans(env string) (map[string]interface{}, error) {
 	if env == "" {
 		return analyzedSpans, nil
 	}
-	tokens := strings.Split(env, ",")
-	for _, token := range tokens {
+	tokens := strings.SplitSeq(env, ",")
+	for token := range tokens {
 		name, rate, err := parseNameAndRate(token)
 		if err != nil {
 			return nil, err

@@ -111,9 +111,9 @@ func PutOrDownloadFileWithRetry(host *components.RemoteHost, url string, destina
 		return nil
 	}
 
-	if strings.HasPrefix(url, "file://") {
+	if after, ok := strings.CutPrefix(url, "file://"); ok {
 		// URL is a local file
-		localPath := strings.TrimPrefix(url, "file://")
+		localPath := after
 		host.CopyFile(localPath, destination)
 		return nil
 	}

@@ -385,8 +385,8 @@ func validVersion(str string) bool {
 	if len(str) == 0 {
 		return true
 	}
-	parts := strings.Split(str, ".")
-	for _, v := range parts {
+	parts := strings.SplitSeq(str, ".")
+	for v := range parts {
 		for _, c := range v {
 			if !unicode.IsNumber(c) {
 				return false

@@ -18,7 +18,7 @@ func OIDToInts(oid string) ([]int, error) {
 		return nil, nil
 	}
 	var result []int
-	for _, segment := range strings.Split(oid, ".") {
+	for segment := range strings.SplitSeq(oid, ".") {
 		val, err := strconv.ParseInt(segment, 10, 0)
 		if err != nil {
 			return nil, fmt.Errorf("unparseable OID %q: %w", oid, err)

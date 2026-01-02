@@ -1531,7 +1531,7 @@ func TestEnvVarTransformers(t *testing.T) {
 
 	cfg.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
 		vals := []interface{}{}
-		for _, str := range strings.Split(in, ",") {
+		for str := range strings.SplitSeq(in, ",") {
 			f, err := strconv.ParseFloat(str, 64)
 			if err != nil {
 				continue

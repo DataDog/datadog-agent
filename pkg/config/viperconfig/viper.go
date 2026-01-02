@@ -322,8 +322,8 @@ func (c *safeConfig) hasEnvVarSection(key string) bool {
 	// Env var layer doesn't work the same because Viper doesn't store them
 	// Instead use our own cache in envVarTree
 	currTree := c.envVarTree
-	parts := strings.Split(key, ".")
-	for _, part := range parts {
+	parts := strings.SplitSeq(key, ".")
+	for part := range parts {
 		if elem, found := currTree[part].(map[string]interface{}); found {
 			currTree = elem
 		} else {
@@ -633,8 +633,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 
 	// Add the env var into a tree, so we know which setting has children that use env vars
 	currTree := c.envVarTree
-	parts := strings.Split(key, ".")
-	for _, part := range parts {
+	parts := strings.SplitSeq(key, ".")
+	for part := range parts {
 		if elem, found := currTree[part].(map[string]interface{}); found {
 			currTree = elem
 		} else {
@@ -872,8 +872,8 @@ func (c *safeConfig) GetSubfields(key string) []string {
 			// Viper doesn't store env vars in the actual configSource layer, instead
 			// use the envVarTree built by this wrapper to lookup which env vars exist
 			currTree := c.envVarTree
-			parts := strings.Split(key, ".")
-			for _, part := range parts {
+			parts := strings.SplitSeq(key, ".")
+			for part := range parts {
 				if elem, found := currTree[part].(map[string]interface{}); found {
 					currTree = elem
 				} else {
