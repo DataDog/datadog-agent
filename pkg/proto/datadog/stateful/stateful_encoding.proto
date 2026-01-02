@@ -64,6 +64,7 @@ message Log {
 message StructuredLog {
   uint64 pattern_id = 1;
   repeated DynamicValue dynamic_values = 2;
+  bytes json_context = 3;
 }
 
 message DynamicValue {

@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
-	"google.golang.org/protobuf/proto"
 )
 
 const nanoToMillis = 1000000
@@ -92,8 +94,16 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		return
 	}
 
-	// Tokenize the message content
+	// Try JSON preprocessing - if message extracted, use it for pattern matching
 	contentStr := string(content)
+
+	var jsonContext []byte
+	if results := processor.PreprocessJSON(content); results.Message != "" {
+		contentStr = results.Message
+		jsonContext = results.JSONContext
+	}
+
+	// Tokenize the message content (either json extracted message or full content)
 	tokenList := tokenizeMessage(contentStr)
 
 	// Process tokenized log through cluster manager to get/create pattern
@@ -133,7 +143,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 
 	// Send StructuredLog with all fields
 	tsMillis := uint64(ts.UnixNano() / nanoToMillis)
-	mt.sendStructuredLog(outputChan, msg, tsMillis, pattern.PatternID, dynamicValues, tagSet)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, pattern.PatternID, dynamicValues, tagSet, jsonContext)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
@@ -261,8 +271,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -348,7 +358,7 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet) *statefulpb.Datum {
+func buildStructuredLog(timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
@@ -357,6 +367,7 @@ func buildStructuredLog(timestamp uint64, patternID uint64, dynamicValues []*sta
 					Structured: &statefulpb.StructuredLog{
 						PatternId:     patternID,
 						DynamicValues: dynamicValues,
+						JsonContext:   jsonContext,
 					},
 				},
 				Tags: tagSet,
