@@ -473,8 +473,8 @@ impl LazyDataStore {
     }
 
     /// Get container stats for a metric.
-    /// Computes stats from timeseries data (loading if necessary).
-    /// Fix #10: Returns Arc to avoid deep clones on cache hit.
+    /// Computes stats directly from parquet without materializing full timeseries.
+    /// Returns Arc to avoid deep clones on cache hit.
     pub fn get_container_stats(&self, metric: &str) -> Result<Arc<HashMap<String, ContainerStats>>> {
         let total_start = std::time::Instant::now();
 
@@ -493,6 +493,9 @@ impl LazyDataStore {
 
         eprintln!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
 
+        // Refresh file list to pick up newly written files
+        self.refresh_files();
+
         // Get all containers for this metric
         let container_ids: Vec<&str> = self
             .index
@@ -507,43 +510,25 @@ impl LazyDataStore {
             return Ok(Arc::new(HashMap::new()));
         }
 
-        // Load timeseries data and compute stats
-        let load_start = std::time::Instant::now();
-        let timeseries = self.get_timeseries(metric, &container_ids)?;
-        let load_elapsed = load_start.elapsed();
-        eprintln!(
-            "[PERF]   get_timeseries: {:.1}ms ({} series returned)",
-            load_elapsed.as_secs_f64() * 1000.0,
-            timeseries.len()
-        );
+        // Load stats directly (no timeseries materialization)
+        let paths = self.paths.read().unwrap();
+        let raw_stats = load_metric_stats(&paths, metric, &container_ids)?;
 
-        let stats_start = std::time::Instant::now();
+        // Convert to ContainerStats with info from index
         let mut stats = HashMap::new();
-        for (id, points) in timeseries {
-            if points.is_empty() {
-                continue;
-            }
-
-            let values: Vec<f64> = points.iter().map(|p| p.value).collect();
-            let avg = values.iter().sum::<f64>() / values.len() as f64;
-            let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
+        for (id, (sample_count, avg, max)) in raw_stats {
             if let Some(info) = self.index.containers.get(&id) {
                 stats.insert(
-                    id.clone(),
+                    id,
                     ContainerStats {
                         info: info.clone(),
-                        sample_count: points.len(),
+                        sample_count,
                         avg,
                         max,
                     },
                 );
             }
         }
-        eprintln!(
-            "[PERF]   compute stats: {:.1}ms",
-            stats_start.elapsed().as_secs_f64() * 1000.0
-        );
 
         // Wrap in Arc for cache storage and return
         let stats = Arc::new(stats);
@@ -975,8 +960,86 @@ fn load_metric_data(
     Ok(result)
 }
 
-/// Load metric data from a single parquet file using parallel row group reading.
-/// Fix #1: Takes Arc<HashSet> directly to avoid cloning in predicates.
+/// Load stats for a specific metric and set of containers.
+/// Computes aggregates (count, avg, max) directly without materializing full timeseries.
+/// Returns HashMap<container_id, (sample_count, avg, max)>.
+fn load_metric_stats(
+    paths: &[PathBuf],
+    metric: &str,
+    container_ids: &[&str],
+) -> Result<HashMap<String, (usize, f64, f64)>> {
+    let start = std::time::Instant::now();
+    let container_set: Arc<HashSet<String>> = Arc::new(
+        container_ids
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+    );
+    let is_cumulative_metric = is_cumulative(metric);
+    let metric = metric.to_string();
+
+    eprintln!(
+        "[PERF]     load_metric_stats: {} files, {} containers requested",
+        paths.len(),
+        container_ids.len()
+    );
+
+    // Process files in parallel
+    let parallel_start = std::time::Instant::now();
+    let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
+        .par_iter()
+        .map(|path| {
+            load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric)
+        })
+        .collect();
+    let parallel_elapsed = parallel_start.elapsed();
+    eprintln!(
+        "[PERF]       parallel file reads: {:.1}ms",
+        parallel_elapsed.as_secs_f64() * 1000.0
+    );
+
+    // Merge results from all files
+    let merge_start = std::time::Instant::now();
+    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    for result in file_results {
+        let file_data = result?;
+        for (id, data) in file_data {
+            raw_data
+                .entry(id)
+                .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
+                .merge(data);
+        }
+    }
+    eprintln!(
+        "[PERF]       merge results: {:.1}ms",
+        merge_start.elapsed().as_secs_f64() * 1000.0
+    );
+
+    // Compute stats directly (no points allocation)
+    let stats_start = std::time::Instant::now();
+    let result: HashMap<String, (usize, f64, f64)> = raw_data
+        .into_iter()
+        .filter_map(|(id, raw)| raw.into_stats().map(|s| (id, s)))
+        .collect();
+    eprintln!(
+        "[PERF]       compute stats: {:.1}ms",
+        stats_start.elapsed().as_secs_f64() * 1000.0
+    );
+
+    eprintln!(
+        "[PERF]     load_metric_stats TOTAL: {:.1}ms ({} containers)",
+        start.elapsed().as_secs_f64() * 1000.0,
+        result.len()
+    );
+
+    Ok(result)
+}
+
+/// Load metric data from a single parquet file.
+/// Processes all row groups sequentially within the file.
+/// Parallelism is at the file level (in load_metric_data), not within files,
+/// to avoid thread pool contention from nested parallelism.
+/// Uses row group statistics to skip row groups that can't contain the target metric.
 fn load_metric_from_file(
     path: &PathBuf,
     metric: &str,
@@ -1002,72 +1065,74 @@ fn load_metric_from_file(
         Ok(b) => b,
         Err(_) => return Ok(HashMap::new()),
     };
-    let num_row_groups = builder.metadata().num_row_groups();
+    let file_metadata = builder.metadata();
+    let num_row_groups = file_metadata.num_row_groups();
 
-    // For small files, process sequentially
-    if num_row_groups <= 4 {
-        let result = load_row_groups(path, metric, Arc::clone(&container_set), is_cumulative_metric, None)?;
-        let elapsed = file_start.elapsed();
-        if elapsed.as_millis() > 100 || !result.is_empty() {
-            eprintln!(
-                "[PERF-FILE] {:?}: {}ms, {} row_groups, {} containers matched",
-                path.file_name().unwrap_or_default(),
-                elapsed.as_millis(),
-                num_row_groups,
-                result.len()
-            );
-        }
-        return Ok(result);
-    }
+    // Row group statistics pruning: skip row groups where metric_name can't match
+    // Find metric_name column index in parquet schema
+    let parquet_schema = builder.parquet_schema();
+    let metric_col_idx = (0..parquet_schema.num_columns())
+        .find(|&i| parquet_schema.column(i).name() == "metric_name");
 
-    // Split row groups across threads for parallel processing
-    let num_threads = rayon::current_num_threads().min(num_row_groups);
-    let chunk_size = num_row_groups.div_ceil(num_threads);
+    let row_groups_to_read: Option<Vec<usize>> = metric_col_idx.map(|col_idx| {
+        let metric_bytes = metric.as_bytes();
+        (0..num_row_groups)
+            .filter(|&rg_idx| {
+                let rg_metadata = file_metadata.row_group(rg_idx);
+                let col_chunk = rg_metadata.column(col_idx);
 
-    let row_group_chunks: Vec<Vec<usize>> = (0..num_row_groups)
-        .collect::<Vec<_>>()
-        .chunks(chunk_size)
-        .map(|c| c.to_vec())
-        .collect();
+                // Check statistics if available
+                if let Some(stats) = col_chunk.statistics() {
+                    // For string columns, min/max are lexicographically ordered
+                    // Skip row group if metric < min or metric > max
+                    if let (Some(min_bytes), Some(max_bytes)) =
+                        (stats.min_bytes_opt(), stats.max_bytes_opt())
+                    {
+                        // metric < min -> can't be in this row group
+                        if metric_bytes < min_bytes {
+                            return false;
+                        }
+                        // metric > max -> can't be in this row group
+                        if metric_bytes > max_bytes {
+                            return false;
+                        }
+                    }
+                }
+                // Include row group if stats unavailable or metric is within range
+                true
+            })
+            .collect()
+    });
 
-    // Process row group chunks in parallel
-    let chunk_results: Vec<Result<HashMap<String, RawContainerData>>> = row_group_chunks
-        .par_iter()
-        .map(|row_groups| {
-            load_row_groups(
-                path,
-                metric,
-                Arc::clone(&container_set),
-                is_cumulative_metric,
-                Some(row_groups.clone()),
-            )
-        })
-        .collect();
+    let rg_count_after_pruning = row_groups_to_read
+        .as_ref()
+        .map(|v| v.len())
+        .unwrap_or(num_row_groups);
 
-    // Merge results
-    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
-    for result in chunk_results {
-        let chunk_data = result?;
-        for (id, data) in chunk_data {
-            raw_data
-                .entry(id)
-                .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
-                .merge(data);
-        }
-    }
+    // Process row groups (filtered by statistics)
+    let result = load_row_groups(
+        path,
+        metric,
+        container_set,
+        is_cumulative_metric,
+        row_groups_to_read,
+    )?;
 
     let elapsed = file_start.elapsed();
-    if elapsed.as_millis() > 100 || !raw_data.is_empty() {
+    if elapsed.as_millis() > 100 || !result.is_empty() {
+        let pruned = num_row_groups - rg_count_after_pruning;
         eprintln!(
-            "[PERF-FILE] {:?}: {}ms, {} row_groups, {} containers matched",
+            "[PERF-FILE] {:?}: {}ms, {}/{} row_groups (pruned {}), {} containers matched",
             path.file_name().unwrap_or_default(),
             elapsed.as_millis(),
+            rg_count_after_pruning,
             num_row_groups,
-            raw_data.len()
+            pruned,
+            result.len()
         );
     }
 
-    Ok(raw_data)
+    Ok(result)
 }
 
 /// Load specific row groups from a parquet file.
@@ -1239,7 +1304,7 @@ fn load_row_groups(
                 raw_data
                     .entry(short_id.to_string())
                     .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
-                    .add_point(time, v, is_cumulative_metric);
+                    .add_point(time, v);
             }
         }
     }
@@ -1268,14 +1333,13 @@ fn extract_value(
 }
 
 /// Helper struct for accumulating raw container data.
+/// Stores raw (time, value) pairs during parallel reads.
+/// Rate computation for cumulative metrics happens after merge+sort in `into_points()`.
 #[derive(Default)]
 struct RawContainerData {
     times: Vec<i64>,
     values: Vec<f64>,
-    last_value: f64,
-    last_time: i64,
     is_cumulative: bool,
-    initialized: bool,
 }
 
 /// Estimated points per container for preallocation.
@@ -1291,51 +1355,59 @@ impl RawContainerData {
             times: Vec::with_capacity(ESTIMATED_POINTS_PER_CONTAINER),
             values: Vec::with_capacity(ESTIMATED_POINTS_PER_CONTAINER),
             is_cumulative,
-            initialized: true,
-            ..Default::default()
         }
     }
 
-    fn add_point(&mut self, time: i64, value: f64, is_cumulative: bool) {
-        if !self.initialized {
-            self.is_cumulative = is_cumulative;
-            self.initialized = true;
-        }
-
-        if self.is_cumulative {
-            if self.last_time > 0 && time > self.last_time {
-                let value_delta = value - self.last_value;
-                let time_delta_ms = time - self.last_time;
-
-                if value_delta >= 0.0 && time_delta_ms > 0 {
-                    // Fix #13: Single division instead of two
-                    let rate = if self.is_cumulative && value_delta > 0.0 {
-                        value_delta / (time_delta_ms as f64 * 10.0)
-                    } else {
-                        value_delta * 1000.0 / time_delta_ms as f64
-                    };
-                    self.times.push(time);
-                    self.values.push(rate);
-                }
-            }
-            self.last_value = value;
-            self.last_time = time;
-        } else {
-            self.times.push(time);
-            self.values.push(value);
-        }
+    /// Store raw (time, value) pair. Rate computation deferred to into_points().
+    fn add_point(&mut self, time: i64, value: f64) {
+        self.times.push(time);
+        self.values.push(value);
     }
 
+    /// Convert to TimeseriesPoints, computing rates for cumulative metrics.
+    /// MUST be called after all parallel merges are complete.
     fn into_points(self) -> Vec<TimeseriesPoint> {
+        if self.times.is_empty() {
+            return vec![];
+        }
+
         // Sort by time after merging data from parallel file reads
-        let mut points: Vec<TimeseriesPoint> = self
+        let mut pairs: Vec<(i64, f64)> = self
             .times
             .into_iter()
             .zip(self.values)
-            .map(|(time_ms, value)| TimeseriesPoint { time_ms, value })
             .collect();
-        // Fix #11: sort_unstable is faster (no stability guarantees needed for i64 keys)
-        points.sort_unstable_by_key(|p| p.time_ms);
+        pairs.sort_unstable_by_key(|(time, _)| *time);
+
+        if !self.is_cumulative {
+            // Gauge metrics: just return sorted values
+            return pairs
+                .into_iter()
+                .map(|(time_ms, value)| TimeseriesPoint { time_ms, value })
+                .collect();
+        }
+
+        // Cumulative metrics: compute rates from consecutive points AFTER sorting
+        // This fixes the parallelism bug where cross-chunk boundaries were lost
+        let mut points = Vec::with_capacity(pairs.len().saturating_sub(1));
+        for window in pairs.windows(2) {
+            let (prev_time, prev_value) = window[0];
+            let (curr_time, curr_value) = window[1];
+
+            let time_delta_ms = curr_time - prev_time;
+            let value_delta = curr_value - prev_value;
+
+            // Skip invalid deltas (time going backwards, counter resets)
+            if time_delta_ms > 0 && value_delta >= 0.0 {
+                // Convert to rate per second (value_delta is in original units)
+                // time_delta_ms is milliseconds, so multiply by 1000 to get per-second rate
+                let rate = value_delta * 1000.0 / time_delta_ms as f64;
+                points.push(TimeseriesPoint {
+                    time_ms: curr_time,
+                    value: rate,
+                });
+            }
+        }
         points
     }
 
@@ -1344,5 +1416,57 @@ impl RawContainerData {
     fn merge(&mut self, other: RawContainerData) {
         self.times.extend(other.times);
         self.values.extend(other.values);
+    }
+
+    /// Compute stats (count, sum, max) directly without allocating full points vector.
+    /// Returns (sample_count, avg, max) or None if no valid data.
+    fn into_stats(self) -> Option<(usize, f64, f64)> {
+        if self.times.is_empty() {
+            return None;
+        }
+
+        // Sort by time after merging data from parallel file reads
+        let mut pairs: Vec<(i64, f64)> = self
+            .times
+            .into_iter()
+            .zip(self.values)
+            .collect();
+        pairs.sort_unstable_by_key(|(time, _)| *time);
+
+        if !self.is_cumulative {
+            // Gauge metrics: compute stats directly from values
+            let count = pairs.len();
+            if count == 0 {
+                return None;
+            }
+            let sum: f64 = pairs.iter().map(|(_, v)| v).sum();
+            let max = pairs.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
+            return Some((count, sum / count as f64, max));
+        }
+
+        // Cumulative metrics: compute stats from rates
+        let mut count = 0usize;
+        let mut sum = 0.0f64;
+        let mut max = f64::NEG_INFINITY;
+
+        for window in pairs.windows(2) {
+            let (prev_time, prev_value) = window[0];
+            let (curr_time, curr_value) = window[1];
+
+            let time_delta_ms = curr_time - prev_time;
+            let value_delta = curr_value - prev_value;
+
+            if time_delta_ms > 0 && value_delta >= 0.0 {
+                let rate = value_delta * 1000.0 / time_delta_ms as f64;
+                count += 1;
+                sum += rate;
+                max = max.max(rate);
+            }
+        }
+
+        if count == 0 {
+            return None;
+        }
+        Some((count, sum / count as f64, max))
     }
 }
