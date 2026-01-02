@@ -38,10 +38,10 @@ type Collector interface {
 
 // startupHealthCheck represents a periodic health check registered during startup
 type startupHealthCheck struct {
-	CheckID   string               // Unique identifier for this check
-	CheckName string               // Human-readable name
-	CheckFunc HealthCheckFunc      // Function to call to check for issues
-	Options   []HealthCheckOption  // Options for configuring the check
+	CheckID   string              // Unique identifier for this check
+	CheckName string              // Human-readable name
+	CheckFunc HealthCheckFunc     // Function to call to check for issues
+	Options   []HealthCheckOption // Options for configuring the check
 }
 
 var (
