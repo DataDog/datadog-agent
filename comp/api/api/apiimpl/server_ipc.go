@@ -35,7 +35,6 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	ipcMuxHandler := tmf.Middleware(ipcServerShortName)(ipcMux)
 	ipcMuxHandler = observability.LogResponseHandler(ipcServerName)(ipcMuxHandler)
 
-	// mTLS is not enabled by default for the IPC server, so we need to enable it explicitly
 	serverTLSConfig := server.ipc.GetTLSServerConfig()
 	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 

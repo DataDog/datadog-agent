@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -45,19 +46,28 @@ func getListener(address string) (net.Listener, error) {
 		listener, err := vsock.ListenContextID(cid, uint32(port), &vsock.Config{})
 		return listener, err
 	}
-	listener, err := net.Listen("tcp", address)
-	return listener, err
+
+	if strings.Contains(address, "/") {
+		return net.Listen("unix", address)
+	}
+
+	return net.Listen("tcp", address)
 }
 
-// getIPCServerAddressPort returns whether the IPC server is enabled, and if so its host and host:port
-func getIPCServerAddressPort() (string, string, bool) {
+// getIPCServerPath returns whether the IPC server is enabled, and if so its host:port or unix socket path
+func getIPCServerPath() (string, bool) {
+	if pkgconfigsetup.Datadog().GetBool("agent_ipc.use_socket") {
+		socketPath := pkgconfigsetup.Datadog().GetString("agent_ipc.socket_path")
+		return socketPath, true
+	}
+
 	ipcServerPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.port")
 	if ipcServerPort == 0 {
-		return "", "", false
+		return "", false
 	}
 
 	ipcServerHost := pkgconfigsetup.Datadog().GetString("agent_ipc.host")
 	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
-	return ipcServerHost, ipcServerHostPort, true
+	return ipcServerHostPort, true
 }

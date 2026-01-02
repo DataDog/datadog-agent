@@ -8,6 +8,7 @@ package configsyncimpl
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -17,8 +18,19 @@ import (
 )
 
 func (cs *configSync) updater() error {
+	var csURL string
+	var err error
+	if cs.url.Scheme == "https+unix" {
+		csURL, err = url.PathUnescape(cs.url.String())
+		if err != nil {
+			cs.Log.Debugf("Unable to escape ipc unix socket path: %v", err)
+			return err
+		}
+	} else {
+		csURL = cs.url.String()
+	}
 	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
-	cfg, err := fetchConfig(cs.ctx, cs.client, cs.url.String(), cs.timeout)
+	cfg, err := fetchConfig(cs.ctx, cs.client, csURL, cs.timeout)
 	if err != nil {
 		if cs.connected {
 			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)
