@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -167,19 +168,12 @@ processors:
 		otlphttp := exporters["otlphttp"].(map[string]any)
 		// Should have headers with dd-api-key
 		require.Contains(t, otlphttp, "headers")
-		headers := otlphttp["headers"].([]any)
+		headers := otlphttp["headers"].(map[string]any)
 		require.NotEmpty(t, headers)
 		// Check that dd-api-key header exists
-		foundAPIKey := false
-		for _, header := range headers {
-			headerMap := header.(map[string]any)
-			if headerMap["name"] == "dd-api-key" {
-				foundAPIKey = true
-				require.NotEmpty(t, headerMap["value"])
-				break
-			}
-		}
-		require.True(t, foundAPIKey, "dd-api-key header should be present")
+		apiKey, ok := headers["dd-api-key"]
+		require.True(t, ok, "dd-api-key header should be present")
+		require.NotEmpty(t, apiKey, "dd-api-key value should not be empty")
 	})
 
 	t.Run("keeps otlphttp exporter when it exists", func(t *testing.T) {
@@ -200,6 +194,28 @@ processors:
 		require.Contains(t, otlphttp, "metrics_endpoint")
 		// dd-api-key header should still be ensured
 		require.Contains(t, otlphttp, "headers")
+	})
+
+	t.Run("uses api key from config component", func(t *testing.T) {
+		yaml := `
+processors:
+  infraattributes/default: {}
+`
+		conf := readFromYamlFileAsAgentMode(t, yaml)
+
+		exporters := conf["exporters"].(map[string]any)
+		require.Contains(t, exporters, "otlphttp")
+
+		otlphttp := exporters["otlphttp"].(map[string]any)
+		require.Contains(t, otlphttp, "headers")
+
+		headers := otlphttp["headers"].(map[string]any)
+		require.NotEmpty(t, headers)
+
+		// Verify dd-api-key is populated from config
+		apiKey, ok := headers["dd-api-key"]
+		require.True(t, ok, "dd-api-key header should be present")
+		require.NotEmpty(t, apiKey, "dd-api-key value should be set from config")
 	})
 }
 
@@ -533,7 +549,7 @@ processors:
 }
 
 func TestConverterWithoutAgent_EnsuresOtlpHttpExporter(t *testing.T) {
-	t.Run("adds otlphttp exporter with dd-api-key when missing", func(t *testing.T) {
+	t.Run("adds otlphttp exporter when missing", func(t *testing.T) {
 		yaml := `
 processors:
   resourcedetection: {}
@@ -543,22 +559,10 @@ processors:
 		exporters := conf["exporters"].(map[string]any)
 		require.Contains(t, exporters, "otlphttp")
 
+		// In standalone mode, headers are NOT automatically added
+		// User must provide their own API key in the config
 		otlphttp := exporters["otlphttp"].(map[string]any)
-		// Should have headers with dd-api-key
-		require.Contains(t, otlphttp, "headers")
-		headers := otlphttp["headers"].([]any)
-		require.NotEmpty(t, headers)
-		// Check that dd-api-key header exists
-		foundAPIKey := false
-		for _, header := range headers {
-			headerMap := header.(map[string]any)
-			if headerMap["name"] == "dd-api-key" {
-				foundAPIKey = true
-				require.NotEmpty(t, headerMap["value"])
-				break
-			}
-		}
-		require.True(t, foundAPIKey, "dd-api-key header should be present")
+		require.NotNil(t, otlphttp, "otlphttp exporter should be created")
 	})
 
 	t.Run("keeps otlphttp exporter when it exists", func(t *testing.T) {
@@ -577,8 +581,6 @@ processors:
 		otlphttp := exporters["otlphttp"].(map[string]any)
 		// Custom config should be preserved
 		require.Contains(t, otlphttp, "metrics_endpoint")
-		// dd-api-key header should still be ensured
-		require.Contains(t, otlphttp, "headers")
 	})
 }
 
@@ -754,11 +756,17 @@ func readFromYamlFileAsAgentMode(t *testing.T, yamlContent string) map[string]an
 	require.NoError(t, err)
 	conf, err := confRetrieved.AsConf()
 	require.NoError(t, err)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{
+		config: config.NewMockWithOverrides(t, map[string]interface{}{
+			"api_key": "test-api-key-12345",
+			"app_key": "test-app-key-67890",
+		}),
+	}
 	err = converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 	return conf.ToStringMap()
 }
+
 func readFromYamlFileAsStandalone(t *testing.T, yamlContent string) map[string]any {
 	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
 	require.NoError(t, err)

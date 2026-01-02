@@ -13,6 +13,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
@@ -76,8 +77,29 @@ func (c *converterWithoutAgent) ensureProcessorsConfig(processors map[component.
 	})
 }
 
+func (c *converterWithoutAgent) ensureHostProfilerConfig(cfg component.Config) *receiver.Config {
+	hostProfilerConfig := receiver.NewFactory().CreateDefaultConfig().(receiver.Config)
+	if err := mapstructure.Decode(cfg, &hostProfilerConfig); err != nil {
+		log.Warnf("Failed to decode hostprofiler config, using defaults: %v", err)
+	}
+
+	if hostProfilerConfig.SymbolUploader.Enabled {
+		for _, endpoint := range hostProfilerConfig.SymbolUploader.SymbolEndpoints {
+			if len(endpoint.APIKey) == 0 {
+				log.Warnf("Symbol Uploader: Unable to infer any API key in standalone mode for %s", endpoint.Site)
+			}
+
+			if len(endpoint.AppKey) == 0 {
+				log.Warnf("Unable to infer any App key in standalone mode for %s", endpoint.Site)
+			}
+		}
+	}
+
+	return &hostProfilerConfig
+}
+
 func (c *converterWithoutAgent) ensureReceiversConfig(receivers map[component.ID]component.Config) {
-	receivers[hostprofilerID] = ensureHostProfilerConfig(receivers[hostprofilerID])
+	receivers[hostprofilerID] = c.ensureHostProfilerConfig(receivers[hostprofilerID])
 
 	if _, ok := receivers[otlpReceiverID]; !ok {
 		receivers[otlpReceiverID] = otlpreceiver.NewFactory().CreateDefaultConfig()
@@ -85,8 +107,29 @@ func (c *converterWithoutAgent) ensureReceiversConfig(receivers map[component.ID
 	}
 }
 
+func (c *converterWithoutAgent) ensureOtlpHTTPConfig(otlpHTTP component.Config) component.Config {
+	// When working with the typed struct, header values are stored in a
+	// configopaque.String which do not survive a marshalling.
+	// Values stored get turned into [REDACTED], we lose every header
+	var configMap map[string]any
+	if otlpHTTP != nil {
+		configMap = otlpHTTP.(map[string]any)
+	} else {
+		configMap = make(map[string]any)
+	}
+
+	// In standalone mode, check if API key is present in headers
+	if headers, ok := configMap["headers"].(map[string]any); ok {
+		if key, ok := headers[ddAPIKey].(string); !ok || key == "" {
+			log.Warn("Cannot infer any API key in standalone mode")
+		}
+	}
+
+	return configMap
+}
+
 func (c *converterWithoutAgent) ensureExportersConfig(exporters map[component.ID]component.Config) {
-	exporters[otlpHTTPExporterID] = ensureOtlpHTTPConfig(exporters[otlpHTTPExporterID])
+	exporters[otlpHTTPExporterID] = c.ensureOtlpHTTPConfig(exporters[otlpHTTPExporterID])
 }
 
 func (c *converterWithoutAgent) ensureExtensionsConfig(extensions map[component.ID]component.Config, serviceConfig *service.Config) {

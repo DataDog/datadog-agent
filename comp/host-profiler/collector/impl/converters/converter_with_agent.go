@@ -12,6 +12,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-viper/mapstructure/v2"
@@ -26,8 +28,12 @@ import (
 )
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
+func NewFactoryWithAgent(config config.Component) confmap.ConverterFactory {
+	converterWithAgentFunc := func(converterSettings confmap.ConverterSettings) confmap.Converter {
+		return newConverterWithAgent(converterSettings, config)
+	}
+
+	return confmap.NewConverterFactory(converterWithAgentFunc)
 }
 
 // converterWithAgent ensures proper configuration when the host profiler runs
@@ -41,10 +47,12 @@ func NewFactoryWithAgent() confmap.ConverterFactory {
 //     Note: Only the default "resourcedetection" (no name suffix) is removed;
 //     custom variants are preserved as they may serve different purposes
 //   - Ensures profiles pipeline has all required components
-type converterWithAgent struct{}
+type converterWithAgent struct {
+	config config.Component
+}
 
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithAgent{}
+func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component) confmap.Converter {
+	return &converterWithAgent{config: config}
 }
 
 func (c *converterWithAgent) ensureInfraattributesProcessorConfig(cfg component.Config) *infraattributesprocessor.Config {
@@ -83,8 +91,32 @@ func (c *converterWithAgent) ensureProcessorsConfig(processors map[component.ID]
 	delete(processors, resourcedetectionID)
 }
 
+func (c *converterWithAgent) ensureHostProfilerConfig(cfg component.Config) *receiver.Config {
+	hostProfilerConfig := receiver.NewFactory().CreateDefaultConfig().(receiver.Config)
+	if err := mapstructure.Decode(cfg, &hostProfilerConfig); err != nil {
+		log.Warnf("Failed to decode hostprofiler config, using defaults: %v", err)
+	}
+
+	if hostProfilerConfig.SymbolUploader.Enabled {
+		for i := range hostProfilerConfig.SymbolUploader.SymbolEndpoints {
+			endpoint := &hostProfilerConfig.SymbolUploader.SymbolEndpoints[i]
+			if len(endpoint.APIKey) == 0 {
+				endpoint.APIKey = c.config.GetString("api_key")
+				log.Debugf("Adding agent provided API key to %s", endpoint.Site)
+			}
+
+			if len(endpoint.AppKey) == 0 {
+				endpoint.AppKey = c.config.GetString("app_key")
+				log.Debugf("Adding agent provided App key to %s", endpoint.Site)
+			}
+		}
+	}
+
+	return &hostProfilerConfig
+}
+
 func (c *converterWithAgent) ensureReceiversConfig(receivers map[component.ID]component.Config) {
-	receivers[hostprofilerID] = ensureHostProfilerConfig(receivers[hostprofilerID])
+	receivers[hostprofilerID] = c.ensureHostProfilerConfig(receivers[hostprofilerID])
 
 	if _, ok := receivers[otlpReceiverID]; !ok {
 		receivers[otlpReceiverID] = otlpreceiver.NewFactory().CreateDefaultConfig()
@@ -92,8 +124,35 @@ func (c *converterWithAgent) ensureReceiversConfig(receivers map[component.ID]co
 	}
 }
 
+func (c *converterWithAgent) ensureOtlpHTTPConfig(otlpHTTP component.Config) component.Config {
+	// When working with the typed struct, header values are stored in a
+	// configopaque.String which do not survive a marshalling.
+	// Values stored get turned into [REDACTED], we lose every header
+	var configMap map[string]any
+	if otlpHTTP != nil {
+		configMap = otlpHTTP.(map[string]any)
+	} else {
+		configMap = make(map[string]any)
+	}
+
+	// Ensure headers map exists
+	headers, ok := configMap["headers"].(map[string]any)
+	if !ok {
+		headers = make(map[string]any)
+		configMap["headers"] = headers
+	}
+
+	// Add dd-api-key if missing or empty
+	if key, ok := headers[ddAPIKey].(string); !ok || key == "" {
+		headers[ddAPIKey] = c.config.GetString("api_key")
+		log.Debug("Added dd-api-key to otlp headers")
+	}
+
+	return configMap
+}
+
 func (c *converterWithAgent) ensureExportersConfig(exporters map[component.ID]component.Config) {
-	exporters[otlpHTTPExporterID] = ensureOtlpHTTPConfig(exporters[otlpHTTPExporterID])
+	exporters[otlpHTTPExporterID] = c.ensureOtlpHTTPConfig(exporters[otlpHTTPExporterID])
 }
 
 func (c *converterWithAgent) ensureProfilePipeline(profilePipeline *pipelines.PipelineConfig) {

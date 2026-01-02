@@ -9,6 +9,7 @@
 package collectorimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -23,7 +24,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
-
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
@@ -49,6 +49,7 @@ type extraFactoriesWithAgentCore struct {
 	ipcComp    ipc.Component
 	traceAgent traceagent.Component
 	log        log.Component
+	config     config.Component
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
@@ -59,6 +60,7 @@ func NewExtraFactoriesWithAgentCore(
 	hostname hostname.Component, ipcComp ipc.Component,
 	traceAgent traceagent.Component,
 	log log.Component,
+	config config.Component,
 ) ExtraFactories {
 	return extraFactoriesWithAgentCore{
 		tagger:     tagger,
@@ -66,6 +68,7 @@ func NewExtraFactoriesWithAgentCore(
 		ipcComp:    ipcComp,
 		traceAgent: traceAgent,
 		log:        log,
+		config:     config,
 	}
 }
 
@@ -86,7 +89,7 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
-		converters.NewFactoryWithAgent(),
+		converters.NewFactoryWithAgent(e.config),
 	}
 }
 
