@@ -1,6 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
 
 rust_binary(
     name = "sd-agent",
@@ -20,4 +20,23 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [":sd-agent_pkg"],
+)
+
+rust_test(
+    name = "sd-agent_test",
+    crate = ":sd-agent",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "sd-agent_test_pkg",
+    testonly = True,
+    srcs = [":sd-agent_test"],
+)
+
+pkg_install(
+    name = "install_test",
+    testonly = True,
+    srcs = [":sd-agent_test_pkg"],
 )

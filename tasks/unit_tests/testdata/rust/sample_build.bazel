@@ -1,0 +1,9 @@
+rust_test(
+    name = "rusthello_test",
+    srcs = ["src/main.rs"],
+)
+
+rust_test(
+    name = "another_test",
+    srcs = ["src/lib.rs"],
+)

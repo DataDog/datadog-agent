@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="pkg/collector/module/rusthello/test-789012/rusthello_test" tests="1" failures="0" errors="1">
+    <testcase name="pkg/collector/module/rusthello/test-789012/rusthello_test" status="run" duration="0" time="0">
+      <error message="exited with error code 101"></error>
+    </testcase>
+    <system-out><![CDATA[
+running 2 tests
+test tests::test_add ... FAILED
+test tests::test_greet ... ok
+
+failures:
+
+---- tests::test_add stdout ----
+
+thread 'tests::test_add' panicked at src/main.rs:21:9:
+assertion `left == right` failed
+  left: 5
+ right: 4
+
+failures:
+    tests::test_add
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
+    ]]></system-out>
+  </testsuite>
+</testsuites>
