@@ -123,17 +123,27 @@ var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool {
 // WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers.
 var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) == 0 }
 
-// WithInfrastructureModeFilter filters out configs that are not allowed based on infrastructure_mode settings.
-// When infrastructure_mode is "full", all checks are allowed.
-// Otherwise, only checks in the allowlist (allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted.
-var WithInfrastructureModeFilter FilterFunc = func(c integration.Config) bool {
+// WithIntegrationsFilter filters out configs that are not allowed based on configuration settings.
+// When infrastructure_mode is "full", all checks are allowed. Otherwise, only checks in the allowlist (allowed_checks + allowed_additional_checks - excluded_default_checks) are permitted. This filter only applies to check configs (with instances), logs-only and metrics-only configs are always allowed.
+var WithIntegrationsFilter FilterFunc = func(c integration.Config) bool {
+	// Only filter check configs (those with instances)
+	// Logs-only and metrics-only configs should not be filtered by infrastructure mode
+	if len(c.Instances) == 0 {
+		return true
+	}
+
+	if !pkgconfigsetup.Datadog().GetBool("agent_checks.enabled") {
+		log.Debugf("Check %q is disabled via agent_checks.enabled, filtering out", c.Name)
+		return false
+	}
+
 	allowed := pkgconfigsetup.IsCheckAllowedByInfraMode(c.Name)
 	if !allowed {
 		infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
 		if pkgconfigsetup.IsCheckExcludedByInfraMode(c.Name) {
-			log.Infof("Check %q is excluded via excluded_default_checks in infrastructure mode %q, filtering out", c.Name, infraMode)
+			log.Debugf("Check %q is excluded via excluded_default_checks in infrastructure mode %q, filtering out", c.Name, infraMode)
 		} else {
-			log.Infof("Check %q is not allowed in infrastructure mode %q, filtering out", c.Name, infraMode)
+			log.Debugf("Check %q is not allowed in infrastructure mode %q, filtering out", c.Name, infraMode)
 		}
 	}
 	return allowed
@@ -273,6 +283,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 
 			// determine if a check has to be run by default by
 			// searching for check.yaml.default files
+			// .example files for exclusive checks are also treated as defaults
 			if entry.isDefault {
 				defaultConfigs = append(defaultConfigs, entry.conf)
 			} else if entry.isLogsOnly {
@@ -292,6 +303,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 	for _, conf := range defaultConfigs {
 		if _, isThere := configNames[conf.Name]; !isThere {
 			configs = append(configs, conf)
+			configNames[conf.Name] = struct{}{}
 		} else {
 			log.Debugf("Ignoring default config file '%s' because non-default config was found", conf.Name)
 		}
@@ -304,6 +316,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 // the integrationName can be manually provided else it'll use the filename
 func collectEntry(file os.DirEntry, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
 	const defaultExt string = ".default"
+	const exampleExt string = ".example"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
 	entry := configEntry{}
@@ -319,6 +332,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	// skip config files that are not of type:
 	//  * integration.yaml, integration.yml
 	//  * integration.yaml.default, integration.yml.default
+	//  * integration.yaml.example, integration.yml.example (for exclusive checks)
 
 	if fileName == "metrics.yaml" || fileName == "metrics.yml" {
 		entry.isMetric = true
@@ -327,6 +341,18 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	if ext == defaultExt {
 		entry.isDefault = true
 		ext = filepath.Ext(strings.TrimSuffix(fileName, defaultExt))
+	} else if ext == exampleExt {
+		ext = filepath.Ext(strings.TrimSuffix(fileName, exampleExt))
+		// Determine the integration name first to check if it's an exclusive check
+		if integrationName == "" {
+			integrationName = strings.TrimSuffix(strings.TrimSuffix(fileName, exampleExt), ext)
+		}
+		// Only load .example files for exclusive checks
+		if !slices.Contains(pkgconfigsetup.GetExclusiveChecksForCurrentMode(), integrationName) {
+			entry.err = errors.New("example file not for exclusive check")
+			return entry, integrationErrors
+		}
+		entry.isDefault = true // treat as default for exclusive checks
 	}
 
 	if integrationName == "" {
@@ -404,6 +430,7 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 			}
 			// determine if a check has to be run by default by
 			// searching for integration.yaml.default files
+			// .example files for exclusive checks are also treated as defaults
 			if entry.isDefault {
 				defaultConfigs = append(defaultConfigs, entry.conf)
 			} else if entry.isMetric || entry.isLogsOnly {
