@@ -8,8 +8,8 @@
 ---
 features:
   - |
-    The Agent Profiling check now supports automatic agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the agent needs to be restarted after generating diagnostic information.
+    The Agent Profiling check now supports automatic Agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the Agent needs to be restarted after generating diagnostic information.
 
-    Enable this feature by setting `terminate_agent_on_threshold: true` in the Agent Profiling check configuration. When enabled, the agent will attempt a graceful shutdown via SIGINT after successfully generating a flare, allowing cleanup before exit. If signal delivery fails, it will fall back to immediate termination.
+    Enable this feature by setting `terminate_agent_on_threshold: true` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
 
     **Warning**: This feature will cause the agent to exit. This feature is disabled by default and should be used with caution.

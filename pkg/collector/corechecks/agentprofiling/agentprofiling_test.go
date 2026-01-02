@@ -149,7 +149,7 @@ func TestTerminateAgentOnThresholdConfig(t *testing.T) {
 	assert.Equal(t, uint(1), check.memoryThreshold)
 
 	// Verify that when threshold is exceeded, flare is generated
-	// Note: Termination is skipped in test mode (detected via os.Args), so we can't test
+	// Note: Termination is skipped in test mode (detected via testing.Testing()), so we can't test
 	// the actual shutdown behavior. However, we verify that the config is parsed correctly
 	// and that the check would attempt termination in a non-test environment.
 	err := check.Run()

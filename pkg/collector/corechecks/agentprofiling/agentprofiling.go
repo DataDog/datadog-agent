@@ -10,8 +10,7 @@ package agentprofiling
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
+	"testing"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -201,26 +200,9 @@ func (m *Check) Run() error {
 // via stopAgent(). Termination is skipped when running in test mode to avoid killing the test process.
 func (m *Check) terminateAgent() {
 	// Skip termination when running in test mode
-	// Check if we're running under go test by looking for test-related arguments
-	// Go test passes arguments like "-test.v=true" or "-test.run=TestName", so we use HasPrefix
-	for _, arg := range os.Args {
-		if strings.HasPrefix(arg, "-test.") {
-			log.Info("Skipping agent termination: running in test mode")
-			return
-		}
-	}
-	// Also check if binary name indicates a test binary
-	// On Windows, test binaries are named like "foo.test.exe", so we check for ".test" suffix
-	// after removing the ".exe" extension if present
-	if len(os.Args) > 0 {
-		binName := filepath.Base(os.Args[0])
-		// Remove .exe extension on Windows to handle "foo.test.exe" case
-		binName = strings.TrimSuffix(binName, ".exe")
-		// Check if binary name starts with "test" or ends with ".test"
-		if strings.HasPrefix(binName, "test") || strings.HasSuffix(binName, ".test") {
-			log.Info("Skipping agent termination: running in test mode")
-			return
-		}
+	if testing.Testing() {
+		log.Info("Skipping agent termination: running in test mode")
+		return
 	}
 
 	log.Warnf("Terminating agent process due to threshold exceeded (terminate_agent_on_threshold is enabled)")
