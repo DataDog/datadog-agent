@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !serverless
-
 // Package checks provides health checks for the health platform component.
 package checks
 
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/dockerpermissions"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -31,14 +30,23 @@ const (
 // Returns the issue ID and context if there's an issue, or empty string if no issue.
 func CheckDockerSocket() (string, map[string]string) {
 	socketPath := defaultDockerSocket
+	log.Infof("Docker socket check: checking socket at %s", socketPath)
+
 	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+	log.Infof("Docker socket check: exists=%v, reachable=%v", exists, reachable)
 
 	// No issue if socket doesn't exist (Docker not installed) or is accessible
 	if !exists || reachable {
+		if !exists {
+			log.Info("Docker socket check: socket does not exist, no issue reported")
+		} else {
+			log.Info("Docker socket check: socket is reachable, no issue reported")
+		}
 		return "", nil
 	}
 
 	// Socket exists but is not accessible (permission denied)
+	log.Warnf("Docker socket check: socket exists but not reachable (permission denied), reporting issue")
 	return dockerpermissions.IssueIDSocket, map[string]string{
 		"type":       "socket",
 		"socketPath": socketPath,

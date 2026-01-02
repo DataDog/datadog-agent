@@ -374,15 +374,19 @@ func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, chec
 
 // runHealthCheck executes a health check function and reports the result
 func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	h.log.Infof("Running health check: %s", checkName)
 	issueID, context := checkFunc()
 
 	// Build issue report (nil if no issue detected)
 	var issueReport *healthplatform.IssueReport
 	if issueID != "" {
+		h.log.Infof("Health check %s detected issue: %s", checkName, issueID)
 		issueReport = &healthplatform.IssueReport{
 			IssueID: issueID,
 			Context: context,
 		}
+	} else {
+		h.log.Infof("Health check %s: no issue detected", checkName)
 	}
 
 	// Report or clear the issue
