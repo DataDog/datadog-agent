@@ -74,7 +74,7 @@ fn discover_files_by_time_range(
     };
     let search_end = data_range.latest.min(now);
 
-    eprintln!(
+    tracing::debug!(
         "[PERF] Time-range discovery: {} to {} ({} hours lookback)",
         search_start.format("%Y-%m-%dT%H:%M:%S"),
         search_end.format("%Y-%m-%dT%H:%M:%S"),
@@ -175,7 +175,7 @@ fn discover_files_by_time_range(
     let parquet_files: Vec<PathBuf> = files_with_mtime.into_iter().map(|(p, _)| p).collect();
 
     let elapsed = start_time.elapsed();
-    eprintln!(
+    tracing::debug!(
         "[PERF] Time-range discovery complete: {} dirs, {} files found, {} filtered out, {} selected in {:.1}ms",
         dirs_scanned,
         files_found,
@@ -290,12 +290,12 @@ impl LazyDataStore {
     /// REQ-MV-012: Create from container index for instant startup.
     /// Uses index for container metadata, reads metrics from parquet schema.
     pub fn from_index(container_index: ContainerIndex, data_dir: PathBuf) -> Result<Self> {
-        eprintln!("Building metadata from index...");
+        tracing::debug!("Building metadata from index...");
 
         // REQ-MV-012: Use time-range based discovery instead of expensive glob
         // This dramatically reduces startup time by only scanning relevant date directories
         let parquet_files = discover_files_by_time_range(&data_dir, &container_index.data_range, None);
-        eprintln!("Using {} parquet files from time-range discovery", parquet_files.len());
+        tracing::debug!("Using {} parquet files from time-range discovery", parquet_files.len());
 
         // Get metric names from parquet schema - try multiple files
         let mut metrics = Vec::new();
@@ -303,17 +303,17 @@ impl LazyDataStore {
             match read_metrics_from_schema(file) {
                 Ok(m) => {
                     metrics = m;
-                    eprintln!("Read {} metrics from schema of {:?}", metrics.len(), file);
+                    tracing::debug!("Read {} metrics from schema of {:?}", metrics.len(), file);
                     break;
                 }
                 Err(e) => {
-                    eprintln!("Skipping {:?}: {}", file, e);
+                    tracing::debug!("Skipping {:?}: {}", file, e);
                     continue;
                 }
             }
         }
         if metrics.is_empty() && !parquet_files.is_empty() {
-            eprintln!("Warning: Could not read metrics from any parquet file");
+            tracing::debug!("Warning: Could not read metrics from any parquet file");
         }
 
         // Build container info from index
@@ -361,7 +361,7 @@ impl LazyDataStore {
             metric_containers,
         };
 
-        eprintln!(
+        tracing::debug!(
             "Index-based startup complete: {} metrics, {} containers",
             index.metrics.len(),
             index.containers.len()
@@ -412,7 +412,7 @@ impl LazyDataStore {
             *self.last_refresh.write().unwrap() = Some(std::time::Instant::now());
 
             if new_count != old_count {
-                eprintln!(
+                tracing::debug!(
                     "[PERF] refresh_files: {} -> {} files in {:.1}ms",
                     old_count,
                     new_count,
@@ -482,7 +482,7 @@ impl LazyDataStore {
         {
             let cache = self.stats_cache.read().unwrap();
             if let Some(stats) = cache.get(metric) {
-                eprintln!(
+                tracing::debug!(
                     "[PERF] get_container_stats('{}') cache HIT in {:.1}ms",
                     metric,
                     total_start.elapsed().as_secs_f64() * 1000.0
@@ -491,7 +491,7 @@ impl LazyDataStore {
             }
         }
 
-        eprintln!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
+        tracing::debug!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
 
         // Refresh file list to pick up newly written files
         self.refresh_files();
@@ -504,7 +504,7 @@ impl LazyDataStore {
             .map(|set| set.iter().map(|s| s.as_str()).collect())
             .unwrap_or_default();
 
-        eprintln!("[PERF]   {} containers to load", container_ids.len());
+        tracing::debug!("[PERF]   {} containers to load", container_ids.len());
 
         if container_ids.is_empty() {
             return Ok(Arc::new(HashMap::new()));
@@ -539,7 +539,7 @@ impl LazyDataStore {
             cache.insert(metric.to_string(), Arc::clone(&stats));
         }
 
-        eprintln!(
+        tracing::debug!(
             "[PERF] get_container_stats('{}') TOTAL: {:.1}ms",
             metric,
             total_start.elapsed().as_secs_f64() * 1000.0
@@ -562,7 +562,7 @@ impl LazyDataStore {
             b_time.cmp(&a_time)
         });
 
-        eprintln!(
+        tracing::debug!(
             "[PERF] get_containers_by_recency: {} containers in {:.1}ms",
             containers.len(),
             start.elapsed().as_secs_f64() * 1000.0
@@ -654,7 +654,7 @@ fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
 fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     // REQ-MV-012: Handle empty file list gracefully
     if paths.is_empty() {
-        eprintln!("No parquet files to scan - returning empty index");
+        tracing::debug!("No parquet files to scan - returning empty index");
         return Ok(MetadataIndex {
             metrics: vec![],
             qos_classes: vec![],
@@ -675,14 +675,14 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     let mut rows_sampled = 0u64;
 
     for path in paths {
-        eprintln!("Scanning {:?}", path);
+        tracing::debug!("Scanning {:?}", path);
 
         // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
         // This handles files being actively written by the collector
         let file = match File::open(path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("  Skipping (cannot open): {}", e);
+                tracing::debug!("  Skipping (cannot open): {}", e);
                 continue;
             }
         };
@@ -690,7 +690,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         // Check file size - parquet files need at least 8 bytes for magic number
         if let Ok(metadata) = file.metadata() {
             if metadata.len() < 8 {
-                eprintln!("  Skipping (file too small: {} bytes)", metadata.len());
+                tracing::debug!("  Skipping (file too small: {} bytes)", metadata.len());
                 continue;
             }
         }
@@ -698,7 +698,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("  Skipping (invalid parquet): {}", e);
+                tracing::debug!("  Skipping (invalid parquet): {}", e);
                 continue;
             }
         };
@@ -743,7 +743,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         row_groups_to_read.sort();
         row_groups_to_read.dedup();
 
-        eprintln!(
+        tracing::debug!(
             "  {} rows in {} row groups, sampling {} groups",
             total_rows,
             num_row_groups,
@@ -868,7 +868,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     let mut namespaces: Vec<String> = namespace_set.into_iter().collect();
     namespaces.sort();
 
-    eprintln!(
+    tracing::debug!(
         "Sampled {} rows, found {} metrics, {} containers in {:.2}s",
         rows_sampled,
         metrics.len(),
@@ -902,7 +902,7 @@ fn load_metric_data(
     let is_cumulative_metric = is_cumulative(metric);
     let metric = metric.to_string();
 
-    eprintln!(
+    tracing::debug!(
         "[PERF]     load_metric_data: {} files, {} containers requested",
         paths.len(),
         container_ids.len()
@@ -917,7 +917,7 @@ fn load_metric_data(
         })
         .collect();
     let parallel_elapsed = parallel_start.elapsed();
-    eprintln!(
+    tracing::debug!(
         "[PERF]       parallel file reads: {:.1}ms",
         parallel_elapsed.as_secs_f64() * 1000.0
     );
@@ -934,7 +934,7 @@ fn load_metric_data(
                 .merge(data);
         }
     }
-    eprintln!(
+    tracing::debug!(
         "[PERF]       merge results: {:.1}ms",
         merge_start.elapsed().as_secs_f64() * 1000.0
     );
@@ -946,12 +946,12 @@ fn load_metric_data(
         .map(|(id, raw)| (id, raw.into_points()))
         .filter(|(_, points)| !points.is_empty())
         .collect();
-    eprintln!(
+    tracing::debug!(
         "[PERF]       convert to points: {:.1}ms",
         convert_start.elapsed().as_secs_f64() * 1000.0
     );
 
-    eprintln!(
+    tracing::debug!(
         "[PERF]     load_metric_data TOTAL: {:.1}ms ({} containers loaded)",
         start.elapsed().as_secs_f64() * 1000.0,
         result.len()
@@ -978,7 +978,7 @@ fn load_metric_stats(
     let is_cumulative_metric = is_cumulative(metric);
     let metric = metric.to_string();
 
-    eprintln!(
+    tracing::debug!(
         "[PERF]     load_metric_stats: {} files, {} containers requested",
         paths.len(),
         container_ids.len()
@@ -993,7 +993,7 @@ fn load_metric_stats(
         })
         .collect();
     let parallel_elapsed = parallel_start.elapsed();
-    eprintln!(
+    tracing::debug!(
         "[PERF]       parallel file reads: {:.1}ms",
         parallel_elapsed.as_secs_f64() * 1000.0
     );
@@ -1010,7 +1010,7 @@ fn load_metric_stats(
                 .merge(data);
         }
     }
-    eprintln!(
+    tracing::debug!(
         "[PERF]       merge results: {:.1}ms",
         merge_start.elapsed().as_secs_f64() * 1000.0
     );
@@ -1021,12 +1021,12 @@ fn load_metric_stats(
         .into_iter()
         .filter_map(|(id, raw)| raw.into_stats().map(|s| (id, s)))
         .collect();
-    eprintln!(
+    tracing::debug!(
         "[PERF]       compute stats: {:.1}ms",
         stats_start.elapsed().as_secs_f64() * 1000.0
     );
 
-    eprintln!(
+    tracing::debug!(
         "[PERF]     load_metric_stats TOTAL: {:.1}ms ({} containers)",
         start.elapsed().as_secs_f64() * 1000.0,
         result.len()
@@ -1110,8 +1110,9 @@ fn load_metric_from_file(
         .unwrap_or(num_row_groups);
 
     // Process row groups (filtered by statistics)
+    // Fix #2: Pass builder directly to avoid double file open
     let result = load_row_groups(
-        path,
+        builder,
         metric,
         container_set,
         is_cumulative_metric,
@@ -1121,7 +1122,7 @@ fn load_metric_from_file(
     let elapsed = file_start.elapsed();
     if elapsed.as_millis() > 100 || !result.is_empty() {
         let pruned = num_row_groups - rg_count_after_pruning;
-        eprintln!(
+        tracing::debug!(
             "[PERF-FILE] {:?}: {}ms, {}/{} row_groups (pruned {}), {} containers matched",
             path.file_name().unwrap_or_default(),
             elapsed.as_millis(),
@@ -1138,30 +1139,14 @@ fn load_metric_from_file(
 /// Load specific row groups from a parquet file.
 /// Uses flat `l_*` columns for labels with predicate pushdown for efficient filtering.
 /// Fix #1: Takes Arc<HashSet> directly to avoid cloning in predicates.
+/// Fix #2: Takes pre-opened builder to avoid double file open.
 fn load_row_groups(
-    path: &PathBuf,
+    builder: ParquetRecordBatchReaderBuilder<File>,
     metric: &str,
     container_set: Arc<HashSet<String>>,
     is_cumulative_metric: bool,
     row_groups: Option<Vec<usize>>,
 ) -> Result<HashMap<String, RawContainerData>> {
-    // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
-    let file = match File::open(path) {
-        Ok(f) => f,
-        Err(_) => return Ok(HashMap::new()),
-    };
-
-    if let Ok(metadata) = file.metadata() {
-        if metadata.len() < 8 {
-            return Ok(HashMap::new());
-        }
-    }
-
-    let builder = match ParquetRecordBatchReaderBuilder::try_new(file) {
-        Ok(b) => b,
-        Err(_) => return Ok(HashMap::new()),
-    };
-
     let schema = builder.schema().clone();
 
     // Build projection: only columns we actually use in the data loop
