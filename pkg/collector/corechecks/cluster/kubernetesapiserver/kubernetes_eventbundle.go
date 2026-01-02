@@ -129,7 +129,7 @@ func (b *kubernetesEventBundle) formatEventText() string {
 }
 
 func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
-	eventText := fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)
+	eventText := "**" + event.Reason + "**: " + event.Message + "\n"
 	if len(eventText) > maxEstimatedEventTextLength {
 		return "", false
 	}
