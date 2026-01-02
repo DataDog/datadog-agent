@@ -47,6 +47,9 @@ uuid = { version = "1", features = ["v4"] }
 # File globbing for directory input
 glob = "0.3"
 
+# Directory walking for benchmark summary
+walkdir = "2"
+
 # Metrics viewer dependencies
 parquet = { version = "54", features = ["arrow"] }
 arrow = "54"

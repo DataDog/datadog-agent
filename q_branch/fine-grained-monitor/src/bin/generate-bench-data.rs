@@ -1,19 +1,21 @@
-//! Synthetic parquet data generator for benchmarks.
+//! Realistic synthetic parquet data generator for benchmarks.
 //!
-//! Generates parquet files matching the fine-grained-monitor schema
-//! for reproducible performance testing.
+//! Models actual fine-grained-monitor data patterns:
+//! - Directory structure: dt=YYYY-MM-DD/identifier=<pod>/
+//! - Fresh files: metrics-YYYYMMDDTHHMMSSZ.parquet (~200K rows, 90s of data)
+//! - Consolidated files: consolidated-START-END.parquet (~2M rows, ~14min of data)
+//! - Mix of file types matching real 1-hour query patterns
 //!
 //! Usage:
-//!   cargo run --release --bin generate-bench-data -- --scenario small
-//!   cargo run --release --bin generate-bench-data -- --scenario medium
+//!   cargo run --release --bin generate-bench-data -- --scenario realistic-1h
+//!   cargo run --release --bin generate-bench-data -- --scenario stress-test
 //!   cargo run --release --bin generate-bench-data -- --help
 
 use anyhow::Result;
-use arrow::array::{
-    ArrayRef, Float64Builder, MapBuilder, StringBuilder, TimestampMillisecondBuilder, UInt64Builder,
-};
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::array::{ArrayRef, BinaryBuilder, Float64Builder, StringBuilder, TimestampMillisecondBuilder, UInt64Builder};
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
+use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, ValueEnum};
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
@@ -22,77 +24,47 @@ use std::fs::{self, File};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Predefined benchmark scenarios
+/// Benchmark scenarios modeling real data patterns
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Scenario {
-    /// Small: 2 files, 10 containers, 5 metrics, 10K rows/file
-    Small,
-    /// Medium: 50 files, 50 containers, 30 metrics, 50K rows/file
-    Medium,
-    /// Large: 200 files, 100 containers, 30 metrics, 100K rows/file
-    Large,
-    /// Production: 500 files, 100 containers, 30 metrics, 100K rows/file
-    Production,
+    /// Realistic 1-hour window: 4 fresh + 4 consolidated files per identifier
+    Realistic1h,
+    /// Single consolidated file for isolated testing
+    SingleConsolidated,
+    /// Single fresh file for isolated testing
+    SingleFresh,
+    /// Stress test: 24 hours of data with realistic consolidation
+    StressTest,
+    /// Legacy format for backwards compatibility
+    Legacy,
 }
 
 #[derive(Parser)]
 #[command(name = "generate-bench-data")]
-#[command(about = "Generate synthetic parquet data for benchmarks")]
+#[command(about = "Generate realistic synthetic parquet data for benchmarks")]
 struct Args {
-    /// Predefined scenario to generate
-    #[arg(short, long, value_enum)]
+    /// Benchmark scenario to generate
+    #[arg(short, long, value_enum, default_value = "realistic-1h")]
     scenario: Scenario,
 
     /// Output directory (default: testdata/bench/<scenario>)
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// Number of identifiers (pods) to generate
+    #[arg(long, default_value = "1")]
+    identifiers: usize,
+
+    /// Number of containers per identifier
+    #[arg(long, default_value = "10")]
+    containers: usize,
+
+    /// Use ZSTD compression (like consolidated files) instead of Snappy
+    #[arg(long)]
+    zstd: bool,
 }
 
-/// Scenario configuration
-struct ScenarioConfig {
-    num_files: usize,
-    num_containers: usize,
-    num_metrics: usize,
-    rows_per_file: usize,
-    duration_secs: u64,
-}
-
-impl From<Scenario> for ScenarioConfig {
-    fn from(s: Scenario) -> Self {
-        match s {
-            Scenario::Small => ScenarioConfig {
-                num_files: 2,
-                num_containers: 10,
-                num_metrics: 5,
-                rows_per_file: 10_000,
-                duration_secs: 3600, // 1 hour
-            },
-            Scenario::Medium => ScenarioConfig {
-                num_files: 50,
-                num_containers: 50,
-                num_metrics: 30,
-                rows_per_file: 50_000,
-                duration_secs: 3600 * 24, // 1 day
-            },
-            Scenario::Large => ScenarioConfig {
-                num_files: 200,
-                num_containers: 100,
-                num_metrics: 30,
-                rows_per_file: 100_000,
-                duration_secs: 3600 * 24 * 5, // 5 days
-            },
-            Scenario::Production => ScenarioConfig {
-                num_files: 500,
-                num_containers: 100,
-                num_metrics: 30,
-                rows_per_file: 100_000,
-                duration_secs: 3600 * 24 * 7, // 7 days
-            },
-        }
-    }
-}
-
-/// Metrics used in real fine-grained-monitor (subset for benchmarks)
+/// Real metrics from fine-grained-monitor
 const METRIC_NAMES: &[&str] = &[
     "cpu_percentage",
     "total_cpu_usage_millicores",
@@ -127,261 +99,496 @@ const METRIC_NAMES: &[&str] = &[
 ];
 
 const QOS_CLASSES: &[&str] = &["Guaranteed", "Burstable", "BestEffort"];
-const NAMESPACES: &[&str] = &[
-    "default",
-    "kube-system",
-    "monitoring",
-    "app-production",
-    "app-staging",
-];
+const NAMESPACES: &[&str] = &["default", "kube-system", "monitoring", "app-production", "app-staging"];
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let config = ScenarioConfig::from(args.scenario);
 
     let output_dir = args.output.unwrap_or_else(|| {
-        PathBuf::from("testdata/bench").join(format!("{:?}", args.scenario).to_lowercase())
+        PathBuf::from("testdata/bench").join(format!("{:?}", args.scenario).to_lowercase().replace("_", "-"))
     });
 
     println!("Generating {:?} scenario:", args.scenario);
-    println!("  Files: {}", config.num_files);
-    println!("  Containers: {}", config.num_containers);
-    println!("  Metrics: {}", config.num_metrics);
-    println!("  Rows/file: {}", config.rows_per_file);
     println!("  Output: {}", output_dir.display());
+    println!("  Identifiers: {}", args.identifiers);
+    println!("  Containers per identifier: {}", args.containers);
+    println!("  Compression: {}", if args.zstd { "ZSTD" } else { "Snappy" });
 
-    // Create output directory
+    // Clean and create output directory
+    if output_dir.exists() {
+        fs::remove_dir_all(&output_dir)?;
+    }
     fs::create_dir_all(&output_dir)?;
 
-    // Generate container metadata
-    // Use UUIDs that are distinguishable in first 12 chars (short_id used by viewer)
-    let containers: Vec<Container> = (0..config.num_containers)
-        .map(|i| {
-            // Generate a pseudo-random but deterministic container ID
-            // Make first 12 chars unique per container so short_id extraction works
-            let short_id_part = format!("{:012x}", (i as u64 + 1) * 0x111111111111u64);
-            let id = format!("{}{:052x}", short_id_part, i);
-            Container {
-                id,
-                qos_class: QOS_CLASSES[i % QOS_CLASSES.len()].to_string(),
-                namespace: NAMESPACES[i % NAMESPACES.len()].to_string(),
-                pod_name: format!("pod-{}-{}", NAMESPACES[i % NAMESPACES.len()], i),
-            }
-        })
+    // Generate containers
+    let containers: Vec<Container> = (0..args.containers)
+        .map(|i| Container::new(i))
         .collect();
 
-    // Select metrics to use
-    let metrics: Vec<&str> = METRIC_NAMES.iter().take(config.num_metrics).copied().collect();
+    // Base time: now minus 1 hour (so data is "recent")
+    let now = Utc::now();
+    let base_time = now - Duration::hours(1);
 
-    // Calculate time distribution
-    let base_time_ms = 1704067200000i64; // 2024-01-01 00:00:00 UTC
-    let duration_ms = config.duration_secs * 1000;
-    let time_per_file = duration_ms / config.num_files as u64;
-
-    // Generate files
-    for file_idx in 0..config.num_files {
-        let file_start_ms = base_time_ms + (file_idx as i64 * time_per_file as i64);
-        let file_path = output_dir.join(format!("bench-{:04}.parquet", file_idx));
-
-        print!("\r  Generating file {}/{}", file_idx + 1, config.num_files);
-
-        generate_parquet_file(
-            &file_path,
-            &containers,
-            &metrics,
-            config.rows_per_file,
-            file_start_ms,
-            time_per_file,
-        )?;
+    match args.scenario {
+        Scenario::Realistic1h => {
+            generate_realistic_1h(&output_dir, &containers, args.identifiers, base_time, args.zstd)?;
+        }
+        Scenario::SingleConsolidated => {
+            generate_single_file(&output_dir, &containers, "consolidated", 2_000_000, args.zstd)?;
+        }
+        Scenario::SingleFresh => {
+            generate_single_file(&output_dir, &containers, "fresh", 200_000, args.zstd)?;
+        }
+        Scenario::StressTest => {
+            generate_stress_test(&output_dir, &containers, args.identifiers, base_time, args.zstd)?;
+        }
+        Scenario::Legacy => {
+            generate_legacy(&output_dir, &containers, args.zstd)?;
+        }
     }
 
-    println!("\n  Done!");
-
     // Print summary
-    let total_rows = config.num_files * config.rows_per_file;
-    let total_size: u64 = fs::read_dir(&output_dir)?
+    let total_size: u64 = walkdir::WalkDir::new(&output_dir)
+        .into_iter()
         .filter_map(|e| e.ok())
         .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
         .map(|m| m.len())
         .sum();
 
+    let file_count: usize = walkdir::WalkDir::new(&output_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map(|x| x == "parquet").unwrap_or(false))
+        .count();
+
     println!("\nSummary:");
-    println!("  Total rows: {}", total_rows);
+    println!("  Files: {}", file_count);
     println!("  Total size: {:.1} MB", total_size as f64 / 1_000_000.0);
-    println!(
-        "  Avg file size: {:.1} KB",
-        total_size as f64 / config.num_files as f64 / 1_000.0
-    );
 
     Ok(())
 }
 
-struct Container {
-    id: String,
-    qos_class: String,
-    namespace: String,
-    pod_name: String,
+/// Generate realistic 1-hour window data
+fn generate_realistic_1h(
+    output_dir: &PathBuf,
+    containers: &[Container],
+    num_identifiers: usize,
+    base_time: DateTime<Utc>,
+    use_zstd: bool,
+) -> Result<()> {
+    // Real pattern for 1-hour window:
+    // - 4 consolidated files (~14 min each, covering minutes 0-54)
+    // - 4 fresh files (90 sec each, covering minutes 54-60)
+
+    for id_idx in 0..num_identifiers {
+        let identifier = format!("bench-pod-{}", id_idx);
+        let date_str = base_time.format("%Y-%m-%d").to_string();
+        let id_dir = output_dir
+            .join(format!("dt={}", date_str))
+            .join(format!("identifier={}", identifier));
+        fs::create_dir_all(&id_dir)?;
+
+        println!("  Generating identifier: {}", identifier);
+
+        // Generate 4 consolidated files (each ~14 minutes, ~2M rows)
+        for i in 0..4 {
+            let start_offset = Duration::minutes(i * 14);
+            let end_offset = Duration::minutes((i + 1) * 14 - 1);
+            let file_start = base_time + start_offset;
+            let file_end = base_time + end_offset;
+
+            let filename = format!(
+                "consolidated-{}-{}.parquet",
+                file_start.format("%Y%m%dT%H%M%SZ"),
+                file_end.format("%Y%m%dT%H%M%SZ")
+            );
+            let path = id_dir.join(&filename);
+
+            print!("    {} ", filename);
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, true)?;
+            println!("({} rows)", rows);
+        }
+
+        // Generate 4 fresh files (each ~90 seconds, ~200K rows)
+        for i in 0..4 {
+            let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
+            let file_start = base_time + start_offset;
+
+            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
+            let path = id_dir.join(&filename);
+
+            let file_end = file_start + Duration::seconds(90);
+            print!("    {} ", filename);
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, use_zstd)?;
+            println!("({} rows)", rows);
+        }
+    }
+
+    Ok(())
 }
 
-fn generate_parquet_file(
+/// Generate a single test file
+fn generate_single_file(
+    output_dir: &PathBuf,
+    containers: &[Container],
+    file_type: &str,
+    target_rows: usize,
+    use_zstd: bool,
+) -> Result<()> {
+    let now = Utc::now();
+    let identifier = "bench-single";
+
+    // Calculate duration based on target rows
+    // Real data: ~30 metrics × 10 containers × 1 sample/sec = 300 rows/sec
+    // For 2M rows, need ~6600 seconds (~110 minutes, ~14 min × 10 containers)
+    let rows_per_sec = containers.len() * METRIC_NAMES.len();
+    let duration_secs = (target_rows / rows_per_sec).max(90) as i64;
+
+    let file_start = now - Duration::seconds(duration_secs);
+    let file_end = now;
+
+    let filename = match file_type {
+        "consolidated" => format!(
+            "consolidated-{}-{}.parquet",
+            file_start.format("%Y%m%dT%H%M%SZ"),
+            file_end.format("%Y%m%dT%H%M%SZ")
+        ),
+        _ => format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ")),
+    };
+
+    let path = output_dir.join(&filename);
+    print!("  {} ", filename);
+    let rows = generate_file(&path, containers, identifier, file_start, file_end, use_zstd)?;
+    println!("({} rows)", rows);
+
+    Ok(())
+}
+
+/// Generate 24-hour stress test data
+fn generate_stress_test(
+    output_dir: &PathBuf,
+    containers: &[Container],
+    num_identifiers: usize,
+    base_time: DateTime<Utc>,
+    use_zstd: bool,
+) -> Result<()> {
+    // 24 hours of data:
+    // - ~100 consolidated files per identifier
+    // - 4 fresh files (most recent)
+
+    let base_time = base_time - Duration::hours(23); // Start 24 hours ago
+
+    for id_idx in 0..num_identifiers {
+        let identifier = format!("bench-pod-{}", id_idx);
+        println!("  Generating identifier: {}", identifier);
+
+        // Generate consolidated files for first 23.9 hours
+        let num_consolidated = 100;
+        let consolidated_duration = Duration::minutes(14);
+
+        for i in 0..num_consolidated {
+            let file_start = base_time + Duration::minutes(i as i64 * 14);
+            let file_end = file_start + consolidated_duration;
+
+            let date_str = file_start.format("%Y-%m-%d").to_string();
+            let id_dir = output_dir
+                .join(format!("dt={}", date_str))
+                .join(format!("identifier={}", identifier));
+            fs::create_dir_all(&id_dir)?;
+
+            let filename = format!(
+                "consolidated-{}-{}.parquet",
+                file_start.format("%Y%m%dT%H%M%SZ"),
+                file_end.format("%Y%m%dT%H%M%SZ")
+            );
+            let path = id_dir.join(&filename);
+
+            print!("\r    Consolidated {}/{}", i + 1, num_consolidated);
+            generate_file(&path, containers, &identifier, file_start, file_end, use_zstd)?;
+        }
+        println!();
+
+        // Generate fresh files for last 6 minutes
+        let now = Utc::now();
+        for i in 0..4 {
+            let file_start = now - Duration::seconds((4 - i) * 90);
+            let file_end = file_start + Duration::seconds(90);
+
+            let date_str = file_start.format("%Y-%m-%d").to_string();
+            let id_dir = output_dir
+                .join(format!("dt={}", date_str))
+                .join(format!("identifier={}", identifier));
+            fs::create_dir_all(&id_dir)?;
+
+            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
+            let path = id_dir.join(&filename);
+
+            print!("    Fresh {} ", filename);
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, false)?;
+            println!("({} rows)", rows);
+        }
+    }
+
+    Ok(())
+}
+
+/// Generate legacy flat file format
+fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: bool) -> Result<()> {
+    let now = Utc::now();
+    let file_start = now - Duration::hours(1);
+
+    // Generate 50 flat files like the old generator
+    for i in 0..50 {
+        let file_time = file_start + Duration::minutes(i as i64);
+        let file_end = file_time + Duration::seconds(60);
+        let filename = format!("bench-{:04}.parquet", i);
+        let path = output_dir.join(&filename);
+
+        print!("\r  Generating {}", filename);
+        generate_file(&path, containers, "legacy", file_time, file_end, use_zstd)?;
+    }
+    println!();
+
+    Ok(())
+}
+
+/// Generate a single parquet file with realistic data
+fn generate_file(
     path: &PathBuf,
     containers: &[Container],
-    metrics: &[&str],
-    num_rows: usize,
-    base_time_ms: i64,
-    time_range_ms: u64,
-) -> Result<()> {
-    // Schema matching lazy_data.rs expectations
-    // Note: MapBuilder uses "keys" and "values" as default field names
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("metric_name", DataType::Utf8, false),
-        Field::new(
-            "time",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
-            false,
-        ),
-        Field::new("value_int", DataType::UInt64, true),
-        Field::new("value_float", DataType::Float64, true),
-        Field::new(
-            "labels",
-            DataType::Map(
-                Arc::new(Field::new(
-                    "entries",
-                    DataType::Struct(
-                        vec![
-                            Field::new("keys", DataType::Utf8, false),
-                            Field::new("values", DataType::Utf8, true),
-                        ]
-                        .into(),
-                    ),
-                    false,
-                )),
-                false,
-            ),
-            true,
-        ),
-    ]));
+    identifier: &str,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    use_zstd: bool,
+) -> Result<usize> {
+    let schema = create_schema();
+
+    let compression = if use_zstd {
+        Compression::ZSTD(parquet::basic::ZstdLevel::try_new(3).unwrap())
+    } else {
+        Compression::SNAPPY
+    };
+
+    let props = WriterProperties::builder()
+        .set_compression(compression)
+        .build();
 
     let file = File::create(path)?;
-    let props = WriterProperties::builder()
-        .set_compression(Compression::SNAPPY)
-        .build();
     let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))?;
 
-    // Build data in batches
-    let batch_size = 10_000;
-    let mut rows_written = 0;
-    let time_step = time_range_ms as i64 / num_rows as i64;
+    // Generate data: 1 sample per second per container per metric
+    let duration_secs = (end_time - start_time).num_seconds() as usize;
+    let samples_per_container = duration_secs.max(1);
+    let batch_size = 65536;
 
-    while rows_written < num_rows {
-        let this_batch = (num_rows - rows_written).min(batch_size);
+    let mut total_rows = 0;
+    let mut current_time = start_time;
+    let mut fetch_index = 0u64;
+
+    while current_time < end_time {
+        let batch_duration = Duration::seconds((batch_size / (containers.len() * METRIC_NAMES.len())).max(1) as i64);
+        let batch_end = (current_time + batch_duration).min(end_time);
+
         let batch = build_batch(
             &schema,
             containers,
-            metrics,
-            this_batch,
-            base_time_ms + (rows_written as i64 * time_step),
-            time_step,
+            identifier,
+            current_time,
+            batch_end,
+            &mut fetch_index,
         )?;
+
+        total_rows += batch.num_rows();
         writer.write(&batch)?;
-        rows_written += this_batch;
+        current_time = batch_end;
     }
 
     writer.close()?;
-    Ok(())
+    Ok(total_rows)
 }
 
+/// Create the schema matching real fine-grained-monitor files
+fn create_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("run_id", DataType::Utf8, false),
+        Field::new("time", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new("fetch_index", DataType::UInt64, false),
+        Field::new("metric_name", DataType::Utf8, false),
+        Field::new("metric_kind", DataType::Utf8, false),
+        Field::new("value_int", DataType::UInt64, true),
+        Field::new("value_float", DataType::Float64, true),
+        Field::new("l_cluster_name", DataType::Utf8, true),
+        Field::new("l_container_id", DataType::Utf8, true),
+        Field::new("l_container_name", DataType::Utf8, true),
+        Field::new("l_device", DataType::Utf8, true),
+        Field::new("l_namespace", DataType::Utf8, true),
+        Field::new("l_node_name", DataType::Utf8, true),
+        Field::new("l_pid", DataType::Utf8, true),
+        Field::new("l_pod_name", DataType::Utf8, true),
+        Field::new("l_pod_uid", DataType::Utf8, true),
+        Field::new("l_qos_class", DataType::Utf8, true),
+        Field::new("value_histogram", DataType::Binary, true),
+    ]))
+}
+
+/// Build a record batch for a time range
 fn build_batch(
     schema: &Arc<Schema>,
     containers: &[Container],
-    metrics: &[&str],
-    num_rows: usize,
-    base_time_ms: i64,
-    time_step_ms: i64,
+    identifier: &str,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    fetch_index: &mut u64,
 ) -> Result<RecordBatch> {
-    let mut metric_name_builder = StringBuilder::new();
-    let mut time_builder = TimestampMillisecondBuilder::new();
-    let mut value_int_builder = UInt64Builder::new();
-    let mut value_float_builder = Float64Builder::new();
+    let duration_secs = (end_time - start_time).num_seconds().max(1) as usize;
+    let estimated_rows = duration_secs * containers.len() * METRIC_NAMES.len();
 
-    // Map builder for labels
-    let key_builder = StringBuilder::new();
-    let value_builder = StringBuilder::new();
-    let mut labels_builder = MapBuilder::new(None, key_builder, value_builder);
+    let mut run_id = StringBuilder::with_capacity(estimated_rows, estimated_rows * 20);
+    let mut time = TimestampMillisecondBuilder::with_capacity(estimated_rows);
+    let mut fetch_idx = UInt64Builder::with_capacity(estimated_rows);
+    let mut metric_name = StringBuilder::with_capacity(estimated_rows, estimated_rows * 30);
+    let mut metric_kind = StringBuilder::with_capacity(estimated_rows, estimated_rows * 10);
+    let mut value_int = UInt64Builder::with_capacity(estimated_rows);
+    let mut value_float = Float64Builder::with_capacity(estimated_rows);
+    let mut l_cluster_name = StringBuilder::with_capacity(estimated_rows, estimated_rows * 15);
+    let mut l_container_id = StringBuilder::with_capacity(estimated_rows, estimated_rows * 64);
+    let mut l_container_name = StringBuilder::with_capacity(estimated_rows, estimated_rows * 20);
+    let mut l_device = StringBuilder::with_capacity(estimated_rows, estimated_rows * 10);
+    let mut l_namespace = StringBuilder::with_capacity(estimated_rows, estimated_rows * 15);
+    let mut l_node_name = StringBuilder::with_capacity(estimated_rows, estimated_rows * 20);
+    let mut l_pid = StringBuilder::with_capacity(estimated_rows, estimated_rows * 8);
+    let mut l_pod_name = StringBuilder::with_capacity(estimated_rows, estimated_rows * 30);
+    let mut l_pod_uid = StringBuilder::with_capacity(estimated_rows, estimated_rows * 36);
+    let mut l_qos_class = StringBuilder::with_capacity(estimated_rows, estimated_rows * 12);
+    let mut value_histogram = BinaryBuilder::with_capacity(estimated_rows, 0);
 
-    for i in 0..num_rows {
-        // Distribute rows across containers and metrics
-        let container = &containers[i % containers.len()];
-        let metric = metrics[i % metrics.len()];
-        let time_ms = base_time_ms + (i as i64 * time_step_ms);
+    let mut current_time = start_time;
+    let mut seed = 0usize;
 
-        metric_name_builder.append_value(metric);
-        time_builder.append_value(time_ms);
+    while current_time < end_time {
+        let time_ms = current_time.timestamp_millis();
 
-        // Generate realistic values based on metric type
-        let value = generate_value(metric, i);
-        if metric.contains("usec") || metric.contains("bytes") || metric.ends_with("_count") {
-            value_int_builder.append_value(value as u64);
-            value_float_builder.append_null();
-        } else {
-            value_int_builder.append_null();
-            value_float_builder.append_value(value);
+        for container in containers {
+            for metric in METRIC_NAMES.iter() {
+                run_id.append_value(identifier);
+                time.append_value(time_ms);
+                fetch_idx.append_value(*fetch_index);
+                metric_name.append_value(*metric);
+
+                // Determine metric kind
+                let kind = if metric.contains("usec") || metric.contains("bytes") {
+                    "counter"
+                } else {
+                    "gauge"
+                };
+                metric_kind.append_value(kind);
+
+                // Generate value
+                let value = generate_value(metric, seed);
+                if kind == "counter" {
+                    value_int.append_value(value as u64);
+                    value_float.append_null();
+                } else {
+                    value_int.append_null();
+                    value_float.append_value(value);
+                }
+
+                // Labels
+                l_cluster_name.append_value("bench-cluster");
+                l_container_id.append_value(&container.id);
+                l_container_name.append_value(&container.name);
+                l_device.append_null(); // Only for I/O metrics with device
+                l_namespace.append_value(&container.namespace);
+                l_node_name.append_value("bench-node-0");
+                l_pid.append_null(); // Only for process metrics
+                l_pod_name.append_value(&container.pod_name);
+                l_pod_uid.append_value(&container.pod_uid);
+                l_qos_class.append_value(&container.qos_class);
+                value_histogram.append_null();
+
+                seed += 1;
+            }
         }
 
-        // Add labels
-        labels_builder.keys().append_value("container_id");
-        labels_builder.values().append_value(&container.id);
-        labels_builder.keys().append_value("qos_class");
-        labels_builder.values().append_value(&container.qos_class);
-        labels_builder.keys().append_value("namespace");
-        labels_builder.values().append_value(&container.namespace);
-        labels_builder.keys().append_value("pod_name");
-        labels_builder.values().append_value(&container.pod_name);
-        labels_builder.append(true)?;
+        *fetch_index += 1;
+        current_time = current_time + Duration::seconds(1);
     }
 
     let arrays: Vec<ArrayRef> = vec![
-        Arc::new(metric_name_builder.finish()),
-        Arc::new(time_builder.finish()),
-        Arc::new(value_int_builder.finish()),
-        Arc::new(value_float_builder.finish()),
-        Arc::new(labels_builder.finish()),
+        Arc::new(run_id.finish()),
+        Arc::new(time.finish()),
+        Arc::new(fetch_idx.finish()),
+        Arc::new(metric_name.finish()),
+        Arc::new(metric_kind.finish()),
+        Arc::new(value_int.finish()),
+        Arc::new(value_float.finish()),
+        Arc::new(l_cluster_name.finish()),
+        Arc::new(l_container_id.finish()),
+        Arc::new(l_container_name.finish()),
+        Arc::new(l_device.finish()),
+        Arc::new(l_namespace.finish()),
+        Arc::new(l_node_name.finish()),
+        Arc::new(l_pid.finish()),
+        Arc::new(l_pod_name.finish()),
+        Arc::new(l_pod_uid.finish()),
+        Arc::new(l_qos_class.finish()),
+        Arc::new(value_histogram.finish()),
     ];
 
     Ok(RecordBatch::try_new(schema.clone(), arrays)?)
 }
 
-/// Generate realistic values for different metric types
+/// Generate realistic metric values
 fn generate_value(metric: &str, seed: usize) -> f64 {
-    // Simple deterministic pseudo-random based on seed
     let noise = ((seed * 17 + 31) % 100) as f64 / 100.0;
+    let time_factor = (seed / 1000) as f64;
 
     if metric.contains("percentage") || metric.contains("avg10") {
-        // Percentages: 0-100 with some variation
         20.0 + noise * 60.0
     } else if metric.contains("memory") && metric.contains("current") {
-        // Memory in bytes: 100MB - 2GB
         100_000_000.0 + noise * 1_900_000_000.0
     } else if metric.contains("memory") && metric.contains("max") {
-        // Memory limit: 2GB - 8GB
         2_000_000_000.0 + noise * 6_000_000_000.0
     } else if metric.contains("millicores") {
-        // CPU in millicores: 0-4000
         noise * 4000.0
     } else if metric.contains("usec") {
-        // Microseconds (cumulative): increases with seed
-        (seed as f64 * 1000.0) + noise * 10000.0
+        // Cumulative counter: increases over time
+        time_factor * 1_000_000.0 + noise * 10000.0
     } else if metric.contains("bytes") {
-        // Bytes (cumulative): increases with seed
-        (seed as f64 * 10000.0) + noise * 100000.0
+        // Cumulative counter: increases over time
+        time_factor * 100_000.0 + noise * 100000.0
     } else if metric.contains("pid") || metric.contains("thread") {
-        // Process/thread counts: 1-100
         1.0 + noise * 99.0
     } else if metric.contains("pss") {
-        // PSS in bytes: 10MB - 500MB
         10_000_000.0 + noise * 490_000_000.0
     } else {
-        // Default: small positive number
         noise * 1000.0
+    }
+}
+
+/// Container metadata
+struct Container {
+    id: String,
+    name: String,
+    namespace: String,
+    pod_name: String,
+    pod_uid: String,
+    qos_class: String,
+}
+
+impl Container {
+    fn new(index: usize) -> Self {
+        let short_id = format!("{:012x}", (index as u64 + 1) * 0x111111111111u64);
+        let id = format!("{}{:052x}", short_id, index);
+
+        Container {
+            id,
+            name: format!("container-{}", index),
+            namespace: NAMESPACES[index % NAMESPACES.len()].to_string(),
+            pod_name: format!("pod-{}", index),
+            pod_uid: format!("00000000-0000-0000-0000-{:012x}", index),
+            qos_class: QOS_CLASSES[index % QOS_CLASSES.len()].to_string(),
+        }
     }
 }
