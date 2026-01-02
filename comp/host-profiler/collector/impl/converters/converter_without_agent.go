@@ -50,7 +50,7 @@ func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 }
 
 func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection component.Config) *resourcedetectionprocessor.Config {
-	resourceDetectionConfig := &resourcedetectionprocessor.Config{}
+	resourceDetectionConfig := resourcedetectionprocessor.NewFactory().CreateDefaultConfig().(*resourcedetectionprocessor.Config)
 	if err := mapstructure.Decode(resourceDetection, resourceDetectionConfig); err != nil {
 		log.Warnf("Failed to decode resourcedetection config, using defaults: %v", err)
 	}
@@ -167,6 +167,12 @@ func (c *converterWithoutAgent) ensureProfilePipeline(profilePipeline *pipelines
 	}
 }
 
+func (c *converterWithoutAgent) ensureMetricsPipeline(metricsPipeline *pipelines.PipelineConfig) {
+	metricsPipeline.Processors = slices.DeleteFunc(metricsPipeline.Processors, func (comp component.ID) bool {
+		return comp.Type() == infraattributesType
+	})
+}
+
 func (c *converterWithoutAgent) ensurePipelinesConfig(pipelinesConfig pipelines.Config) {
 	profilesPipelineID := pipeline.NewID(xpipeline.SignalProfiles)
 	if pipelinesConfig[profilesPipelineID] == nil {
@@ -174,6 +180,13 @@ func (c *converterWithoutAgent) ensurePipelinesConfig(pipelinesConfig pipelines.
 		log.Debug("Created profiles pipeline config")
 	}
 	c.ensureProfilePipeline(pipelinesConfig[profilesPipelineID])
+
+	metricsPipelineID := pipeline.NewID(pipeline.SignalMetrics)
+	// if there is a metrics pipeline, ensure there are no infraattributes
+	// components
+	if metricsPipeline, ok := pipelinesConfig[metricsPipelineID]; ok {
+		c.ensureMetricsPipeline(metricsPipeline)
+	}
 }
 
 func (c *converterWithoutAgent) ensureServiceConfig(services *service.Config) {
