@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,6 +48,9 @@ func TestExternalHostTags(t *testing.T) {
 		haagentmock.Module(),
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
+		}),
+		fx.Provide(func() option.Option[healthplatform.Component] {
+			return option.None[healthplatform.Component]()
 		}),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()

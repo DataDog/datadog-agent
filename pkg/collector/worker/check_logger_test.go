@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -34,7 +35,7 @@ func newTestCheck(id string) *stubCheck {
 }
 
 func addExpvarsCheckStats(c check.Check) {
-	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent())
+	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(nil))
 }
 
 func setUp(cfg model.Config) {
