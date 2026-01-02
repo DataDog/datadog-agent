@@ -188,7 +188,8 @@ new-e2e-installer-windows:
     TEAM: windows-products
     FLEET_INSTALL_METHOD: "windows"
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
+    # FIXME(agent-devx): The retry script incorrectly runs the entire suite upon retry, not just the --run test
+    MAX_RETRIES_FLAG: "--max-retries=0"
   parallel:
     matrix:
       # agent-package
@@ -219,7 +220,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
       - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
-        MAX_RETRIES_FLAG: "--max-retries=0"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
