@@ -8,14 +8,15 @@ package statefulpb
 
 import (
 	context "context"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
 )
 
 const (
@@ -486,6 +487,7 @@ type StructuredLog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PatternId     uint64                 `protobuf:"varint,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
 	DynamicValues []*DynamicValue        `protobuf:"bytes,2,rep,name=dynamic_values,json=dynamicValues,proto3" json:"dynamic_values,omitempty"`
+	JsonContext   []byte                 `protobuf:"bytes,3,opt,name=json_context,json=jsonContext,proto3" json:"json_context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -530,6 +532,13 @@ func (x *StructuredLog) GetPatternId() uint64 {
 func (x *StructuredLog) GetDynamicValues() []*DynamicValue {
 	if x != nil {
 		return x.DynamicValues
+	}
+	return nil
+}
+
+func (x *StructuredLog) GetJsonContext() []byte {
+	if x != nil {
+		return x.JsonContext
 	}
 	return nil
 }
@@ -1045,11 +1054,12 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"structured\x12\x12\n" +
 	"\x03raw\x18\x03 \x01(\tH\x00R\x03raw\x123\n" +
 	"\x04tags\x18\x04 \x01(\v2\x1f.datadog.intake.stateful.TagSetR\x04tagsB\t\n" +
-	"\acontent\"|\n" +
+	"\acontent\"\x9f\x01\n" +
 	"\rStructuredLog\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\x04R\tpatternId\x12L\n" +
-	"\x0edynamic_values\x18\x02 \x03(\v2%.datadog.intake.stateful.DynamicValueR\rdynamicValues\"\x9f\x01\n" +
+	"\x0edynamic_values\x18\x02 \x03(\v2%.datadog.intake.stateful.DynamicValueR\rdynamicValues\x12!\n" +
+	"\fjson_context\x18\x03 \x01(\fR\vjsonContext\"\x9f\x01\n" +
 	"\fDynamicValue\x12\x1d\n" +
 	"\tint_value\x18\x01 \x01(\x03H\x00R\bintValue\x12!\n" +
 	"\vfloat_value\x18\x02 \x01(\x01H\x00R\n" +
