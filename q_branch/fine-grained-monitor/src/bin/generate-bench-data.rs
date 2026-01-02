@@ -20,6 +20,7 @@ use clap::{Parser, ValueEnum};
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
+use parquet::schema::types::ColumnPath;
 use std::fs::{self, File};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -66,6 +67,10 @@ struct Args {
     /// Use ZSTD compression (like consolidated files) instead of Snappy
     #[arg(long)]
     zstd: bool,
+
+    /// Enable bloom filter on l_container_id column for faster single-container queries
+    #[arg(long)]
+    bloom_filter: bool,
 }
 
 /// Real metrics from fine-grained-monitor
@@ -117,6 +122,7 @@ fn main() -> Result<()> {
     println!("  Identifiers: {}", args.identifiers);
     println!("  Containers per identifier: {}", args.containers);
     println!("  Compression: {}", if args.zstd { "ZSTD" } else { "Snappy" });
+    println!("  Bloom filter: {}", if args.bloom_filter { "enabled (l_container_id)" } else { "disabled" });
 
     // Clean and create output directory
     if output_dir.exists() {
@@ -135,25 +141,25 @@ fn main() -> Result<()> {
 
     match args.scenario {
         Scenario::Realistic1h => {
-            generate_realistic_1h(&output_dir, &containers, args.identifiers, base_time, args.zstd)?;
+            generate_realistic_1h(&output_dir, &containers, args.identifiers, base_time, args.zstd, args.bloom_filter)?;
         }
         Scenario::SingleConsolidated => {
-            generate_single_file(&output_dir, &containers, "consolidated", 2_000_000, args.zstd)?;
+            generate_single_file_scenario(&output_dir, &containers, "consolidated", 2_000_000, args.zstd, args.bloom_filter)?;
         }
         Scenario::SingleFresh => {
-            generate_single_file(&output_dir, &containers, "fresh", 200_000, args.zstd)?;
+            generate_single_file_scenario(&output_dir, &containers, "fresh", 200_000, args.zstd, args.bloom_filter)?;
         }
         Scenario::StressTest => {
-            generate_stress_test(&output_dir, &containers, args.identifiers, base_time, args.zstd)?;
+            generate_stress_test(&output_dir, &containers, args.identifiers, base_time, args.zstd, args.bloom_filter)?;
         }
         Scenario::Legacy => {
-            generate_legacy(&output_dir, &containers, args.zstd)?;
+            generate_legacy(&output_dir, &containers, args.zstd, args.bloom_filter)?;
         }
         Scenario::MultiPod => {
-            generate_multi_pod(&output_dir, args.identifiers, args.containers, base_time, args.zstd)?;
+            generate_multi_pod(&output_dir, args.identifiers, args.containers, base_time, args.zstd, args.bloom_filter)?;
         }
         Scenario::ContainerChurn => {
-            generate_container_churn(&output_dir, args.containers, base_time, args.zstd)?;
+            generate_container_churn(&output_dir, args.containers, base_time, args.zstd, args.bloom_filter)?;
         }
     }
 
@@ -186,6 +192,7 @@ fn generate_realistic_1h(
     num_identifiers: usize,
     base_time: DateTime<Utc>,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<()> {
     // Real pattern for 1-hour window:
     // - 4 consolidated files (~14 min each, covering minutes 0-54)
@@ -216,7 +223,7 @@ fn generate_realistic_1h(
             let path = id_dir.join(&filename);
 
             print!("    {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, true)?;
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, true, use_bloom_filter)?;
             println!("({} rows)", rows);
         }
 
@@ -230,7 +237,7 @@ fn generate_realistic_1h(
 
             let file_end = file_start + Duration::seconds(90);
             print!("    {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, use_zstd)?;
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
             println!("({} rows)", rows);
         }
     }
@@ -239,12 +246,13 @@ fn generate_realistic_1h(
 }
 
 /// Generate a single test file
-fn generate_single_file(
+fn generate_single_file_scenario(
     output_dir: &PathBuf,
     containers: &[Container],
     file_type: &str,
     target_rows: usize,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<()> {
     let now = Utc::now();
     let identifier = "bench-single";
@@ -269,7 +277,7 @@ fn generate_single_file(
 
     let path = output_dir.join(&filename);
     print!("  {} ", filename);
-    let rows = generate_file(&path, containers, identifier, file_start, file_end, use_zstd)?;
+    let rows = generate_file(&path, containers, identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
     println!("({} rows)", rows);
 
     Ok(())
@@ -282,6 +290,7 @@ fn generate_stress_test(
     num_identifiers: usize,
     base_time: DateTime<Utc>,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<()> {
     // 24 hours of data:
     // - ~100 consolidated files per identifier
@@ -315,7 +324,7 @@ fn generate_stress_test(
             let path = id_dir.join(&filename);
 
             print!("\r    Consolidated {}/{}", i + 1, num_consolidated);
-            generate_file(&path, containers, &identifier, file_start, file_end, use_zstd)?;
+            generate_file(&path, containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
         }
         println!();
 
@@ -335,7 +344,7 @@ fn generate_stress_test(
             let path = id_dir.join(&filename);
 
             print!("    Fresh {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, false)?;
+            let rows = generate_file(&path, containers, &identifier, file_start, file_end, false, use_bloom_filter)?;
             println!("({} rows)", rows);
         }
     }
@@ -344,7 +353,7 @@ fn generate_stress_test(
 }
 
 /// Generate legacy flat file format
-fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: bool) -> Result<()> {
+fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: bool, use_bloom_filter: bool) -> Result<()> {
     let now = Utc::now();
     let file_start = now - Duration::hours(1);
 
@@ -356,7 +365,7 @@ fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: boo
         let path = output_dir.join(&filename);
 
         print!("\r  Generating {}", filename);
-        generate_file(&path, containers, "legacy", file_time, file_end, use_zstd)?;
+        generate_file(&path, containers, "legacy", file_time, file_end, use_zstd, use_bloom_filter)?;
     }
     println!();
 
@@ -371,6 +380,7 @@ fn generate_multi_pod(
     containers_per_pod: usize,
     base_time: DateTime<Utc>,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<()> {
     println!(
         "\n  Multi-pod scenario: {} pods × {} containers = {} unique containers",
@@ -411,7 +421,7 @@ fn generate_multi_pod(
             let path = id_dir.join(&filename);
 
             print!("    {} ", filename);
-            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, true)?;
+            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, true, use_bloom_filter)?;
             println!("({} rows)", rows);
         }
 
@@ -425,7 +435,7 @@ fn generate_multi_pod(
             let path = id_dir.join(&filename);
 
             print!("    {} ", filename);
-            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, use_zstd)?;
+            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
             println!("({} rows)", rows);
         }
     }
@@ -440,6 +450,7 @@ fn generate_container_churn(
     containers_per_generation: usize,
     base_time: DateTime<Utc>,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<()> {
     // Simulate 4 container "generations" over 1 hour (containers restart every ~15 min)
     let num_generations = 4;
@@ -480,7 +491,7 @@ fn generate_container_churn(
         let path = id_dir.join(&filename);
 
         print!("    {} ", filename);
-        let rows = generate_file(&path, &containers, identifier, gen_start, gen_end, use_zstd)?;
+        let rows = generate_file(&path, &containers, identifier, gen_start, gen_end, use_zstd, use_bloom_filter)?;
         println!("({} rows)", rows);
     }
 
@@ -498,7 +509,7 @@ fn generate_container_churn(
         let path = id_dir.join(&filename);
 
         print!("    {} ", filename);
-        let rows = generate_file(&path, &latest_containers, identifier, file_start, file_end, use_zstd)?;
+        let rows = generate_file(&path, &latest_containers, identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
         println!("({} rows)", rows);
     }
 
@@ -513,6 +524,7 @@ fn generate_file(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     use_zstd: bool,
+    use_bloom_filter: bool,
 ) -> Result<usize> {
     let schema = create_schema();
 
@@ -522,9 +534,19 @@ fn generate_file(
         Compression::SNAPPY
     };
 
-    let props = WriterProperties::builder()
-        .set_compression(compression)
-        .build();
+    let mut props_builder = WriterProperties::builder()
+        .set_compression(compression);
+
+    // Enable bloom filter on l_container_id for faster single-container queries
+    // NDV (number of distinct values) set to expected container count per file
+    // FPP (false positive probability) defaults to 0.05 which is reasonable
+    if use_bloom_filter {
+        props_builder = props_builder
+            .set_column_bloom_filter_enabled(ColumnPath::from("l_container_id"), true)
+            .set_column_bloom_filter_ndv(ColumnPath::from("l_container_id"), 100); // ~100 containers max
+    }
+
+    let props = props_builder.build();
 
     let file = File::create(path)?;
     let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))?;
