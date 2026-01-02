@@ -139,9 +139,8 @@ func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType 
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
-// IsTCPRequired returns true if the configuration explicitly requires TCP usage.
-// This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
-func IsTCPRequired(coreConfig pkgconfigmodel.Reader) bool {
+// ShouldUseTCP returns true if the configuration should use TCP.
+func ShouldUseTCP(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).isTCPRequired()
 }
 

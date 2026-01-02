@@ -236,6 +236,7 @@ var defaultProfiles = `
         - name: logs.restart_attempt
           aggregate_tags:
             - status
+            - transport
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:

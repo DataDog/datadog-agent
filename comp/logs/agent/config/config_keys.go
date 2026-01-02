@@ -166,9 +166,9 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	return len(endpoints) > 0
 }
 
-// isTCPRequired returns true if the configuration explicitly requires TCP usage.
+// shouldUseTCP returns true if the configuration should use TCP.
 // This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
-func (l *LogsConfigKeys) isTCPRequired() bool {
+func (l *LogsConfigKeys) shouldUseTCP() bool {
 	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
 }
 

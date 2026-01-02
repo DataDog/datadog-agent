@@ -1132,7 +1132,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 	}
 }
 
-func TestIsTCPRequired(t *testing.T) {
+func TestShouldUseTCP(t *testing.T) {
 	tests := []struct {
 		name                string
 		forceTCP            bool
@@ -1194,9 +1194,9 @@ func TestIsTCPRequired(t *testing.T) {
 				})
 			}
 
-			result := IsTCPRequired(cfg)
+			result := ShouldUseTCP(cfg)
 			if result != tt.expectedTCPRequired {
-				t.Errorf("IsTCPRequired() = %v, want %v", result, tt.expectedTCPRequired)
+				t.Errorf("ShouldUseTCP() = %v, want %v", result, tt.expectedTCPRequired)
 			}
 		})
 	}

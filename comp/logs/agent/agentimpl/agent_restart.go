@@ -187,7 +187,7 @@ func (a *logAgent) partialStop() error {
 // This only runs when TCP fallback occurred (not when [force_]use_tcp is configured).
 func (a *logAgent) smartHTTPRestart() {
 	// Check if we're eligible for HTTP retry
-	if config.IsTCPRequired(a.config) {
+	if config.ShouldUseTCP(a.config) {
 		return
 	}
 
