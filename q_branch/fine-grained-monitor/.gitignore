@@ -5,3 +5,6 @@ target/
 
 # Generated benchmark data
 testdata/bench/
+
+# MCP server config (worktree-specific)
+.mcp.json
