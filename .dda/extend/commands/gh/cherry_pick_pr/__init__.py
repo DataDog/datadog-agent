@@ -68,7 +68,7 @@ def cmd(
 
     if (
         app.subprocess.run(
-            ["git", "cherry-pick", "-x", merge_commit_sha],
+            ["git", "cherry-pick", "-x", "--mainline", "1", merge_commit_sha],
         )
         != 0
     ):
