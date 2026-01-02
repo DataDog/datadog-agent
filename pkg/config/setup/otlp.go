@@ -26,6 +26,18 @@ const (
 	OTLPMetricsBatch   = OTLPMetrics + ".batch"
 
 	OTLPDebug = OTLPSection + "." + "debug"
+
+	DataPlaneSection     = "data_plane"
+	DataPlaneEnabled     = DataPlaneSection + ".enabled"
+	DataPlaneOTLPSection = DataPlaneSection + ".otlp"
+	DataPlaneOTLPEnabled = DataPlaneOTLPSection + ".enabled"
+
+	DataPlaneOTLPProxySection = DataPlaneOTLPSection + ".proxy"
+	DataPlaneOTLPProxyEnabled = DataPlaneOTLPProxySection + ".enabled"
+
+	DataPlaneOTLPProxyReceiverSection               = DataPlaneOTLPProxySection + ".receiver"
+	DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint = DataPlaneOTLPProxyReceiverSection + ".protocols.grpc.endpoint"
+	DataPlaneOTLPProxyReceiverProtocolsHTTPEndpoint = DataPlaneOTLPProxyReceiverSection + ".protocols.http.endpoint"
 )
 
 // OTLP related configuration.

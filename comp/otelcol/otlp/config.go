@@ -35,7 +35,22 @@ func portToUint(v int) (port uint, err error) {
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
+
+	proxyEnabled := cfg.GetBool(coreconfig.DataPlaneOTLPProxyEnabled)
+
 	otlpReceiverConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	otlpReceiverConfigMap := otlpReceiverConfig.ToStringMap()
+
+	if proxyEnabled {
+		// ADP OTLP proxy will own the configured endpoints, so we need to assign different endpoints to be used by the core agent
+		protocols := otlpReceiverConfigMap["protocols"].(map[string]interface{})
+		grpc := protocols["grpc"].(map[string]interface{})
+		http := protocols["http"].(map[string]interface{})
+
+		grpc["endpoint"] = cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint)
+		http["endpoint"] = cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsHTTPEndpoint)
+	}
+
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
@@ -70,7 +85,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpReceiverConfig.ToStringMap(),
+		OTLPReceiverConfig: otlpReceiverConfigMap,
 		TracePort:          tracePort,
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
