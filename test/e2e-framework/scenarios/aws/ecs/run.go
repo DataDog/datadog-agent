@@ -17,12 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+// isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
+// An EC2 provider is considered set if at least one of its node groups is enabled.
+func isEC2ProviderSet(params *Params) bool {
+	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
+
+}
 
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resourcesAws.NewEnvironment(ctx)
@@ -98,7 +106,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	}
 
 	// Testing workload if at least one EC2 node group is present
-	if params.testingWorkload && (clusterParams.LinuxNodeGroup || clusterParams.LinuxARMNodeGroup || clusterParams.WindowsNodeGroup || clusterParams.LinuxBottleRocketNodeGroup) {
+	if params.testingWorkload && isEC2ProviderSet(clusterParams) {
 		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
