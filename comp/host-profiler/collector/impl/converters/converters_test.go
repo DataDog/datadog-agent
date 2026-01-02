@@ -9,7 +9,6 @@ package converters
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"testing"
 

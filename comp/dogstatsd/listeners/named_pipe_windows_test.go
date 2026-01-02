@@ -132,9 +132,11 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 	packetOut := make(chan packets.Packets, maxPipeMessageCount)
 	packetManager := packets.NewPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, poolManager, packetsTelemetryStore)
 	listernerTelemetryStore := NewTelemetryStore(nil, telemetryComp)
+	secdec := "D:AI(A;;GA;;;WD)"
 
 	listener, err := newNamedPipeListener(
 		pipeName,
+		secdec,
 		namedPipeBufferSize,
 		packetManager,
 		nil,
