@@ -1,0 +1,36 @@
+init_config:
+  timeout: 2
+
+instances:
+  - name: ____ex[am}p_._le___
+    url: https://example.org/
+    method: GET
+
+    data: my-payload
+
+    content_match: toto
+    reverse_content_match: true
+
+    http_response_status_code: 200
+
+    include_content: true
+    collect_response_time: true
+
+    seconds_warning: 7752579
+    seconds_critical: 7752579
+
+    tags:
+      tag1: tag_value1
+      tag2: inval[id}tag____va_._lue2
+
+    tls_verify: false
+    tls_ignore_warning: false
+    tls_cert: /Users/fabrice.buoro/Downloads/example-org.pem
+
+    headers:
+      header1: hello
+      header2: world
+    
+    timeout: null
+    connect_timeout: null
+    read_timeout: null

@@ -1,0 +1,9 @@
+[package]
+name = "standalone"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+http_check = { path = "../http_check" }
+serde_yaml = "0.9.34"
+tokio = "1.48.0"

@@ -218,10 +218,9 @@ impl Sink for SharedLibrary<'_> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn async_do_check(
-    http_check: &mut HttpCheck<SharedLibrary>,
-    instance_config: config::Instance,
+    http_check: &mut HttpCheck<SharedLibrary>
 ) {
-    http_check.check(&instance_config).await
+    http_check.check().await
 }
 
 pub fn run(
@@ -230,14 +229,14 @@ pub fn run(
     init_config: &str,
     instance_config: &str,
 ) -> Result<()> {
-    let init_config: config::Init = serde_yaml::from_str(init_config)
-        .with_context(|| "Failed to parse init configuration")?;
+    let init_config: config::Init =
+        serde_yaml::from_str(init_config).with_context(|| "Failed to parse init configuration")?;
     let instance_config: config::Instance = serde_yaml::from_str(instance_config)
         .with_context(|| "Failed to pars instance configuration")?;
 
     let shlib = SharedLibrary::new(callback);
-    let mut http_check = HttpCheck::new(&shlib, check_id.to_string(), init_config);
-    async_do_check(&mut http_check, instance_config);
+    let mut http_check = HttpCheck::new(&shlib, check_id.to_string(), init_config, instance_config);
+    async_do_check(&mut http_check);
     Ok(())
 }
 

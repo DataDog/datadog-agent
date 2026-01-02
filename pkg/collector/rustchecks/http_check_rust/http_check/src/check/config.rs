@@ -47,6 +47,7 @@ pub struct Instance {
     pub tags: Option<HashMap<String, String>>,
 
     pub tls_verify: Option<bool>,
+    pub tls_ignore_warning: Option<bool>,
     pub tls_cert: Option<PathBuf>,
 
     #[serde(with = "http_serde::option::header_map")]

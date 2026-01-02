@@ -59,33 +59,45 @@ enum SvcCheckEvent {
     SSLCert,
 }
 
+enum SvcCheckMessage {
+    WithContent(String),
+    WithoutContent(String)
+}
+struct LightServiceCheck {
+    event: SvcCheckEvent,
+    status: service_check::Status,
+    message: SvcCheckMessage,
+}
+
 pub struct HttpCheck<'a, S: Sink> {
     sink: &'a S,
-    init_config: config::Init,
     check_id: String,
-    service_checks: Vec<service_check::ServiceCheck>,
+    instance_config: config::Instance,
+    init_config: config::Init,
+    service_checks: Vec<LightServiceCheck>,
     tags: HashMap<String, String>,
 }
 
 impl<'a, S: Sink> HttpCheck<'a, S> {
-    pub fn new(sink: &'a S, check_id: String, init_config: config::Init) -> Self {
+    pub fn new(sink: &'a S, check_id: String, init_config: config::Init, instance_config: config::Instance) -> Self {
         Self {
             sink,
-            init_config,
             check_id,
+            instance_config,
+            init_config,
             service_checks: vec![],
             tags: HashMap::<String, String>::new(),
         }
     }
 
-    pub async fn check(&mut self, cfg: &config::Instance) {
-        if let Err(err) = self.check_impl(cfg).await {
+    pub async fn check(&mut self) {
+        if let Err(err) = self.check_impl().await {
             self.sink.log(log::Level::Error, err.to_string())
         }
     }
 
-    async fn check_impl(&mut self, cfg: &config::Instance) -> Result<()> {
-        let url = cfg.url.clone();
+    async fn check_impl(&mut self) -> Result<()> {
+        let url = self.instance_config.url.clone();
         let valid_url = url
             .scheme_str()
             .is_some_and(|s| SUPPORTED_SCHEME.contains(&s))
@@ -95,25 +107,32 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         }
 
         let mut service_tags = HashMap::<String, String>::new();
-        if let Some(tags) = &cfg.tags {
+        if let Some(tags) = &self.instance_config.tags {
             self.tags = tags.clone();
             service_tags = tags.clone();
         }
 
-        let normalized_name = normalize_tag(&cfg.name);
+        let normalized_name = normalize_tag(&self.instance_config.name);
         self.tags
             .insert("instance".to_string(), normalized_name.clone());
         service_tags.insert("instance".to_string(), normalized_name);
 
         if !self.tags.contains_key("url") {
-            self.tags.insert("url".to_string(), cfg.url.to_string());
+            self.tags.insert("url".to_string(), self.instance_config.url.to_string());
         }
         if !service_tags.contains_key("url") {
-            service_tags.insert("url".to_string(), cfg.url.to_string());
+            service_tags.insert("url".to_string(), self.instance_config.url.to_string());
         }
 
-        let tls = self.make_tls_connector(cfg)?;
-        let request = self.make_request(cfg)?;
+        if url.scheme_str().is_some_and(|s| s == "https")
+            && self.instance_config.tls_verify.is_some_and(|v| !v)
+            && !self.instance_config.tls_ignore_warning.is_some_and(|v| v)
+            {
+            self.sink.log(log::Level::Debug, format!("An unverified HTTPS request is being made to {}", self.instance_config.url))
+        }
+
+        let tls = self.make_tls_connector()?; // TODO don't need it for http
+        let request = self.make_request()?;
 
         self.sink
             .log(log::Level::Debug, format!("Connecting to {url}"));
@@ -121,14 +140,14 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         let start_time = Instant::now();
         let elapsed = || Instant::now().duration_since(start_time);
 
-        let maybe_response = self.http(cfg, tls, request).await;
+        let maybe_response = self.http(tls, request).await;
         if let Err(err) = maybe_response.as_ref() {
             let elapsed = elapsed().as_millis();
             self.sink.log(
                 log::Level::Info,
                 format!(
                     "{} is DOWN, error: {}. Connection failed after {} ms",
-                    cfg.url.to_string(),
+                    self.instance_config.url.to_string(),
                     err.to_string(),
                     elapsed
                 ),
@@ -136,24 +155,28 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             self.add_service_check(
                 SvcCheckEvent::Status,
                 service_check::Status::Critical,
-                format!("{}. Connection failed after {} ms", err.to_string(), elapsed), // TODO capitalize first later
+                SvcCheckMessage::WithoutContent(format!(
+                    "{}. Connection failed after {} ms",
+                    err.to_string(),
+                    elapsed
+                )) // TODO capitalize first later
             );
         }
 
         if let Ok((mut response, maybe_certificate)) = maybe_response {
             let total_time = elapsed();
 
-            if cfg
+            if self.instance_config
                 .collect_response_time
                 .unwrap_or(defaults::COLLECT_RESPONSE_TIME)
             {
                 self.gauge(
                     "network.http.response_time",
                     (total_time.as_millis() as f64) / 1000.,
-                );
+                )
             }
 
-            if let Err(err) = self.handle_response(cfg, &mut response).await {
+            if let Err(err) = self.handle_response(&mut response).await {
                 self.sink.log(
                     log::Level::Error,
                     format!(
@@ -161,7 +184,7 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
                         err.to_string(),
                         total_time.as_millis()
                     ),
-                );
+                )
             }
 
             let success = self.service_checks[0].status == Status::Ok;
@@ -170,17 +193,17 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             self.gauge("network.http.can_connect", can_status);
             self.gauge("network.http.cant_connect", cant_status);
 
-            if cfg
+            if self.instance_config
                 .check_certificate_expiration
                 .unwrap_or(defaults::CHECK_CERTIFICATE_EXPIRATION)
             {
-                self.check_certificate(cfg, maybe_certificate);
+                self.check_certificate(maybe_certificate)
             }
         }
 
         let svc = std::mem::replace(&mut self.service_checks, vec![]);
-        svc.into_iter().for_each(|mut sc| {
-            sc.tags = service_tags.clone();
+        svc.into_iter().for_each(|lsc| {
+            let sc= to_service_check(lsc, &self.check_id, &service_tags);
             if let Err(err) = self.sink.submit_service_check(sc) {
                 self.sink
                     .log(log::Level::Error, format!("submit service check: {}", err))
@@ -192,41 +215,50 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
 
     async fn http(
         &mut self,
-        cfg: &config::Instance,
         tls: tokio_native_tls::TlsConnector,
         request: Request<Full<Bytes>>,
     ) -> std::result::Result<(Response<body::Incoming>, Option<native_tls::Certificate>), IOErr>
     {
-        let url = cfg.url.clone();
+        let url = self.instance_config.url.clone();
         let port = port_or_default(&url);
         let endpoint = format!("{}:{}", url.host().unwrap(), port);
+        let is_https = url.scheme().is_some_and(|s| s == &Scheme::HTTPS);
 
         let global_timeout = self
             .init_config
             .timeout
             .map_or(defaults::TIMEOUT, Duration::from_secs);
-        let connect_timeout = cfg
+        let connect_timeout = self.instance_config
             .connect_timeout
             .map_or(global_timeout, Duration::from_secs);
 
         let start_time = Instant::now();
+        let remaining_timeout = || connect_timeout - start_time.elapsed();
 
-        let stream = async {
-            let stream = TcpStream::connect(endpoint)
-                .await
-                .map_err(|e| IOErr::Connect(e.into()));
-            tls.connect(url.host().unwrap(), stream?)
+        let tcp_stream = time::timeout(connect_timeout, async {
+            TcpStream::connect(endpoint)
                 .await
                 .map_err(|e| IOErr::Connect(e.into()))
-        };
-        let stream = time::timeout(connect_timeout, stream)
+        })
+        .await
+        .map_err(|_| IOErr::Timeout)??;
+
+        let maybe_tls = if is_https {
+            let tls = time::timeout(remaining_timeout(), async {
+                tls.connect(url.host().unwrap(), tcp_stream)
+                    .await
+                    .map_err(|e| IOErr::Connect(e.into()))
+            })
             .await
             .map_err(|_| IOErr::Timeout)??;
+            Some(tls)
+        } else {
+            None
+        };
 
-        let remaining_timeout = connect_timeout - start_time.elapsed();
-        let read_timeout = cfg
+        let read_timeout = self.instance_config
             .read_timeout
-            .map_or(remaining_timeout, Duration::from_secs);
+            .map_or(remaining_timeout(), Duration::from_secs);
 
         let mut http = HttpConnector::new();
         http.enforce_http(url.scheme().is_some_and(|s| s == &Scheme::HTTP));
@@ -239,8 +271,8 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             .map_err(|_| IOErr::Timeout)?;
 
         let mut certificate: Option<native_tls::Certificate> = None;
-        if url.scheme().is_some_and(|s| s == &Scheme::HTTPS) {
-            match stream.get_ref().peer_certificate() {
+        if is_https {
+            match maybe_tls.unwrap().get_ref().peer_certificate() {
                 Ok(cert) => certificate = cert,
                 Err(err) => self.sink.log(
                     log::Level::Error,
@@ -249,15 +281,15 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             }
         }
 
-        let response= maybe_response.map_err(|e| IOErr::Generic(e.into()))?;
-        Ok((response,certificate,))
+        let response = maybe_response.map_err(|e| IOErr::Generic(e.into()))?;
+        Ok((response, certificate))
     }
 
-    fn make_tls_connector(&self, cfg: &config::Instance) -> Result<tokio_native_tls::TlsConnector> {
+    fn make_tls_connector(&self) -> Result<tokio_native_tls::TlsConnector> {
         let mut tls_builder = native_tls::TlsConnector::builder();
-        tls_builder.danger_accept_invalid_certs(!cfg.tls_verify.unwrap_or(defaults::TLS_VERIFY));
+        tls_builder.danger_accept_invalid_certs(!self.instance_config.tls_verify.unwrap_or(defaults::TLS_VERIFY));
 
-        if let Some(path) = cfg.tls_cert.as_ref() {
+        if let Some(path) = self.instance_config.tls_cert.as_ref() {
             tls_builder.disable_built_in_roots(true);
             let cert = load_pem(path)?;
             tls_builder.add_root_certificate(cert);
@@ -268,13 +300,13 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         Ok(tokio_native_tls::TlsConnector::from(native_tls))
     }
 
-    fn make_request(&self, cfg: &config::Instance) -> Result<Request<Full<Bytes>>> {
+    fn make_request(&self) -> Result<Request<Full<Bytes>>> {
         let mut headers = HeaderMap::new();
-        if let Some(h) = &cfg.headers {
+        if let Some(h) = &self.instance_config.headers {
             headers = h.clone()
         }
 
-        let method = cfg.method.as_ref().unwrap_or(&defaults::METHOD);
+        let method = self.instance_config.method.as_ref().unwrap_or(&defaults::METHOD);
         if DATA_METHODS.contains(method) && !headers.contains_key("Content-Type") {
             headers.insert(
                 "Content-Type",
@@ -283,11 +315,11 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         }
 
         let mut request = http::Request::builder()
-            .method(cfg.method.as_ref().unwrap_or(&defaults::METHOD).clone())
-            .uri(&cfg.url);
+            .method(self.instance_config.method.as_ref().unwrap_or(&defaults::METHOD).clone())
+            .uri(&self.instance_config.url);
         *request.headers_mut().unwrap() = headers; // FIXME unwrap
 
-        let body = match &cfg.data {
+        let body = match &self.instance_config.data {
             Some(data) => Full::from(data.clone()),
             _ => Full::new(Bytes::new()),
         };
@@ -297,16 +329,12 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
 
     fn check_certificate(
         &mut self,
-        cfg: &config::Instance,
         maybe_certificate: Option<native_tls::Certificate>,
     ) {
-        let mut service_check =
-            |status, message| self.add_service_check(SvcCheckEvent::SSLCert, status, message);
-
         let certificate = match maybe_certificate {
             Some(cert) => cert,
             None => {
-                service_check(
+                self.ssl_service_check(
                     Status::Unknown,
                     "Empty or no certificate found.".to_string(),
                 );
@@ -322,7 +350,7 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         {
             Ok(cert) => cert,
             Err(err) => {
-                service_check(
+                self.ssl_service_check(
                     Status::Unknown,
                     format!(
                         "Unable to parse the certificate to get expiration: {}",
@@ -340,12 +368,12 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             .to_system_time();
 
         let warning = Duration::from_secs(
-            cfg.seconds_warning
-                .unwrap_or(cfg.days_warning.unwrap_or(defaults::DAYS_WARNING) * 24 * 60 * 60),
+            self.instance_config.seconds_warning
+                .unwrap_or(self.instance_config.days_warning.unwrap_or(defaults::DAYS_WARNING) * 24 * 60 * 60),
         );
         let critical = Duration::from_secs(
-            cfg.seconds_critical
-                .unwrap_or(cfg.days_warning.unwrap_or(defaults::DAYS_WARNING) * 24 * 60 * 60),
+            self.instance_config.seconds_critical
+                .unwrap_or(self.instance_config.days_warning.unwrap_or(defaults::DAYS_WARNING) * 24 * 60 * 60),
         );
 
         let to_days = |d: Duration| d.as_secs() / 60 / 60 / 24;
@@ -355,26 +383,23 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
                 self.gauge("http.ssl.days_left", to_days(left) as f64);
                 self.gauge("http.ssl.seconds_left", left.as_secs() as f64);
                 if left < critical {
-                    self.add_service_check(
-                        SvcCheckEvent::SSLCert,
+                    self.ssl_service_check(
                         service_check::Status::Critical,
                         format!(
                             "This cert TTL is critical: only {} days before it expires",
                             to_days(left)
-                        ),
+                        )
                     )
                 } else if left < warning {
-                    self.add_service_check(
-                        SvcCheckEvent::SSLCert,
+                    self.ssl_service_check(
                         service_check::Status::Critical,
                         format!(
                             "This cert is almost expired, only {} days left",
                             to_days(left)
-                        ),
+                        )
                     )
                 } else {
-                    self.add_service_check(
-                        SvcCheckEvent::SSLCert,
+                    self.ssl_service_check(
                         service_check::Status::Ok,
                         format!("Days left: {}", to_days(left)),
                     )
@@ -383,10 +408,9 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             Err(_) => {
                 self.gauge("http.ssl.days_left", 0.);
                 self.gauge("http.ssl.seconds_left", 0.);
-                self.add_service_check(
-                    SvcCheckEvent::SSLCert,
+                self.ssl_service_check(
                     service_check::Status::Critical,
-                    "This cert is expired".to_string(),
+                    "This cert is expired".to_string()
                 )
             }
         }
@@ -394,7 +418,6 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
 
     async fn handle_response(
         &mut self,
-        cfg: &config::Instance,
         response: &mut Response<Incoming>,
     ) -> Result<()> {
         let mut body = Vec::<u8>::with_capacity(MAX_CONTENT_LEN);
@@ -411,29 +434,36 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         }
         let body = String::from_utf8_lossy(&body);
 
-        let maybe_content = || {
-            if cfg.include_content.unwrap_or(defaults::INCLUDE_CONTENT) {
-                format!("\nContent: {}", &body[..MESSAGE_LENGTH.min(body.len())])
+        let maybe_content = |mut msg| {
+            if self.instance_config.include_content.unwrap_or(defaults::INCLUDE_CONTENT) {
+                msg += "\nContent: ";
+                msg +=  &body[..MESSAGE_LENGTH.min(body.len())];
+                SvcCheckMessage::WithContent(msg)
             } else {
-                String::new()
+                SvcCheckMessage::WithoutContent(msg)
             }
         };
+        let get_message = |msg: &SvcCheckMessage| {
+            match msg {
+                SvcCheckMessage::WithContent(msg) => msg,
+                SvcCheckMessage::WithoutContent(msg) => msg
+            }.clone()
+        };
 
-        let pattern = match cfg.http_response_status_code.as_ref() {
+        let pattern = match self.instance_config.http_response_status_code.as_ref() {
             Some(s) => &s,
             None => defaults::HTTP_RESPONSE_STATUS_CODE,
         };
         let regex = Regex::new(pattern)?;
 
         if !regex.is_match(response.status().as_str()) {
-            let message = format!(
-                "Incorrect HTTP return code for url {}. Expected {}, got {}.{}",
-                cfg.url,
+            let message = maybe_content(format!(
+                "Incorrect HTTP return code for url {}. Expected {}, got {}.",
+                self.instance_config.url,
                 pattern,
-                response.status().as_str(),
-                maybe_content()
-            );
-            self.sink.log(log::Level::Info, message.clone());
+                response.status().as_str()
+            ));
+            self.sink.log(log::Level::Info, get_message(&message));
             self.add_service_check(
                 SvcCheckEvent::Status,
                 service_check::Status::Critical,
@@ -442,8 +472,8 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
             return Ok(());
         }
 
-        if let Some(needle) = cfg.content_match.as_ref() {
-            let reverse = cfg.reverse_content_match.unwrap_or(REVERSE_CONTENT_MATCH);
+        if let Some(needle) = self.instance_config.content_match.as_ref() {
+            let reverse = self.instance_config.reverse_content_match.unwrap_or(REVERSE_CONTENT_MATCH);
             let regex = Regex::new(&needle)?;
             if regex.is_match(&body) {
                 if reverse {
@@ -452,11 +482,10 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
                             "{} is found in return content with the reverse_content_match option",
                             needle
                         ),
-                        format!(
-                            "Content \"{}\" found in response with the reverse_content_match{}",
-                            needle,
-                            maybe_content()
-                        ),
+                        maybe_content(format!(
+                            "Content \"{}\" found in response with the reverse_content_match",
+                            needle
+                        ))
                     )
                 } else {
                     self.send_status_up(format!("{} is found in return content ", needle))
@@ -470,16 +499,15 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
                 } else {
                     self.send_status_down(
                         format!("{} is not found in return content", needle),
-                        format!(
-                            "Content \"{}\" not found in response.{}",
-                            needle,
-                            maybe_content()
-                        ),
+                        maybe_content(format!(
+                            "Content \"{}\" not found in response.",
+                            needle)
+                        )
                     )
                 }
             }
         } else {
-            self.send_status_up(format!("{} is UP", cfg.url)) // FIXME addr
+            self.send_status_up(format!("{} is UP", self.instance_config.url)) // FIXME addr
         }
 
         Ok(())
@@ -489,21 +517,18 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         &mut self,
         event: SvcCheckEvent,
         status: service_check::Status,
-        message: String,
+        message: SvcCheckMessage,
     ) {
-        let name = match event {
-            SvcCheckEvent::Status => "http.can_connect",
-            SvcCheckEvent::SSLCert => "http.ssl_cert",
-        };
-        let sc = ServiceCheck {
-            id: self.check_id.clone(),
-            name: name.to_string(),
+        let lsc = LightServiceCheck {
+            event,
             status,
-            tags: HashMap::new(),
-            hostname: String::new(),
-            message,
+            message
         };
-        self.service_checks.push(sc)
+        self.service_checks.push(lsc)
+    }
+
+    fn ssl_service_check(&mut self, status: service_check::Status, message: String) {
+        self.add_service_check(SvcCheckEvent::SSLCert, status, SvcCheckMessage::WithoutContent(message))
     }
 
     fn gauge(&self, name: &str, value: f64) {
@@ -529,11 +554,11 @@ impl<'a, S: Sink> HttpCheck<'a, S> {
         self.add_service_check(
             SvcCheckEvent::Status,
             service_check::Status::Ok,
-            "UP".to_string(),
+            SvcCheckMessage::WithoutContent("UP".to_string())
         )
     }
 
-    fn send_status_down(&mut self, log_msg: String, down_msg: String) {
+    fn send_status_down(&mut self, log_msg: String, down_msg: SvcCheckMessage) {
         self.sink.log(log::Level::Info, log_msg);
         self.add_service_check(
             SvcCheckEvent::Status,
@@ -556,13 +581,12 @@ fn port_or_default(uri: &uri::Uri) -> u16 {
 }
 
 fn load_pem(path: &PathBuf) -> Result<native_tls::Certificate> {
-    let mut file = File::open(path)
-        .with_context(|| format!("opening {} certificate", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("opening {} certificate", path.display()))?;
     let mut buffer = Vec::<u8>::new();
     file.read_to_end(&mut buffer)
         .with_context(|| format!("reading {} certificate", path.display()))?;
-    native_tls::Certificate::from_pem(&buffer)
-        .map_err(|e| anyhow!("parsing certificate: {}", e))
+    native_tls::Certificate::from_pem(&buffer).map_err(|e| anyhow!("parsing certificate: {}", e))
 }
 
 fn normalize_tag(tag: &str) -> String {
@@ -574,4 +598,28 @@ fn normalize_tag(tag: &str) -> String {
     let tag = multiple_underscore_cleanup.replace_all(&tag, "_");
     let tag = dot_underscore_cleanup.replace_all(&tag, ".");
     tag.trim_matches('_').to_string()
+}
+
+fn to_service_check(lsc: LightServiceCheck, check_id: &str, tags: &HashMap<String,String>) -> ServiceCheck {
+    let event = match lsc.event {
+        SvcCheckEvent::Status => "http.can_connect",
+        SvcCheckEvent::SSLCert => "http.ssl_cert",
+    };
+    let message = match lsc.message {
+        SvcCheckMessage::WithoutContent(msg) => msg,
+        SvcCheckMessage::WithContent(mut msg) => {
+            if msg.len() > 20 {
+                msg.replace_range(17.., "...");
+            };
+            msg
+        }
+    };
+    ServiceCheck {
+        id: check_id.to_string(),
+        name: event.to_string(),
+        status: lsc.status,
+        tags: tags.clone(),
+        hostname: String::new(),
+        message: message
+    }
 }

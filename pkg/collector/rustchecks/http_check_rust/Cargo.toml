@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["http_check", "shlib", "standalone"]

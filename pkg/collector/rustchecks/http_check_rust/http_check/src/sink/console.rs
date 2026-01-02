@@ -1,5 +1,5 @@
-use crate::sink::{Sink, event, event_platform_event, histogram, log, metric, service_check};
 use crate::Result;
+use crate::sink::{Sink, event, event_platform_event, histogram, log, metric, service_check};
 
 pub struct Console {}
 

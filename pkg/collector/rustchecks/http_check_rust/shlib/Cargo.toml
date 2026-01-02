@@ -1,0 +1,12 @@
+[package]
+name = "shlib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+http_check = { path = "../http_check" }
+libc = "0.2"
+
+[lib]
+name = "hc_shlib"
+crate-type = ["cdylib"]
