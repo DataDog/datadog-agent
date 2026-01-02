@@ -102,11 +102,16 @@ func (h *Host) InstallDocker() {
 		return
 	}
 
-	switch h.os.Flavor {
-	case e2eos.AmazonLinux:
-		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
+	switch h.pkgManager {
+	case "apt":
+		h.remote.MustExecute("sudo apt-get update -qq")
+		h.remote.MustExecute("sudo apt-get install -y docker.io")
+	case "yum":
+		h.remote.MustExecute("sudo yum install -y docker")
+	case "zypper":
+		h.remote.MustExecute("sudo zypper install -y docker")
 	default:
-		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
+		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 }
 
@@ -116,13 +121,7 @@ func (h *Host) GetDockerRuntimePath(runtime string) string {
 		return ""
 	}
 
-	var cmd string
-	switch h.os.Flavor {
-	case e2eos.AmazonLinux, e2eos.Suse:
-		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
-	default:
-		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
-	}
+	cmd := "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
 	return strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf(cmd, runtime)))
 }
 
