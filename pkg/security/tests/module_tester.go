@@ -320,6 +320,66 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 	}
 }
 
+// getSignalForRule is like getSignal but filters events by ruleID
+// to prevent stale events from previous tests from being processed.
+func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID string) error {
+	tb.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan ActionMessage, 1)
+	failNow := make(chan bool, 1)
+
+	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+		// Filter out events that don't match the expected type and rule
+		if r.ID != ruleID {
+			return
+		}
+		tb.Helper()
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if err := cb(e, r); err != nil {
+					if errors.Is(err, errSkipEvent) {
+						message <- Continue
+						return
+					}
+					tb.Error(err)
+				}
+				if tb.Skipped() || tb.Failed() {
+					failNow <- true
+				}
+			case Skip:
+			}
+		}
+		cancel()
+	})
+
+	defer func() {
+		tm.RegisterRuleEventHandler(nil)
+	}()
+
+	if err := action(); err != nil {
+		message <- Skip
+		return err
+	}
+	message <- Continue
+
+	select {
+	case <-failNow:
+		tb.FailNow()
+		return nil
+	case <-time.After(getEventTimeout):
+		return tm.NewTimeoutError()
+	case <-ctx.Done():
+		return nil
+	}
+}
+
 func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Lock()
 	tm.eventHandlers.onRuleMatch = cb
@@ -559,6 +619,24 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 		cb(event, rule)
 		return nil
 	})
+}
+
+// WaitSignalFromRule is like WaitSignal but filters events by ruleID
+// to prevent stale events from previous sub-tests from being processed.
+func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
+	tb.Helper()
+	// If ruleID is provided, use filtering
+	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event)
+		cb(event, rule)
+		return nil
+	}, ruleID); err != nil {
+		if _, ok := err.(ErrSkipTest); ok {
+			tb.Skip(err)
+		} else {
+			tb.Fatal(err)
+		}
+	}
 }
 
 func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
