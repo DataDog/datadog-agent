@@ -1725,6 +1725,15 @@ api_key:
 #   # Increase this value if you experience timeouts with large profile uploads.
 #
 #   profiling_receiver_timeout: 5
+#
+#   # @param additional_profile_tags - map of key:value elements - optional
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # Additional tags to add to all profiles. These tags are added on the agent side
+#   # before forwarding profiles to Datadog. This is useful for environment-identifying
+#   # tags that should be applied to all profiles (e.g., dd.origin).
+#
+#   additional_profile_tags:
+#     # _dd.origin:
 {{ if .InternalProfiling }}
 #   # @param profiling - custom object - optional
 #   # Enter specific configurations for internal profiling.
