@@ -567,6 +567,7 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
+  - go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -621,6 +622,7 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
+  - go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -654,6 +656,7 @@ workflow:
         - .gitlab/e2e/e2e.yml
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
+        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -675,6 +678,7 @@ workflow:
         - .gitlab/e2e/e2e.yml
         - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
+        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -740,6 +744,7 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -888,6 +893,7 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -911,6 +917,7 @@ workflow:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -921,6 +928,7 @@ workflow:
         - pkg/collector/corechecks/snmp/**/*
         - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -934,6 +942,7 @@ workflow:
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -947,6 +956,7 @@ workflow:
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
+        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
