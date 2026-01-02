@@ -113,7 +113,7 @@
 /.gitlab/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
 /.gitlab/internal_kubernetes_deploy/include.yml                     @DataDog/agent-devx
 /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
-/.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
+/.gitlab/internal_kubernetes_deploy/k8s_staging_deployment_pr.yml  @DataDog/agent-delivery
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx
 /.gitlab/source_test/*                               @DataDog/agent-devx
@@ -555,7 +555,6 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
@@ -658,7 +657,6 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-products
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products

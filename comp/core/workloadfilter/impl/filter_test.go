@@ -767,7 +767,7 @@ func TestServiceFiltering(t *testing.T) {
 		serviceName string
 		namespace   string
 		annotations map[string]string
-		filters     [][]workloadfilter.ServiceFilter
+		filters     [][]workloadfilter.KubeServiceFilter
 		expected    workloadfilter.Result
 	}{
 		{
@@ -776,7 +776,7 @@ func TestServiceFiltering(t *testing.T) {
 			serviceName: "svc1",
 			namespace:   "",
 			annotations: nil,
-			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceLegacyGlobal}},
+			filters:     [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceLegacyGlobal}},
 			expected:    workloadfilter.Excluded,
 		},
 		{
@@ -785,7 +785,7 @@ func TestServiceFiltering(t *testing.T) {
 			serviceName: "my-service",
 			namespace:   "test",
 			annotations: nil,
-			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceLegacyGlobal}},
+			filters:     [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceLegacyGlobal}},
 			expected:    workloadfilter.Excluded,
 		},
 		{
@@ -795,7 +795,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "true",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -805,7 +805,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "true",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -815,7 +815,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "T",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -827,9 +827,9 @@ func TestServiceFiltering(t *testing.T) {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
-			filterBundle := filterStore.GetServiceFilters(tt.filters)
+			filterBundle := filterStore.GetKubeServiceFilters(tt.filters)
 
-			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
+			service := workloadfilter.CreateKubeService(tt.serviceName, tt.namespace, tt.annotations)
 
 			res := filterBundle.GetResult(service)
 			assert.Equal(t, tt.expected, res)
@@ -845,7 +845,7 @@ func TestEndpointFiltering(t *testing.T) {
 		endpointName string
 		namespace    string
 		annotations  map[string]string
-		filters      [][]workloadfilter.EndpointFilter
+		filters      [][]workloadfilter.KubeEndpointFilter
 		expected     workloadfilter.Result
 	}{
 		{
@@ -854,7 +854,7 @@ func TestEndpointFiltering(t *testing.T) {
 			endpointName: "ep1",
 			namespace:    "",
 			annotations:  nil,
-			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointLegacyGlobal}},
+			filters:      [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointLegacyGlobal}},
 			expected:     workloadfilter.Excluded,
 		},
 		{
@@ -863,7 +863,7 @@ func TestEndpointFiltering(t *testing.T) {
 			endpointName: "my-endpoint",
 			namespace:    "test",
 			annotations:  nil,
-			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointLegacyGlobal}},
+			filters:      [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointLegacyGlobal}},
 			expected:     workloadfilter.Excluded,
 		},
 		{
@@ -873,7 +873,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "true",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -883,7 +883,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "true",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -893,7 +893,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "1",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -905,9 +905,9 @@ func TestEndpointFiltering(t *testing.T) {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
-			filterBundle := filterStore.GetEndpointFilters(tt.filters)
+			filterBundle := filterStore.GetKubeEndpointFilters(tt.filters)
 
-			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
+			endpoint := workloadfilter.CreateKubeEndpoint(tt.endpointName, tt.namespace, tt.annotations)
 
 			res := filterBundle.GetResult(endpoint)
 			assert.Equal(t, tt.expected, res)
@@ -1185,8 +1185,8 @@ cel_workload_exclude:
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("CEL exclude kube_service", func(t *testing.T) {
-		svc := workloadfilter.CreateService("", "", nil)
-		filterBundle := filterStore.GetServiceFilters([][]workloadfilter.ServiceFilter{{workloadfilter.ServiceFilter(workloadfilter.ServiceCELMetrics)}})
+		svc := workloadfilter.CreateKubeService("", "", nil)
+		filterBundle := filterStore.GetKubeServiceFilters([][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceFilter(workloadfilter.KubeServiceCELMetrics)}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, true, filterBundle.IsExcluded(svc))
 	})
@@ -1336,4 +1336,46 @@ cel_workload_exclude:
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
+}
+
+func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockSystemProbe := configmock.NewSystemProbe(t)
+
+	// Setup Compliance Config
+	mockConfig.SetWithoutSource("compliance_config.container_include", []string{"image:compliance-agent"})
+	mockConfig.SetWithoutSource("compliance_config.container_exclude", []string{"image:malicious"})
+
+	// Setup Runtime Security Config
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_include", []string{"image:security-agent"})
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_exclude", []string{"image:suspicious"})
+
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	// Test Compliance Filter
+	t.Run("Compliance Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("compliance-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("malicious")
+		unknownContainer := workloadfilter.CreateContainerImage("security-agent")
+
+		filterBundle := filterStore.GetContainerComplianceFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
+	// Test Runtime Security Filter
+	t.Run("Runtime Security Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("security-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("suspicious")
+		unknownContainer := workloadfilter.CreateContainerImage("malicious")
+
+		filterBundle := filterStore.GetContainerRuntimeSecurityFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
 }

@@ -38,8 +38,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	ret := make(map[string]interface{})
-	for key, value := range c.knownKeys {
-		ret[key] = value
+	for key := range c.knownKeys {
+		ret[key] = struct{}{}
 	}
 	return ret
 }
