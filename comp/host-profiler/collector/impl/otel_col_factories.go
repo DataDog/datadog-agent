@@ -9,6 +9,9 @@
 package collectorimpl
 
 import (
+	"os"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -56,10 +59,22 @@ var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(
 	tagger tagger.Component,
-	hostname hostname.Component, ipcComp ipc.Component,
+	hostname hostname.Component,
+	ipcComp ipc.Component,
 	traceAgent traceagent.Component,
 	log log.Component,
+	config config.Component,
 ) ExtraFactories {
+
+	// ensure an API key is present in the environment
+	// ad hoc & hacky
+	if os.Getenv("DD_API_KEY") == "" {
+		if apiKey := config.GetString("api_key"); apiKey != "" {
+			log.Debug("fetched api key from agent")
+			os.Setenv("DD_API_KEY", apiKey)
+		}
+	}
+
 	return extraFactoriesWithAgentCore{
 		tagger:     tagger,
 		hostname:   hostname,
