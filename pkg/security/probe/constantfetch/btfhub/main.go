@@ -67,7 +67,7 @@ func main() {
 	}
 
 	if len(deflate) != 0 {
-		deflateDirJsons(deflate)
+		gzipDirJSONs(deflate)
 		return
 	}
 
@@ -116,39 +116,48 @@ func main() {
 	}
 }
 
-func deflateDirJsons(dir string) {
-	deflateFile := func(in string, out string) error {
-
+func gzipDirJSONs(dir string) {
+	gzipFile := func(in string, out string) error {
 		fileOut, err := os.OpenFile(out, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return err
 		}
 		defer fileOut.Close()
-		writer := gzip.NewWriter(fileOut)
 
-		defer writer.Close()
+		writer := gzip.NewWriter(fileOut)
 		s, err := os.ReadFile(in)
 		if err != nil {
 			return err
 		}
-		writer.Write(s)
-		writer.Flush()
-
-		return nil
+		_, err = writer.Write(s)
+		if err != nil {
+			return err
+		}
+		err = writer.Close()
+		return err
 	}
 
-	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if len(path) > 5 && path[len(path)-5:] == ".json" {
-			fmt.Println("Deflating", path)
-			err := deflateFile(path, path+".gz")
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(path) == ".json" {
+			fmt.Println("Compressing", path)
+			err := gzipFile(path, path+".gz")
 			if err != nil {
-				fmt.Println(err)
+				return err
 			}
 		}
 		return nil
 	})
-
-	return
+	if err != nil {
+		fmt.Printf("Error compressing all the files in the directory: %v. Please fix the causes and run it again\n", err)
+	}
 }
 
 func outputConstants(export *constantfetch.BTFHubConstants, outputPath string) error {
