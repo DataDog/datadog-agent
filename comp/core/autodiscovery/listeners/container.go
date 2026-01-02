@@ -54,6 +54,7 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
+
 	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
