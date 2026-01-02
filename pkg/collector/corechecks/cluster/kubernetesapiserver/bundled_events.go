@@ -69,8 +69,8 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 		lastBundle := bundles[len(bundles)-1]
 		_, fits := lastBundle.fitsEvent(event)
 		if !fits {
-			bundles = append(bundles, newKubernetesEventBundler(c.clusterName, event))
-			lastBundle = bundles[len(bundles)-1]
+			lastBundle = newKubernetesEventBundler(c.clusterName, event)
+			bundles = append(bundles, lastBundle)
 			bundlesByObject[id] = bundles
 		}
 

@@ -11,8 +11,11 @@ core,cloud.google.com/go/auth/httptransport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/credsfile,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/jwt,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/retry,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/transport/headers,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/trustboundary,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/apiv1,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/apiv1/computepb,Apache-2.0,Copyright 2019 Google LLC
@@ -284,6 +287,7 @@ core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
+core,github.com/VictoriaMetrics/easyproto,Apache-2.0,"Copyright 2023-2024 VictoriaMetrics, Inc"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Copyright (C) 2017 Alec Thomas
@@ -599,6 +603,7 @@ core,github.com/aws/smithy-go/encoding/httpbinding,Apache-2.0,"Copyright Amazon.
 core,github.com/aws/smithy-go/encoding/json,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/encoding/xml,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/endpoints,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/aws/smithy-go/endpoints/private/rulesfn,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/logging,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
@@ -618,6 +623,7 @@ core,github.com/awslabs/operatorpkg/option,Apache-2.0,"Copyright Amazon.com, Inc
 core,github.com/awslabs/operatorpkg/serrors,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/awslabs/operatorpkg/status,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/awslabs/operatorpkg/unstructured,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/aymerick/raymond/lexer,MIT,Copyright (c) 2015 Aymerick JEHANNE
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/bboreham/go-loser,Apache-2.0,bboreham <bjboreham@gmail.com>
 core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (smira) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
@@ -1020,9 +1026,10 @@ core,github.com/gocomply/scap/pkg/scap/models/xml_dsig,CC0-1.0,CC0 1.0 Universal
 core,github.com/godbus/dbus/v5,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/godror/godror,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
 core,github.com/godror/godror/dsn,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
-core,github.com/godror/godror/odpi/embed,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
-core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
-core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/embed,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2025 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2025 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2025 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/slog,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
 core,github.com/godror/knownpb/internal,Apache-2.0,"Copyright 2014, 2021 Tamás Gulácsi"
 core,github.com/godror/knownpb/timestamppb,Apache-2.0,"Copyright 2019, 2021 Tamás Gulácsi"
 core,github.com/gofrs/flock,BSD-3-Clause,"Copyright (c) 2015-2020, Tim Heckman | Copyright (c) 2018-2025, The Gofrs"
@@ -1122,6 +1129,7 @@ core,github.com/google/gopacket/afpacket,BSD-3-Clause,"Copyright (c) 2009-2011 A
 core,github.com/google/gopacket/layers,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcap,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcapgo,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
+core,github.com/google/jsonschema-go/jsonschema,MIT,Copyright (c) 2025 JSON Schema Go Project Authors
 core,github.com/google/pprof/profile,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/s2a-go,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/fallback,Apache-2.0,Copyright (c) 2020 Google
@@ -1271,6 +1279,7 @@ core,github.com/klauspost/compress/internal/le,BSD-3-Clause,Copyright (c) 2011 T
 core,github.com/klauspost/compress/internal/race,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/s2,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved. | Copyright (c) 2019 Klaus Post. All rights reserved.
+core,github.com/klauspost/compress/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 core,github.com/klauspost/compress/zlib,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -1367,9 +1376,16 @@ core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.co
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+core,github.com/modelcontextprotocol/go-sdk/auth,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/internal/util,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/jsonrpc,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/mcp,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
+core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2023 Montana Flynn (https://montanaflynn.com)
 core,github.com/mostynb/go-grpc-compression/internal/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/internal/zstd,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/nonclobbering/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
@@ -1474,6 +1490,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadog
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/componentchecker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/httpserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/payload,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension/internal/healthcheck,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1535,6 +1552,10 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/f
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/strict,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterspan,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/gopsutilenv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/grpc,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/http,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/aws/ec2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/aws/eks,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1647,6 +1668,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/pipeli
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/split,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/tokenlen,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/trim,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1835,6 +1857,8 @@ core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Pat
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
 core,github.com/prometheus-community/pro-bing,MIT,Copyright 2016 Cameron Sparr and contributors | Copyright 2022 The Prometheus Authors
 core,github.com/prometheus/alertmanager/api/v2/models,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/client_golang/exp/api/remote,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil,BSD-3-Clause,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header,BSD-3-Clause,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -1982,6 +2006,7 @@ core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022-2025 Samuel Berth
 core,github.com/samber/lo/mutable,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/oops,MIT,Copyright (c) 2023 Samuel Berthe | Copyright © 2023 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
+core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/sassoftware/go-rpmutils,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,Copyright (c) SAS Institute Inc.
@@ -2135,9 +2160,11 @@ core,github.com/xeipuuv/gojsonschema,Apache-2.0,Copyright 2015 xeipuuv
 core,github.com/xi2/xz,Public Domain,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Copyright (c) 2013 Blake Smith <blakesmith0@gmail.com>
 core,github.com/yashtewari/glob-intersection,Apache-2.0,Copyright (c) 2018 Yash Tewari (yashtewari)
+core,github.com/yosida95/uritemplate/v3,BSD-3-Clause,"Copyright (C) 2016, Kohei YOSHIDA <https://yosida95.com/>. All rights reserved"
 core,github.com/youmark/pkcs8,MIT,Copyright (c) 2014 youmark
 core,github.com/yusufpapurcu/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/zeebo/xxh3,BSD-2-Clause,"Copyright (c) 2012-2014, Yann Collet | Copyright (c) 2019, Jeff Wendling"
+core,gitlab.com/gitlab-org/api/client-go,Apache-2.0,Andrea Funto' | Arkbriar | Daniel Steinke | Daniela Filipe Bento | Eric Stevens | FantasyTeddy | Hakki Ceylan | Igor Varavko | James Hong | Joel Gerber | Kordian Bruck | Mai Lapyst | Markus Lackner | Masahiro Yoshida | Matej Velikonja | Matthias Simon | Michael Lihs | Nick Westbury | Patrick Webster | Paul Cioanca | Paul Shoemaker | Pavel Kostohrys | Ryan Glab <ryan.j.glab@gmail.com> | Sander van Harmelen | Serena Fang | Stany MARCEL | Sune Keller | Timo Furrer <tuxtimo@gmail.com> | Yavuz Turk | 徐晓伟 <xuxiaowei@xuxiaowei.com.cn>
 core,go.etcd.io/bbolt,MIT,Copyright 2016 The etcd Authors
 core,go.etcd.io/bbolt/errors,MIT,Copyright 2016 The etcd Authors
 core,go.etcd.io/bbolt/internal/common,MIT,Copyright 2016 The etcd Authors
@@ -2170,6 +2197,32 @@ core,go.mongodb.org/mongo-driver/bson/bsonoptions,Apache-2.0,"Copyright © 2018 
 core,go.mongodb.org/mongo-driver/bson/bsonrw,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/bson/bsontype,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/bson/primitive,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/event,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/awserr,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/credentials,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/signer/v4,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/bsonutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/codecutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/credproviders,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/csfle,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/csot,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/driverutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/handshake,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/httputil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/logger,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/ptrutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/rand,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/randutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/uuid,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/address,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/description,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/options,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/readconcern,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/readpref,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/mongo/writeconcern,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/tag,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/bson,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/event,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/aws,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
@@ -2217,7 +2270,21 @@ core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/operation,Apache-2.0,"Copyrig
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/session,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/wiremessage,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/version,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/bsonx/bsoncore,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/auth,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/creds,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/gssapi,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/connstring,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/dns,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt/options,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/ocsp,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/operation,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/session,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/topology,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.opencensus.io,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/internal,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/trace,Apache-2.0,"Copyright 2018, OpenCensus Authors"
@@ -2461,6 +2528,7 @@ core,go.opentelemetry.io/ebpf-profiler/vc,Apache-2.0,Copyright The OpenTelemetry
 core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/attribute/internal/xxhash,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2485,19 +2553,27 @@ core,go.opentelemetry.io/otel/exporters/otlp/otlptrace,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/counter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/envconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/otlpconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/counter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/envconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/otlpconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdoutlog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdoutmetric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/counter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2512,7 +2588,6 @@ core,go.opentelemetry.io/otel/metric/noop,Apache-2.0,Copyright The OpenTelemetry
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/sdk/internal/env,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/log/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2520,11 +2595,14 @@ core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Copyright The OpenTelemetry 
 core,go.opentelemetry.io/otel/sdk/metric/exemplar,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/aggregate,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/metric/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/metric/internal/reservoir,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/metricdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/sdk/trace/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/trace/internal/env,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/trace/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace/tracetest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2537,15 +2615,12 @@ core,go.opentelemetry.io/otel/semconv/v1.22.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.30.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.34.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/goconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.8.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2628,6 +2703,9 @@ core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/rand,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/slices,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved

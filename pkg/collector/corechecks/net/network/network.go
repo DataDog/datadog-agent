@@ -11,8 +11,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -149,9 +151,7 @@ func (c *NetworkCheck) Run() error {
 			if err != nil {
 				log.Debug(err)
 			} else {
-				for counter, value := range counters {
-					protocolStats.Stats[counter] = value
-				}
+				maps.Copy(protocolStats.Stats, counters)
 			}
 		}
 		submitProtocolMetrics(sender, protocolStats)
@@ -188,10 +188,8 @@ func (c *NetworkCheck) Run() error {
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+		return true
 	}
 	if c.config.instance.ExcludedInterfacePattern != nil {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)

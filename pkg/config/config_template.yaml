@@ -537,6 +537,13 @@ api_key:
 #
 # azure_hostname_style: "os"
 
+## @param azure_metadata_api_version - string - optional - default: "2021-02-01"
+## @env DD_AZURE_METADATA_API_VERSION - string - optional - default: "2021-02-01"
+## The API version to use when querying the Azure Instance Metadata Service (IMDS).
+## Change this if you need to use a different API version for compatibility reasons.
+#
+# azure_metadata_api_version: "2021-02-01"
+
 ## @param scrubber - custom object - optional
 ## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
@@ -581,7 +588,7 @@ api_key:
 ## If you set this option to true, the Agent tries to resolve the host name to determine the host's IP address.
 ## If this is unsuccessful, the Agent falls back to the default behavior.
 ## This option is useful when the first interface is not the one you want to use to determine the host's IP address, or when
-## you define the hostname in the /etc/hosts configuration file.
+## you define the hostname in the /etc/hosts configuration file.
 #
 # metadata_ip_resolution_from_hostname: false
 
@@ -645,7 +652,7 @@ api_key:
 #   # - compliance_config.endpoints.dd_url
 #   # - runtime_security_config.endpoints.dd_url
 #   # - network_devices.metadata.dd_url
-#
+#   #
 #   # The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
 #   # DD_PROXY_HTTP and DD_PROXY_HTTPS).
 #
@@ -1223,12 +1230,6 @@ api_key:
 #   # The total combined usage all integrations logs files can use
 #
 #   integrations_logs_total_usage: 100
-
-#   # @param kublet_api_client_read_timeout - duration - optional - default: 30s
-#   # @env DD_LOGS_CONFIG_KUBELET_API_CLIENT_READ_TIMEOUT - duration - optional - default: 30s
-#   # Configure the kubelet API client's timeout used while streaming logs.
-#
-#   kublet_api_client_read_timeout: 30
 
 #   # @param k8s_container_use_kubelet_api - boolean - optional - default: false
 #   # @env DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API - boolean - optional - default: false
@@ -2346,7 +2347,7 @@ api_key:
 #     # @env DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED - boolean - optional - default: false
 #     # Set to true to enable the Syscall monitoring (recommended for troubleshooting only).
 #
-#      enabled: false
+#     enabled: false
 
 #   # @param custom_sensitive_words - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
@@ -2410,9 +2411,9 @@ api_key:
 #
 #     enabled: true
 {{ if (eq .OS "windows") }}
-#####################################################
-## Datadog Agent Windows Crash Detection module
-#####################################################
+##################################################
+## Datadog Agent Windows Crash Detection module ##
+##################################################
 
 # windows_crash_detection:
 #   # @param enabled - boolean - optional - default: false
@@ -2874,24 +2875,6 @@ api_key:
 ## Set to 'true' to output in an RFC 5424-compliant format for Agent logs.
 #
 # syslog_rfc: false
-
-## @param syslog_pem - string - optional
-## @env DD_SYSLOG_PEM - string - optional
-## If TLS enabled, you must specify a path to a PEM certificate here.
-#
-# syslog_pem: <PEM_CERTIFICATE_PATH>
-
-## @param syslog_key - string - optional
-## @env DD_SYSLOG_KEY - string - optional
-## If TLS enabled, you must specify a path to a private key here.
-#
-# syslog_key: <PEM_KEY_PATH>
-
-## @param syslog_tls_verify - boolean - optional - default: true
-## @env DD_SYSLOG_TLS_VERIFY - boolean - optional - default: true
-## If TLS enabled, you may enforce TLS verification here.
-#
-# syslog_tls_verify: true
 
 ## @param log_format_rfc3339 - boolean - optional - default false
 ## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default false
@@ -3416,13 +3399,6 @@ api_key:
 #
 #     socket_path: /var/run/datadog
 
-#     # @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
-#     # Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
-#     # Only applicable in "socket" mode.
-#
-#     trace_agent_socket: unix:///var/run/datadog/apm.socket
-
 #     # @param type_socket_volumes - boolean - optional - default: false
 #     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
 #     # When enabled, injected volumes are of type "Socket". This means that
@@ -3485,13 +3461,13 @@ api_key:
 #       # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
 #       # Configures the CPU request that will be applied for the init container's CPU request and limit.
 #
-#       cpu:
+#       cpu: ""
 
 #       # @param memory - string - optional
 #       # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
 #       # Configures the memory request that will be applied for the init container's memory request and limit.
 #
-#       memory:
+#       memory: ""
 
 #     # @param init_security_context - json - optional
 #     # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
@@ -3504,18 +3480,6 @@ api_key:
 #     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{ if .DockerTagging }}
-#########################
-## Container detection ##
-#########################
-
-## @param container_cgroup_prefix - string - optional - default: /docker/
-## @env DD_CONTAINER_CGROUP_PREFIX - string - optional - default: /docker/
-## On hosts with mixed workloads, non-containernized processes can
-## mistakenly be detected as containerized. Use this parameter to
-## tune the detection logic to your system and avoid false-positives.
-#
-# container_cgroup_prefix: "/docker/"
-
 ###########################
 ## Docker tag extraction ##
 ###########################

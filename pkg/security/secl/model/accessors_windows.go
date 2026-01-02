@@ -46,6 +46,21 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
@@ -2467,6 +2482,8 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 	return fields
 }
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
