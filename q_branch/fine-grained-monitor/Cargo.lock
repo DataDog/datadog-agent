@@ -2632,7 +2632,7 @@ dependencies = [
 [[package]]
 name = "lading"
 version = "0.30.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#b1d81933f08cb083208baae0b50efed43d71733d"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#fc017f16816417f1570d72395910ce0e3641b077"
 dependencies = [
  "anyhow",
  "arrow-array 57.1.0",
@@ -2696,7 +2696,7 @@ dependencies = [
 [[package]]
 name = "lading-capture"
 version = "0.2.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#b1d81933f08cb083208baae0b50efed43d71733d"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#fc017f16816417f1570d72395910ce0e3641b077"
 dependencies = [
  "arc-swap",
  "arrow 57.1.0",
@@ -2723,7 +2723,7 @@ dependencies = [
 [[package]]
 name = "lading-payload"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#b1d81933f08cb083208baae0b50efed43d71733d"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#fc017f16816417f1570d72395910ce0e3641b077"
 dependencies = [
  "byte-unit",
  "bytes",
@@ -2743,7 +2743,7 @@ dependencies = [
 [[package]]
 name = "lading-signal"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#b1d81933f08cb083208baae0b50efed43d71733d"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#fc017f16816417f1570d72395910ce0e3641b077"
 dependencies = [
  "loom",
  "thiserror 2.0.17",
@@ -2754,7 +2754,7 @@ dependencies = [
 [[package]]
 name = "lading-throttle"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#b1d81933f08cb083208baae0b50efed43d71733d"
+source = "git+https://github.com/DataDog/lading?branch=sopell%2Fexpose-observer-public#fc017f16816417f1570d72395910ce0e3641b077"
 dependencies = [
  "async-trait",
  "serde",

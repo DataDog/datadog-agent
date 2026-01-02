@@ -19,6 +19,9 @@ use arrow::array::{Array, BooleanArray, Float64Array, StringArray, UInt64Array};
 use arrow::datatypes::DataType;
 use chrono::{DateTime, Duration, Utc};
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, ParquetRecordBatchReaderBuilder, RowFilter};
+use parquet::file::properties::ReaderProperties;
+use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::file::serialized_reader::ReadOptionsBuilder;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
@@ -1150,12 +1153,83 @@ fn load_metric_from_file(
             .collect()
     });
 
+    let rg_count_after_stats_pruning = row_groups_to_read
+        .as_ref()
+        .map(|v| v.len())
+        .unwrap_or(num_row_groups);
+
+    // Bloom filter pruning for l_container_id (when specific containers are requested)
+    // Bloom filters have no false negatives - if it says "not present", it's definitely not there
+    let (row_groups_to_read, bloom_pruned_count) = if !container_set.is_empty() {
+        let container_col_idx = (0..parquet_schema.num_columns())
+            .find(|&i| parquet_schema.column(i).name() == "l_container_id");
+
+        if let Some(col_idx) = container_col_idx {
+            // Get list of row groups to check (either from stats pruning or all)
+            let candidate_rgs: Vec<usize> = row_groups_to_read
+                .clone()
+                .unwrap_or_else(|| (0..num_row_groups).collect());
+
+            // Open file with bloom filter reading enabled
+            // This is a lightweight operation - we're only reading bloom filter metadata
+            if let Ok(bf_file) = File::open(path) {
+                let bf_reader_result = SerializedFileReader::new_with_options(
+                    bf_file,
+                    ReadOptionsBuilder::new()
+                        .with_reader_properties(
+                            ReaderProperties::builder()
+                                .set_read_bloom_filter(true)
+                                .build(),
+                        )
+                        .build(),
+                );
+
+                if let Ok(bf_reader) = bf_reader_result {
+                    let filtered: Vec<usize> = candidate_rgs
+                        .into_iter()
+                        .filter(|&rg_idx| {
+                            // Get row group reader for bloom filter access
+                            if let Ok(rg_reader) = bf_reader.get_row_group(rg_idx) {
+                                if let Some(sbbf) = rg_reader.get_column_bloom_filter(col_idx) {
+                                    // Keep row group if ANY container_id might be present
+                                    // Bloom filter check: returns true if maybe present, false if definitely absent
+                                    container_set.iter().any(|cid| sbbf.check(&cid.as_str()))
+                                } else {
+                                    // No bloom filter for this row group, must keep it
+                                    true
+                                }
+                            } else {
+                                // Couldn't get row group reader, keep it to be safe
+                                true
+                            }
+                        })
+                        .collect();
+
+                    let pruned = rg_count_after_stats_pruning - filtered.len();
+                    (Some(filtered), pruned)
+                } else {
+                    // Couldn't create bloom filter reader, use original list
+                    (row_groups_to_read, 0)
+                }
+            } else {
+                // Couldn't re-open file, use original list
+                (row_groups_to_read, 0)
+            }
+        } else {
+            // No l_container_id column, can't use bloom filter
+            (row_groups_to_read, 0)
+        }
+    } else {
+        // No container filter, bloom filter not applicable
+        (row_groups_to_read, 0)
+    };
+
     let rg_count_after_pruning = row_groups_to_read
         .as_ref()
         .map(|v| v.len())
         .unwrap_or(num_row_groups);
 
-    // Process row groups (filtered by statistics)
+    // Process row groups (filtered by statistics and bloom filter)
     // Fix #2: Pass builder directly to avoid double file open
     let result = load_row_groups(
         builder,
@@ -1167,14 +1241,15 @@ fn load_metric_from_file(
 
     let elapsed = file_start.elapsed();
     if elapsed.as_millis() > 100 || !result.is_empty() {
-        let pruned = num_row_groups - rg_count_after_pruning;
+        let stats_pruned = num_row_groups - rg_count_after_stats_pruning;
         tracing::debug!(
-            "[PERF-FILE] {:?}: {}ms, {}/{} row_groups (pruned {}), {} containers matched",
+            "[PERF-FILE] {:?}: {}ms, {}/{} row_groups (stats_pruned={}, bloom_pruned={}), {} containers matched",
             path.file_name().unwrap_or_default(),
             elapsed.as_millis(),
             rg_count_after_pruning,
             num_row_groups,
-            pruned,
+            stats_pruned,
+            bloom_pruned_count,
             result.len()
         );
     }
