@@ -54,12 +54,10 @@ BINARY = PROJECT_ROOT / "target" / "release" / "fgm-viewer"
 
 # Cluster deployment config
 IMAGE_NAME = "fine-grained-monitor"
-IMAGE_TAG = "latest"
 LIMA_VM = "gadget-k8s-host"
-KIND_CLUSTER = "gadget-dev"
-KUBE_CONTEXT = f"kind-{KIND_CLUSTER}"
 POD_LABEL = "app=fine-grained-monitor"
 NAMESPACE = "default"
+# Note: IMAGE_TAG, KIND_CLUSTER, KUBE_CONTEXT are computed dynamically per-worktree
 
 
 def calculate_port() -> int:
@@ -67,6 +65,52 @@ def calculate_port() -> int:
     path_hash = hashlib.md5(str(PROJECT_ROOT).encode()).hexdigest()
     offset = int(path_hash[:8], 16) % 1000
     return 8050 + offset
+
+
+# --- Worktree identification functions ---
+
+
+def get_worktree_id() -> str:
+    """Get worktree identifier from directory basename.
+
+    Uses the parent directory of the fine-grained-monitor project root,
+    e.g., /Users/scott/dev/beta-datadog-agent/q_branch/fine-grained-monitor
+    -> "beta-datadog-agent"
+    """
+    # PROJECT_ROOT is fine-grained-monitor, parent is q_branch, grandparent is worktree
+    return PROJECT_ROOT.parent.parent.name
+
+
+def calculate_api_port() -> int:
+    """Calculate unique API server port (6443-6447) based on worktree ID.
+
+    Uses deterministic hash-based allocation to avoid race conditions
+    when multiple worktrees create clusters simultaneously.
+    """
+    worktree_id = get_worktree_id()
+    port_hash = hashlib.md5(worktree_id.encode()).hexdigest()
+    offset = int(port_hash[:8], 16) % 5
+    return 6443 + offset
+
+
+def get_cluster_name() -> str:
+    """Get Kind cluster name for this worktree."""
+    return f"fgm-{get_worktree_id()}"
+
+
+def get_kube_context() -> str:
+    """Get kubectl context name for this worktree's cluster."""
+    return f"kind-{get_cluster_name()}"
+
+
+def get_image_tag() -> str:
+    """Get Docker image tag for this worktree."""
+    return get_worktree_id()
+
+
+def get_data_dir() -> str:
+    """Get data directory path inside containers for this worktree."""
+    return f"/var/lib/fine-grained-monitor/{get_worktree_id()}"
 
 
 def ensure_dev_dir():
@@ -477,8 +521,137 @@ def check_lima_vm() -> bool:
     return False
 
 
+def cluster_exists() -> bool:
+    """Check if this worktree's Kind cluster exists."""
+    cluster_name = get_cluster_name()
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "clusters"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    return cluster_name in result.stdout.strip().split("\n")
+
+
+def merge_kubeconfig(cluster_name: str):
+    """Merge cluster kubeconfig into ~/.kube/config."""
+    context_name = f"kind-{cluster_name}"
+    kubeconfig_file = Path.home() / ".kube" / f"{cluster_name}.yaml"
+    default_kubeconfig = Path.home() / ".kube" / "config"
+
+    # Remove existing entries for this cluster
+    for resource in ["context", "cluster", "user"]:
+        subprocess.run(
+            ["kubectl", "config", f"delete-{resource}", context_name],
+            capture_output=True,
+        )
+
+    # Extract kubeconfig from Kind
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "kubeconfig", "--name", cluster_name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: Failed to get kubeconfig: {result.stderr}")
+        return
+
+    kubeconfig_file.parent.mkdir(parents=True, exist_ok=True)
+    kubeconfig_file.write_text(result.stdout)
+    kubeconfig_file.chmod(0o600)
+
+    # Merge with default config
+    if default_kubeconfig.exists():
+        env = os.environ.copy()
+        env["KUBECONFIG"] = f"{default_kubeconfig}:{kubeconfig_file}"
+        result = subprocess.run(
+            ["kubectl", "config", "view", "--flatten"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        default_kubeconfig.write_text(result.stdout)
+    else:
+        default_kubeconfig.write_text(kubeconfig_file.read_text())
+
+    default_kubeconfig.chmod(0o600)
+    kubeconfig_file.unlink()
+
+
+def create_cluster() -> bool:
+    """Create Kind cluster for this worktree."""
+    cluster_name = get_cluster_name()
+    api_port = calculate_api_port()
+
+    print(f"Creating Kind cluster '{cluster_name}' (API port {api_port})...")
+
+    # Kind cluster config
+    config = f"""kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: {api_port}
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+"""
+
+    # Create cluster
+    result = subprocess.run(
+        [
+            "limactl",
+            "shell",
+            LIMA_VM,
+            "--",
+            "kind",
+            "create",
+            "cluster",
+            "--name",
+            cluster_name,
+            "--config",
+            "/dev/stdin",
+        ],
+        input=config,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print(f"Failed to create cluster: {result.stderr}")
+        return False
+
+    # Extract and merge kubeconfig
+    print("Merging kubeconfig...", end=" ", flush=True)
+    merge_kubeconfig(cluster_name)
+    print("done")
+
+    print(f"Cluster '{cluster_name}' created successfully")
+    return True
+
+
+def generate_manifest() -> str:
+    """Generate DaemonSet manifest with worktree-specific values."""
+    image_tag = get_image_tag()
+    data_dir = get_data_dir()
+    cluster_name = get_cluster_name()
+
+    # Read template and substitute
+    template_path = PROJECT_ROOT / "deploy" / "daemonset.yaml"
+    manifest = template_path.read_text()
+
+    # Replace placeholders
+    manifest = manifest.replace("fine-grained-monitor:latest", f"fine-grained-monitor:{image_tag}")
+    manifest = manifest.replace("/var/lib/fine-grained-monitor", data_dir)
+    manifest = manifest.replace('value: "gadget-dev"', f'value: "{cluster_name}"')
+
+    return manifest
+
+
 def get_cluster_pods() -> list[str]:
     """Get list of fine-grained-monitor pod names."""
+    kube_context = get_kube_context()
     result = subprocess.run(
         [
             "kubectl",
@@ -489,7 +662,7 @@ def get_cluster_pods() -> list[str]:
             "-n",
             NAMESPACE,
             "--context",
-            KUBE_CONTEXT,
+            kube_context,
             "-o",
             "jsonpath={.items[*].metadata.name}",
         ],
@@ -503,7 +676,10 @@ def get_cluster_pods() -> list[str]:
 
 def cmd_deploy():
     """Build docker image, load into Kind cluster, and restart pods."""
-    image_full = f"{IMAGE_NAME}:{IMAGE_TAG}"
+    cluster_name = get_cluster_name()
+    kube_context = get_kube_context()
+    image_tag = get_image_tag()
+    image_full = f"{IMAGE_NAME}:{image_tag}"
 
     # Check Lima VM is running
     print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
@@ -512,6 +688,14 @@ def cmd_deploy():
         print(f"  Start it with: limactl start {LIMA_VM}")
         return 1
     print("running")
+
+    # On-demand cluster creation
+    if not cluster_exists():
+        print(f"Cluster '{cluster_name}' not found, creating...")
+        if not create_cluster():
+            return 1
+    else:
+        print(f"Using existing cluster '{cluster_name}'")
 
     # Step 1: Build docker image
     success, _ = run_cmd(
@@ -547,31 +731,53 @@ def cmd_deploy():
 
     # Step 3: Load into Kind cluster
     success, _ = run_cmd(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "load", "docker-image", image_full, "--name", KIND_CLUSTER],
+        ["limactl", "shell", LIMA_VM, "--", "kind", "load", "docker-image", image_full, "--name", cluster_name],
         "Loading image into Kind cluster",
     )
     if not success:
         return 1
 
-    # Step 4: Get current pods and delete them
+    # Step 4: Check if DaemonSet exists, apply manifest if not
     pods = get_cluster_pods()
     if not pods:
-        print("No pods found with label", POD_LABEL)
-        print("  Deploy the DaemonSet first with: kubectl apply -f deploy/")
-        return 1
+        print("No pods found, applying DaemonSet manifest...")
+        manifest = generate_manifest()
 
-    print(f"Restarting {len(pods)} pod(s)...", end=" ", flush=True)
-    start = time.time()
+        # Also apply RBAC
+        rbac_path = PROJECT_ROOT / "deploy" / "rbac.yaml"
+        if rbac_path.exists():
+            subprocess.run(
+                ["kubectl", "apply", "-f", str(rbac_path), "--context", kube_context],
+                capture_output=True,
+            )
 
-    for pod in pods:
-        subprocess.run(
-            ["kubectl", "delete", "pod", pod, "-n", NAMESPACE, "--context", KUBE_CONTEXT],
+        # Apply generated manifest via stdin
+        result = subprocess.run(
+            ["kubectl", "apply", "-f", "-", "--context", kube_context],
+            input=manifest,
             capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            print(f"Failed to apply manifest: {result.stderr}")
+            return 1
+        print("DaemonSet applied")
+    else:
+        # Delete existing pods to trigger restart with new image
+        print(f"Restarting {len(pods)} pod(s)...", end=" ", flush=True)
+        start = time.time()
+
+        for pod in pods:
+            subprocess.run(
+                ["kubectl", "delete", "pod", pod, "-n", NAMESPACE, "--context", kube_context],
+                capture_output=True,
+            )
 
     # Wait for new pods to be ready
+    print("Waiting for pods...", end=" ", flush=True)
+    start = time.time()
     time.sleep(2)
-    for _ in range(30):  # 30 second timeout
+    for _ in range(60):  # 60 second timeout
         result = subprocess.run(
             [
                 "kubectl",
@@ -582,7 +788,7 @@ def cmd_deploy():
                 "-n",
                 NAMESPACE,
                 "--context",
-                KUBE_CONTEXT,
+                kube_context,
                 "-o",
                 "jsonpath={.items[*].status.phase}",
             ],
@@ -606,7 +812,13 @@ def cmd_deploy():
 
 def cmd_cluster_status():
     """Show cluster pod status."""
-    print(f"Cluster: {KIND_CLUSTER} (context: {KUBE_CONTEXT})")
+    cluster_name = get_cluster_name()
+    kube_context = get_kube_context()
+
+    print(f"Cluster: {cluster_name} (context: {kube_context})")
+    print(f"Worktree: {get_worktree_id()}")
+    print(f"API port: {calculate_api_port()}")
+    print(f"Data dir: {get_data_dir()}")
     print(f"Pods with label: {POD_LABEL}\n")
 
     result = subprocess.run(
@@ -619,7 +831,7 @@ def cmd_cluster_status():
             "-n",
             NAMESPACE,
             "--context",
-            KUBE_CONTEXT,
+            kube_context,
             "-o",
             "wide",
         ],
@@ -636,7 +848,8 @@ def cmd_cluster_status():
     # Show port-forward hint
     pods = get_cluster_pods()
     if pods:
-        print("To access viewer: ./dev.py forward")
+        port = calculate_port()
+        print(f"To access viewer: ./dev.py cluster forward (port {port})")
 
     return 0
 
@@ -672,6 +885,8 @@ def get_forward_pid() -> int | None:
 
 def cmd_forward(pod_name: str | None):
     """Start port-forward to cluster viewer pod."""
+    kube_context = get_kube_context()
+
     # Stop existing forward if running
     existing_pid = get_forward_pid()
     if existing_pid:
@@ -691,13 +906,13 @@ def cmd_forward(pod_name: str | None):
         pods = get_cluster_pods()
         if not pods:
             print("No pods found with label", POD_LABEL)
-            print("  Deploy first with: ./dev.py deploy")
+            print("  Deploy first with: ./dev.py cluster deploy")
             return 1
         target_pod = pods[0]
 
     # Verify pod exists
     result = subprocess.run(
-        ["kubectl", "get", "pod", target_pod, "-n", NAMESPACE, "--context", KUBE_CONTEXT],
+        ["kubectl", "get", "pod", target_pod, "-n", NAMESPACE, "--context", kube_context],
         capture_output=True,
     )
     if result.returncode != 0:
@@ -720,7 +935,7 @@ def cmd_forward(pod_name: str | None):
             "-n",
             NAMESPACE,
             "--context",
-            KUBE_CONTEXT,
+            kube_context,
         ],
         stdout=log_handle,
         stderr=subprocess.STDOUT,
@@ -798,6 +1013,309 @@ def cmd_forward_stop():
         return 1
 
 
+def cmd_cluster_create():
+    """Create Kind cluster for this worktree (explicit, though deploy does it on-demand)."""
+    cluster_name = get_cluster_name()
+
+    # Check Lima VM is running
+    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+    if not check_lima_vm():
+        print("NOT RUNNING")
+        print(f"  Start it with: limactl start {LIMA_VM}")
+        return 1
+    print("running")
+
+    if cluster_exists():
+        print(f"Cluster '{cluster_name}' already exists")
+        return 0
+
+    if create_cluster():
+        return 0
+    return 1
+
+
+def cmd_cluster_destroy():
+    """Destroy this worktree's Kind cluster."""
+    cluster_name = get_cluster_name()
+
+    # Check Lima VM is running
+    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+    if not check_lima_vm():
+        print("NOT RUNNING")
+        print(f"  Start it with: limactl start {LIMA_VM}")
+        return 1
+    print("running")
+
+    if not cluster_exists():
+        print(f"Cluster '{cluster_name}' does not exist")
+        return 0
+
+    print(f"Destroying cluster '{cluster_name}'...", end=" ", flush=True)
+
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "kind", "delete", "cluster", "--name", cluster_name],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+
+    # Clean up kubeconfig
+    context_name = f"kind-{cluster_name}"
+    for resource in ["context", "cluster", "user"]:
+        subprocess.run(
+            ["kubectl", "config", f"delete-{resource}", context_name],
+            capture_output=True,
+        )
+
+    print("done")
+    return 0
+
+
+def cmd_cluster_list():
+    """List all fgm-* Kind clusters."""
+    # Check Lima VM is running
+    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+    if not check_lima_vm():
+        print("NOT RUNNING")
+        print(f"  Start it with: limactl start {LIMA_VM}")
+        return 1
+    print("running\n")
+
+    result = subprocess.run(
+        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "clusters"],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print(f"Error getting clusters: {result.stderr}")
+        return 1
+
+    all_clusters = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    fgm_clusters = [c for c in all_clusters if c.startswith("fgm-")]
+
+    if not fgm_clusters:
+        print("No fgm-* clusters found")
+        print(f"\nThis worktree would create: {get_cluster_name()}")
+        return 0
+
+    current = get_cluster_name()
+    print("fgm-* clusters:")
+    for cluster in fgm_clusters:
+        marker = " <- this worktree" if cluster == current else ""
+        # Extract worktree name from cluster name
+        worktree = cluster[4:]  # Remove "fgm-" prefix
+        print(f"  {cluster} (worktree: {worktree}){marker}")
+
+    if current not in fgm_clusters:
+        print(f"\nThis worktree's cluster ({current}) does not exist yet")
+        print("  Run: ./dev.py cluster deploy")
+
+    return 0
+
+
+def get_mcp_kubeconfig_path() -> Path:
+    """Get path to MCP kubeconfig for this worktree."""
+    cluster_name = get_cluster_name()
+    return Path.home() / ".kube" / f"mcp-{cluster_name}.kubeconfig"
+
+
+def cmd_cluster_setup_mcp():
+    """Setup MCP server integration for this worktree's cluster."""
+    cluster_name = get_cluster_name()
+    kube_context = get_kube_context()
+    kubeconfig_path = get_mcp_kubeconfig_path()
+
+    # Check cluster exists
+    if not cluster_exists():
+        print(f"Cluster '{cluster_name}' does not exist")
+        print("  Run: ./dev.py cluster deploy")
+        return 1
+
+    print(f"Setting up MCP integration for cluster '{cluster_name}'...")
+
+    # Step 1: Create namespace
+    print("Creating mcp namespace...", end=" ", flush=True)
+    result = subprocess.run(
+        ["kubectl", "--context", kube_context, "create", "namespace", "mcp"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 and "already exists" not in result.stderr:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+    print("done")
+
+    # Step 2: Create service account
+    print("Creating service account...", end=" ", flush=True)
+    result = subprocess.run(
+        ["kubectl", "--context", kube_context, "create", "serviceaccount", "mcp-viewer", "-n", "mcp"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 and "already exists" not in result.stderr:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+    print("done")
+
+    # Step 3: Create cluster role binding
+    print("Creating cluster role binding...", end=" ", flush=True)
+    result = subprocess.run(
+        [
+            "kubectl",
+            "--context",
+            kube_context,
+            "create",
+            "clusterrolebinding",
+            "mcp-viewer-crb",
+            "--clusterrole=cluster-admin",
+            "--serviceaccount=mcp:mcp-viewer",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 and "already exists" not in result.stderr:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+    print("done")
+
+    # Step 4: Create token (1 year duration)
+    print("Creating service account token...", end=" ", flush=True)
+    result = subprocess.run(
+        ["kubectl", "--context", kube_context, "create", "token", "mcp-viewer", "--duration=8760h", "-n", "mcp"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+    token = result.stdout.strip()
+    print("done")
+
+    # Step 5: Get API server and CA data
+    print("Extracting cluster credentials...", end=" ", flush=True)
+    result = subprocess.run(
+        [
+            "kubectl",
+            "config",
+            "view",
+            "--context",
+            kube_context,
+            "--minify",
+            "-o",
+            "jsonpath={.clusters[0].cluster.server}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    api_server = result.stdout.strip()
+
+    result = subprocess.run(
+        [
+            "kubectl",
+            "config",
+            "view",
+            "--context",
+            kube_context,
+            "--minify",
+            "--raw",
+            "-o",
+            "jsonpath={.clusters[0].cluster.certificate-authority-data}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    ca_data = result.stdout.strip()
+    print("done")
+
+    # Step 6: Write kubeconfig
+    print(f"Writing kubeconfig to {kubeconfig_path}...", end=" ", flush=True)
+    kubeconfig_content = f"""apiVersion: v1
+kind: Config
+clusters:
+- name: mcp-{cluster_name}
+  cluster:
+    server: {api_server}
+    certificate-authority-data: {ca_data}
+users:
+- name: mcp-viewer
+  user:
+    token: {token}
+contexts:
+- name: mcp-{cluster_name}
+  context:
+    cluster: mcp-{cluster_name}
+    user: mcp-viewer
+current-context: mcp-{cluster_name}
+"""
+    kubeconfig_path.parent.mkdir(parents=True, exist_ok=True)
+    kubeconfig_path.write_text(kubeconfig_content)
+    kubeconfig_path.chmod(0o600)
+    print("done")
+
+    # Step 7: Verify kubeconfig works
+    print("Verifying kubeconfig...", end=" ", flush=True)
+    result = subprocess.run(
+        ["kubectl", f"--kubeconfig={kubeconfig_path}", "get", "pods", "-A"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print("FAILED")
+        print(f"  Error: {result.stderr}")
+        return 1
+    print("done")
+
+    # Step 8: Create/update .mcp.json in project root
+    print("Updating .mcp.json...", end=" ", flush=True)
+    mcp_json_path = PROJECT_ROOT / ".mcp.json"
+
+    # Read existing config or create new
+    if mcp_json_path.exists():
+        try:
+            mcp_config = json.loads(mcp_json_path.read_text())
+        except json.JSONDecodeError:
+            mcp_config = {"mcpServers": {}}
+    else:
+        mcp_config = {"mcpServers": {}}
+
+    if "mcpServers" not in mcp_config:
+        mcp_config["mcpServers"] = {}
+
+    # Add/update kubernetes-mcp-server entry
+    mcp_config["mcpServers"]["kubernetes-mcp-server"] = {
+        "command": "npx",
+        "args": ["-y", "kubernetes-mcp-server@latest"],
+        "env": {"KUBECONFIG": str(kubeconfig_path)},
+    }
+
+    mcp_json_path.write_text(json.dumps(mcp_config, indent=2) + "\n")
+    print("done")
+
+    # Add .mcp.json to .gitignore if not present
+    gitignore = PROJECT_ROOT / ".gitignore"
+    if gitignore.exists():
+        content = gitignore.read_text()
+        if ".mcp.json" not in content:
+            with gitignore.open("a") as f:
+                f.write("\n# MCP server config (worktree-specific)\n.mcp.json\n")
+
+    print("\nMCP integration configured!")
+    print(f"  Cluster:    {cluster_name}")
+    print(f"  Kubeconfig: {kubeconfig_path}")
+    print(f"  MCP config: {mcp_json_path}")
+    print("\nRestart Claude Code to pick up the new MCP server configuration.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Development workflow manager for fine-grained-monitor (fgm-*) binaries",
@@ -817,6 +1335,15 @@ Examples:
   ./dev.py cluster forward                 # Port-forward to first pod
   ./dev.py cluster forward --pod NAME      # Port-forward to specific pod
   ./dev.py cluster forward-stop            # Stop port-forward
+  ./dev.py cluster create                  # Create Kind cluster for this worktree
+  ./dev.py cluster destroy                 # Destroy Kind cluster for this worktree
+  ./dev.py cluster list                    # List all fgm-* clusters
+  ./dev.py cluster setup-mcp               # Setup MCP server for this worktree's cluster
+
+Per-worktree isolation:
+  Each worktree gets its own Kind cluster (fgm-<basename>), API port,
+  data directory, and docker image tag. Multiple worktrees can run
+  concurrently without conflicts.
 """,
     )
 
@@ -885,6 +1412,18 @@ Examples:
     # cluster forward-stop
     cluster_subs.add_parser("forward-stop", help="Stop port-forward")
 
+    # cluster create
+    cluster_subs.add_parser("create", help="Create Kind cluster for this worktree")
+
+    # cluster destroy
+    cluster_subs.add_parser("destroy", help="Destroy Kind cluster for this worktree")
+
+    # cluster list
+    cluster_subs.add_parser("list", help="List all fgm-* clusters")
+
+    # cluster setup-mcp
+    cluster_subs.add_parser("setup-mcp", help="Setup MCP server integration for this worktree's cluster")
+
     args = parser.parse_args()
 
     if args.group == "local":
@@ -912,6 +1451,14 @@ Examples:
             sys.exit(cmd_forward(args.pod))
         elif args.command == "forward-stop":
             sys.exit(cmd_forward_stop())
+        elif args.command == "create":
+            sys.exit(cmd_cluster_create())
+        elif args.command == "destroy":
+            sys.exit(cmd_cluster_destroy())
+        elif args.command == "list":
+            sys.exit(cmd_cluster_list())
+        elif args.command == "setup-mcp":
+            sys.exit(cmd_cluster_setup_mcp())
 
 
 if __name__ == "__main__":
