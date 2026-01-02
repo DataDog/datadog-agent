@@ -102,10 +102,10 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	// filter configs if a check name has been passed
 	if len(cliParams.args) > 1 {
 		return errors.New("only one check must be specified")
-	}
-	if len(cliParams.args) == 1 {
-		if err := filterCheckConfigsByName(cr, cliParams.args[0]); err != nil {
-			return err
+	} else if len(cliParams.args) == 1 {
+		cr.Configs = findConfigsByName(cr.Configs, cliParams.args[0])
+		if len(cr.Configs) == 0 {
+			return fmt.Errorf("no check named %q was found", cliParams.args[0])
 		}
 	}
 
@@ -182,14 +182,16 @@ func convertCheckConfigToJSON(c *integration.Config, instanceIDs []string) check
 	return jsonConfig
 }
 
-func filterCheckConfigsByName(cr *integration.ConfigCheckResponse, name string) error {
-	for _, config := range cr.Configs {
+func findConfigsByName(configs []integration.ConfigResponse, name string) []integration.ConfigResponse {
+	matchingConfigs := []integration.ConfigResponse{}
+
+	for _, config := range configs {
 		if config.Config.Name == name {
-			cr.Configs = []integration.ConfigResponse{config}
-			return nil
+			matchingConfigs = append(matchingConfigs, config)
 		}
 	}
-	return fmt.Errorf("no check named %q was found", name)
+
+	return matchingConfigs
 }
 
 func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
@@ -210,6 +212,6 @@ func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }

@@ -35,37 +35,36 @@ func TestCommand(t *testing.T) {
 }
 
 func TestFilterCheckConfigsByName_HasCheckWithName(t *testing.T) {
-	checkResponse := integration.ConfigCheckResponse{
-		Configs: []integration.ConfigResponse{{
-			Config: integration.Config{Name: "cpu"},
-		}, {
-			Config: integration.Config{Name: "disk"},
-		},
-		},
+	configs := []integration.ConfigResponse{{
+		Config: integration.Config{Name: "cpu", InitConfig: integration.Data("first-cpu-check")},
+	}, {
+		Config: integration.Config{Name: "disk"},
+	}, {
+		Config: integration.Config{Name: "cpu", InitConfig: integration.Data("second-cpu-check")},
+	},
 	}
 
-	// filter the configs list to only keep the "cpu" config
-	err := filterCheckConfigsByName(&checkResponse, "cpu")
-	assert.NoError(t, err)
+	// keep only the "cpu" configs
+	configs = findConfigsByName(configs, "cpu")
 
-	require.Len(t, checkResponse.Configs, 1)
-	config := checkResponse.Configs[0].Config
-	assert.Equal(t, "cpu", config.Name)
+	require.Len(t, configs, 2)
+	assert.Equal(t, "cpu", configs[0].Config.Name)
+	assert.Equal(t, integration.Data("first-cpu-check"), configs[0].Config.InitConfig)
+	assert.Equal(t, "cpu", configs[1].Config.Name)
+	assert.Equal(t, integration.Data("second-cpu-check"), configs[1].Config.InitConfig)
 }
 
 func TestFilterCheckConfigsByName_NoCheckWithName(t *testing.T) {
-	checkResponse := integration.ConfigCheckResponse{
-		Configs: []integration.ConfigResponse{{
-			Config: integration.Config{Name: "cpu"},
-		}, {
-			Config: integration.Config{Name: "disk"},
-		},
-		},
+	configs := []integration.ConfigResponse{{
+		Config: integration.Config{Name: "cpu"},
+	}, {
+		Config: integration.Config{Name: "disk"},
+	},
 	}
 
 	// no filtering is done on the config check response since the "memory" config is not
-	err := filterCheckConfigsByName(&checkResponse, "memory")
-	assert.EqualError(t, err, "no check named \"memory\" was found")
+	configs = findConfigsByName(configs, "memory")
+	assert.Len(t, configs, 0)
 }
 
 func TestConvertConfigToJSON_DefaultValues(t *testing.T) {
