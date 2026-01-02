@@ -1,0 +1,10 @@
+{
+    "payloads": [
+        {
+            "timestamp": "2025-12-17T10:00:00Z",
+            "data": "eyJzY2hlbWFfdmVyc2lvbiI6IjEuMCIsImV2ZW50X3R5cGUiOiJhZ2VudC1oZWFsdGgtaXNzdWVzIiwiZW1pdHRlZF9hdCI6IjIwMjUtMTItMTdUMTA6MDA6MDBaIiwiaG9zdCI6eyJob3N0bmFtZSI6InRlc3QtaG9zdCIsImFnZW50X3ZlcnNpb24iOiI3LjUwLjAifSwiaXNzdWVzIjp7InRlc3QtY2hlY2siOnsiSUQiOiJkb2NrZXItZmlsZS10YWlsaW5nLWRpc2FibGVkIiwiQ2F0ZWdvcnkiOiJkb2NrZXIiLCJUaXRsZSI6IkRvY2tlciBGaWxlIFRhaWxpbmcgRGlzYWJsZWQiLCJEZXNjcmlwdGlvbiI6IkRvY2tlciBsb2dzIGNhbm5vdCBiZSB0YWlsZWQiLCJUYWdzIjpbImRvY2tlciIsImxvZ3MiXSwiRXh0cmEiOnsiZG9ja2VyRGlyIjoiL3Zhci9saWIvZG9ja2VyIiwib3MiOiJsaW51eCJ9fX19",
+            "encoding": "json",
+            "apikey": "test-api-key-123"
+        }
+    ]
+}
