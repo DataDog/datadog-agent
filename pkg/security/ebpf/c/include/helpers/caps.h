@@ -1,7 +1,7 @@
 #ifndef _HELPERS_CAPS_H_
 #define _HELPERS_CAPS_H_
 
-__attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, struct capabilities_usage_key_t *key, struct capabilities_usage_entry_t *entry) {
+static __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, struct capabilities_usage_key_t *key, struct capabilities_usage_entry_t *entry) {
     u64 now = bpf_ktime_get_ns();
     int should_send = is_dirty(entry) && period_reached_or_new_entry(entry, now);
     if (!should_send) {
@@ -38,7 +38,7 @@ __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, str
     send_event(ctx, EVENT_CAPABILITIES, event);
 }
 
-__attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u32 tgid, u64 cookie) {
+static __attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u32 tgid, u64 cookie) {
     u64 capabilities_monitoring_enabled = 0;
     LOAD_CONSTANT("capabilities_monitoring_enabled", capabilities_monitoring_enabled);
     if (!capabilities_monitoring_enabled) {
