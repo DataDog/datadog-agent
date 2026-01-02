@@ -57,7 +57,7 @@ func TestDentryPathERPC(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
@@ -121,7 +121,7 @@ func TestDentryPathMap(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
@@ -185,7 +185,7 @@ func TestDentryName(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err

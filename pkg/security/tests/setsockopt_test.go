@@ -44,7 +44,7 @@ func TestSetSockOptRaw(t *testing.T) {
 	t.Run("setsockopt", func(t *testing.T) {
 		var fd int
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
 			if err != nil {
@@ -135,7 +135,7 @@ func TestSetSockOptUDP(t *testing.T) {
 
 		defer func() {}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
 			if err != nil {
@@ -225,7 +225,7 @@ func TestSetSockOptTCP(t *testing.T) {
 
 		defer func() {}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
 			if err != nil {
@@ -310,7 +310,7 @@ func TestSetSockOptReuseaddr(t *testing.T) {
 	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
 		var fd int
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
 			if err != nil {
@@ -378,7 +378,7 @@ func TestSetSockOptTruncatedFilter(t *testing.T) {
 
 		defer func() {}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
 			if err != nil {

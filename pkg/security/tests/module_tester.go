@@ -621,22 +621,35 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 	})
 }
 
-// WaitSignalFromRule is like WaitSignal but filters events by ruleID
+// WaitSignalFromRule is like WaitSignal but optionally filters events by ruleID
 // to prevent stale events from previous sub-tests from being processed.
-func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
+// If ruleID is provided, only events matching that rule will be processed.
+// If ruleID is not provided, it behaves like WaitSignal.
+func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID ...string) {
 	tb.Helper()
 
-	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	// If ruleID is provided, use filtering
+	if len(ruleID) > 0 && ruleID[0] != "" {
+		if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
+			validateProcessContext(tb, event)
+			cb(event, rule)
+			return nil
+		}, ruleID[0]); err != nil {
+			if _, ok := err.(ErrSkipTest); ok {
+				tb.Skip(err)
+			} else {
+				tb.Fatal(err)
+			}
+		}
+		return
+	}
+
+	// No ruleID provided, behave like WaitSignal
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		validateProcessContext(tb, event)
 		cb(event, rule)
 		return nil
-	}, ruleID); err != nil {
-		if _, ok := err.(ErrSkipTest); ok {
-			tb.Skip(err)
-		} else {
-			tb.Fatal(err)
-		}
-	}
+	})
 }
 
 func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {

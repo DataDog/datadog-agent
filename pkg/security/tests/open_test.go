@@ -67,7 +67,7 @@ func TestOpen(t *testing.T) {
 	t.Run("open", ifSyscallSupported("SYS_OPEN", func(t *testing.T, syscallNB uintptr) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), syscall.O_CREAT, 0755)
 			if errno != 0 {
 				return error(errno)
@@ -84,13 +84,13 @@ func TestOpen(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.open.path")
 			validateSyscallContext(t, event, "$.syscall.open.flags")
 			validateSyscallContext(t, event, "$.syscall.open.mode")
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("openat", func(t *testing.T) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
 				return error(errno)
@@ -104,7 +104,7 @@ func TestOpen(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	})
 
 	openHow := unix.OpenHow{
@@ -115,7 +115,7 @@ func TestOpen(t *testing.T) {
 	t.Run("openat2", func(t *testing.T) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
 			if errno != 0 {
 				if errno == unix.ENOSYS {
@@ -132,13 +132,13 @@ func TestOpen(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0711, 0)
 			if errno != 0 {
 				return error(errno)
@@ -152,7 +152,7 @@ func TestOpen(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("truncate", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestOpen(t *testing.T) {
 
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// truncate
 			_, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFileTruncPtr), 4, 0)
 			if errno != 0 {
@@ -187,7 +187,7 @@ func TestOpen(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_truncate")
 	})
 
 	t.Run("ftruncate", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestOpen(t *testing.T) {
 		defer os.Remove(testFile)
 		defer f.Close()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if f == nil {
 				return errors.New("failed to open test file")
 			}
@@ -227,14 +227,14 @@ func TestOpen(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_truncate")
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
 		defer os.Remove(testFile)
 
 		// wait for this first event
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
 				return err
@@ -242,7 +242,7 @@ func TestOpen(t *testing.T) {
 			return f.Close()
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
-		})
+		}, "test_rule")
 
 		h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
 		if err != nil {
@@ -257,7 +257,7 @@ func TestOpen(t *testing.T) {
 		}
 		defer mount.Close()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
 			if err != nil {
 				if err == unix.EINVAL {
@@ -272,7 +272,7 @@ func TestOpen(t *testing.T) {
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
@@ -310,7 +310,7 @@ func TestOpen(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -340,7 +340,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 
 		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
 		if err != nil {
@@ -348,7 +348,7 @@ func TestOpen(t *testing.T) {
 		}
 
 		// same with openat2
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -378,7 +378,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 	})
 
 	_ = os.Remove(testFile)
@@ -408,7 +408,7 @@ func TestOpenMetadata(t *testing.T) {
 	t.Run("metadata", func(t *testing.T) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// CreateWithOptions creates the file and then chmod the user / group. When the file was created it didn't
 			// have the right uid / gid, thus didn't match the rule. Open the file again to trigger the rule.
 			f, err := os.OpenFile(testFile, os.O_RDONLY, os.FileMode(expectedMode))
@@ -425,7 +425,7 @@ func TestOpenMetadata(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	})
 }
 
@@ -498,7 +498,7 @@ func TestOpenApproverZero(t *testing.T) {
 	}
 	defer tf.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		openHow := unix.OpenHow{
 			Flags: unix.O_RDONLY,
 			Mode:  0,
@@ -518,7 +518,7 @@ func TestOpenApproverZero(t *testing.T) {
 		value, _ := event.GetFieldValue("event.async")
 		assert.Equal(t, value.(bool), false)
 		assertInode(t, event.Open.File.Inode, getInode(t, testFile))
-	})
+	}, "test_rule")
 }
 
 func openMountByID(mountID int) (f *os.File, err error) {

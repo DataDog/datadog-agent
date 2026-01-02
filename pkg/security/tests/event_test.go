@@ -273,7 +273,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	}
 
 	t.Run("std", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
@@ -281,7 +281,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	})
 
 	t.Run("pid1", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
@@ -417,7 +417,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 		if err != nil {
 			return err

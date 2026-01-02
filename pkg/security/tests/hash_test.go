@@ -49,7 +49,7 @@ func TestHash(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testFile)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Logf("cmd.Run() failed with output: %s", string(out))
@@ -68,7 +68,7 @@ func TestHash(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := syscall.Mknod(testFile, syscall.S_IFIFO|0666, 0); err != nil {
 				return err
 			}

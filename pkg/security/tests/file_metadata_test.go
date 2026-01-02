@@ -67,7 +67,7 @@ func TestFileMetadataExecs(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec-metadata", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command("ls", "-al", "/")
 			_ = cmd.Run()
 			return nil

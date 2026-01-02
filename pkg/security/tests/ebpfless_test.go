@@ -55,7 +55,7 @@ func TestEBPFLessAttach(t *testing.T) {
 
 	doneCh := make(chan bool)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		go func() {
 			testFile, _, err := test.Path("test-ebpfless-attach")
 			if err != nil {

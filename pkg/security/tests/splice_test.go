@@ -40,7 +40,7 @@ func TestSpliceEvent(t *testing.T) {
 	}
 
 	t.Run("test_splice", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "splice")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "splice", event.GetType(), "wrong event type")
@@ -51,6 +51,6 @@ func TestSpliceEvent(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateSpliceSchema(t, event)
-		})
+		}, "test_splice")
 	})
 }

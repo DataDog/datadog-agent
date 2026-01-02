@@ -249,7 +249,7 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("detached-event-captured", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			if err != nil {
 				t.Fatal(err)
@@ -279,7 +279,7 @@ func TestOpenTree(t *testing.T) {
 		destPath := fmt.Sprintf("/proc/%d/fd/%d/true", pid, fd)
 		_ = exec.Command("cp", srcPath, destPath).Run()
 		defer unix.Close(fd)
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			err = exec.Command(destPath).Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -290,7 +290,7 @@ func TestOpenTree(t *testing.T) {
 
 	t.Run("execution-from-visible-mount", func(t *testing.T) {
 		exePath, _ := exec.LookPath("false")
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_ = exec.Command(exePath).Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {

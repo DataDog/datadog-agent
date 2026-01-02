@@ -51,7 +51,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 	}
 
 	var workingEvent *model.Event
-	test.WaitSignal(tb, func() error {
+	test.WaitSignalFromRule(tb, func() error {
 		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 		if errno != 0 {
 			return error(errno)

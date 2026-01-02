@@ -88,7 +88,7 @@ func TestSysctlEvent(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sysctl_write", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return writeSysctlValue("kernel/kptr_restrict", "0")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "sysctl", event.GetType(), "wrong event type")
@@ -102,7 +102,7 @@ func TestSysctlEvent(t *testing.T) {
 	})
 
 	t.Run("test_sysctl_read", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, err := readSysctlValue("kernel/kptr_restrict")
 			return err
 		}, func(event *model.Event, _ *rules.Rule) {

@@ -60,7 +60,7 @@ func TestSpan(t *testing.T) {
 		args := []string{"span-open", fakeTraceID128b, "204", testFile}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			out, err := cmd.CombinedOutput()
 
@@ -94,7 +94,7 @@ func TestSpan(t *testing.T) {
 			args = []string{"span-exec", fakeTraceID128b, "204", executable, "--reference", "/etc/passwd", testFile}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)

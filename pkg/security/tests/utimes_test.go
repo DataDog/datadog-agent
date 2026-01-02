@@ -49,7 +49,7 @@ func TestUtimes(t *testing.T) {
 			Modtime: 456,
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 				return error(errno)
 			}
@@ -67,7 +67,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			validateSyscallContext(t, event, "$.syscall.utimes.path")
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
@@ -90,7 +90,7 @@ func TestUtimes(t *testing.T) {
 			},
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
 				return error(errno)
 			}
@@ -108,7 +108,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			validateSyscallContext(t, event, "$.syscall.utimes.path")
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("utimensat", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestUtimes(t *testing.T) {
 			},
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
 				if errno == syscall.EINVAL {
 					return ErrSkipTest{"utimensat not supported"}
@@ -152,7 +152,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			validateSyscallContext(t, event, "$.syscall.utimes.path")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("utimensat-nil", func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestUtimes(t *testing.T) {
 		fd := file.Fd()
 		defer file.Close()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, fd, 0, 0, 0, 0, 0); errno != 0 {
 				if errno == syscall.EINVAL {
 					return ErrSkipTest{"utimensat not supported"}
@@ -189,6 +189,6 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			validateSyscallContext(t, event, "$.syscall.utimes.path")
-		})
+		}, "test_rule")
 	})
 }
