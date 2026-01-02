@@ -24,8 +24,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -224,15 +222,8 @@ func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) {
 	old := l.inner
 	l.inner = li
 
-	// this is done under the hood by seelog.ReplaceLogger
-	// we do it again to make sure the old one is closed when using an slog logger
-	// Close is idempotent, so it's safe to call it multiple times
-	// The Default and Disabled loggers from seelog are globals and reused so we shouldn't close them
-	if old != seelog.Default && old != seelog.Disabled {
-		old.Flush()
-		old.Close()
-	}
-
+	old.Flush()
+	old.Close()
 }
 
 // Flush flushes the underlying inner log

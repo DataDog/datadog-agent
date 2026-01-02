@@ -13,28 +13,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/cihub/seelog"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
-
-// buildCommonFormat returns the log common format seelog string
-func buildCommonFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
-	if loggerName == "JMXFETCH" {
-		return `%Msg%n`
-	}
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(cfg), loggerName)
-}
-
-// buildJSONFormat returns the log JSON format seelog string
-func buildJSONFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
-	_ = seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
-	if loggerName == "JMXFETCH" {
-		return `{"msg":%QuoteMsg}%n`
-	}
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat(cfg))
-}
 
 // commonFormatter formats the same way as buildCommonFormat does
 func commonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx context.Context, r slog.Record) string {
