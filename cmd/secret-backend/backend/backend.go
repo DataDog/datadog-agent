@@ -11,15 +11,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
-	"github.com/DataDog/datadog-secret-backend/backend/aws"
-	"github.com/DataDog/datadog-secret-backend/backend/azure"
-	"github.com/DataDog/datadog-secret-backend/backend/docker"
-	"github.com/DataDog/datadog-secret-backend/backend/file"
-	"github.com/DataDog/datadog-secret-backend/backend/gcp"
-	"github.com/DataDog/datadog-secret-backend/backend/hashicorp"
-	"github.com/DataDog/datadog-secret-backend/backend/kubernetes"
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/akeyless"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/aws"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/azure"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/docker"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/file"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/gcp"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/hashicorp"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/kubernetes"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 // Backend represents the common interface for the secret backends
