@@ -37,7 +37,6 @@ type Exporter struct {
 	cfg                *Config
 	coatGwUsageMetric  telemetry.Gauge
 	buildInfo          component.BuildInfo
-	hosts              map[string]struct{}
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -76,7 +75,6 @@ func NewExporterWithGatewayUsage(
 		coatGwUsageMetric:  coatGwUsageMetric,
 		buildInfo:          buildInfo,
 		orchestratorConfig: cfg.OrchestratorConfig,
-		hosts:              make(map[string]struct{}),
 		cfg:                cfg,
 	}, nil
 }
@@ -154,7 +152,6 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		message := message.NewMessage(content, origin, status, ingestionTs)
 		if ddLog.Hostname != nil {
 			message.Hostname = *ddLog.Hostname
-			e.hosts[*ddLog.Hostname] = struct{}{}
 		}
 
 		e.logsAgentChannel <- message
