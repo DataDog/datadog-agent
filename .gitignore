@@ -250,5 +250,7 @@ CLAUDE_PERSONAL.md
 
 .claude/settings.local.json
 .playwright-mcp
-.mcp.json
 .claude/agents
+
+# MCP server config (worktree-specific)
+.mcp.json

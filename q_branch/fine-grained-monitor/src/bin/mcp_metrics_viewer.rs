@@ -23,12 +23,19 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use axum::{
+    Json,
+    extract::Request,
+    http::StatusCode,
+    response::IntoResponse,
+};
 use clap::Parser;
 use fine_grained_monitor::metrics_viewer::mcp::{pod_watcher::PodWatcher, McpMetricsViewer};
 use rmcp::transport::{
     StreamableHttpServerConfig,
     streamable_http_server::{session::local::LocalSessionManager, StreamableHttpService},
 };
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -53,6 +60,21 @@ struct Args {
     /// HTTP port on viewer pods.
     #[arg(long, default_value = "8050", env = "VIEWER_PORT")]
     viewer_port: u16,
+}
+
+/// Fallback handler for unrecognized routes.
+/// Returns a proper JSON error response to satisfy MCP clients that
+/// probe for OAuth endpoints like /.well-known/oauth-authorization-server
+async fn handle_not_found(request: Request) -> impl IntoResponse {
+    let path = request.uri().path().to_string();
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!({
+            "error": "not_found",
+            "error_description": format!("Route not found: {}", path),
+            "path": path
+        })),
+    )
 }
 
 #[tokio::main]
@@ -115,7 +137,8 @@ async fn main() -> Result<()> {
     let router = axum::Router::new()
         .nest_service("/mcp", service)
         .route("/health", axum::routing::get(|| async { "ok" }))
-        .route("/ready", axum::routing::get(|| async { "ok" }));
+        .route("/ready", axum::routing::get(|| async { "ok" }))
+        .fallback(handle_not_found);
 
     // Bind and serve
     let bind_addr = format!("0.0.0.0:{}", args.port);

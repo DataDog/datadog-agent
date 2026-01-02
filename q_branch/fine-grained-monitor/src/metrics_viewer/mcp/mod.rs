@@ -269,18 +269,18 @@ struct ViewerContainerStudyResult {
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ViewerStudyResult {
-    window_count: usize,
-    findings: Vec<ViewerStudyFinding>,
+    study_name: String,
+    windows: Vec<ViewerStudyWindow>,
+    summary: String,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-struct ViewerStudyFinding {
-    start_time: i64,
-    end_time: i64,
-    period_ms: f64,
-    confidence: f64,
-    amplitude: f64,
+struct ViewerStudyWindow {
+    start_time_ms: i64,
+    end_time_ms: i64,
+    metrics: std::collections::HashMap<String, f64>,
+    label: String,
 }
 
 #[allow(dead_code)]
@@ -562,25 +562,22 @@ impl McpMetricsViewer {
             let stats = compute_stats(ts_data);
             let trend = detect_trend(ts_data);
 
-            // Convert findings
+            // Convert study windows to findings
             let findings: Vec<Finding> = study_resp
                 .results
                 .first()
                 .map(|r| {
                     r.result
-                        .findings
+                        .windows
                         .iter()
-                        .map(|f| Finding {
+                        .map(|w| Finding {
                             finding_type: params.study_id.clone(),
-                            timestamp_ms: f.start_time,
-                            label: format!(
-                                "period={:.1}ms conf={:.2}",
-                                f.period_ms, f.confidence
-                            ),
+                            timestamp_ms: w.start_time_ms,
+                            label: w.label.clone(),
                             details: FindingDetails {
-                                period_ms: Some(f.period_ms),
-                                confidence: Some(f.confidence),
-                                amplitude: Some(f.amplitude),
+                                period_ms: w.metrics.get("period").copied(),
+                                confidence: w.metrics.get("confidence").copied(),
+                                amplitude: w.metrics.get("amplitude").copied(),
                             },
                         })
                         .collect()

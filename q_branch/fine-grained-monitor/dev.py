@@ -47,6 +47,8 @@ LOG_FILE = DEV_DIR / "server.log"
 STATE_FILE = DEV_DIR / "state.json"
 FORWARD_PID_FILE = DEV_DIR / "forward.pid"
 FORWARD_LOG_FILE = DEV_DIR / "forward.log"
+MCP_FORWARD_PID_FILE = DEV_DIR / "mcp_forward.pid"
+MCP_FORWARD_LOG_FILE = DEV_DIR / "mcp_forward.log"
 BENCH_DIR = DEV_DIR / "bench"
 
 # Benchmark configuration
@@ -72,6 +74,11 @@ def calculate_port() -> int:
     path_hash = hashlib.md5(str(PROJECT_ROOT).encode()).hexdigest()
     offset = int(path_hash[:8], 16) % 1000
     return 8050 + offset
+
+
+def calculate_mcp_port() -> int:
+    """Calculate unique MCP port (offset from viewer port)."""
+    return calculate_port() + 1000  # MCP port is viewer port + 1000
 
 
 # --- Worktree identification functions ---
@@ -924,6 +931,49 @@ def cmd_deploy():
 
     print(f"done ({time.time() - start:.1f}s)")
 
+    # Wait for MCP server pod to be ready
+    print("Waiting for MCP server...", end=" ", flush=True)
+    mcp_ready = False
+    for _ in range(60):  # 60 second timeout
+        result = subprocess.run(
+            [
+                "kubectl",
+                "get",
+                "pods",
+                "-l",
+                "app=mcp-metrics-viewer",
+                "-n",
+                NAMESPACE,
+                "--context",
+                kube_context,
+                "-o",
+                "jsonpath={.items[*].status.containerStatuses[0].ready}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout.strip() == "true":
+            mcp_ready = True
+            break
+        time.sleep(1)
+
+    if mcp_ready:
+        print("ready")
+
+        # Start MCP port-forward
+        print("Starting MCP port-forward...", end=" ", flush=True)
+        if start_mcp_forward():
+            mcp_port = calculate_mcp_port()
+            print(f"done (port {mcp_port})")
+
+            # Update .mcp.json with metrics-viewer entry
+            update_mcp_json_metrics_viewer()
+            print(f"Updated .mcp.json with metrics-viewer at http://127.0.0.1:{mcp_port}/mcp")
+        else:
+            print("FAILED (check logs)")
+    else:
+        print("TIMEOUT (MCP features unavailable)")
+
     # Show final status
     print("\nDeployment complete!")
     return cmd_cluster_status()
@@ -990,12 +1040,19 @@ def cmd_cluster_status():
     else:
         print(result.stdout if result.stdout.strip() else "  No pods found")
 
-    # Show port-forward hint
+    # Show port-forward hints
     pods = get_cluster_pods()
     if pods:
         port = calculate_port()
         print(f"To access viewer: ./dev.py cluster forward (port {port})")
-        print(f"To access MCP:    ./dev.py cluster forward --mcp (port {port})")
+
+    # Show MCP forward status
+    mcp_pid = get_mcp_forward_pid()
+    mcp_port = calculate_mcp_port()
+    if mcp_pid:
+        print(f"MCP forward:      running (pid {mcp_pid}, port {mcp_port})")
+    else:
+        print("MCP forward:      not running (will start on next deploy)")
 
     return 0
 
@@ -1029,8 +1086,8 @@ def get_forward_pid() -> int | None:
     return None
 
 
-def cmd_forward(pod_name: str | None, mcp: bool = False):
-    """Start port-forward to cluster viewer pod or MCP service."""
+def cmd_forward(pod_name: str | None):
+    """Start port-forward to cluster viewer pod."""
     kube_context = get_kube_context()
 
     # Stop existing forward if running
@@ -1049,44 +1106,28 @@ def cmd_forward(pod_name: str | None, mcp: bool = False):
     ensure_dev_dir()
     log_handle = FORWARD_LOG_FILE.open("w")
 
-    if mcp:
-        # Forward to MCP metrics viewer service
-        target = "svc/mcp-metrics-viewer"
-        remote_port = 8080
-        print(f"Starting port-forward to MCP service (local port {port})...")
-
-        # Verify service exists
-        result = subprocess.run(
-            ["kubectl", "get", "svc", "mcp-metrics-viewer", "-n", NAMESPACE, "--context", kube_context],
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            print("MCP metrics viewer service not found")
-            print("  Deploy first with: kubectl apply -f deploy/mcp-server.yaml")
-            return 1
+    # Forward to viewer pod
+    if pod_name:
+        target = pod_name
     else:
-        # Forward to viewer pod
-        if pod_name:
-            target = pod_name
-        else:
-            pods = get_cluster_pods()
-            if not pods:
-                print("No pods found with label", POD_LABEL)
-                print("  Deploy first with: ./dev.py cluster deploy")
-                return 1
-            target = pods[0]
-
-        remote_port = 8050  # Container always listens on 8050
-        print(f"Starting port-forward to {target} (local port {port})...")
-
-        # Verify pod exists
-        result = subprocess.run(
-            ["kubectl", "get", "pod", target, "-n", NAMESPACE, "--context", kube_context],
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            print(f"Pod not found: {target}")
+        pods = get_cluster_pods()
+        if not pods:
+            print("No pods found with label", POD_LABEL)
+            print("  Deploy first with: ./dev.py cluster deploy")
             return 1
+        target = pods[0]
+
+    remote_port = 8050  # Container always listens on 8050
+    print(f"Starting port-forward to {target} (local port {port})...")
+
+    # Verify pod exists
+    result = subprocess.run(
+        ["kubectl", "get", "pod", target, "-n", NAMESPACE, "--context", kube_context],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        print(f"Pod not found: {target}")
+        return 1
 
     proc = subprocess.Popen(
         [
@@ -1133,10 +1174,7 @@ def cmd_forward(pod_name: str | None, mcp: bool = False):
 
     print(f"Port-forward running (pid {proc.pid})")
     print(f"  Target: {target}")
-    if mcp:
-        print(f"  MCP URL: http://127.0.0.1:{port}/mcp")
-    else:
-        print(f"  URL:    http://127.0.0.1:{port}/")
+    print(f"  URL:    http://127.0.0.1:{port}/")
     print(f"  Logs:   {FORWARD_LOG_FILE}")
     print("  Stop:   ./dev.py forward-stop")
     return 0
@@ -1176,6 +1214,159 @@ def cmd_forward_stop():
     except Exception as e:
         print(f"error: {e}")
         return 1
+
+
+# --- MCP Forward Management ---
+
+
+def get_mcp_forward_pid() -> int | None:
+    """Get PID of running MCP port-forward, handling stale PIDs."""
+    if not MCP_FORWARD_PID_FILE.exists():
+        return None
+
+    try:
+        pid = int(MCP_FORWARD_PID_FILE.read_text().strip())
+    except (ValueError, OSError):
+        MCP_FORWARD_PID_FILE.unlink(missing_ok=True)
+        return None
+
+    # Verify process is actually running and is kubectl
+    if is_process_running(pid):
+        try:
+            result = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "comm="],
+                capture_output=True,
+                text=True,
+            )
+            if "kubectl" in result.stdout:
+                return pid
+        except Exception:
+            pass
+
+    # Stale PID - clean up
+    MCP_FORWARD_PID_FILE.unlink(missing_ok=True)
+    return None
+
+
+def stop_mcp_forward() -> None:
+    """Stop any existing MCP port-forward."""
+    pid = get_mcp_forward_pid()
+    if pid:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(0.3)
+        except ProcessLookupError:
+            pass
+        MCP_FORWARD_PID_FILE.unlink(missing_ok=True)
+
+
+def start_mcp_forward() -> bool:
+    """Start port-forward to MCP service. Returns True on success."""
+    kube_context = get_kube_context()
+    mcp_port = calculate_mcp_port()
+
+    # Stop any existing MCP forward
+    stop_mcp_forward()
+
+    ensure_dev_dir()
+    log_handle = MCP_FORWARD_LOG_FILE.open("w")
+
+    # Verify service exists
+    result = subprocess.run(
+        ["kubectl", "get", "svc", "mcp-metrics-viewer", "-n", NAMESPACE, "--context", kube_context],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    proc = subprocess.Popen(
+        [
+            "kubectl",
+            "port-forward",
+            "svc/mcp-metrics-viewer",
+            f"{mcp_port}:8080",
+            "-n",
+            NAMESPACE,
+            "--context",
+            kube_context,
+        ],
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,  # Detach from terminal
+    )
+
+    # Write PID file
+    MCP_FORWARD_PID_FILE.write_text(str(proc.pid))
+
+    # Wait for port to be ready
+    import socket
+
+    for _ in range(30):  # 3 second timeout
+        time.sleep(0.1)
+        # Check if process died
+        if proc.poll() is not None:
+            MCP_FORWARD_PID_FILE.unlink(missing_ok=True)
+            return False
+        # Check if port is listening
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.1)
+                s.connect(("127.0.0.1", mcp_port))
+                return True
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            continue
+
+    return False
+
+
+def get_git_root() -> Path:
+    """Get the git repository root directory."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode == 0:
+        return Path(result.stdout.strip())
+    # Fallback to parent.parent if git command fails
+    return PROJECT_ROOT.parent.parent
+
+
+def update_mcp_json_metrics_viewer() -> None:
+    """Update .mcp.json at repo root with metrics-viewer entry."""
+    git_root = get_git_root()
+    mcp_json_path = git_root / ".mcp.json"
+    mcp_port = calculate_mcp_port()
+
+    # Read existing config or create new
+    if mcp_json_path.exists():
+        try:
+            mcp_config = json.loads(mcp_json_path.read_text())
+        except json.JSONDecodeError:
+            mcp_config = {"mcpServers": {}}
+    else:
+        mcp_config = {"mcpServers": {}}
+
+    if "mcpServers" not in mcp_config:
+        mcp_config["mcpServers"] = {}
+
+    # Add/update metrics-viewer entry
+    # Use "http" transport (SSE is deprecated and triggers OAuth probing)
+    mcp_config["mcpServers"]["metrics-viewer"] = {
+        "type": "http",
+        "url": f"http://127.0.0.1:{mcp_port}/mcp",
+    }
+
+    mcp_json_path.write_text(json.dumps(mcp_config, indent=2) + "\n")
+
+    # Add .mcp.json to repo root .gitignore if not present
+    gitignore = git_root / ".gitignore"
+    if gitignore.exists():
+        content = gitignore.read_text()
+        if ".mcp.json" not in content:
+            with gitignore.open("a") as f:
+                f.write("\n# MCP server config (worktree-specific)\n.mcp.json\n")
 
 
 def cmd_cluster_create():
@@ -1753,9 +1944,10 @@ current-context: mcp-{cluster_name}
         return 1
     print("done")
 
-    # Step 8: Create/update .mcp.json in project root
+    # Step 8: Create/update .mcp.json in git repo root (not fine-grained-monitor subdir)
     print("Updating .mcp.json...", end=" ", flush=True)
-    mcp_json_path = PROJECT_ROOT / ".mcp.json"
+    git_root = get_git_root()
+    mcp_json_path = git_root / ".mcp.json"
 
     # Read existing config or create new
     if mcp_json_path.exists():
@@ -1779,8 +1971,8 @@ current-context: mcp-{cluster_name}
     mcp_json_path.write_text(json.dumps(mcp_config, indent=2) + "\n")
     print("done")
 
-    # Add .mcp.json to .gitignore if not present
-    gitignore = PROJECT_ROOT / ".gitignore"
+    # Add .mcp.json to repo root .gitignore if not present
+    gitignore = git_root / ".gitignore"
     if gitignore.exists():
         content = gitignore.read_text()
         if ".mcp.json" not in content:
@@ -1892,11 +2084,6 @@ Per-worktree isolation:
         default=None,
         help="Specific pod name (default: first available pod)",
     )
-    forward_parser.add_argument(
-        "--mcp",
-        action="store_true",
-        help="Forward to MCP metrics viewer service instead of viewer pod",
-    )
 
     # cluster forward-stop
     cluster_subs.add_parser("forward-stop", help="Stop port-forward")
@@ -1966,7 +2153,7 @@ Per-worktree isolation:
         elif args.command == "status":
             sys.exit(cmd_cluster_status())
         elif args.command == "forward":
-            sys.exit(cmd_forward(args.pod, args.mcp))
+            sys.exit(cmd_forward(args.pod))
         elif args.command == "forward-stop":
             sys.exit(cmd_forward_stop())
         elif args.command == "create":

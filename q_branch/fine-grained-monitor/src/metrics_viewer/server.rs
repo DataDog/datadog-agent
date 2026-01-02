@@ -61,10 +61,12 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
+    // Bind to 0.0.0.0 to allow access from other pods (MCP server)
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     if config.open_browser {
-        let url = format!("http://{}", addr);
+        // Use localhost for browser URL even though we bind to 0.0.0.0
+        let url = format!("http://127.0.0.1:{}", config.port);
         eprintln!("\nOpening browser at {}", url);
         #[cfg(target_os = "macos")]
         let _ = std::process::Command::new("open").arg(&url).spawn();
@@ -72,7 +74,7 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
     }
 
-    eprintln!("Server running at http://{}", addr);
+    eprintln!("Server running at http://0.0.0.0:{}", config.port);
     eprintln!("Press Ctrl+C to stop\n");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
