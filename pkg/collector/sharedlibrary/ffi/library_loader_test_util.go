@@ -57,6 +57,6 @@ func GetNoopLibrary() *Library {
 	return (*Library)(cLib)
 }
 
-func NewNullSymbolLibrary() *Library {
+func NewLibraryWithNullSymbols() *Library {
 	return &Library{}
 }

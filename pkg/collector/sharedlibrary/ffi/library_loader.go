@@ -102,7 +102,7 @@ func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 // Close closes the shared library
 func (l *SharedLibraryLoader) Close(lib *Library) error {
 	if lib == nil {
-		return errors.New("pointer to 'Library' struct is null")
+		return errors.New("Pointer to 'Library' struct is NULL")
 	}
 
 	var cErr *C.char
@@ -119,7 +119,7 @@ func (l *SharedLibraryLoader) Close(lib *Library) error {
 // Run calls the `Run` symbol of the shared library to execute the check's implementation
 func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string) error {
 	if lib == nil {
-		return errors.New("pointer to 'Library' struct is null")
+		return errors.New("Pointer to 'Library' struct is NULL")
 	}
 
 	cID := C.CString(checkID)
@@ -145,7 +145,7 @@ func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig strin
 // Version calls the `Version` symbol to retrieve the check version
 func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 	if lib == nil {
-		return "", errors.New("pointer to 'Library' struct is null")
+		return "", errors.New("Pointer to 'Library' struct is NULL")
 	}
 
 	var cErr *C.char

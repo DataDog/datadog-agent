@@ -14,10 +14,10 @@ import (
 	"testing"
 )
 
-func TestNilLibraryStruct(t *testing.T) {
-	testNilLibraryStruct(t)
+func TestNullLibraryPointer(t *testing.T) {
+	testNullLibraryPointer(t)
 }
 
-func TestLibraryStructWithNilSymbols(t *testing.T) {
-	testLibraryStructWithNilSymbols(t)
+func TestLibraryWithNullSymbols(t *testing.T) {
+	testLibraryWithNullSymbols(t)
 }

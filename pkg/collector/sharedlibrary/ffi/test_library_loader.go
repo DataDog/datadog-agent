@@ -20,22 +20,22 @@ import (
 )
 
 // Test null Library struct pointer
-func testNilLibraryStruct(t *testing.T) {
+func testNullLibraryPointer(t *testing.T) {
 	loader := NewSharedLibraryLoader("")
 
 	err := loader.Run(nil, "", "", "")
-	assert.EqualError(t, err, "pointer to 'Library' struct is null")
+	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 
 	_, err = loader.Version(nil)
-	assert.EqualError(t, err, "pointer to 'Library' struct is null")
+	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 
 	err = loader.Close(nil)
-	assert.EqualError(t, err, "pointer to 'Library' struct is null")
+	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 }
 
 // Test null symbol pointers cases
-func testLibraryStructWithNilSymbols(t *testing.T) {
-	lib := NewNullSymbolLibrary()
+func testLibraryWithNullSymbols(t *testing.T) {
+	lib := NewLibraryWithNullSymbols()
 	loader := NewSharedLibraryLoader("")
 
 	err := loader.Run(lib, "", "", "")
