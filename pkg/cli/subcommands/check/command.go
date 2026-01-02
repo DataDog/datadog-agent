@@ -775,7 +775,7 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 
 		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-		cancelTimeout()
+		defer cancelTimeout()
 
 		return allConfigs, err
 	}
