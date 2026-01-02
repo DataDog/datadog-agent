@@ -251,7 +251,7 @@ func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.Name
 	if !lp.isLeader() {
 		lp.logger.Tracef("Skipping patch for %s: %s/%s - not leader", owner.Kind, owner.Namespace, owner.Name)
 		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
-		return nil
+		return apiserver.ErrNotLeader
 	}
 
 	var err error
