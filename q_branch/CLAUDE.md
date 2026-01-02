@@ -80,15 +80,12 @@ When using kubectl, use the worktree's context: `--context kind-fgm-{worktree-ba
 
 ### VM Operations
 
-The Kind cluster runs inside a Lima VM. For operations inside the VM:
+The Kind cluster runs inside a Lima VM. For debugging or inspecting the VM directly:
 
 ```bash
-# Shell into VM
 limactl shell gadget-k8s-host -- <command>
-
-# Examples
 limactl shell gadget-k8s-host -- docker images
-limactl shell gadget-k8s-host -- kind load docker-image <image> --name gadget-dev
+limactl shell gadget-k8s-host -- kind get clusters
 ```
 
 ### Common Workflows
@@ -113,10 +110,4 @@ Use: pods_delete(name="<pod-name>", namespace="<namespace>")
 ```bash
 # Use the worktree's context (run ./dev.py cluster status to see it)
 kubectl apply -f <file>.yaml --context kind-fgm-<worktree>
-```
-
-**Load images into Kind** (prefer `./dev.py cluster deploy` instead):
-```bash
-docker save <image> | limactl shell gadget-k8s-host -- docker load
-limactl shell gadget-k8s-host -- kind load docker-image <image> --name fgm-<worktree>
 ```
