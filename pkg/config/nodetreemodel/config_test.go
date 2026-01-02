@@ -293,9 +293,11 @@ func TestAllSettings(t *testing.T) {
 		"b": map[string]interface{}{
 			"c": 123, // agent-runtime
 			"d": 0,   // default
+			// b.e is not included
 		},
 		"f": map[string]interface{}{
 			"g": "456", // env-var defined
+			// f.h is not included
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettings())
@@ -1695,6 +1697,8 @@ fruit:
   cherry:
   donut:
     12
+  egg:
+    - foo: bar
 `
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	// default wins over invalid file
@@ -1703,16 +1707,31 @@ fruit:
 	cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
 	// env wins over file
 	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	// env var is defined
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
+	// default setting will be overridden by invalid file data
+	cfg.BindEnvAndSetDefault("fruit.egg.yoke", "yellow")
 	cfg.BuildSchema()
 
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
+	// invalid file data is preserved in merged tree
+	// maintains compatibility with viper
+	actualEgg := cfg.Get("fruit.egg")
+	expectEgg := []interface{}{
+		map[interface{}]interface{}{
+			"foo": "bar",
+		},
+	}
+	assert.Equal(t, expectEgg, actualEgg)
+
 	// In the merged tree, the following appears:
 	// fruit.apple.core.seeds from default
-	// fruit.banana           from file (invalid data)
+	// fruit.banana           from file (empty section)
 	// fruit.cherry.seed.num  from env
+	// fruit.donut            from file (unknown)
+	// fruit.egg              from file (wrong shape)
 	txt := cfg.(*ntmConfig).Stringify("all", model.OmitPointerAddr)
 	expect := `tree(#ptr<000000>) source=root
 > fruit
@@ -1733,29 +1752,37 @@ fruit:
           leaf(#ptr<000008>), val:"1", source:environment-variable
   > donut
       leaf(#ptr<000009>), val:12, source:file
-tree(#ptr<000010>) source=default
+  > egg
+      leaf(#ptr<000010>), val:[map[foo:bar]], source:file
+tree(#ptr<000011>) source=default
 > fruit
-  inner(#ptr<000011>)
+  inner(#ptr<000012>)
   > apple
     inner(#ptr<000002>)
     > core
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-tree(#ptr<000012>) source=file
+  > egg
+    inner(#ptr<000013>)
+    > yoke
+        leaf(#ptr<000014>), val:"yellow", source:default
+tree(#ptr<000015>) source=file
 > fruit
-  inner(#ptr<000013>)
+  inner(#ptr<000016>)
   > apple
-      leaf(#ptr<000014>), val:<nil>, source:file
+      leaf(#ptr<000017>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000015>), val:<nil>, source:file
+      leaf(#ptr<000018>), val:<nil>, source:file
   > donut
       leaf(#ptr<000009>), val:12, source:file
-tree(#ptr<000016>) source=environment-variable
+  > egg
+      leaf(#ptr<000010>), val:[map[foo:bar]], source:file
+tree(#ptr<000019>) source=environment-variable
 > fruit
-  inner(#ptr<000017>)
+  inner(#ptr<000020>)
   > cherry
     inner(#ptr<000006>)
     > seed
