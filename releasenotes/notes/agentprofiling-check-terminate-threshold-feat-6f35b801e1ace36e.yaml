@@ -12,4 +12,4 @@ features:
 
     Enable this feature by setting `terminate_agent_on_threshold: true` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
 
-    **Warning**: This feature will cause the agent to exit. This feature is disabled by default and should be used with caution.
+    **Warning**: This feature will cause the Agent to exit. This feature is disabled by default and should be used with caution.
