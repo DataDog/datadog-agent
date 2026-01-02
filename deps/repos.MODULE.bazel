@@ -57,7 +57,6 @@ single_version_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
     ],
 )
 
@@ -313,15 +312,5 @@ http_archive(
     files = {
         "BUILD.bazel": "//deps:lua/lua.BUILD.bazel",
         "license_file": "//deps:lua/license",
-    },
-)
-
-http_archive(
-    name = "krb5",
-    url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
-    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
-    strip_prefix = "krb5-1.21.3",
-    files = {
-        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
     },
 )
