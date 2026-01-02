@@ -356,19 +356,25 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 
 // RegisterHealthCheck implements the Checker interface
 // It registers a periodic health check and starts monitoring immediately
-func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+// Use health.WithInterval() to set a custom interval for this check
+func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc, opts ...health.HealthCheckOption) {
 	h.log.Infof("Registering health check: %s", checkName)
 
-	// Get the check interval from config
+	// Apply options
+	options := &health.HealthCheckOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
-	if interval <= 0 {
-		interval = defaultForwarderInterval
+	if options.Interval > 0 {
+		interval = options.Interval
 	}
 
 	// Run the check immediately
 	h.runHealthCheck(checkID, checkName, checkFunc)
 
-	// Schedule periodic checks using the configured interval
+	// Schedule periodic checks using the determined interval
 	go h.periodicHealthCheck(checkID, checkName, checkFunc, interval)
 }
 
