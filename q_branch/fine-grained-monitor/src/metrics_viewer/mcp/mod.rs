@@ -1,6 +1,8 @@
 //! MCP (Model Context Protocol) server for metrics viewer.
 //!
 //! Provides programmatic access to metrics discovery and analysis for LLM agents.
+//! Runs as an in-cluster Deployment, discovering DaemonSet pods and routing
+//! node-targeted queries to the correct pod.
 //!
 //! # Requirements
 //!
@@ -9,33 +11,41 @@
 //! - REQ-MCP-003: Sort containers by recency
 //! - REQ-MCP-004: Analyze container behavior
 //! - REQ-MCP-005: Identify behavioral trends
-//! - REQ-MCP-006: Operate via MCP over stdio
+//! - REQ-MCP-006: Operate via MCP over HTTP/SSE
+//! - REQ-MCP-007: Discover cluster nodes
+//! - REQ-MCP-008: Route requests by node
 
-pub mod client;
+pub mod pod_watcher;
+pub mod router;
 
-use client::{ContainerSearchParams, MetricsViewerClient, TimeseriesPoint};
+use std::sync::Arc;
+
+use pod_watcher::{NodeInfo, PodWatcher};
 use rmcp::{
     handler::server::router::tool::ToolRouter,
     handler::server::wrapper::Parameters,
     model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
+use router::{NodeRouter, RouterError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-/// MCP server for metrics viewer.
+/// MCP server for metrics viewer with node-aware routing.
 #[derive(Clone)]
 pub struct McpMetricsViewer {
-    client: Arc<MetricsViewerClient>,
+    pod_watcher: Arc<PodWatcher>,
+    router: Arc<NodeRouter>,
     tool_router: ToolRouter<Self>,
 }
 
 impl McpMetricsViewer {
-    /// Create a new MCP server with the given API client.
-    pub fn new(client: MetricsViewerClient) -> Self {
+    /// Create a new MCP server with the given pod watcher.
+    pub fn new(pod_watcher: Arc<PodWatcher>) -> Self {
+        let router = Arc::new(NodeRouter::new(pod_watcher.clone()));
         Self {
-            client: Arc::new(client),
+            pod_watcher,
+            router,
             tool_router: Self::tool_router(),
         }
     }
@@ -45,8 +55,12 @@ impl McpMetricsViewer {
 
 /// Parameters for list_containers tool.
 /// REQ-MCP-002: Find containers by criteria.
+/// REQ-MCP-008: Requires node parameter.
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListContainersParams {
+    /// Node name to query (required).
+    pub node: Option<String>,
+
     /// Metric name to filter containers (only returns containers with data for this metric).
     pub metric: String,
 
@@ -69,16 +83,19 @@ pub struct ListContainersParams {
 
 /// Parameters for analyze_container tool.
 /// REQ-MCP-004: Analyze container behavior.
+/// REQ-MCP-008: Requires node parameter.
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeContainerParams {
+    /// Node name to query (required).
+    pub node: Option<String>,
+
     /// Container ID (short 12-char ID or full ID).
     pub container: String,
 
     /// Study to run: "periodicity" or "changepoint".
     pub study_id: String,
 
-    /// Single metric name to analyze.
-    #[serde(default)]
+    /// Metric name to analyze (required).
     pub metric: Option<String>,
 
     /// Metric prefix to analyze all matching metrics (e.g., "cgroup.v2.cpu").
@@ -88,9 +105,18 @@ pub struct AnalyzeContainerParams {
 
 // --- Tool Response Types ---
 
+/// Response from list_nodes tool.
+#[derive(Debug, Serialize)]
+struct ListNodesResponse {
+    watcher_stale: bool,
+    last_sync_ms: i64,
+    nodes: Vec<NodeInfo>,
+}
+
 /// Response from list_metrics tool.
 #[derive(Debug, Serialize)]
 struct ListMetricsResponse {
+    node: String,
     metrics: Vec<MetricEntry>,
     studies: Vec<StudyEntry>,
 }
@@ -110,6 +136,7 @@ struct StudyEntry {
 /// Response from list_containers tool.
 #[derive(Debug, Serialize)]
 struct ListContainersResponse {
+    node: String,
     containers: Vec<ContainerEntry>,
     total_matching: usize,
 }
@@ -127,6 +154,7 @@ struct ContainerEntry {
 /// Response from analyze_container tool.
 #[derive(Debug, Serialize)]
 struct AnalyzeContainerResponse {
+    node: String,
     container: ContainerSummary,
     study: String,
     results: Vec<MetricAnalysisResult>,
@@ -179,30 +207,194 @@ struct FindingDetails {
     amplitude: Option<f64>,
 }
 
+// --- API Response Types (from viewer HTTP API) ---
+// These structs mirror the viewer's API responses. Some fields are deserialized
+// but not used in the MCP response transformations.
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerMetricsResponse {
+    metrics: Vec<ViewerMetricInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ViewerMetricInfo {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ViewerStudiesResponse {
+    studies: Vec<ViewerStudyInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ViewerStudyInfo {
+    id: String,
+    name: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ViewerContainersResponse {
+    containers: Vec<ViewerContainerInfo>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerContainerInfo {
+    id: String,
+    short_id: String,
+    qos_class: Option<String>,
+    namespace: Option<String>,
+    pod_name: Option<String>,
+    container_name: Option<String>,
+    last_seen_ms: Option<i64>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerStudyResponse {
+    study: String,
+    results: Vec<ViewerContainerStudyResult>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerContainerStudyResult {
+    container: String,
+    #[serde(flatten)]
+    result: ViewerStudyResult,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerStudyResult {
+    window_count: usize,
+    findings: Vec<ViewerStudyFinding>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerStudyFinding {
+    start_time: i64,
+    end_time: i64,
+    period_ms: f64,
+    confidence: f64,
+    amplitude: f64,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ViewerTimeseriesResponse {
+    container: String,
+    data: Vec<ViewerTimeseriesPoint>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ViewerTimeseriesPoint {
+    time_ms: i64,
+    value: f64,
+}
+
+// --- Helper to convert router errors to MCP errors ---
+
+fn router_error_to_mcp(e: RouterError) -> McpError {
+    match e {
+        RouterError::WatcherStale => {
+            McpError::internal_error("watcher is stale (Kubernetes API may be unreachable)", None)
+        }
+        RouterError::NodeNotFound(node) => {
+            McpError::invalid_params(format!("node '{}' not found", node), None)
+        }
+        RouterError::NodeNotReady(node) => {
+            McpError::invalid_params(format!("node '{}' is not ready", node), None)
+        }
+        RouterError::NodeStale(node, secs) => {
+            McpError::invalid_params(format!("node '{}' is stale (last seen {}s ago)", node, secs), None)
+        }
+        RouterError::Timeout(node) => {
+            McpError::internal_error(format!("request to node '{}' timed out", node), None)
+        }
+        RouterError::RequestFailed(node, msg) => {
+            McpError::internal_error(format!("request to node '{}' failed: {}", node, msg), None)
+        }
+        RouterError::ViewerError(node, status, body) => {
+            McpError::internal_error(format!("viewer error on node '{}': {} {}", node, status, body), None)
+        }
+    }
+}
+
 // --- Tool Implementations ---
 
 #[tool_router]
 impl McpMetricsViewer {
+    /// REQ-MCP-007: Discover cluster nodes.
+    #[tool(
+        name = "list_nodes",
+        description = "List available cluster nodes running fine-grained-monitor. Call this first to discover nodes before querying containers or running analysis."
+    )]
+    async fn list_nodes(&self) -> Result<CallToolResult, McpError> {
+        let watcher_stale = self.pod_watcher.is_watcher_stale().await;
+        let last_sync_ms = self.pod_watcher.last_sync_ms().await;
+        let nodes = self.pod_watcher.list_nodes().await;
+
+        let response = ListNodesResponse {
+            watcher_stale,
+            last_sync_ms,
+            nodes,
+        };
+
+        let json = serde_json::to_string_pretty(&response)
+            .map_err(|e| McpError::internal_error(format!("JSON error: {}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
     /// REQ-MCP-001: Discover available metrics and studies.
+    /// REQ-MCP-008: Requires node parameter.
     #[tool(
         name = "list_metrics",
         description = "List available metrics and analytical studies. Call this first to discover what data is available."
     )]
     async fn list_metrics(&self) -> Result<CallToolResult, McpError> {
-        let metrics = self.client.list_metrics().await.map_err(|e| {
-            McpError::internal_error(format!("Failed to list metrics: {}", e), None)
-        })?;
+        // For list_metrics without node, pick any available node
+        let nodes = self.pod_watcher.list_nodes().await;
+        let node = nodes
+            .iter()
+            .find(|n| n.ready && !n.stale)
+            .ok_or_else(|| McpError::internal_error("no ready nodes available", None))?;
 
-        let studies = self.client.list_studies().await.map_err(|e| {
-            McpError::internal_error(format!("Failed to list studies: {}", e), None)
-        })?;
+        let node_name = node.name.clone();
+
+        // Fetch metrics
+        let metrics_body = self
+            .router
+            .get(&node_name, "/api/metrics", NodeRouter::timeout_list_metrics())
+            .await
+            .map_err(router_error_to_mcp)?;
+
+        let metrics_resp: ViewerMetricsResponse = serde_json::from_str(&metrics_body)
+            .map_err(|e| McpError::internal_error(format!("Failed to parse metrics: {}", e), None))?;
+
+        // Fetch studies
+        let studies_body = self
+            .router
+            .get(&node_name, "/api/studies", NodeRouter::timeout_list_metrics())
+            .await
+            .map_err(router_error_to_mcp)?;
+
+        let studies_resp: ViewerStudiesResponse = serde_json::from_str(&studies_body)
+            .map_err(|e| McpError::internal_error(format!("Failed to parse studies: {}", e), None))?;
 
         let response = ListMetricsResponse {
-            metrics: metrics
+            node: node_name,
+            metrics: metrics_resp
+                .metrics
                 .into_iter()
                 .map(|m| MetricEntry { name: m.name })
                 .collect(),
-            studies: studies
+            studies: studies_resp
+                .studies
                 .into_iter()
                 .map(|s| StudyEntry {
                     id: s.id,
@@ -219,6 +411,7 @@ impl McpMetricsViewer {
     }
 
     /// REQ-MCP-002, REQ-MCP-003: Find containers by criteria, sorted by recency.
+    /// REQ-MCP-008: Requires node parameter.
     #[tool(
         name = "list_containers",
         description = "Find containers matching search criteria. Returns containers sorted by most recently seen. Use this to identify containers for analysis."
@@ -227,27 +420,39 @@ impl McpMetricsViewer {
         &self,
         Parameters(params): Parameters<ListContainersParams>,
     ) -> Result<CallToolResult, McpError> {
-        let search_params = ContainerSearchParams {
-            metric: params.metric,
-            namespace: params.namespace,
-            qos_class: params.qos_class,
-            search: params.search,
-        };
+        let node = params
+            .node
+            .ok_or_else(|| McpError::invalid_params("node parameter is required", None))?;
 
-        let containers = self
-            .client
-            .search_containers(&search_params)
+        // Build query string
+        let mut path = format!("/api/containers?metric={}", urlencoding::encode(&params.metric));
+
+        if let Some(ref ns) = params.namespace {
+            path.push_str(&format!("&namespace={}", urlencoding::encode(ns)));
+        }
+        if let Some(ref qos) = params.qos_class {
+            path.push_str(&format!("&qos_class={}", urlencoding::encode(qos)));
+        }
+        if let Some(ref search) = params.search {
+            path.push_str(&format!("&search={}", urlencoding::encode(search)));
+        }
+
+        let body = self
+            .router
+            .get(&node, &path, NodeRouter::timeout_list_containers())
             .await
-            .map_err(|e| {
-                McpError::internal_error(format!("Failed to search containers: {}", e), None)
-            })?;
+            .map_err(router_error_to_mcp)?;
 
-        let total = containers.len();
+        let viewer_resp: ViewerContainersResponse = serde_json::from_str(&body)
+            .map_err(|e| McpError::internal_error(format!("Failed to parse containers: {}", e), None))?;
+
+        let total = viewer_resp.containers.len();
         let limit = params.limit.unwrap_or(20);
 
-        // Note: HTTP API returns sorted by last_seen descending (REQ-MCP-003)
         let response = ListContainersResponse {
-            containers: containers
+            node: node.clone(),
+            containers: viewer_resp
+                .containers
                 .into_iter()
                 .take(limit)
                 .map(|c| ContainerEntry {
@@ -269,6 +474,7 @@ impl McpMetricsViewer {
     }
 
     /// REQ-MCP-004, REQ-MCP-005: Analyze container behavior and identify trends.
+    /// REQ-MCP-008: Requires node parameter.
     #[tool(
         name = "analyze_container",
         description = "Run a study on a container to detect patterns. Provide either 'metric' for a single metric or 'metric_prefix' to analyze all metrics matching that prefix (e.g., 'cgroup.v2.cpu')."
@@ -277,16 +483,26 @@ impl McpMetricsViewer {
         &self,
         Parameters(params): Parameters<AnalyzeContainerParams>,
     ) -> Result<CallToolResult, McpError> {
+        let node = params
+            .node
+            .ok_or_else(|| McpError::invalid_params("node parameter is required", None))?;
+
         // Determine which metrics to analyze
         let metrics_to_analyze = if let Some(ref metric) = params.metric {
             vec![metric.clone()]
         } else if let Some(ref prefix) = params.metric_prefix {
-            // Get all metrics matching prefix
-            let all_metrics = self.client.list_metrics().await.map_err(|e| {
-                McpError::internal_error(format!("Failed to list metrics: {}", e), None)
-            })?;
+            // Get all metrics matching prefix from this node
+            let metrics_body = self
+                .router
+                .get(&node, "/api/metrics", NodeRouter::timeout_list_metrics())
+                .await
+                .map_err(router_error_to_mcp)?;
 
-            all_metrics
+            let metrics_resp: ViewerMetricsResponse = serde_json::from_str(&metrics_body)
+                .map_err(|e| McpError::internal_error(format!("Failed to parse metrics: {}", e), None))?;
+
+            metrics_resp
+                .metrics
                 .into_iter()
                 .filter(|m| m.name.starts_with(prefix))
                 .map(|m| m.name)
@@ -305,35 +521,49 @@ impl McpMetricsViewer {
             ));
         }
 
-        let container_ids = vec![params.container.as_str()];
         let mut results = Vec::new();
 
         for metric in &metrics_to_analyze {
             // Run the study
-            let study_result = self
-                .client
-                .run_study(&params.study_id, metric, &container_ids)
+            let study_path = format!(
+                "/api/study/{}?metric={}&containers={}",
+                urlencoding::encode(&params.study_id),
+                urlencoding::encode(metric),
+                urlencoding::encode(&params.container)
+            );
+
+            let study_body = self
+                .router
+                .get(&node, &study_path, NodeRouter::timeout_analyze())
                 .await
-                .map_err(|e| {
-                    McpError::internal_error(format!("Failed to run study: {}", e), None)
-                })?;
+                .map_err(router_error_to_mcp)?;
+
+            let study_resp: ViewerStudyResponse = serde_json::from_str(&study_body)
+                .map_err(|e| McpError::internal_error(format!("Failed to parse study: {}", e), None))?;
 
             // Get timeseries for trend detection
-            let timeseries = self
-                .client
-                .get_timeseries(metric, &container_ids)
+            let ts_path = format!(
+                "/api/timeseries?metric={}&containers={}",
+                urlencoding::encode(metric),
+                urlencoding::encode(&params.container)
+            );
+
+            let ts_body = self
+                .router
+                .get(&node, &ts_path, NodeRouter::timeout_analyze())
                 .await
-                .map_err(|e| {
-                    McpError::internal_error(format!("Failed to get timeseries: {}", e), None)
-                })?;
+                .map_err(router_error_to_mcp)?;
+
+            let ts_resp: Vec<ViewerTimeseriesResponse> = serde_json::from_str(&ts_body)
+                .map_err(|e| McpError::internal_error(format!("Failed to parse timeseries: {}", e), None))?;
 
             // Compute stats and trend
-            let ts_data = timeseries.first().map(|t| &t.data);
+            let ts_data = ts_resp.first().map(|t| &t.data);
             let stats = compute_stats(ts_data);
             let trend = detect_trend(ts_data);
 
             // Convert findings
-            let findings: Vec<Finding> = study_result
+            let findings: Vec<Finding> = study_resp
                 .results
                 .first()
                 .map(|r| {
@@ -372,19 +602,23 @@ impl McpMetricsViewer {
             });
         }
 
-        // Get container info from first successful search
+        // Get container info
+        let containers_path = format!(
+            "/api/containers?metric={}&search={}",
+            urlencoding::encode(metrics_to_analyze.first().unwrap_or(&String::new())),
+            urlencoding::encode(&params.container)
+        );
+
         let container_info = self
-            .client
-            .search_containers(&ContainerSearchParams {
-                metric: metrics_to_analyze.first().cloned().unwrap_or_default(),
-                search: Some(params.container.clone()),
-                ..Default::default()
-            })
+            .router
+            .get(&node, &containers_path, NodeRouter::timeout_list_containers())
             .await
             .ok()
-            .and_then(|c| c.into_iter().next());
+            .and_then(|body| serde_json::from_str::<ViewerContainersResponse>(&body).ok())
+            .and_then(|resp| resp.containers.into_iter().next());
 
         let response = AnalyzeContainerResponse {
+            node: node.clone(),
             container: ContainerSummary {
                 id: params.container,
                 pod_name: container_info.as_ref().and_then(|c| c.pod_name.clone()),
@@ -413,9 +647,10 @@ impl ServerHandler for McpMetricsViewer {
                 website_url: None,
             },
             instructions: Some(
-                "MCP server for container metrics analysis. Use list_metrics to discover \
-                 available metrics, list_containers to find containers, and analyze_container \
-                 to run analytical studies (periodicity detection, etc.)."
+                "MCP server for container metrics analysis. Use list_nodes to discover \
+                 available nodes, list_metrics to discover metrics, list_containers to find \
+                 containers, and analyze_container to run analytical studies (periodicity \
+                 detection, etc.)."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
@@ -435,7 +670,7 @@ struct Stats {
     time_range: Option<TimeRange>,
 }
 
-fn compute_stats(data: Option<&Vec<TimeseriesPoint>>) -> Stats {
+fn compute_stats(data: Option<&Vec<ViewerTimeseriesPoint>>) -> Stats {
     let Some(points) = data else {
         return Stats {
             avg: 0.0,
@@ -489,7 +724,7 @@ fn compute_stats(data: Option<&Vec<TimeseriesPoint>>) -> Stats {
 }
 
 /// REQ-MCP-005: Detect behavioral trend using linear regression.
-fn detect_trend(data: Option<&Vec<TimeseriesPoint>>) -> String {
+fn detect_trend(data: Option<&Vec<ViewerTimeseriesPoint>>) -> String {
     let Some(points) = data else {
         return "unknown".into();
     };

@@ -53,6 +53,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/target/release/fine-grained-monitor /usr/local/bin/
 COPY --from=builder /build/target/release/fgm-viewer /usr/local/bin/
 COPY --from=builder /build/target/release/fgm-consolidator /usr/local/bin/
+COPY --from=builder /build/target/release/mcp-metrics-viewer /usr/local/bin/
 
 # Copy static files last (rebuilds quickly when HTML/CSS/JS changes)
 # Server checks /static/index.html first, falls back to embedded version

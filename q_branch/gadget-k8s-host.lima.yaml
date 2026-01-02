@@ -43,6 +43,59 @@ provision:
       set -eu
       export DEBIAN_FRONTEND=noninteractive
 
+      # ============================================================
+      # Increase system ulimits for Kind/Kubernetes
+      # ============================================================
+      # Issue observed: kube-proxy crashes with "too many open files"
+      # when default ulimit -n is 1024. Kind clusters with multiple
+      # nodes and kube-proxy DaemonSets require higher limits.
+      #
+      # Thresholds observed:
+      #   - 1024:  FAILS - kube-proxy crashes after ~2 hours with
+      #            "failed complete: too many open files"
+      #   - 65536: WORKS - recommended for Kind clusters
+      #
+      # These limits apply to all processes including Docker containers
+      # (Kind nodes) and their children (kube-proxy, kubelet, etc.)
+      # ============================================================
+      cat > /etc/security/limits.d/99-kind-limits.conf << 'EOF'
+# Kind/Kubernetes file descriptor limits
+# Required for kube-proxy and other k8s components
+*               soft    nofile          65536
+*               hard    nofile          65536
+root            soft    nofile          65536
+root            hard    nofile          65536
+*               soft    nproc           65536
+*               hard    nproc           65536
+EOF
+
+      # Also set systemd defaults for services
+      mkdir -p /etc/systemd/system.conf.d
+      cat > /etc/systemd/system.conf.d/limits.conf << 'EOF'
+[Manager]
+DefaultLimitNOFILE=65536
+DefaultLimitNPROC=65536
+EOF
+
+      # Docker daemon needs explicit config for container limits
+      mkdir -p /etc/docker
+      cat > /etc/docker/daemon.json << 'EOF'
+{
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 65536,
+      "Soft": 65536
+    },
+    "nproc": {
+      "Name": "nproc",
+      "Hard": 65536,
+      "Soft": 65536
+    }
+  }
+}
+EOF
+
       apt-get update
       apt-get install -y \
         build-essential ca-certificates curl gnupg lsb-release \

@@ -19,7 +19,7 @@ tokio = { version = "1.47", features = ["full", "signal"] }
 
 # Structured logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # CLI argument parsing
 clap = { version = "4", features = ["derive", "env"] }
@@ -65,9 +65,12 @@ k8s-openapi = { version = "0.22", features = ["v1_29"] }
 augurs = { version = "0.8", features = ["changepoint"] }
 
 # MCP server dependencies (REQ-MCP-006)
-rmcp = { version = "0.12", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "0.12", features = ["server", "transport-streamable-http-server", "macros"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 reqwest = { version = "0.12", features = ["json"] }
 schemars = "1"
+urlencoding = "2"
+futures = "0.3"
 
 [dev-dependencies]
 proptest = "1.5"

@@ -1,0 +1,110 @@
+# REQ-MCP-006: MCP server Deployment for HTTP/SSE transport
+# REQ-MCP-007: Discovers DaemonSet pods for routing
+# REQ-MCP-008: Routes requests to correct viewer pod by node
+#
+# This runs as a single Deployment (not DaemonSet) and discovers
+# fine-grained-monitor DaemonSet pods to route node-targeted queries.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-metrics-viewer
+  labels:
+    app: mcp-metrics-viewer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-metrics-viewer
+  labels:
+    app: mcp-metrics-viewer
+rules:
+  # Need to list/watch pods to discover DaemonSet instances
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-metrics-viewer
+  labels:
+    app: mcp-metrics-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcp-metrics-viewer
+subjects:
+  - kind: ServiceAccount
+    name: mcp-metrics-viewer
+    namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-metrics-viewer
+  labels:
+    app: mcp-metrics-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-metrics-viewer
+  template:
+    metadata:
+      labels:
+        app: mcp-metrics-viewer
+    spec:
+      serviceAccountName: mcp-metrics-viewer
+      containers:
+      - name: mcp-server
+        image: fine-grained-monitor:latest
+        imagePullPolicy: Never  # Use locally loaded image
+        command: ["/usr/local/bin/mcp-metrics-viewer"]
+        args:
+          - "--port=8080"
+          - "--daemonset-namespace=default"
+          - "--daemonset-label=app=fine-grained-monitor"
+          - "--viewer-port=8050"
+        env:
+          - name: RUST_LOG
+            value: "info"
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-metrics-viewer
+  labels:
+    app: mcp-metrics-viewer
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: mcp-metrics-viewer

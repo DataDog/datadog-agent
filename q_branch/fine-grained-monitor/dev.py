@@ -663,8 +663,9 @@ networking:
   apiServerPort: {api_port}
 nodes:
   - role: control-plane
-  - role: worker
-  - role: worker
+  # TEMP: Disabled workers for single-node testing (kube-proxy debug)
+  # - role: worker
+  # - role: worker
 """
 
     # Create cluster
@@ -812,34 +813,50 @@ def cmd_deploy():
     if not success:
         return 1
 
-    # Step 4: Check if DaemonSet exists, apply manifest if not
+    # Step 4: Apply manifests (always, to pick up any changes)
     pods = get_cluster_pods()
-    if not pods:
-        print("No pods found, applying DaemonSet manifest...")
-        manifest = generate_manifest()
 
-        # Also apply RBAC
-        rbac_path = PROJECT_ROOT / "deploy" / "rbac.yaml"
-        if rbac_path.exists():
-            subprocess.run(
-                ["kubectl", "apply", "-f", str(rbac_path), "--context", kube_context],
-                capture_output=True,
-            )
+    # Apply RBAC for DaemonSet
+    rbac_path = PROJECT_ROOT / "deploy" / "rbac.yaml"
+    if rbac_path.exists():
+        subprocess.run(
+            ["kubectl", "apply", "-f", str(rbac_path), "--context", kube_context],
+            capture_output=True,
+        )
 
-        # Apply generated manifest via stdin
+    # Apply generated DaemonSet manifest via stdin
+    manifest = generate_manifest()
+    result = subprocess.run(
+        ["kubectl", "apply", "-f", "-", "--context", kube_context],
+        input=manifest,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Failed to apply DaemonSet manifest: {result.stderr}")
+        return 1
+
+    # Apply MCP server manifest (REQ-MCP-006)
+    mcp_path = PROJECT_ROOT / "deploy" / "mcp-server.yaml"
+    if mcp_path.exists():
+        mcp_manifest = mcp_path.read_text()
+        # Replace image tag to match what we loaded
+        mcp_manifest = mcp_manifest.replace("fine-grained-monitor:latest", f"fine-grained-monitor:{image_tag}")
         result = subprocess.run(
             ["kubectl", "apply", "-f", "-", "--context", kube_context],
-            input=manifest,
+            input=mcp_manifest,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            print(f"Failed to apply manifest: {result.stderr}")
+            print(f"Failed to apply MCP server manifest: {result.stderr}")
             return 1
-        print("DaemonSet applied")
+
+    if not pods:
+        print("Manifests applied (first deploy)")
     else:
         # Delete existing pods to trigger restart with new image
-        print(f"Restarting {len(pods)} pod(s)...", end=" ", flush=True)
+        print(f"Restarting {len(pods)} DaemonSet pod(s)...", end=" ", flush=True)
         start = time.time()
 
         for pod in pods:
@@ -847,6 +864,33 @@ def cmd_deploy():
                 ["kubectl", "delete", "pod", pod, "-n", NAMESPACE, "--context", kube_context],
                 capture_output=True,
             )
+
+        # Also restart MCP server pod if it exists
+        mcp_result = subprocess.run(
+            [
+                "kubectl",
+                "get",
+                "pods",
+                "-l",
+                "app=mcp-metrics-viewer",
+                "-n",
+                NAMESPACE,
+                "--context",
+                kube_context,
+                "-o",
+                "jsonpath={.items[*].metadata.name}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        mcp_pods = mcp_result.stdout.strip().split()
+        if mcp_pods and mcp_pods[0]:
+            print(f"Also restarting {len(mcp_pods)} MCP pod(s)...")
+            for pod in mcp_pods:
+                subprocess.run(
+                    ["kubectl", "delete", "pod", pod, "-n", NAMESPACE, "--context", kube_context],
+                    capture_output=True,
+                )
 
     # Wait for new pods to be ready
     print("Waiting for pods...", end=" ", flush=True)
@@ -894,8 +938,9 @@ def cmd_cluster_status():
     print(f"Worktree: {get_worktree_id()}")
     print(f"API port: {calculate_api_port()}")
     print(f"Data dir: {get_data_dir()}")
-    print(f"Pods with label: {POD_LABEL}\n")
 
+    # Show DaemonSet pods
+    print(f"\nDaemonSet pods ({POD_LABEL}):")
     result = subprocess.run(
         [
             "kubectl",
@@ -918,13 +963,39 @@ def cmd_cluster_status():
         print(f"Error: {result.stderr}")
         return 1
 
-    print(result.stdout)
+    print(result.stdout if result.stdout.strip() else "  No pods found")
+
+    # Show MCP server pods
+    print("MCP server pods (app=mcp-metrics-viewer):")
+    result = subprocess.run(
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-l",
+            "app=mcp-metrics-viewer",
+            "-n",
+            NAMESPACE,
+            "--context",
+            kube_context,
+            "-o",
+            "wide",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print(f"Error: {result.stderr}")
+    else:
+        print(result.stdout if result.stdout.strip() else "  No pods found")
 
     # Show port-forward hint
     pods = get_cluster_pods()
     if pods:
         port = calculate_port()
         print(f"To access viewer: ./dev.py cluster forward (port {port})")
+        print(f"To access MCP:    ./dev.py cluster forward --mcp (port {port})")
 
     return 0
 
@@ -958,8 +1029,8 @@ def get_forward_pid() -> int | None:
     return None
 
 
-def cmd_forward(pod_name: str | None):
-    """Start port-forward to cluster viewer pod."""
+def cmd_forward(pod_name: str | None, mcp: bool = False):
+    """Start port-forward to cluster viewer pod or MCP service."""
     kube_context = get_kube_context()
 
     # Stop existing forward if running
@@ -974,38 +1045,54 @@ def cmd_forward(pod_name: str | None):
             print("already stopped")
         FORWARD_PID_FILE.unlink(missing_ok=True)
 
-    # Get target pod
-    if pod_name:
-        target_pod = pod_name
-    else:
-        pods = get_cluster_pods()
-        if not pods:
-            print("No pods found with label", POD_LABEL)
-            print("  Deploy first with: ./dev.py cluster deploy")
-            return 1
-        target_pod = pods[0]
-
-    # Verify pod exists
-    result = subprocess.run(
-        ["kubectl", "get", "pod", target_pod, "-n", NAMESPACE, "--context", kube_context],
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        print(f"Pod not found: {target_pod}")
-        return 1
-
     port = calculate_port()
-    print(f"Starting port-forward to {target_pod} (local port {port})...")
-
     ensure_dev_dir()
     log_handle = FORWARD_LOG_FILE.open("w")
 
-    remote_port = 8050  # Container always listens on 8050
+    if mcp:
+        # Forward to MCP metrics viewer service
+        target = "svc/mcp-metrics-viewer"
+        remote_port = 8080
+        print(f"Starting port-forward to MCP service (local port {port})...")
+
+        # Verify service exists
+        result = subprocess.run(
+            ["kubectl", "get", "svc", "mcp-metrics-viewer", "-n", NAMESPACE, "--context", kube_context],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            print("MCP metrics viewer service not found")
+            print("  Deploy first with: kubectl apply -f deploy/mcp-server.yaml")
+            return 1
+    else:
+        # Forward to viewer pod
+        if pod_name:
+            target = pod_name
+        else:
+            pods = get_cluster_pods()
+            if not pods:
+                print("No pods found with label", POD_LABEL)
+                print("  Deploy first with: ./dev.py cluster deploy")
+                return 1
+            target = pods[0]
+
+        remote_port = 8050  # Container always listens on 8050
+        print(f"Starting port-forward to {target} (local port {port})...")
+
+        # Verify pod exists
+        result = subprocess.run(
+            ["kubectl", "get", "pod", target, "-n", NAMESPACE, "--context", kube_context],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            print(f"Pod not found: {target}")
+            return 1
+
     proc = subprocess.Popen(
         [
             "kubectl",
             "port-forward",
-            target_pod,
+            target,
             f"{port}:{remote_port}",
             "-n",
             NAMESPACE,
@@ -1045,8 +1132,11 @@ def cmd_forward(pod_name: str | None):
         return 1
 
     print(f"Port-forward running (pid {proc.pid})")
-    print(f"  Pod:    {target_pod}")
-    print(f"  URL:    http://127.0.0.1:{port}/")
+    print(f"  Target: {target}")
+    if mcp:
+        print(f"  MCP URL: http://127.0.0.1:{port}/mcp")
+    else:
+        print(f"  URL:    http://127.0.0.1:{port}/")
     print(f"  Logs:   {FORWARD_LOG_FILE}")
     print("  Stop:   ./dev.py forward-stop")
     return 0
@@ -1795,12 +1885,17 @@ Per-worktree isolation:
     cluster_subs.add_parser("status", help="Show cluster pod status")
 
     # cluster forward
-    forward_parser = cluster_subs.add_parser("forward", help="Port-forward to cluster pod")
+    forward_parser = cluster_subs.add_parser("forward", help="Port-forward to cluster pod or MCP service")
     forward_parser.add_argument(
         "--pod",
         type=str,
         default=None,
         help="Specific pod name (default: first available pod)",
+    )
+    forward_parser.add_argument(
+        "--mcp",
+        action="store_true",
+        help="Forward to MCP metrics viewer service instead of viewer pod",
     )
 
     # cluster forward-stop
@@ -1871,7 +1966,7 @@ Per-worktree isolation:
         elif args.command == "status":
             sys.exit(cmd_cluster_status())
         elif args.command == "forward":
-            sys.exit(cmd_forward(args.pod))
+            sys.exit(cmd_forward(args.pod, args.mcp))
         elif args.command == "forward-stop":
             sys.exit(cmd_forward_stop())
         elif args.command == "create":
