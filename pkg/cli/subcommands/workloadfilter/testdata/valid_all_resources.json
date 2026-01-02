@@ -1,0 +1,24 @@
+[
+  {
+    "products": [
+      "global"
+    ],
+    "rules": {
+      "containers": [
+        "container.name == \"pause\""
+      ],
+      "pods": [
+        "pod.name == \"kube-system\""
+      ],
+      "processes": [
+        "process.name == \"systemd\""
+      ],
+      "kube_services": [
+        "kube_service.name == \"default\""
+      ],
+      "kube_endpoints": [
+        "kube_endpoint.name == \"monitoring\""
+      ]
+    }
+  }
+]
