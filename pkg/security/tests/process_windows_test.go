@@ -32,7 +32,7 @@ func TestBasicTest(t *testing.T) {
 
 	t.Run("basic process", func(t *testing.T) {
 		executable := "schtasks.exe"
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(executable)
 			return cmd.Run()
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
@@ -52,7 +52,7 @@ func TestBasicTest(t *testing.T) {
 			"/tr", "c:\\windows\\system32\\calc.exe",
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("schtasks.exe", inputargs, nil)
 
 			// we will ignore the error.  The username & password arguments are invalid
