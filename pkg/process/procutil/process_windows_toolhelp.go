@@ -226,7 +226,6 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 type cachedProcess struct {
 	userName       string
 	executablePath string
-	imagePath      string
 	commandLine    string
 	comm           string
 	procHandle     windows.Handle
@@ -246,12 +245,13 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	}
 	imagePath, err := winutil.GetImagePathForProcess(cp.procHandle)
 	if err != nil {
-		log.Debugf("Error retrieving exe path for pid %v %v", pid, err)
+		log.Debugf("Error retrieving exe path for pid %v %v", pe32.Th32ProcessID, err)
+		cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
+	} else {
+		cp.executablePath = imagePath
+		cp.comm = getFileDescriptionCached(cp.executablePath)
 	}
-	cp.imagePath = imagePath
-	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 	cp.commandLine = cp.executablePath
-	cp.comm = getFileDescriptionCached(cp.imagePath)
 	// we cannot read the command line if the process is protected
 	if !isProtected {
 		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
