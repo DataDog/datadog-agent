@@ -128,7 +128,7 @@ jira_project = "AI"
 jira_issue_type = "Task"
 jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "agent-integrations"
-github_labels = ["team/integrations"]
+github_labels = ["team/agent-integrations"]
 exclude_members = ["ofek", "alopezz"]
 
 [teams."APM"]
