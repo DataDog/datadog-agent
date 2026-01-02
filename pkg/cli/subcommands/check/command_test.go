@@ -88,8 +88,8 @@ instances:
 	tempConfigFile.Close()
 
 	cliParams := cliParams{
-		checkName:    "custom",
-		customConfig: tempConfigFile.Name(),
+		checkName:   "custom",
+		checkConfig: tempConfigFile.Name(),
 	}
 
 	checkConfigs, err := getAllCheckConfigs(ac, cliParams)
