@@ -262,7 +262,7 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 			}
 		}()
 		condition(c)
-	}, waitFor, tick, msg, args...)
+	}, waitFor, tick, msg, args)
 }
 
 // CleanupOnSetupFailure is a helper to cleanup on setup failure
