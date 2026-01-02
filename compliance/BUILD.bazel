@@ -17,11 +17,12 @@ filegroup(
     srcs = [
         "//deps:all_deps",
     ] + select({
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
+        "//packages/agent:heroku_flavor": [],
+        "@platforms//os:linux": [
             # This will become "//deps/openscap:all_deps" in the future
             "@popt",
         ],
+        "//conditions:default": [],
     }),
 )
 
