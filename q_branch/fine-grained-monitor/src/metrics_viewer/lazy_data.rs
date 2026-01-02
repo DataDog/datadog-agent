@@ -162,12 +162,17 @@ fn discover_files_by_time_range(
         }
     }
 
+    // Fix #4: Extract mtime once per file, then sort (avoids O(n log n) syscalls)
     // Sort by modification time (newest first) for better cache behavior
-    parquet_files.sort_by(|a, b| {
-        let a_time = a.metadata().and_then(|m| m.modified()).ok();
-        let b_time = b.metadata().and_then(|m| m.modified()).ok();
-        b_time.cmp(&a_time)
-    });
+    let mut files_with_mtime: Vec<_> = parquet_files
+        .into_iter()
+        .map(|p| {
+            let mtime = p.metadata().and_then(|m| m.modified()).ok();
+            (p, mtime)
+        })
+        .collect();
+    files_with_mtime.sort_unstable_by(|(_, a_time), (_, b_time)| b_time.cmp(a_time));
+    let parquet_files: Vec<PathBuf> = files_with_mtime.into_iter().map(|(p, _)| p).collect();
 
     let elapsed = start_time.elapsed();
     eprintln!(
@@ -232,6 +237,9 @@ fn parse_iso_compact(s: &str) -> Option<DateTime<Utc>> {
         .into()
 }
 
+/// Minimum interval between file refresh operations (in milliseconds).
+const REFRESH_STALENESS_MS: u64 = 5000;
+
 /// Lazy-loading data store with on-demand parquet reads.
 pub struct LazyDataStore {
     /// Paths to parquet files (refreshed on data load).
@@ -242,8 +250,10 @@ pub struct LazyDataStore {
     pub index: MetadataIndex,
     /// Cached timeseries data: metric -> container -> points.
     timeseries_cache: RwLock<HashMap<String, HashMap<String, Vec<TimeseriesPoint>>>>,
-    /// Cached stats: metric -> container -> stats.
-    stats_cache: RwLock<HashMap<String, HashMap<String, ContainerStats>>>,
+    /// Fix #10: Cached stats wrapped in Arc to avoid deep clones on cache hit.
+    stats_cache: RwLock<HashMap<String, Arc<HashMap<String, ContainerStats>>>>,
+    /// Fix #9: Last refresh timestamp to avoid redundant file discovery.
+    last_refresh: RwLock<Option<std::time::Instant>>,
 }
 
 /// Metadata index built during fast startup scan.
@@ -273,6 +283,7 @@ impl LazyDataStore {
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
             stats_cache: RwLock::new(HashMap::new()),
+            last_refresh: RwLock::new(None),
         })
     }
 
@@ -362,13 +373,25 @@ impl LazyDataStore {
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
             stats_cache: RwLock::new(HashMap::new()),
+            last_refresh: RwLock::new(Some(std::time::Instant::now())), // Just refreshed
         })
     }
 
     /// Refresh the file list by re-discovering parquet files.
     /// This allows the viewer to see newly written files.
+    /// Fix #9: Skips refresh if called within REFRESH_STALENESS_MS of last refresh.
     fn refresh_files(&self) {
         if let Some(ref data_dir) = self.data_dir {
+            // Check staleness - skip if refreshed recently
+            {
+                let last = self.last_refresh.read().unwrap();
+                if let Some(last_time) = *last {
+                    if last_time.elapsed().as_millis() < REFRESH_STALENESS_MS as u128 {
+                        return; // Still fresh, skip
+                    }
+                }
+            }
+
             let start = std::time::Instant::now();
 
             // Create a default DataRange for discovery (uses lookback window)
@@ -384,6 +407,9 @@ impl LazyDataStore {
             let mut paths = self.paths.write().unwrap();
             let old_count = paths.len();
             *paths = new_files;
+
+            // Update last refresh time
+            *self.last_refresh.write().unwrap() = Some(std::time::Instant::now());
 
             if new_count != old_count {
                 eprintln!(
@@ -448,10 +474,11 @@ impl LazyDataStore {
 
     /// Get container stats for a metric.
     /// Computes stats from timeseries data (loading if necessary).
-    pub fn get_container_stats(&self, metric: &str) -> Result<HashMap<String, ContainerStats>> {
+    /// Fix #10: Returns Arc to avoid deep clones on cache hit.
+    pub fn get_container_stats(&self, metric: &str) -> Result<Arc<HashMap<String, ContainerStats>>> {
         let total_start = std::time::Instant::now();
 
-        // Check cache first
+        // Check cache first - Arc::clone is cheap (just refcount increment)
         {
             let cache = self.stats_cache.read().unwrap();
             if let Some(stats) = cache.get(metric) {
@@ -460,7 +487,7 @@ impl LazyDataStore {
                     metric,
                     total_start.elapsed().as_secs_f64() * 1000.0
                 );
-                return Ok(stats.clone());
+                return Ok(Arc::clone(stats));
             }
         }
 
@@ -477,7 +504,7 @@ impl LazyDataStore {
         eprintln!("[PERF]   {} containers to load", container_ids.len());
 
         if container_ids.is_empty() {
-            return Ok(HashMap::new());
+            return Ok(Arc::new(HashMap::new()));
         }
 
         // Load timeseries data and compute stats
@@ -518,10 +545,13 @@ impl LazyDataStore {
             stats_start.elapsed().as_secs_f64() * 1000.0
         );
 
-        // Cache the stats
+        // Wrap in Arc for cache storage and return
+        let stats = Arc::new(stats);
+
+        // Cache the stats (cheap Arc::clone)
         {
             let mut cache = self.stats_cache.write().unwrap();
-            cache.insert(metric.to_string(), stats.clone());
+            cache.insert(metric.to_string(), Arc::clone(&stats));
         }
 
         eprintln!(
@@ -898,7 +928,7 @@ fn load_metric_data(
     let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
         .par_iter()
         .map(|path| {
-            load_metric_from_file(path, &metric, &container_set, is_cumulative_metric)
+            load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric)
         })
         .collect();
     let parallel_elapsed = parallel_start.elapsed();
@@ -915,11 +945,7 @@ fn load_metric_data(
         for (id, data) in file_data {
             raw_data
                 .entry(id)
-                .or_insert_with(|| RawContainerData {
-                    is_cumulative: is_cumulative_metric,
-                    initialized: true,
-                    ..Default::default()
-                })
+                .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
                 .merge(data);
         }
     }
@@ -950,10 +976,11 @@ fn load_metric_data(
 }
 
 /// Load metric data from a single parquet file using parallel row group reading.
+/// Fix #1: Takes Arc<HashSet> directly to avoid cloning in predicates.
 fn load_metric_from_file(
     path: &PathBuf,
     metric: &str,
-    container_set: &HashSet<String>,
+    container_set: Arc<HashSet<String>>,
     is_cumulative_metric: bool,
 ) -> Result<HashMap<String, RawContainerData>> {
     let file_start = std::time::Instant::now();
@@ -979,7 +1006,7 @@ fn load_metric_from_file(
 
     // For small files, process sequentially
     if num_row_groups <= 4 {
-        let result = load_row_groups(path, metric, container_set, is_cumulative_metric, None)?;
+        let result = load_row_groups(path, metric, Arc::clone(&container_set), is_cumulative_metric, None)?;
         let elapsed = file_start.elapsed();
         if elapsed.as_millis() > 100 || !result.is_empty() {
             eprintln!(
@@ -1010,7 +1037,7 @@ fn load_metric_from_file(
             load_row_groups(
                 path,
                 metric,
-                container_set,
+                Arc::clone(&container_set),
                 is_cumulative_metric,
                 Some(row_groups.clone()),
             )
@@ -1024,11 +1051,7 @@ fn load_metric_from_file(
         for (id, data) in chunk_data {
             raw_data
                 .entry(id)
-                .or_insert_with(|| RawContainerData {
-                    is_cumulative: is_cumulative_metric,
-                    initialized: true,
-                    ..Default::default()
-                })
+                .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
                 .merge(data);
         }
     }
@@ -1049,10 +1072,11 @@ fn load_metric_from_file(
 
 /// Load specific row groups from a parquet file.
 /// Uses flat `l_*` columns for labels with predicate pushdown for efficient filtering.
+/// Fix #1: Takes Arc<HashSet> directly to avoid cloning in predicates.
 fn load_row_groups(
     path: &PathBuf,
     metric: &str,
-    container_set: &HashSet<String>,
+    container_set: Arc<HashSet<String>>,
     is_cumulative_metric: bool,
     row_groups: Option<Vec<usize>>,
 ) -> Result<HashMap<String, RawContainerData>> {
@@ -1075,16 +1099,14 @@ fn load_row_groups(
 
     let schema = builder.schema().clone();
 
-    // Build projection: core columns + l_container_id for filtering
-    let mut projection: Vec<usize> = ["metric_name", "time", "value_int", "value_float"]
+    // Build projection: only columns we actually use in the data loop
+    // NOTE: metric_name is NOT included - it's only needed for predicate filtering,
+    // not for the output data. Including it would waste CPU decompressing ~60MB
+    // of string data per file that we never use.
+    let projection: Vec<usize> = ["time", "value_int", "value_float", "l_container_id"]
         .iter()
         .filter_map(|name| schema.index_of(name).ok())
         .collect();
-
-    // Project l_container_id column (required for filtering)
-    if let Ok(idx) = schema.index_of("l_container_id") {
-        projection.push(idx);
-    }
 
     // Build predicates for filtering - push down BOTH metric_name AND l_container_id filters
     let metric_name_idx = schema.index_of("metric_name").ok();
@@ -1131,13 +1153,9 @@ fn load_row_groups(
 
     // Predicate 2: l_container_id filter
     // Key optimization - skip rows at parquet level based on container_id
+    // Fix #1: Reuse the Arc directly instead of cloning all strings into new HashSet
     if let Some(pred_mask) = container_pred_mask {
-        let container_filter: Arc<HashSet<String>> = Arc::new(
-            container_set
-                .iter()
-                .cloned()
-                .collect(),
-        );
+        let container_filter = Arc::clone(&container_set);
         let predicate = ArrowPredicateFn::new(pred_mask, move |batch| {
             let container_col = batch.column(0).as_any().downcast_ref::<StringArray>();
             match container_col {
@@ -1220,7 +1238,7 @@ fn load_row_groups(
             if let Some(v) = value {
                 raw_data
                     .entry(short_id.to_string())
-                    .or_default()
+                    .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
                     .add_point(time, v, is_cumulative_metric);
             }
         }
@@ -1260,7 +1278,24 @@ struct RawContainerData {
     initialized: bool,
 }
 
+/// Estimated points per container for preallocation.
+/// Based on 1-hour lookback with 1-second samples = 3600 points,
+/// but data is spread across ~80 containers, so ~45 points each.
+/// Use 64 for power-of-2 allocation efficiency.
+const ESTIMATED_POINTS_PER_CONTAINER: usize = 64;
+
 impl RawContainerData {
+    /// Create with pre-allocated capacity to avoid reallocation churn.
+    fn with_capacity(is_cumulative: bool) -> Self {
+        Self {
+            times: Vec::with_capacity(ESTIMATED_POINTS_PER_CONTAINER),
+            values: Vec::with_capacity(ESTIMATED_POINTS_PER_CONTAINER),
+            is_cumulative,
+            initialized: true,
+            ..Default::default()
+        }
+    }
+
     fn add_point(&mut self, time: i64, value: f64, is_cumulative: bool) {
         if !self.initialized {
             self.is_cumulative = is_cumulative;
@@ -1273,10 +1308,11 @@ impl RawContainerData {
                 let time_delta_ms = time - self.last_time;
 
                 if value_delta >= 0.0 && time_delta_ms > 0 {
+                    // Fix #13: Single division instead of two
                     let rate = if self.is_cumulative && value_delta > 0.0 {
-                        value_delta / (time_delta_ms as f64) / 10.0
+                        value_delta / (time_delta_ms as f64 * 10.0)
                     } else {
-                        value_delta / (time_delta_ms as f64) * 1000.0
+                        value_delta * 1000.0 / time_delta_ms as f64
                     };
                     self.times.push(time);
                     self.values.push(rate);
@@ -1298,7 +1334,8 @@ impl RawContainerData {
             .zip(self.values)
             .map(|(time_ms, value)| TimeseriesPoint { time_ms, value })
             .collect();
-        points.sort_by_key(|p| p.time_ms);
+        // Fix #11: sort_unstable is faster (no stability guarantees needed for i64 keys)
+        points.sort_unstable_by_key(|p| p.time_ms);
         points
     }
 
