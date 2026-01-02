@@ -8,7 +8,10 @@
 // Package probe holds probe related files
 package probe
 
-import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+import (
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+)
 
 // Opts defines some probe options
 type Opts struct {
@@ -16,4 +19,6 @@ type Opts struct {
 	DontDiscardRuntime bool
 	// Tagger will override the default one. Mainly here for tests.
 	Tagger tags.Tagger
+	// FilterStore provides the workload filtering component
+	FilterStore workloadfilter.Component
 }
