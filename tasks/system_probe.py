@@ -1621,7 +1621,7 @@ def build_object_files(
 
 
 def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
-    if is_windows:
+    if is_windows or is_macos:
         return
 
     platform_map = {
