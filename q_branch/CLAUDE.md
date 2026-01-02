@@ -25,6 +25,12 @@ cd q_branch/fine-grained-monitor
 ./dev.py cluster create           # Create Kind cluster for this worktree
 ./dev.py cluster destroy          # Destroy Kind cluster for this worktree
 ./dev.py cluster setup-mcp        # Setup MCP server for this worktree's cluster
+
+# Benchmarking
+./dev.py bench --filter <name>    # Run specific benchmark in background
+./dev.py bench --full-suite       # Run all benchmarks in background
+./dev.py bench wait <guid>        # Wait for benchmark and show results
+./dev.py bench list               # List recent benchmark runs
 ```
 
 **Prefer dev.py over raw commands** - it handles image loading into Lima VM, Kind cluster operations, port management, and per-worktree isolation automatically.
@@ -38,6 +44,36 @@ Each git worktree gets its own isolated Kind cluster:
 - Image tag: `fine-grained-monitor:{worktree-basename}`
 
 Multiple worktrees can run concurrently without conflicts.
+
+### Benchmarking
+
+Benchmarks run in background to avoid blocking and allow multiple analysis passes on the same run:
+
+```bash
+# Run a specific benchmark (preferred for quick iterations)
+./dev.py bench --filter get_timeseries_single_container
+# Returns: Running benchmark a1b2c3d4
+#          Wait: ./dev.py bench wait a1b2c3d4
+
+# Run full suite (for comprehensive testing)
+./dev.py bench --full-suite
+
+# Wait for completion and see results
+./dev.py bench wait a1b2c3d4
+
+# List recent runs
+./dev.py bench list
+```
+
+**Available benchmarks:**
+- `scan_metadata` - Startup path, measures parquet file scanning
+- `get_container_stats_cold` - Cold query including data loading
+- `get_container_stats_warm` - Warm query from cache
+- `get_timeseries_single_container` - Single container timeseries query
+- `get_timeseries_all_containers` - All containers timeseries query
+- `load_all_metrics` - Full dashboard load simulation
+
+Benchmark data is auto-generated on first run. Logs are stored in `.dev/bench/<guid>/` and auto-cleaned after 30 days.
 
 ## Architecture: aarch64 (ARM64)
 
