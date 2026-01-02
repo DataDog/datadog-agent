@@ -268,6 +268,9 @@ pub struct MetadataIndex {
     pub containers: HashMap<String, ContainerInfo>,
     /// Which containers have data for which metrics: metric -> set of short_ids.
     pub metric_containers: HashMap<String, HashSet<String>>,
+    /// Which containers exist in each file (for file-level pruning).
+    /// Maps file path -> set of container short_ids found in that file.
+    pub file_containers: HashMap<PathBuf, HashSet<String>>,
 }
 
 impl LazyDataStore {
@@ -359,6 +362,9 @@ impl LazyDataStore {
             namespaces,
             containers,
             metric_containers,
+            // Note: file_containers is empty for index-based startup
+            // File-level pruning will be disabled until files are scanned
+            file_containers: HashMap::new(),
         };
 
         tracing::debug!(
@@ -454,7 +460,34 @@ impl LazyDataStore {
 
         // Load missing data
         if !missing.is_empty() {
-            let paths = self.paths.read().unwrap();
+            let all_paths = self.paths.read().unwrap();
+
+            // File-level pruning: only process files that contain requested containers
+            let missing_set: HashSet<&str> = missing.iter().copied().collect();
+            let paths: Vec<PathBuf> = if self.index.file_containers.is_empty() {
+                // No file_containers index available, use all files
+                all_paths.clone()
+            } else {
+                all_paths
+                    .iter()
+                    .filter(|path| {
+                        self.index
+                            .file_containers
+                            .get(*path)
+                            .map(|containers| containers.iter().any(|c| missing_set.contains(c.as_str())))
+                            .unwrap_or(true) // Include files not in index (safety)
+                    })
+                    .cloned()
+                    .collect()
+            };
+
+            tracing::debug!(
+                "[PERF] File-level pruning: {} -> {} files for {} containers",
+                all_paths.len(),
+                paths.len(),
+                missing.len()
+            );
+
             let loaded = load_metric_data(&paths, metric, &missing)?;
 
             // Cache the loaded data
@@ -661,6 +694,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
             namespaces: vec![],
             containers: HashMap::new(),
             metric_containers: HashMap::new(),
+            file_containers: HashMap::new(),
         });
     }
 
@@ -671,10 +705,13 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     let mut all_containers: HashMap<String, ContainerInfo> = HashMap::new();
     let mut qos_set: HashSet<String> = HashSet::new();
     let mut namespace_set: HashSet<String> = HashSet::new();
+    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
 
     let mut rows_sampled = 0u64;
 
     for path in paths {
+        // Track containers found in this specific file
+        let mut this_file_containers: HashSet<String> = HashSet::new();
         tracing::debug!("Scanning {:?}", path);
 
         // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
@@ -809,6 +846,9 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                     .or_default()
                     .insert(short_id.clone());
 
+                // Track which containers are in this file (for file-level pruning)
+                this_file_containers.insert(short_id.clone());
+
                 // Only process container info once per container
                 if !all_containers.contains_key(&short_id) {
                     // Extract other labels from l_* columns
@@ -847,6 +887,11 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                 }
             }
         }
+
+        // Store containers found in this file (for file-level query pruning)
+        if !this_file_containers.is_empty() {
+            file_containers.insert(path.clone(), this_file_containers);
+        }
     }
 
     // Build metric list (without exact counts since we sampled)
@@ -882,6 +927,7 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         namespaces,
         containers: all_containers,
         metric_containers,
+        file_containers,
     })
 }
 

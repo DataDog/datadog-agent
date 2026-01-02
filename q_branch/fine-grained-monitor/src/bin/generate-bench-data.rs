@@ -37,6 +37,10 @@ enum Scenario {
     StressTest,
     /// Legacy format for backwards compatibility
     Legacy,
+    /// Multi-pod: each pod has DIFFERENT containers (tests file pruning)
+    MultiPod,
+    /// Container churn: containers restart over time within a pod
+    ContainerChurn,
 }
 
 #[derive(Parser)]
@@ -144,6 +148,12 @@ fn main() -> Result<()> {
         }
         Scenario::Legacy => {
             generate_legacy(&output_dir, &containers, args.zstd)?;
+        }
+        Scenario::MultiPod => {
+            generate_multi_pod(&output_dir, args.identifiers, args.containers, base_time, args.zstd)?;
+        }
+        Scenario::ContainerChurn => {
+            generate_container_churn(&output_dir, args.containers, base_time, args.zstd)?;
         }
     }
 
@@ -349,6 +359,148 @@ fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: boo
         generate_file(&path, containers, "legacy", file_time, file_end, use_zstd)?;
     }
     println!();
+
+    Ok(())
+}
+
+/// Generate multi-pod data where each pod has DIFFERENT containers.
+/// This tests file-level pruning: querying container from pod-0 should skip pod-1 files.
+fn generate_multi_pod(
+    output_dir: &PathBuf,
+    num_pods: usize,
+    containers_per_pod: usize,
+    base_time: DateTime<Utc>,
+    use_zstd: bool,
+) -> Result<()> {
+    println!(
+        "\n  Multi-pod scenario: {} pods × {} containers = {} unique containers",
+        num_pods,
+        containers_per_pod,
+        num_pods * containers_per_pod
+    );
+    println!("  Each pod has completely different container IDs (simulates DaemonSet)");
+
+    for pod_idx in 0..num_pods {
+        let identifier = format!("bench-pod-{}", pod_idx);
+        let date_str = base_time.format("%Y-%m-%d").to_string();
+        let id_dir = output_dir
+            .join(format!("dt={}", date_str))
+            .join(format!("identifier={}", identifier));
+        fs::create_dir_all(&id_dir)?;
+
+        // Create containers unique to this pod
+        let containers: Vec<Container> = (0..containers_per_pod)
+            .map(|c| Container::new_for_pod(c, pod_idx))
+            .collect();
+
+        println!("  Pod {}: containers {}", pod_idx,
+            containers.iter().map(|c| c.id[..8].to_string()).collect::<Vec<_>>().join(", "));
+
+        // Generate 4 consolidated files (each ~14 minutes)
+        for i in 0..4 {
+            let start_offset = Duration::minutes(i * 14);
+            let end_offset = Duration::minutes((i + 1) * 14 - 1);
+            let file_start = base_time + start_offset;
+            let file_end = base_time + end_offset;
+
+            let filename = format!(
+                "consolidated-{}-{}.parquet",
+                file_start.format("%Y%m%dT%H%M%SZ"),
+                file_end.format("%Y%m%dT%H%M%SZ")
+            );
+            let path = id_dir.join(&filename);
+
+            print!("    {} ", filename);
+            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, true)?;
+            println!("({} rows)", rows);
+        }
+
+        // Generate 4 fresh files (each ~90 seconds)
+        for i in 0..4 {
+            let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
+            let file_start = base_time + start_offset;
+            let file_end = file_start + Duration::seconds(90);
+
+            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
+            let path = id_dir.join(&filename);
+
+            print!("    {} ", filename);
+            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, use_zstd)?;
+            println!("({} rows)", rows);
+        }
+    }
+
+    Ok(())
+}
+
+/// Generate container churn data where containers restart over time within a single pod.
+/// This tests file-level pruning across time: older files have different container IDs.
+fn generate_container_churn(
+    output_dir: &PathBuf,
+    containers_per_generation: usize,
+    base_time: DateTime<Utc>,
+    use_zstd: bool,
+) -> Result<()> {
+    // Simulate 4 container "generations" over 1 hour (containers restart every ~15 min)
+    let num_generations = 4;
+
+    println!(
+        "\n  Container churn scenario: {} generations × {} containers = {} unique containers over time",
+        num_generations,
+        containers_per_generation,
+        num_generations * containers_per_generation
+    );
+    println!("  Simulates container restarts - older files have different container IDs");
+
+    let identifier = "bench-pod-churn";
+    let date_str = base_time.format("%Y-%m-%d").to_string();
+    let id_dir = output_dir
+        .join(format!("dt={}", date_str))
+        .join(format!("identifier={}", identifier));
+    fs::create_dir_all(&id_dir)?;
+
+    // Each generation covers ~15 minutes
+    for gen in 0..num_generations {
+        let containers: Vec<Container> = (0..containers_per_generation)
+            .map(|c| Container::new_for_churn(c, gen))
+            .collect();
+
+        println!("  Generation {}: containers {}", gen,
+            containers.iter().map(|c| c.id[..8].to_string()).collect::<Vec<_>>().join(", "));
+
+        let gen_start = base_time + Duration::minutes(gen as i64 * 15);
+        let gen_end = gen_start + Duration::minutes(14);
+
+        // Generate consolidated file for this generation
+        let filename = format!(
+            "consolidated-{}-{}.parquet",
+            gen_start.format("%Y%m%dT%H%M%SZ"),
+            gen_end.format("%Y%m%dT%H%M%SZ")
+        );
+        let path = id_dir.join(&filename);
+
+        print!("    {} ", filename);
+        let rows = generate_file(&path, &containers, identifier, gen_start, gen_end, use_zstd)?;
+        println!("({} rows)", rows);
+    }
+
+    // Most recent generation also gets fresh files (last 6 minutes)
+    let latest_containers: Vec<Container> = (0..containers_per_generation)
+        .map(|c| Container::new_for_churn(c, num_generations - 1))
+        .collect();
+
+    for i in 0..4 {
+        let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
+        let file_start = base_time + start_offset;
+        let file_end = file_start + Duration::seconds(90);
+
+        let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
+        let path = id_dir.join(&filename);
+
+        print!("    {} ", filename);
+        let rows = generate_file(&path, &latest_containers, identifier, file_start, file_end, use_zstd)?;
+        println!("({} rows)", rows);
+    }
 
     Ok(())
 }
@@ -579,16 +731,40 @@ struct Container {
 
 impl Container {
     fn new(index: usize) -> Self {
-        let short_id = format!("{:012x}", (index as u64 + 1) * 0x111111111111u64);
-        let id = format!("{}{:052x}", short_id, index);
+        Self::new_for_pod(index, 0)
+    }
+
+    /// Create container with unique ID based on pod and container index
+    fn new_for_pod(container_index: usize, pod_index: usize) -> Self {
+        // Create unique container ID incorporating both pod and container index
+        let unique_seed = pod_index * 1000 + container_index;
+        let short_id = format!("{:012x}", (unique_seed as u64 + 1) * 0x111111111111u64);
+        let id = format!("{}{:052x}", short_id, unique_seed);
 
         Container {
             id,
-            name: format!("container-{}", index),
-            namespace: NAMESPACES[index % NAMESPACES.len()].to_string(),
-            pod_name: format!("pod-{}", index),
-            pod_uid: format!("00000000-0000-0000-0000-{:012x}", index),
-            qos_class: QOS_CLASSES[index % QOS_CLASSES.len()].to_string(),
+            name: format!("container-p{}-c{}", pod_index, container_index),
+            namespace: NAMESPACES[container_index % NAMESPACES.len()].to_string(),
+            pod_name: format!("pod-{}", pod_index),
+            pod_uid: format!("00000000-0000-0000-{:04x}-{:012x}", pod_index, container_index),
+            qos_class: QOS_CLASSES[container_index % QOS_CLASSES.len()].to_string(),
+        }
+    }
+
+    /// Create container with unique ID for churn scenario (time-based)
+    fn new_for_churn(container_index: usize, generation: usize) -> Self {
+        // Each generation gets completely new container IDs (simulating restarts)
+        let unique_seed = generation * 1000 + container_index;
+        let short_id = format!("{:012x}", (unique_seed as u64 + 1) * 0xdeadbeef1111u64);
+        let id = format!("{}{:052x}", short_id, unique_seed);
+
+        Container {
+            id,
+            name: format!("container-{}", container_index),
+            namespace: NAMESPACES[container_index % NAMESPACES.len()].to_string(),
+            pod_name: format!("pod-gen{}", generation),
+            pod_uid: format!("00000000-0000-{:04x}-0000-{:012x}", generation, container_index),
+            qos_class: QOS_CLASSES[container_index % QOS_CLASSES.len()].to_string(),
         }
     }
 }

@@ -1243,7 +1243,7 @@ def is_bench_complete(guid: str) -> bool:
     return pid is None
 
 
-def cmd_bench(filter_pattern: str | None, full_suite: bool):
+def cmd_bench(filter_pattern: str | None, full_suite: bool, data_dir: str | None):
     """Run benchmarks in background."""
     # Validate args - must specify --filter or --full-suite
     if filter_pattern is None and not full_suite:
@@ -1257,14 +1257,32 @@ def cmd_bench(filter_pattern: str | None, full_suite: bool):
         print("  get_timeseries_single_container")
         print("  get_timeseries_all_containers")
         print("  load_all_metrics")
+        print("\nAvailable data scenarios (use --data):")
+        print("  realistic1h     # Single pod, same containers (default)")
+        print("  multipod        # Multiple pods, different containers per pod")
+        print("  container-churn # Single pod, containers restart over time")
         return 1
+
+    # Resolve data directory
+    bench_data = BENCH_DATA_DIR
+    if data_dir:
+        bench_data = PROJECT_ROOT / "testdata" / "bench" / data_dir
+        if not bench_data.exists():
+            print(f"Error: Benchmark data not found: {bench_data}")
+            print("  Generate with: cargo run --release --bin generate-bench-data -- --scenario <name>")
+            return 1
 
     # Clean up old runs
     cleanup_old_bench_runs()
 
     # Ensure benchmark data exists
-    if not ensure_bench_data():
-        return 1
+    if not bench_data.exists() or not list(bench_data.glob("**/*.parquet")):
+        if data_dir:
+            print(f"Error: No parquet files in {bench_data}")
+            print("  Generate with: cargo run --release --bin generate-bench-data -- --scenario <name>")
+            return 1
+        if not ensure_bench_data():
+            return 1
 
     # Generate GUID for this run
     guid = str(uuid.uuid4())[:8]
@@ -1281,6 +1299,7 @@ def cmd_bench(filter_pattern: str | None, full_suite: bool):
         "guid": guid,
         "filter": filter_pattern,
         "full_suite": full_suite,
+        "data_dir": data_dir or "realistic1h",
         "started_at": datetime.now().isoformat(),
         "command": " ".join(cargo_cmd),
     }
@@ -1291,7 +1310,7 @@ def cmd_bench(filter_pattern: str | None, full_suite: bool):
     stderr_file = run_dir / "logs.stderr"
 
     env = os.environ.copy()
-    env["BENCH_DATA"] = str(BENCH_DATA_DIR)
+    env["BENCH_DATA"] = str(bench_data)
 
     stdout_handle = stdout_file.open("w")
     stderr_handle = stderr_file.open("w")
@@ -1311,6 +1330,7 @@ def cmd_bench(filter_pattern: str | None, full_suite: bool):
     # Print status message
     print(f"Running benchmark {guid}")
     print(f"  Filter:  {filter_pattern or 'full suite'}")
+    print(f"  Data:    {data_dir or 'realistic1h'}")
     print(f"  Logs:    {run_dir}/logs.{{stdout,stderr}}")
     print(f"  Wait:    ./dev.py bench wait {guid}")
     print(f"  Results available for {BENCH_RETENTION_DAYS} days in {run_dir}/")
@@ -1413,10 +1433,11 @@ def cmd_bench_list():
     for run in runs[:10]:  # Show last 10
         guid = run.get("guid", "???")
         filter_pattern = run.get("filter") or "full suite"
+        data_scenario = run.get("data_dir", "realistic1h")
         started = run.get("started_at", "???")[:19]  # Trim microseconds
         status = "complete" if run["_complete"] else "running"
 
-        print(f"  {guid}  {status:<10}  {filter_pattern:<35}  {started}")
+        print(f"  {guid}  {status:<10}  {data_scenario:<15}  {filter_pattern:<30}  {started}")
 
     if len(runs) > 10:
         print(f"\n  ... and {len(runs) - 10} more (oldest auto-cleaned after {BENCH_RETENTION_DAYS} days)")
@@ -1742,6 +1763,12 @@ Per-worktree isolation:
         action="store_true",
         help="Run all benchmarks",
     )
+    bench_parser.add_argument(
+        "--data",
+        type=str,
+        default=None,
+        help="Benchmark data scenario: realistic1h (default), multipod, container-churn",
+    )
 
     bench_subs = bench_parser.add_subparsers(dest="bench_command")
 
@@ -1794,7 +1821,7 @@ Per-worktree isolation:
             sys.exit(cmd_bench_list())
         else:
             # No subcommand means run benchmark
-            sys.exit(cmd_bench(args.filter, args.full_suite))
+            sys.exit(cmd_bench(args.filter, args.full_suite, args.data))
 
 
 if __name__ == "__main__":
