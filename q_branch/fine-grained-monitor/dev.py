@@ -35,6 +35,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Project root is where this script lives
@@ -45,6 +47,11 @@ LOG_FILE = DEV_DIR / "server.log"
 STATE_FILE = DEV_DIR / "state.json"
 FORWARD_PID_FILE = DEV_DIR / "forward.pid"
 FORWARD_LOG_FILE = DEV_DIR / "forward.log"
+BENCH_DIR = DEV_DIR / "bench"
+
+# Benchmark configuration
+BENCH_DATA_DIR = PROJECT_ROOT / "testdata" / "bench" / "realistic1h"
+BENCH_RETENTION_DAYS = 30
 
 # Default data file (test data in testdata/)
 DEFAULT_DATA = PROJECT_ROOT / "testdata" / "1hr.parquet"
@@ -1124,6 +1131,299 @@ def get_mcp_kubeconfig_path() -> Path:
     return Path.home() / ".kube" / f"mcp-{cluster_name}.kubeconfig"
 
 
+# --- Benchmark commands ---
+
+
+def cleanup_old_bench_runs():
+    """Remove benchmark runs older than BENCH_RETENTION_DAYS."""
+    if not BENCH_DIR.exists():
+        return
+
+    cutoff = datetime.now() - timedelta(days=BENCH_RETENTION_DAYS)
+    removed = 0
+
+    for run_dir in BENCH_DIR.iterdir():
+        if not run_dir.is_dir():
+            continue
+
+        # Check directory mtime
+        try:
+            mtime = datetime.fromtimestamp(run_dir.stat().st_mtime)
+            if mtime < cutoff:
+                # Remove the directory and its contents
+                for f in run_dir.iterdir():
+                    f.unlink()
+                run_dir.rmdir()
+                removed += 1
+        except (OSError, ValueError):
+            continue
+
+    if removed > 0:
+        print(f"Cleaned up {removed} benchmark run(s) older than {BENCH_RETENTION_DAYS} days")
+
+
+def ensure_bench_data() -> bool:
+    """Ensure benchmark data exists, generate if needed. Returns True if data is ready."""
+    if BENCH_DATA_DIR.exists():
+        # Check if there are any parquet files
+        parquet_files = list(BENCH_DATA_DIR.glob("**/*.parquet"))
+        if parquet_files:
+            return True
+
+    print("Benchmark data not found, generating...")
+    print("  This may take a few minutes on first run.\n")
+
+    # Build generate-bench-data binary first
+    result = subprocess.run(
+        ["cargo", "build", "--release", "--bin", "generate-bench-data"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print("Failed to build generate-bench-data:")
+        print(result.stderr)
+        return False
+
+    # Run data generation
+    result = subprocess.run(
+        [
+            str(PROJECT_ROOT / "target" / "release" / "generate-bench-data"),
+            "--scenario",
+            "realistic1h",
+        ],
+        cwd=PROJECT_ROOT,
+    )
+
+    if result.returncode != 0:
+        print("Failed to generate benchmark data")
+        return False
+
+    print("\nBenchmark data generated successfully")
+    return True
+
+
+def get_bench_run_dir(guid: str) -> Path:
+    """Get the directory for a benchmark run."""
+    return BENCH_DIR / guid
+
+
+def get_bench_pid(guid: str) -> int | None:
+    """Get PID of a running benchmark, handling stale PIDs."""
+    run_dir = get_bench_run_dir(guid)
+    pid_file = run_dir / "bench.pid"
+
+    if not pid_file.exists():
+        return None
+
+    try:
+        pid = int(pid_file.read_text().strip())
+    except (ValueError, OSError):
+        return None
+
+    # Verify process is actually running
+    if is_process_running(pid):
+        return pid
+
+    return None
+
+
+def is_bench_complete(guid: str) -> bool:
+    """Check if a benchmark run has completed."""
+    run_dir = get_bench_run_dir(guid)
+
+    # If no pid file, check if results exist
+    pid_file = run_dir / "bench.pid"
+    if not pid_file.exists():
+        # Completed runs have no pid file but have logs
+        return (run_dir / "logs.stdout").exists()
+
+    # If pid file exists, check if process is still running
+    pid = get_bench_pid(guid)
+    return pid is None
+
+
+def cmd_bench(filter_pattern: str | None, full_suite: bool):
+    """Run benchmarks in background."""
+    # Validate args - must specify --filter or --full-suite
+    if filter_pattern is None and not full_suite:
+        print("Error: Must specify benchmark target")
+        print("  ./dev.py bench --filter <benchmark>   # Run specific benchmark")
+        print("  ./dev.py bench --full-suite           # Run all benchmarks")
+        print("\nAvailable benchmarks:")
+        print("  scan_metadata")
+        print("  get_container_stats_cold")
+        print("  get_container_stats_warm")
+        print("  get_timeseries_single_container")
+        print("  get_timeseries_all_containers")
+        print("  load_all_metrics")
+        return 1
+
+    # Clean up old runs
+    cleanup_old_bench_runs()
+
+    # Ensure benchmark data exists
+    if not ensure_bench_data():
+        return 1
+
+    # Generate GUID for this run
+    guid = str(uuid.uuid4())[:8]
+    run_dir = get_bench_run_dir(guid)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build cargo bench command
+    cargo_cmd = ["cargo", "bench"]
+    if filter_pattern:
+        cargo_cmd.extend(["--", filter_pattern])
+
+    # Save run metadata
+    metadata = {
+        "guid": guid,
+        "filter": filter_pattern,
+        "full_suite": full_suite,
+        "started_at": datetime.now().isoformat(),
+        "command": " ".join(cargo_cmd),
+    }
+    (run_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+
+    # Start benchmark in background
+    stdout_file = run_dir / "logs.stdout"
+    stderr_file = run_dir / "logs.stderr"
+
+    env = os.environ.copy()
+    env["BENCH_DATA"] = str(BENCH_DATA_DIR)
+
+    stdout_handle = stdout_file.open("w")
+    stderr_handle = stderr_file.open("w")
+
+    proc = subprocess.Popen(
+        cargo_cmd,
+        stdout=stdout_handle,
+        stderr=stderr_handle,
+        cwd=PROJECT_ROOT,
+        env=env,
+        start_new_session=True,  # Detach from terminal
+    )
+
+    # Write PID file
+    (run_dir / "bench.pid").write_text(str(proc.pid))
+
+    # Print status message
+    print(f"Running benchmark {guid}")
+    print(f"  Filter:  {filter_pattern or 'full suite'}")
+    print(f"  Logs:    {run_dir}/logs.{{stdout,stderr}}")
+    print(f"  Wait:    ./dev.py bench wait {guid}")
+    print(f"  Results available for {BENCH_RETENTION_DAYS} days in {run_dir}/")
+
+    return 0
+
+
+def cmd_bench_wait(guid: str):
+    """Wait for a benchmark to complete and show results."""
+    run_dir = get_bench_run_dir(guid)
+
+    if not run_dir.exists():
+        print(f"Error: Benchmark run '{guid}' not found")
+        print("\nRecent benchmark runs:")
+        cmd_bench_list()
+        return 1
+
+    pid_file = run_dir / "bench.pid"
+    stdout_file = run_dir / "logs.stdout"
+    stderr_file = run_dir / "logs.stderr"
+
+    # Check if already complete
+    if is_bench_complete(guid):
+        print(f"Benchmark {guid} already complete")
+    else:
+        # Wait for completion
+        pid = get_bench_pid(guid)
+        if pid:
+            print(f"Waiting for benchmark {guid} (pid {pid})...")
+            while is_process_running(pid):
+                time.sleep(1)
+
+        # Clean up pid file
+        if pid_file.exists():
+            pid_file.unlink()
+
+        print(f"Benchmark {guid} complete")
+
+    # Show last 50 lines of output
+    print("\n" + "=" * 60)
+    print("Results (last 50 lines of stdout):")
+    print("=" * 60 + "\n")
+
+    if stdout_file.exists():
+        lines = stdout_file.read_text().splitlines()
+        for line in lines[-50:]:
+            print(line)
+    else:
+        print("(no stdout)")
+
+    # Check for errors
+    if stderr_file.exists():
+        stderr_content = stderr_file.read_text().strip()
+        # Filter out common cargo warnings that aren't errors
+        error_lines = [
+            line for line in stderr_content.splitlines() if not line.strip().startswith("warning:") and line.strip()
+        ]
+        if error_lines:
+            print("\n" + "=" * 60)
+            print("Errors (stderr):")
+            print("=" * 60 + "\n")
+            for line in error_lines[-20:]:
+                print(line)
+
+    print(f"\nFull logs: {run_dir}/logs.{{stdout,stderr}}")
+    return 0
+
+
+def cmd_bench_list():
+    """List recent benchmark runs."""
+    if not BENCH_DIR.exists():
+        print("No benchmark runs found")
+        return 0
+
+    runs = []
+    for run_dir in BENCH_DIR.iterdir():
+        if not run_dir.is_dir():
+            continue
+
+        metadata_file = run_dir / "metadata.json"
+        if not metadata_file.exists():
+            continue
+
+        try:
+            metadata = json.loads(metadata_file.read_text())
+            metadata["_dir"] = run_dir
+            metadata["_complete"] = is_bench_complete(metadata["guid"])
+            runs.append(metadata)
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    if not runs:
+        print("No benchmark runs found")
+        return 0
+
+    # Sort by start time, newest first
+    runs.sort(key=lambda r: r.get("started_at", ""), reverse=True)
+
+    print("Recent benchmark runs:\n")
+    for run in runs[:10]:  # Show last 10
+        guid = run.get("guid", "???")
+        filter_pattern = run.get("filter") or "full suite"
+        started = run.get("started_at", "???")[:19]  # Trim microseconds
+        status = "complete" if run["_complete"] else "running"
+
+        print(f"  {guid}  {status:<10}  {filter_pattern:<35}  {started}")
+
+    if len(runs) > 10:
+        print(f"\n  ... and {len(runs) - 10} more (oldest auto-cleaned after {BENCH_RETENTION_DAYS} days)")
+
+    return 0
+
+
 def cmd_cluster_setup_mcp():
     """Setup MCP server integration for this worktree's cluster."""
     cluster_name = get_cluster_name()
@@ -1340,6 +1640,11 @@ Examples:
   ./dev.py cluster list                    # List all fgm-* clusters
   ./dev.py cluster setup-mcp               # Setup MCP server for this worktree's cluster
 
+  ./dev.py bench --filter <name>           # Run specific benchmark in background
+  ./dev.py bench --full-suite              # Run all benchmarks in background
+  ./dev.py bench wait <guid>               # Wait for benchmark and show results
+  ./dev.py bench list                      # List recent benchmark runs
+
 Per-worktree isolation:
   Each worktree gets its own Kind cluster (fgm-<basename>), API port,
   data directory, and docker image tag. Multiple worktrees can run
@@ -1424,6 +1729,29 @@ Per-worktree isolation:
     # cluster setup-mcp
     cluster_subs.add_parser("setup-mcp", help="Setup MCP server integration for this worktree's cluster")
 
+    # --- Bench subcommands ---
+    bench_parser = subparsers.add_parser("bench", help="Benchmark commands")
+    bench_parser.add_argument(
+        "--filter",
+        type=str,
+        default=None,
+        help="Run specific benchmark (e.g., get_timeseries_single_container)",
+    )
+    bench_parser.add_argument(
+        "--full-suite",
+        action="store_true",
+        help="Run all benchmarks",
+    )
+
+    bench_subs = bench_parser.add_subparsers(dest="bench_command")
+
+    # bench wait <guid>
+    bench_wait_parser = bench_subs.add_parser("wait", help="Wait for benchmark to complete and show results")
+    bench_wait_parser.add_argument("guid", type=str, help="Benchmark run GUID")
+
+    # bench list
+    bench_subs.add_parser("list", help="List recent benchmark runs")
+
     args = parser.parse_args()
 
     if args.group == "local":
@@ -1459,6 +1787,14 @@ Per-worktree isolation:
             sys.exit(cmd_cluster_list())
         elif args.command == "setup-mcp":
             sys.exit(cmd_cluster_setup_mcp())
+    elif args.group == "bench":
+        if args.bench_command == "wait":
+            sys.exit(cmd_bench_wait(args.guid))
+        elif args.bench_command == "list":
+            sys.exit(cmd_bench_list())
+        else:
+            # No subcommand means run benchmark
+            sys.exit(cmd_bench(args.filter, args.full_suite))
 
 
 if __name__ == "__main__":
