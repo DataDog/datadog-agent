@@ -74,6 +74,7 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
+    build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
     get_ebpf_build_dir,
@@ -1119,6 +1120,14 @@ def kmt_sysprobe_prepare(
     build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
+
+    info("[+] Building Rust binaries...")
+    build_rust_binaries(
+        ctx,
+        arch=arch,
+        output_dir=kmt_paths.sysprobe_tests,
+        packages=[os.path.relpath(p, os.getcwd()) for p in target_packages],
+    )
 
     info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
