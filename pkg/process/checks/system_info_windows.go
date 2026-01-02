@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/winmem"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )
@@ -22,7 +22,7 @@ import (
 func CollectSystemInfo() (*model.SystemInfo, error) {
 	hi := platform.CollectInfo()
 	cpuInfo := cpu.CollectInfo()
-	mi, err := winutil.VirtualMemory()
+	mi, err := winmem.VirtualMemory()
 	if err != nil {
 		return nil, err
 	}
