@@ -39,11 +39,23 @@ fn get_bench_data_dir() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("testdata/bench/small"))
 }
 
-/// Get all parquet files in the benchmark data directory
+/// Get all parquet files in the benchmark data directory (recursively)
 fn get_parquet_files() -> Vec<PathBuf> {
     let dir = get_bench_data_dir();
-    let pattern = format!("{}/*.parquet", dir.display());
-    glob::glob(&pattern)
+    // Try recursive pattern first (for realistic scenarios with dt=/identifier= structure)
+    let recursive_pattern = format!("{}/**/*.parquet", dir.display());
+    let files: Vec<PathBuf> = glob::glob(&recursive_pattern)
+        .expect("Failed to read glob pattern")
+        .filter_map(Result::ok)
+        .collect();
+
+    if !files.is_empty() {
+        return files;
+    }
+
+    // Fall back to flat pattern for legacy scenarios
+    let flat_pattern = format!("{}/*.parquet", dir.display());
+    glob::glob(&flat_pattern)
         .expect("Failed to read glob pattern")
         .filter_map(Result::ok)
         .collect()
