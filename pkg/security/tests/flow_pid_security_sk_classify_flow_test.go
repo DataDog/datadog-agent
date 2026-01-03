@@ -5820,6 +5820,37 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			// We are in non docker tests
 			tcpPid = uint32(tempTCPPid)
 			udpPid = uint32(tempUDPPid)
+			var discoveredPIDs []uint32
+			procDir := "/proc"
+			entries, err := os.ReadDir(procDir)
+			fmt.Printf("Entries are %v\n", entries)
+			if err != nil {
+				t.Logf("failed to read %s: %v", procDir, err)
+			} else {
+				for _, entry := range entries {
+					if !entry.IsDir() {
+						continue
+					}
+					pidInt, err := strconv.Atoi(entry.Name())
+					if err != nil {
+						continue
+					}
+					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					cmdlinePath := filepath.Join(procDir, entry.Name(), "cmdline")
+					data, err := os.ReadFile(commPath)
+					data2, err := os.ReadFile(cmdlinePath)
+					if err != nil {
+						continue
+					}
+					if strings.Contains(string(data), "syscall_tester") {
+						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+						fmt.Printf("Found syscall_tester pid %d: %s\n", uint32(pidInt), data2)
+					}
+				}
+			}
+			if len(discoveredPIDs) != 2 {
+				t.Logf("expected 2 syscall_tester processes, found %d: %v", len(discoveredPIDs), discoveredPIDs)
+			}
 		} else {
 			// We might be in docker tests
 			// Discover syscall_tester processes from /host/proc
@@ -5839,12 +5870,15 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 						continue
 					}
 					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					cmdlinePath := filepath.Join(procDir, entry.Name(), "cmdline")
 					data, err := os.ReadFile(commPath)
+					data2, err := os.ReadFile(cmdlinePath)
 					if err != nil {
 						continue
 					}
 					if strings.Contains(string(data), "syscall_tester") {
 						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+						fmt.Printf("Found syscall_tester pid %d: %s\n", uint32(pidInt), data2)
 					}
 				}
 			}

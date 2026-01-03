@@ -183,9 +183,13 @@ int ptrace_traceme() {
     if (child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         raise(SIGSTOP);
+        // Child process exits after being continued
+        _exit(0);
     } else {
         wait(NULL);
         ptrace(PTRACE_CONT, child, 42, NULL);
+        // Wait for child to exit
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -194,10 +198,15 @@ int ptrace_attach() {
     int child = fork();
     if (child == 0) {
         sleep(3);
+        _exit(0);
     } else {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+        // Detach and terminate child process
+        ptrace(PTRACE_DETACH, child, 0, NULL);
+        kill(child, SIGTERM);
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -1778,106 +1787,189 @@ int main(int argc, char **argv) {
                 break;
             }
         }
+        // Write in log file the command and the PID (container + host if in namespace)
+        FILE *log_file = fopen("/tmp/syscall_tester.log", "a");
+        if (log_file != NULL) {
+            pid_t container_pid = getpid();
+            pid_t host_pid = 0;
+            
+            // Read /proc/self/status to get host PID if in a namespace
+            FILE *status = fopen("/proc/self/status", "r");
+            if (status) {
+                char line[256];
+                while (fgets(line, sizeof(line), status)) {
+                    if (strncmp(line, "NSpid:", 6) == 0) {
+                        // NSpid format: "NSpid:\t<host_pid>\t<container_pid>"
+                        char *token = strtok(line + 6, "\t ");
+                        if (token) {
+                            pid_t first_pid = atoi(token);
+                            token = strtok(NULL, "\t\n ");
+                            if (token) {
+                                // Multiple PIDs means we're in a namespace
+                                host_pid = first_pid;
+                                container_pid = atoi(token);
+                            }
+                        }
+                        break;
+                    }
+                }
+                fclose(status);
+            }
+            
+            if (host_pid > 0) {
+                fprintf(log_file, "Cmd: %s | Container PID: %d | Host PID: %d\n", cmd, container_pid, host_pid);
+            } else {
+                fprintf(log_file, "Cmd: %s | PID: %d (no namespace)\n", cmd, container_pid);
+            }
+            fclose(log_file);
+        }
 
         int sub_argc = last_arg - i;
         char **sub_argv = argv + i;
         int exit_code = 0;
 
         if (strcmp(cmd, "check") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = EXIT_SUCCESS;
         } else if (strcmp(cmd, "span-exec") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = span_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "ptrace-traceme") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = ptrace_attach();
         } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = setrlimit_nofile();
         } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = setrlimit_nproc();
         } else if (strcmp(cmd, "prlimit64-stack") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = prlimit64_stack();
         } else if (strcmp(cmd, "setrlimit-core") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = setrlimit_core();
         } else if (strcmp(cmd, "span-open") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_pipe_chown();
         } else if (strcmp(cmd, "signal") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_signal(sub_argc, sub_argv);
         } else if (strcmp(cmd, "splice") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_splice();
         } else if (strcmp(cmd, "mkdirat") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_mkdirat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "mkdirat-error") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_mkdirat_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-credentials") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_process_set(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "accept") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_accept(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_bind(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_set_signal_handler(sub_argc, sub_argv);
         } else if (strcmp(cmd, "wait-signal") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_wait_signal(sub_argc, sub_argv);
         } else if (strcmp(cmd, "setregid") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_setregid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "setreuid") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_setreuid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "getchar") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_getchar(sub_argc, sub_argv);
         } else if (strcmp(cmd, "open") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_unlink(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_chmod(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chown") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_chown(sub_argc, sub_argv);
         } else if (strcmp(cmd, "rename") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_rename(sub_argc, sub_argv);
         } else if (strcmp(cmd, "utimes") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_utimes(sub_argc, sub_argv);
         } else if (strcmp(cmd, "link") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_link(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind-and-listen") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_bind_and_listen(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect-and-send") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_chroot(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_pause(sub_argc, sub_argv);
         } else if (strcmp(cmd, "prctl-setname") == 0) {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             exit_code = test_prctl_setname(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
         } else {
+            printf("Cmd : %s running with PID %d\n", cmd, getpid());
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
         }
