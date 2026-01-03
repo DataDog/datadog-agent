@@ -80,6 +80,9 @@ type Meta struct {
 
 	// HostAliases are other available host names
 	HostAliases []string `json:"host_aliases,omitempty"`
+
+	// CCRID
+	CanonicalCloudResourceID string `json:"ccrid,omitempty"`
 }
 
 // NewEmpty creates a new HostMetadata with empty fields.
