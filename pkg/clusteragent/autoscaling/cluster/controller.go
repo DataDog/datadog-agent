@@ -138,8 +138,9 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	defer c.store.Unlock(name)
 
 	// Get Target NodePool from Lister if needed
-	targetNp := &karpenterv1.NodePool{}
+	var targetNp *karpenterv1.NodePool
 	if npi.TargetName() != "" {
+		targetNp = &karpenterv1.NodePool{}
 		targetNpUnstr, err := c.Lister.Get(npi.TargetName())
 		if err != nil {
 			log.Errorf("Error retrieving Target NodePool: %v", err)
@@ -197,6 +198,7 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 	// Create replica of original NodePool if TargetName exists; otherwise use NodePoolInternal to create a NodePool
 	if knp != nil {
+		log.Debugf("Building replica of NodePool: %s", npi.Name())
 		model.BuildReplicaNodePool(knp, npi)
 	} else {
 		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
