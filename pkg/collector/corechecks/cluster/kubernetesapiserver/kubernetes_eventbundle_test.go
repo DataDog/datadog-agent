@@ -8,6 +8,7 @@ package kubernetesapiserver
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,6 +252,40 @@ func TestEventsTagging(t *testing.T) {
 			got, err := bundle.formatEvents(taggerfxmock.SetupFakeTagger(t))
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
+		})
+	}
+}
+
+func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
+	tests := []struct {
+		name               string
+		events             []*v1.Event
+		expectedEventsFits []bool
+	}{
+		{
+			name:               "event text length does not exceed the maximum allowed length",
+			events:             []*v1.Event{createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600)},
+			expectedEventsFits: []bool{true},
+		},
+		{
+			name: "event text length exceeds the maximum allowed length",
+			events: []*v1.Event{
+				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600),
+				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", strings.Repeat("a", maxEstimatedEventTextLength), "Normal", 709662600),
+			},
+			expectedEventsFits: []bool{true, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, len(tt.events), len(tt.expectedEventsFits))
+
+			bundle := newKubernetesEventBundler("", tt.events[0])
+			for i, ev := range tt.events {
+				_, fits := bundle.fitsEvent(ev)
+				assert.Equal(t, tt.expectedEventsFits[i], fits)
+			}
 		})
 	}
 }
