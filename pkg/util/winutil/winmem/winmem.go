@@ -132,9 +132,9 @@ type enumPageFileInformation struct {
 func VirtualMemory() (*VirtualMemoryStat, error) {
 	var memInfo memoryStatusEx
 	memInfo.cbSize = uint32(unsafe.Sizeof(memInfo))
-	mem, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
+	mem, _, e := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
 	if mem == 0 {
-		return nil, windows.GetLastError()
+		return nil, e
 	}
 
 	ret := &VirtualMemoryStat{
@@ -151,9 +151,9 @@ func VirtualMemory() (*VirtualMemoryStat, error) {
 func PagefileMemory() (*PagefileStat, error) {
 	var memInfo memoryStatusEx
 	memInfo.cbSize = uint32(unsafe.Sizeof(memInfo))
-	mem, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
+	mem, _, e := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
 	if mem == 0 {
-		return nil, windows.GetLastError()
+		return nil, e
 	}
 	total := memInfo.ullTotalPageFile
 	free := memInfo.ullAvailPageFile
@@ -267,10 +267,9 @@ func EnumPageFilesW(pageSize uint64) ([]*PagingFileStat, error) {
 	handle := cgo.NewHandle(ctx)
 	defer handle.Delete()
 
-	result := C.enumPageFilesWithHandle(C.GoHandle(handle))
-
-	if result == 0 {
-		return nil, fmt.Errorf("Failed to enumerate Page Files: %w", windows.GetLastError())
+	ret := windows.Errno(C.enumPageFilesWithHandle(C.GoHandle(handle)))
+	if ret != windows.ERROR_SUCCESS {
+		return nil, fmt.Errorf("failed to enumerate Page Files: %w", ret)
 	}
 
 	return ctx.PageFiles, nil
