@@ -130,8 +130,23 @@ try {
 	}
 	adCtx.createdResources = append(adCtx.createdResources, waitForRebootCmd)
 
+	// Wait for service to enter running state, then wait for it to respond successfully to the Get-ADDomain command.
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
-		Create: pulumi.String(`(Get-Service ADWS).WaitForStatus('Running', '00:01:00')`),
+		Create: pulumi.String(`
+(Get-Service ADWS).WaitForStatus('Running', '00:01:00')
+$timeout = [DateTime]::Now.AddMinutes(5)
+while ([DateTime]::Now -lt $timeout) {
+    try {
+        Get-ADDomain
+        break
+    } catch {
+        Start-Sleep -Seconds 5
+    }
+}
+if ([DateTime]::Now -ge $timeout) {
+    throw "Get-ADDomain timed out"
+}
+`),
 	}, utils.PulumiDependsOn(waitForRebootCmd))
 	if err != nil {
 		return err
