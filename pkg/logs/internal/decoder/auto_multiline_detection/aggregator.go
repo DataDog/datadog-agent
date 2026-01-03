@@ -14,7 +14,7 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-type bucket struct {
+type combiningBucket struct {
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
 	maxContentSize   int
@@ -27,7 +27,7 @@ type bucket struct {
 	needsTruncation bool
 }
 
-func (b *bucket) add(msg *message.Message) {
+func (b *combiningBucket) add(msg *message.Message) {
 	if b.message == nil {
 		b.message = msg
 	}
@@ -39,11 +39,11 @@ func (b *bucket) add(msg *message.Message) {
 	b.lineCount++
 }
 
-func (b *bucket) isEmpty() bool {
+func (b *combiningBucket) isEmpty() bool {
 	return b.originalDataLen == 0
 }
 
-func (b *bucket) reset() {
+func (b *combiningBucket) reset() {
 	b.buffer.Reset()
 	b.message = nil
 	b.lineCount = 0
@@ -51,7 +51,7 @@ func (b *bucket) reset() {
 	b.needsTruncation = false
 }
 
-func (b *bucket) flush() *message.Message {
+func (b *combiningBucket) flush() *message.Message {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -103,10 +103,26 @@ func (b *bucket) flush() *message.Message {
 	return msg
 }
 
+func (b *combiningBucket) setShouldTruncate(val bool) {
+	b.shouldTruncate = val
+}
+
+func (b *combiningBucket) setNeedsTruncation(val bool) {
+	b.needsTruncation = val
+}
+
+func (b *combiningBucket) getBufferLen() int {
+	return b.buffer.Len()
+}
+
+func (b *combiningBucket) incrementLineCount() {
+	b.lineCount++
+}
+
 // Aggregator aggregates multiline logs with a given label.
 type Aggregator struct {
 	outputFn           func(m *message.Message)
-	bucket             *bucket
+	bucket             *combiningBucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
@@ -120,8 +136,16 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 	tailerInfo.Register(linesCombinedInfo)
 
 	return &Aggregator{
-		outputFn:           outputFn,
-		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false, needsTruncation: false},
+		outputFn: outputFn,
+		bucket: &combiningBucket{
+			buffer:           bytes.NewBuffer(nil),
+			tagTruncatedLogs: tagTruncatedLogs,
+			tagMultiLineLogs: tagMultiLineLogs,
+			maxContentSize:   maxContentSize,
+			lineCount:        0,
+			shouldTruncate:   false,
+			needsTruncation:  false,
+		},
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
@@ -130,11 +154,10 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 
 // Aggregate aggregates a multiline log using a label.
 func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
-
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
-		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
+		a.bucket.setShouldTruncate(false) // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
 		a.bucket.add(msg)
 		a.Flush()
 		return
@@ -164,12 +187,12 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// following a smaller than max-size start group label, and will result in the reset (flush) of the entire bucket.
 	// This reset will intentionally break multi-line detection and aggregation for logs larger than the limit, because
 	// doing so is safer than assuming we will correctly get a new startGroup for subsequent single line logs.
-	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
-		a.bucket.needsTruncation = true
-		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
+	if msg.RawDataLen+a.bucket.getBufferLen() >= a.maxContentSize {
+		a.bucket.setNeedsTruncation(true)
+		a.bucket.incrementLineCount() // Account for the current (not yet processed) message being part of the same log
 		a.Flush()
 
-		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
+		a.bucket.incrementLineCount() // Account for the previous (now flushed) message being part of the same log
 		a.bucket.add(msg)
 		a.Flush()
 		return
