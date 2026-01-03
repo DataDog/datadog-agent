@@ -1,0 +1,12 @@
+[
+  {
+    "products": [
+      "metrics"
+    ],
+    "rules": {
+      "containers": [
+        "container.nonexistent_field == \"value\""
+      ]
+    }
+  }
+]
