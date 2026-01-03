@@ -21,7 +21,7 @@ jobs:
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
-          policy: self.update-dependencies.create-pr
+          policy: self.upgrade-python-version.create-pr
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
