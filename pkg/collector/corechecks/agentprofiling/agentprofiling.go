@@ -10,6 +10,7 @@ package agentprofiling
 import (
 	"fmt"
 	"os"
+	"testing"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
@@ -39,10 +41,11 @@ const (
 
 // Config is the configuration for the agentprofiling check
 type Config struct {
-	MemoryThreshold string `yaml:"memory_threshold"`
-	CPUThreshold    int    `yaml:"cpu_threshold"`
-	TicketID        string `yaml:"ticket_id"`
-	UserEmail       string `yaml:"user_email"`
+	MemoryThreshold           string `yaml:"memory_threshold"`
+	CPUThreshold              int    `yaml:"cpu_threshold"`
+	TicketID                  string `yaml:"ticket_id"`
+	UserEmail                 string `yaml:"user_email"`
+	TerminateAgentOnThreshold bool   `yaml:"terminate_agent_on_threshold"`
 }
 
 // Check is the check that generates a flare with profiles when the core agent's memory or CPU usage exceeds a certain threshold
@@ -192,6 +195,31 @@ func (m *Check) Run() error {
 	return nil
 }
 
+// terminateAgent requests graceful shutdown of the agent process after flare generation completes.
+// It uses the agent's established shutdown mechanism (signals.Stopper) which ensures proper cleanup
+// via stopAgent(). Termination is skipped when running in test mode to avoid killing the test process.
+func (m *Check) terminateAgent() {
+	// Skip termination when running in test mode
+	if testing.Testing() {
+		log.Info("Skipping agent termination: running in test mode")
+		return
+	}
+
+	log.Warnf("Terminating agent process due to threshold exceeded (terminate_agent_on_threshold is enabled)")
+
+	// Flush logs to ensure termination message is written before triggering shutdown
+	log.Flush()
+
+	// Use the agent's established shutdown mechanism to trigger graceful shutdown.
+	// This ensures all cleanup happens properly via stopAgent() in command.go.
+	// The channel is unbuffered, but since the agent's run() function sets up a listener
+	// before starting the agent, this is safe. If the channel is not being listened to
+	// (e.g., in tests), this will block, but we've already checked for test mode above.
+	signals.Stopper <- true
+	log.Info("Agent Profiling check: Graceful shutdown requested. Agent will exit after cleanup.")
+	log.Flush()
+}
+
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
 func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
@@ -231,6 +259,11 @@ func (m *Check) generateFlare() error {
 	// Mark flare as generated to stop future runs
 	m.flareGenerated = true
 	log.Info("Flare generation complete. No more flares will be generated until the Agent is restarted.")
+
+	// Terminate agent if configured to do so
+	if m.instance.TerminateAgentOnThreshold {
+		m.terminateAgent()
+	}
 
 	return nil
 }
