@@ -74,9 +74,9 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kube
 			versions from the mirror - although it should be noted the sha is required. So sometimes the version is
 			just the tag, and sometimes it's the tag with the sha.
 		*/
-		kindVersionConfig, err := GetKindVersionConfig(kubeVersion)
+		kindVersionConfig, err := GetKindVersionConfig(env, kubeVersion)
 		if err != nil {
-			log.Printf("[WARN] Could not find version %s in our static map, using default kind version and the provided k8s version as node image", kubeVersion)
+			log.Printf("[WARN] Could not find version %s in our static map, error: %s\n using default kind version and the provided k8s version as node image", kubeVersion, err)
 
 			// Validate the kubeVersion format when not in static map
 			if err := validateKubeVersionFormat(kubeVersion); err != nil {
@@ -156,7 +156,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
 		commonEnvironment := env
 
-		kindVersionConfig, err := GetKindVersionConfig(kubeVersion)
+		kindVersionConfig, err := GetKindVersionConfig(env, kubeVersion)
 		if err != nil {
 			return err
 		}

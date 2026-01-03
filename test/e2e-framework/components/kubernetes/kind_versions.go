@@ -6,9 +6,12 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/Masterminds/semver"
 )
 
@@ -92,26 +95,67 @@ var kubeToKindVersion = map[string]KindConfig{
 }
 
 // GetKindVersionConfig returns the kind version and the kind node image to use based on kubernetes version
-func GetKindVersionConfig(kubeVersion string) (*KindConfig, error) {
+func GetKindVersionConfig(env config.Env, kubeVersion string) (*KindConfig, error) {
 	kubeSemVer, err := semver.NewVersion(kubeVersion)
 	if err != nil {
 		return nil, err
 	}
 
+	// search in our old map first
 	kindVersionConfig, found := kubeToKindVersion[fmt.Sprintf("%d.%d", kubeSemVer.Major(), kubeSemVer.Minor())]
-	if !found {
-		return nil, fmt.Errorf("unsupported kubernetes version. Supported versions are %s", strings.Join(kubeSupportedVersions(), ", "))
+	if found {
+		return &kindVersionConfig, nil
 	}
 
-	return &kindVersionConfig, nil
+	// if not found, search k8s_versions.json that stores new versions
+	foundKubeVersion, err := parseKubeVersionFromJSON(kubeSemVer)
+	if err != nil {
+		return nil, err
+	}
+
+	// return kind config with default kind version and the found kube version
+	return &KindConfig{
+		NodeImageVersion: foundKubeVersion,
+		KindVersion:      env.KindVersion(),
+	}, nil
+}
+
+// parseKubeVersionFromJSON parses the kube version from the file k8s_versions.json that dinamically stores supported versions
+func parseKubeVersionFromJSON(kubeSemVer *semver.Version) (string, error) {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(pwd + "/../../../../k8s_versions.json")
+	if err != nil {
+		return "", err
+	}
+
+	var kubeVersions map[string]struct{}
+	if err := json.Unmarshal(data, &kubeVersions); err != nil {
+		return "", err
+	}
+
+	// mind the extra "v" prefix in the keys of the JSON file
+	newKubeVersion := "v" + kubeSemVer.String()
+	_, found := kubeVersions[newKubeVersion]
+	if !found {
+		return "", fmt.Errorf("unsupported kubernetes version. Supported versions are %s", strings.Join(kubeSupportedVersions(kubeVersions), ", "))
+	}
+
+	return newKubeVersion, nil
 }
 
 // kubeSupportedVersions returns a comma-separated list of supported kubernetes versions
-func kubeSupportedVersions() []string {
-	versions := make([]string, 0, len(kubeToKindVersion))
+func kubeSupportedVersions(newKubeVersionsDynamic map[string]struct{}) []string {
+	versions := make([]string, 0, len(kubeToKindVersion)+len(newKubeVersionsDynamic))
 
 	for kubeVersion := range kubeToKindVersion {
 		versions = append(versions, kubeVersion)
+	}
+
+	for kubeVersion := range newKubeVersionsDynamic {
+		versions = append(versions, strings.TrimPrefix(kubeVersion, "v"))
 	}
 
 	return versions
