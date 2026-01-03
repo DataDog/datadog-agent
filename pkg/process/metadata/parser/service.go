@@ -159,7 +159,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	cmdOrig := cmd
 	envs, cmd := extractEnvsFromCommand(cmd)
 	if len(envs) > 0 { // evaluate and skip the envs
-		svc, ok := chooseServiceNameFromEnvs(envs)
+		svc, ok := ChooseServiceNameFromEnvs(envs)
 		if ok {
 			return &serviceMetadata{
 				cmdline:        cmdOrig,
@@ -258,9 +258,9 @@ func extractEnvsFromCommand(cmd []string) ([]string, []string) {
 	return cmd[:pos], cmd[pos:]
 }
 
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// ChooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+func ChooseServiceNameFromEnvs(envs []string) (string, bool) {
 	for _, env := range envs {
 		if strings.HasPrefix(env, "DD_SERVICE=") {
 			svc := strings.TrimPrefix(env, "DD_SERVICE=")
