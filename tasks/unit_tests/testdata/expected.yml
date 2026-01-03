@@ -71,7 +71,7 @@
     compare_to: main
     paths:
     - omnibus/**/*
-    - .gitlab-ci.yml
+    - .gitlab/pipeline.yml
 .on_rc_or_e2e_changes_or_manual:
 - !reference [.on_e2e_main_release_or_rc, .on_container_or_e2e_changes_or_manual]
 - changes:

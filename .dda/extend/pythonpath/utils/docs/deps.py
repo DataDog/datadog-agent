@@ -19,4 +19,7 @@ DEPENDENCIES = (
     "pygments~=2.19.1",
     # Validation
     "linkchecker~=10.5.0",
+    # JSON schema
+    "jsonschema-markdown",
+    "msgspec",
 )
