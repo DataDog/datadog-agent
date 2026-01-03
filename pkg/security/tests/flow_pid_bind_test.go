@@ -880,7 +880,7 @@ func TestMultipleProtocols(t *testing.T) {
 		//  --- TCP BIND ---
 		var tempTCPPid int
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			go func() {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -937,12 +937,12 @@ func TestMultipleProtocols(t *testing.T) {
 			}()
 			return nil
 		}, func(_ *model.Event, _ *rules.Rule) {
-		})
+		}, "bind_multiple_tcp")
 
 		// --- UDP BIND ---
 		var tempUDPPid int
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			go func() {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -999,7 +999,7 @@ func TestMultipleProtocols(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, _ *rules.Rule) {
 
-		})
+		}, "bind_multiple_udp")
 
 		//  --- TEST ---
 		// Wait for both TCP and UDP bind to be ready

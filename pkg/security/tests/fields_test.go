@@ -41,7 +41,7 @@ func TestFieldsResolver(t *testing.T) {
 	defer test.Close()
 
 	t.Run("open", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, err = test.Create("test-fields")
 			return err
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -56,7 +56,7 @@ func TestFieldsResolver(t *testing.T) {
 	t.Run("exec", func(t *testing.T) {
 		lsExecutable := which(t, "ls")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(lsExecutable, "test-fields")
 			_ = cmd.Run()
 			return nil
@@ -70,7 +70,7 @@ func TestFieldsResolver(t *testing.T) {
 	})
 
 	t.Run("extension", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, err = test.Create("test-fields.txt")
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {

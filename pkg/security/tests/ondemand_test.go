@@ -46,7 +46,7 @@ func TestOnDemandOpen(t *testing.T) {
 	}
 	defer os.Remove(testFile)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		openHow := unix.OpenHow{
 			Flags: unix.O_RDONLY,
 			Mode:  expectedMode,
@@ -93,7 +93,7 @@ func TestOnDemandChdir(t *testing.T) {
 	}
 	defer os.RemoveAll(testFolder)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		return os.Chdir(testFolder)
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
@@ -119,7 +119,7 @@ func TestOnDemandMprotect(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		var data []byte
 		data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
@@ -162,7 +162,7 @@ func TestOnDemandCopyFileRange(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		_, err := unix.CopyFileRange(int(f.Fd()), nil, int(f.Fd()), nil, 42, 0)
 		if errors.Is(err, unix.ENOSYS) {
 			return ErrSkipTest{"openat2 is not supported"}

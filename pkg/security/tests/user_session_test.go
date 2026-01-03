@@ -58,7 +58,7 @@ func TestK8SUserSession(t *testing.T) {
 			args = []string{"-k8s-user-session", "-user-session-executable", executable, "-user-session-open-path", testFile}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			out, err := cmd.CombinedOutput()
 			if err != nil {

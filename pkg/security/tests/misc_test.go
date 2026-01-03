@@ -46,7 +46,7 @@ func TestOsOrigin(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-origin")
 		if err != nil {
 			return err
@@ -54,7 +54,7 @@ func TestOsOrigin(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_origin")
-	})
+	}, "test_origin")
 }
 
 func TestHostname(t *testing.T) {
@@ -78,7 +78,7 @@ func TestHostname(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-hostname")
 		if err != nil {
 			return err
@@ -86,5 +86,5 @@ func TestHostname(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_hostname")
-	})
+	}, "test_hostname")
 }

@@ -155,7 +155,7 @@ func TestUserGroup(t *testing.T) {
 			for _, testCommand := range distroTest.testCommands {
 				i := 0
 
-				test.WaitSignals(t, func() error {
+				test.WaitSignalFromRules(t, func() error {
 					out, err := dockerWrapper.Command(testCommand.cmd[0], testCommand.cmd[1:], nil).CombinedOutput()
 					if err != nil {
 						t.Log(string(out))

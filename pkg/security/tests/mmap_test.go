@@ -42,7 +42,7 @@ func TestMMapEvent(t *testing.T) {
 	}
 
 	t.Run("mmap", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
 			if err != nil {
 				return fmt.Errorf("couldn't memory segment: %w", err)
@@ -62,7 +62,7 @@ func TestMMapEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMMapSchema(t, event)
-		})
+		}, "test_mmap")
 	})
 }
 
@@ -87,7 +87,7 @@ func TestMMapApproverZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_NONE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
 			return fmt.Errorf("couldn't memory segment: %w", err)
@@ -107,5 +107,5 @@ func TestMMapApproverZero(t *testing.T) {
 		assertFieldEqual(t, event, "process.file.path", executable)
 
 		test.validateMMapSchema(t, event)
-	})
+	}, "test_mmap")
 }

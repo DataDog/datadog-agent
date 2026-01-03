@@ -34,7 +34,7 @@ func TestVariableAnyField(t *testing.T) {
 
 	var filename1 string
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		filename1, _, err = test.Create("test-open")
 		return err
 	}, func(_ *model.Event, rule *rules.Rule) {

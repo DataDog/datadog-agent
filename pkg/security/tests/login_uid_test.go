@@ -62,7 +62,7 @@ func TestLoginUID(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("open", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			args := []string{
 				"-login-uid-test",
 				"-login-uid-event-type", "open",
@@ -76,11 +76,11 @@ func TestLoginUID(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, "auid_open", rule.ID, "wrong rule triggered")
-		})
+		}, "auid_open")
 	})
 
 	t.Run("exec", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			args := []string{
 				"-login-uid-test",
 				"-login-uid-event-type", "exec",
@@ -99,6 +99,6 @@ func TestLoginUID(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, "auid_exec", rule.ID, "wrong rule triggered")
-		})
+		}, "auid_exec")
 	})
 }

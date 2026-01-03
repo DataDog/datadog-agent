@@ -58,7 +58,7 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
 				return error(errno)
 			}
@@ -72,7 +72,7 @@ func TestRmdir(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testDir)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
 				return error(err)
 			}
@@ -102,7 +102,7 @@ func TestRmdir(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestRmdir(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -165,7 +165,7 @@ func TestRmdir(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 	})
 }
 
@@ -194,7 +194,7 @@ func TestRmdirInvalidate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			test.WaitSignal(t, func() error {
+			test.WaitSignalFromRule(t, func() error {
 				if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
 					return error(errno)
 				}
@@ -202,7 +202,7 @@ func TestRmdirInvalidate(t *testing.T) {
 			}, func(event *model.Event, _ *rules.Rule) {
 				assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 				assertFieldEqual(t, event, "rmdir.file.path", testFile)
-			})
+			}, "test_rule")
 		}
 	})
 }
