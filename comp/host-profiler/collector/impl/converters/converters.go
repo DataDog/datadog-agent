@@ -9,56 +9,34 @@
 package converters
 
 import (
-	"context"
+	"slices"
 
-	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/component"
 )
 
-// NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
-func NewFactoryWithoutAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithoutAgent)
-}
+const (
+	// Header keys
+	ddAPIKey = "dd-api-key"
+)
 
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
-}
+var (
+	// Component IDs
+	hostprofilerID      = component.MustNewID("hostprofiler")
+	otlpReceiverID      = component.MustNewID("otlp")
+	otlpHTTPExporterID  = component.MustNewID("otlphttp")
+	infraattributesID   = component.MustNewIDWithName("infraattributes", "default")
+	resourcedetectionID = component.MustNewID("resourcedetection")
+	ddprofilingID       = component.MustNewIDWithName("ddprofiling", "default")
+	hpflareID           = component.MustNewIDWithName("hpflare", "default")
 
-type converterWithoutAgent struct{}
+	// Component Types
+	infraattributesType   = component.MustNewType("infraattributes")
+	resourcedetectionType = component.MustNewType("resourcedetection")
+)
 
-func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithoutAgent{}
-}
-
-type converterWithAgent struct{}
-
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithAgent{}
-}
-
-func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeResourceDetectionProcessor(confStringMap); err != nil {
-		return err
-	}
-
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
-}
-
-func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeInfraAttributesProcessor(confStringMap); err != nil {
-		return err
-	}
-	if err := removeDDProfilingExtension(confStringMap); err != nil {
-		return err
-	}
-	if err := removeHpFlareExtension(confStringMap); err != nil {
-		return err
-	}
-
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
-
+// hasProcessorType returns true if the processors list contains a processor of the given type.
+func hasProcessorType(processors []component.ID, processorType component.Type) bool {
+	return slices.ContainsFunc(processors, func(comp component.ID) bool {
+		return comp.Type() == processorType
+	})
 }
