@@ -2480,6 +2480,8 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 	return fields
 }
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
