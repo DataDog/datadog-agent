@@ -404,17 +404,32 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 
 // shouldResolvedSecret limit which secrets can be access by which containers when running on k8s.
 //
-// We enforce 3 type of limitation (each giving different level of control to the user). Those limitation are only
-// active, for now, when using the `k8s_secret@namespace/secret-name/key` notation.
+// We enforce 3 type of limitation (each giving different level of control to the user). These limitations
+// are active when using either:
+// `k8s_secret@namespace/secret-name/key`
+// `namespace/secret-name;key` (for datadog-secret-backend)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
 // - secret_allowed_k8s_namespace: containers can only access secrets from a set of namespaces
-// - secrets in your configuration: user provide a mapping specifying which image can access which secrets
+// - secret_image_to_handle: user provided mapping specifying which image can access which secrets
 func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imageName string, kubeNamespace string) bool {
-	if secretName, found := strings.CutPrefix(handle, "k8s_secret@"); found && kubeNamespace != "" {
-		secretNamespace := strings.Split(secretName, "/")[0]
+	var secretNamespace string
 
+	// format: k8s_secret@namespace/secret-name/key
+	if secretName, found := strings.CutPrefix(handle, "k8s_secret@"); found && kubeNamespace != "" {
+		secretNamespace = strings.Split(secretName, "/")[0]
+	}
+
+	// format: namespace/secret-name;key
+	if secretNamespace == "" && kubeNamespace != "" {
+		if parts := strings.SplitN(handle, ";", 2); len(parts) == 2 {
+			secretNamespace = strings.SplitN(parts[0], "/", 2)[0]
+		}
+	}
+
+	// apply restrictions if namespace was extracted from either format
+	if secretNamespace != "" && kubeNamespace != "" {
 		if r.scopeIntegrationToNamespace && kubeNamespace != secretNamespace {
 			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from k8s namespace '%s' can't access secrets from other namespaces as per 'secret_scope_integration_to_their_k8s_namespace'",
 				handle, origin, imageName, kubeNamespace)
