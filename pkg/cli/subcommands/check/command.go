@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -637,7 +638,7 @@ func run(
 }
 
 func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
-	s := stats.NewStats(c)
+	s := stats.NewStats(c, healthplatformmock.Mock(nil))
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {
