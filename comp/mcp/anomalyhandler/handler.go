@@ -151,7 +151,7 @@ func (h *anomalyHandler) OnAnomaly(anom anomaly.Anomaly) {
 	defer h.mu.Unlock()
 
 	h.logger.Warnf(
-		"[MCP HANDLER] Anomaly detected: %s (type: %s, value: %.2f, baseline: %.2f, severity: %.2f)",
+		"[MCP Anomaly Handler] Anomaly detected: %s (type: %s, value: %.2f, baseline: %.2f, severity: %.2f)",
 		anom.MetricName,
 		anom.Type,
 		anom.Value,

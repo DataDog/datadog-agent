@@ -21,10 +21,13 @@ func (a *aiAgent) think(
 	issue Issue,
 	history []AgentStep,
 	tools []*mcp.Tool,
+	currentStep int,
+	maxSteps int,
+	conversationID string,
 ) AgentStep {
 	// Require Claude - if not configured, return error
 	if a.claudeClient == nil {
-		a.logger.Error("Claude client not configured")
+		a.logger.Errorf("[MCP AI Agent][%s] Claude client not configured", conversationID)
 		return AgentStep{
 			Type:    "error",
 			Content: "AI agent requires Anthropic API key to be configured",
@@ -36,10 +39,12 @@ func (a *aiAgent) think(
 	userPrompt := a.buildUserPrompt(
 		issue,
 		history,
+		currentStep,
+		maxSteps,
 	)
-	claudeTools := a.convertMCPToolsToClaudeTools(tools)
+	claudeTools := a.convertMCPToolsToClaudeTools(tools, conversationID)
 
-	a.logger.Debugf("Asking Claude to think about the problem")
+	a.logger.Debugf("[MCP AI Agent][%s] Asking Claude to think about the problem", conversationID)
 
 	// Call Claude with tools
 	mcpConf := a.config.Get()
@@ -63,7 +68,8 @@ func (a *aiAgent) think(
 
 	if err != nil {
 		a.logger.Errorf(
-			"Failed to get Claude response: %v",
+			"[MCP AI Agent][%s] Failed to get Claude response: %v",
+			conversationID,
 			err,
 		)
 		return AgentStep{
@@ -77,7 +83,7 @@ func (a *aiAgent) think(
 
 	// Parse Claude's response
 	if len(response.Content) == 0 {
-		a.logger.Error("Claude returned empty response")
+		a.logger.Errorf("[MCP AI Agent][%s] Claude returned empty response", conversationID)
 		return AgentStep{
 			Type:    "error",
 			Content: "Claude returned empty response",
@@ -85,7 +91,7 @@ func (a *aiAgent) think(
 	}
 
 	// Extract reasoning and tool calls from the response
-	return a.parseClaudeResponse(response)
+	return a.parseClaudeResponse(response, conversationID)
 }
 
 // buildSystemPrompt creates the system prompt for Claude
@@ -115,6 +121,8 @@ Use the available tools to diagnose and fix issues. Think carefully through each
 func (a *aiAgent) buildUserPrompt(
 	issue Issue,
 	history []AgentStep,
+	currentStep int,
+	maxSteps int,
 ) string {
 	var sb strings.Builder
 
@@ -207,6 +215,21 @@ func (a *aiAgent) buildUserPrompt(
 	}
 
 	sb.WriteString("\n=== YOUR TASK ===\n")
+
+	// Warn if this is the final step
+	if currentStep+1 >= maxSteps {
+		sb.WriteString("⚠️  WARNING: THIS IS YOUR FINAL STEP!\n\n")
+		sb.WriteString("You have reached the maximum number of investigation steps. ")
+		sb.WriteString("Please summarize your findings, investigation, and conclusions. ")
+		sb.WriteString("If you have identified the root cause and a solution, implement it now. ")
+		sb.WriteString("If the issue requires further investigation beyond the step limit, ")
+		sb.WriteString("provide a comprehensive summary of:\n")
+		sb.WriteString("- What you have discovered so far\n")
+		sb.WriteString("- The most likely root cause based on your investigation\n")
+		sb.WriteString("- Recommended next steps for continued investigation\n")
+		sb.WriteString("- Any quick fixes or mitigations you can implement immediately\n\n")
+	}
+
 	if len(history) == 0 {
 		sb.WriteString("Begin your investigation. What is the first step you should take?")
 	} else {
@@ -217,7 +240,7 @@ func (a *aiAgent) buildUserPrompt(
 }
 
 // convertMCPToolsToClaudeTools converts MCP tools to Claude's tool format
-func (a *aiAgent) convertMCPToolsToClaudeTools(mcpTools []*mcp.Tool) []anthropic.ToolUnionParam {
+func (a *aiAgent) convertMCPToolsToClaudeTools(mcpTools []*mcp.Tool, conversationID string) []anthropic.ToolUnionParam {
 	claudeTools := make(
 		[]anthropic.ToolUnionParam,
 		0,
@@ -233,7 +256,8 @@ func (a *aiAgent) convertMCPToolsToClaudeTools(mcpTools []*mcp.Tool) []anthropic
 				schemaMap = sm
 			} else {
 				a.logger.Warnf(
-					"Skipping tool %s: invalid schema type %T",
+					"[MCP AI Agent][%s] Skipping tool %s: invalid schema type %T",
+					conversationID,
 					tool.Name,
 					tool.InputSchema,
 				)
@@ -319,7 +343,7 @@ func (a *aiAgent) convertMCPSchemaToClaudeSchema(mcpSchema map[string]interface{
 }
 
 // parseClaudeResponse parses Claude's response and extracts the next step
-func (a *aiAgent) parseClaudeResponse(response *anthropic.Message) AgentStep {
+func (a *aiAgent) parseClaudeResponse(response *anthropic.Message, conversationID string) AgentStep {
 	var reasoning string
 	var toolCall *ToolCall
 
@@ -341,7 +365,8 @@ func (a *aiAgent) parseClaudeResponse(response *anthropic.Message) AgentStep {
 						&params,
 					); err != nil {
 						a.logger.Errorf(
-							"Failed to parse tool input: %v",
+							"[MCP AI Agent][%s] Failed to parse tool input: %v",
+							conversationID,
 							err,
 						)
 						params = map[string]interface{}{}
@@ -355,8 +380,9 @@ func (a *aiAgent) parseClaudeResponse(response *anthropic.Message) AgentStep {
 					Parameters: params,
 				}
 
-				a.logger.Infof(
-					"Claude wants to call tool: %s",
+				a.logger.Debugf(
+					"[MCP AI Agent][%s] Claude wants to call tool: %s",
+					conversationID,
 					block.Name,
 				)
 			}
@@ -365,7 +391,7 @@ func (a *aiAgent) parseClaudeResponse(response *anthropic.Message) AgentStep {
 
 	// If no tool call was made, something went wrong
 	if toolCall == nil {
-		a.logger.Warn("Claude did not specify a tool call")
+		a.logger.Warnf("[MCP AI Agent][%s] Claude did not specify a tool call", conversationID)
 		return AgentStep{
 			Type:    "error",
 			Content: "Claude did not specify a tool call",

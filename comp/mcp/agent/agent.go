@@ -7,6 +7,8 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -52,10 +54,17 @@ func newAIAgent(deps dependencies) Component {
 		config:              deps.MCPConfig,
 		logger:              deps.Logger,
 		mcpClient:           deps.MCPClient,
-		maxSteps:            10, // Default max steps
+		maxSteps:            30, // Default max steps
 		claudeClient:        &claudeClient,
 		conversationHistory: []anthropic.MessageParam{},
 	}
+}
+
+// generateConversationID generates a unique 8-character conversation identifier
+func generateConversationID() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Solve attempts to solve the given issue using the agentic loop
@@ -66,8 +75,12 @@ func (a *aiAgent) Solve(
 	*AgentResult,
 	error,
 ) {
+	// Generate unique conversation ID for this solving session
+	conversationID := generateConversationID()
+
 	a.logger.Infof(
-		"AI Agent attempting to solve issue: %s",
+		"[MCP AI Agent][%s] Attempting to solve issue: %s",
+		conversationID,
 		issue.Description,
 	)
 
@@ -78,7 +91,7 @@ func (a *aiAgent) Solve(
 
 	// Ensure we're connected to the MCP server
 	if !a.mcpClient.IsConnected() {
-		a.logger.Info("Connecting to MCP server...")
+		a.logger.Infof("[MCP AI Agent][%s] Connecting to MCP server...", conversationID)
 		if err := a.mcpClient.Connect(ctx); err != nil {
 			return nil, fmt.Errorf(
 				"failed to connect to MCP server: %w",
@@ -97,14 +110,16 @@ func (a *aiAgent) Solve(
 	}
 
 	a.logger.Infof(
-		"Available tools: %d",
+		"[MCP AI Agent][%s] Available tools: %d",
+		conversationID,
 		len(tools),
 	)
 
 	// Run the agentic loop
 	for step := 0; step < a.maxSteps; step++ {
 		a.logger.Infof(
-			"Agent step %d/%d",
+			"[MCP AI Agent][%s] Step %d/%d",
+			conversationID,
 			step+1,
 			a.maxSteps,
 		)
@@ -115,6 +130,9 @@ func (a *aiAgent) Solve(
 			issue,
 			result.Steps,
 			tools,
+			step,
+			a.maxSteps,
+			conversationID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -127,14 +145,16 @@ func (a *aiAgent) Solve(
 			thinkStep,
 		)
 		a.logger.Infof(
-			"Think: %s",
+			"[MCP AI Agent][%s] Think: %s",
+			conversationID,
 			thinkStep.Content,
 		)
 
 		// Check if thinking resulted in an error
 		if thinkStep.Type == "error" {
 			a.logger.Errorf(
-				"Thinking step failed: %s",
+				"[MCP AI Agent][%s] Thinking step failed: %s",
+				conversationID,
 				thinkStep.Content,
 			)
 			result.FinalState = fmt.Sprintf(
@@ -152,7 +172,7 @@ func (a *aiAgent) Solve(
 		if a.isProblemSolved(thinkStep) {
 			result.Success = true
 			result.FinalState = "Problem resolved"
-			a.logger.Info("Agent believes problem is solved")
+			a.logger.Infof("[MCP AI Agent][%s] Problem is solved", conversationID)
 			break
 		}
 
@@ -163,7 +183,8 @@ func (a *aiAgent) Solve(
 		)
 		if err != nil {
 			a.logger.Errorf(
-				"Action failed: %v",
+				"[MCP AI Agent][%s] Action failed: %v",
+				conversationID,
 				err,
 			)
 			result.Steps = append(
@@ -182,8 +203,9 @@ func (a *aiAgent) Solve(
 			result.Steps,
 			actStep,
 		)
-		a.logger.Infof(
-			"Act: Called %s",
+		a.logger.Debugf(
+			"[MCP AI Agent][%s] Act: Called %s",
+			conversationID,
 			actStep.ToolCall.Name,
 		)
 
@@ -196,8 +218,9 @@ func (a *aiAgent) Solve(
 			result.Steps,
 			observeStep,
 		)
-		a.logger.Infof(
-			"Observe: %s",
+		a.logger.Debugf(
+			"[MCP AI Agent][%s] Observe: %s",
+			conversationID,
 			observeStep.Content,
 		)
 	}

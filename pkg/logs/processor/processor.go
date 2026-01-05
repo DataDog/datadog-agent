@@ -229,12 +229,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 			)
 		}
 	}
-	log.Infof(
-		"PROCESSING LOG: status=%q hostname=%q length=%d",
-		msg.Status,
-		msg.Hostname,
-		msg.RawDataLen,
-	)
 
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)

@@ -7,6 +7,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -61,6 +62,36 @@ type mcpServer struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	clientCount   atomic.Int32
+}
+
+// Parameter structs for MCP tools
+
+// listDirectoryParams represents parameters for list_directory tool
+type listDirectoryParams struct {
+	Path string `json:"path"`
+}
+
+// readFileParams represents parameters for read_file tool
+type readFileParams struct {
+	Path string `json:"path"`
+}
+
+// tailFileParams represents parameters for tail_file tool
+type tailFileParams struct {
+	Path  string `json:"path"`
+	Lines int    `json:"lines"`
+}
+
+// checkFileStatsParams represents parameters for check_file_stats tool
+type checkFileStatsParams struct {
+	Path string `json:"path"`
+}
+
+// findFilesParams represents parameters for find_files tool
+type findFilesParams struct {
+	Path       string `json:"path"`
+	Pattern    string `json:"pattern"`
+	MaxResults int    `json:"max_results"`
 }
 
 // newMCPServer creates and initializes the MCP server
@@ -340,6 +371,174 @@ func (s *mcpServer) registerTools(
 			error,
 		) {
 			return s.handleCheckProcess(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// File System Diagnostic Tools
+
+	// Register list_directory tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "list_directory",
+			Description: "List files and directories at a specified path with details (name, size, permissions, modification time)",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Path to list (default: /var/log/datadog)",
+					},
+				},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleListDirectory(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register read_file tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "read_file",
+			Description: "Read the contents of a text file (limited to 1MB for safety)",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the file to read",
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleReadFile(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register tail_file tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "tail_file",
+			Description: "Read the last N lines of a file (useful for log files)",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the file to tail",
+					},
+					"lines": map[string]interface{}{
+						"type":        "number",
+						"description": "Number of lines to read from the end (default: 50, max: 1000)",
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleTailFile(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register check_file_stats tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "check_file_stats",
+			Description: "Get file metadata including size, permissions, timestamps, and owner",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the file or directory",
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleCheckFileStats(
+				ctx,
+				req,
+				clientID,
+			)
+		},
+	)
+
+	// Register find_files tool
+	mcpSrv.AddTool(
+		&mcp.Tool{
+			Name:        "find_files",
+			Description: "Search for files matching a pattern in a directory (recursive)",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Starting directory path for search",
+					},
+					"pattern": map[string]interface{}{
+						"type":        "string",
+						"description": "Filename pattern to match (supports * and ? wildcards)",
+					},
+					"max_results": map[string]interface{}{
+						"type":        "number",
+						"description": "Maximum number of results to return (default: 100, max: 500)",
+					},
+				},
+				"required": []string{"path", "pattern"},
+			},
+		},
+		func(
+			ctx context.Context,
+			req *mcp.CallToolRequest,
+		) (
+			*mcp.CallToolResult,
+			error,
+		) {
+			return s.handleFindFiles(
 				ctx,
 				req,
 				clientID,
@@ -720,6 +919,574 @@ func (s *mcpServer) handleCheckProcess(
 			"Process '%s' is running with PIDs:\n%s",
 			processName,
 			pids,
+		)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleListDirectory lists files and directories at a path
+func (s *mcpServer) handleListDirectory(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"[MCP Server] Client #%d: list_directory called",
+		clientID,
+	)
+
+	// Parse arguments into struct
+	var params listDirectoryParams
+	if len(req.Params.Arguments) > 0 {
+		if err := json.Unmarshal(
+			req.Params.Arguments,
+			&params,
+		); err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf(
+							"Failed to parse arguments: %v",
+							err,
+						),
+					},
+				},
+				IsError: true,
+			}, nil
+		}
+	}
+
+	// Get path parameter, default to /var/log/datadog
+	path := params.Path
+	if path == "" {
+		path = "/var/log/datadog"
+	}
+
+	// Read directory
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to read directory %s: %v",
+						path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Build output
+	var result string
+	result = fmt.Sprintf("Directory listing for %s:\n\n", path)
+
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			result += fmt.Sprintf("%-40s ERROR: %v\n", entry.Name(), err)
+			continue
+		}
+
+		// Format: type, permissions, size, modified time, name
+		fileType := "-"
+		if entry.IsDir() {
+			fileType = "d"
+		}
+
+		result += fmt.Sprintf(
+			"%s %s %10d %s  %s\n",
+			fileType,
+			info.Mode().String(),
+			info.Size(),
+			info.ModTime().Format("2006-01-02 15:04:05"),
+			entry.Name(),
+		)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleReadFile reads the contents of a file
+func (s *mcpServer) handleReadFile(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: read_file called",
+		clientID,
+	)
+
+	// Parse arguments into struct
+	var params readFileParams
+	if err := json.Unmarshal(
+		req.Params.Arguments,
+		&params,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to parse arguments: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if params.Path == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "path is required",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Check file size first (limit to 1MB)
+	fileInfo, err := os.Stat(params.Path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to stat file %s: %v",
+						params.Path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	const maxFileSize = 1024 * 1024 // 1MB
+	if fileInfo.Size() > maxFileSize {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"File %s is too large (%d bytes). Maximum size is %d bytes. Use tail_file instead.",
+						params.Path,
+						fileInfo.Size(),
+						maxFileSize,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Read the file
+	content, err := os.ReadFile(params.Path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to read file %s: %v",
+						params.Path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	result := fmt.Sprintf(
+		"Contents of %s (%d bytes):\n\n%s",
+		params.Path,
+		len(content),
+		string(content),
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleTailFile reads the last N lines of a file
+func (s *mcpServer) handleTailFile(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: tail_file called",
+		clientID,
+	)
+
+	// Parse arguments into struct
+	var params tailFileParams
+	if err := json.Unmarshal(
+		req.Params.Arguments,
+		&params,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to parse arguments: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if params.Path == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "path is required",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Get number of lines, default to 50, max 1000
+	lines := params.Lines
+	if lines == 0 {
+		lines = 50
+	}
+	if lines > 1000 {
+		lines = 1000
+	}
+	if lines < 1 {
+		lines = 1
+	}
+
+	// Open the file
+	file, err := os.Open(params.Path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to open file %s: %v",
+						params.Path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+	defer file.Close()
+
+	// Read the file line by line, keeping only the last N lines
+	scanner := bufio.NewScanner(file)
+	var lineBuffer []string
+
+	for scanner.Scan() {
+		lineBuffer = append(lineBuffer, scanner.Text())
+		if len(lineBuffer) > lines {
+			lineBuffer = lineBuffer[1:]
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Error reading file %s: %v",
+						params.Path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	result := fmt.Sprintf(
+		"Last %d lines of %s:\n\n",
+		len(lineBuffer),
+		params.Path,
+	)
+
+	// Join all lines
+	for _, line := range lineBuffer {
+		result += line + "\n"
+	}
+
+	if len(lineBuffer) == 0 {
+		result = fmt.Sprintf("File %s is empty", params.Path)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleCheckFileStats gets file metadata
+func (s *mcpServer) handleCheckFileStats(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: check_file_stats called",
+		clientID,
+	)
+
+	// Parse arguments into struct
+	var params checkFileStatsParams
+	if err := json.Unmarshal(
+		req.Params.Arguments,
+		&params,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to parse arguments: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if params.Path == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "path is required",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Get file info
+	fileInfo, err := os.Stat(params.Path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to stat file %s: %v",
+						params.Path,
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Determine file type
+	fileType := "file"
+	if fileInfo.IsDir() {
+		fileType = "directory"
+	} else if fileInfo.Mode()&os.ModeSymlink != 0 {
+		fileType = "symlink"
+	}
+
+	// Get owner information (Unix-specific)
+	var ownerInfo string
+	if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
+		ownerInfo = fmt.Sprintf(
+			"UID: %d, GID: %d",
+			stat.Uid,
+			stat.Gid,
+		)
+	} else {
+		ownerInfo = "N/A"
+	}
+
+	result := fmt.Sprintf(
+		"File statistics for %s:\n\n"+
+			"Type: %s\n"+
+			"Size: %d bytes\n"+
+			"Permissions: %s\n"+
+			"Owner: %s\n"+
+			"Modified: %s\n",
+		params.Path,
+		fileType,
+		fileInfo.Size(),
+		fileInfo.Mode().String(),
+		ownerInfo,
+		fileInfo.ModTime().Format("2006-01-02 15:04:05"),
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil
+}
+
+// handleFindFiles searches for files matching a pattern
+func (s *mcpServer) handleFindFiles(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	clientID int32,
+) (
+	*mcp.CallToolResult,
+	error,
+) {
+	s.logger.Debugf(
+		"MCP client #%d: find_files called",
+		clientID,
+	)
+
+	// Parse arguments into struct
+	var params findFilesParams
+	if err := json.Unmarshal(
+		req.Params.Arguments,
+		&params,
+	); err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to parse arguments: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if params.Path == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "path is required",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if params.Pattern == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "pattern is required",
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Get max results, default to 100, max 500
+	maxResults := params.MaxResults
+	if maxResults == 0 {
+		maxResults = 100
+	}
+	if maxResults > 500 {
+		maxResults = 500
+	}
+	if maxResults < 1 {
+		maxResults = 1
+	}
+
+	// Use find command to search for files
+	cmd := exec.CommandContext(
+		ctx,
+		"find",
+		params.Path,
+		"-name",
+		params.Pattern,
+		"-type",
+		"f",
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf(
+						"Failed to search for files: %v",
+						err,
+					),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// Parse results
+	lines := []string{}
+	scanner := bufio.NewScanner(io.Reader(bytes.NewReader(output)))
+	for scanner.Scan() && len(lines) < maxResults {
+		lines = append(lines, scanner.Text())
+	}
+
+	result := fmt.Sprintf(
+		"Found %d files matching '%s' in %s",
+		len(lines),
+		params.Pattern,
+		params.Path,
+	)
+
+	if len(lines) >= maxResults {
+		result += fmt.Sprintf(" (limited to %d results)", maxResults)
+	}
+
+	result += ":\n\n"
+
+	for _, line := range lines {
+		result += line + "\n"
+	}
+
+	if len(lines) == 0 {
+		result = fmt.Sprintf(
+			"No files found matching '%s' in %s",
+			params.Pattern,
+			params.Path,
 		)
 	}
 
