@@ -9,6 +9,7 @@ package usm
 
 import (
 	"fmt"
+	"io"
 	nethttp "net/http"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -136,4 +138,95 @@ func TestHTTPStats(t *testing.T) {
 
 		return false
 	}, 3*time.Second, 100*time.Millisecond, "http connection not found for %s", serverAddr)
+}
+
+// TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.
+// This test requires administrator privileges.
+// If IIS is not installed, it will be installed automatically.
+func TestHTTPStatsWithIIS(t *testing.T) {
+	// Create IIS manager
+	iisManager := iistestutil.NewIISManager(t)
+
+	// Ensure IIS is installed
+	iisManager.EnsureIISInstalled()
+
+	expectedTags := map[string]struct{}{
+		"http.iis.site":     {},
+		"http.iis.sitename": {},
+		"http.iis.app_pool": {},
+	}
+
+	const (
+		siteName       = "DatadogTestSite"
+		expectedStatus = 200
+		testPath       = "/index.html"
+		indexContent   = "Hello from IIS test"
+	)
+
+	// Get a free port for the IIS site
+	serverPort := tracetestutil.FreeTCPPort(t)
+	serverAddr := fmt.Sprintf("http://localhost:%d", serverPort)
+	t.Logf("Setting up IIS site at: %s (port: %d)", serverAddr, serverPort)
+
+	// Setup IIS site using the manager
+	err := iisManager.SetupIISSite(siteName, serverPort, indexContent)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = iisManager.CleanupIISSite(siteName)
+	})
+
+	// Setup monitor
+	monitor := setupWindowsMonitor(t, getHTTPCfg())
+
+	// Make HTTP GET request to IIS
+	t.Logf("Making HTTP GET request to: %s%s", serverAddr, testPath)
+	resp, err := nethttp.Get(serverAddr + testPath)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Verify we got a successful response
+	require.Equal(t, expectedStatus, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	t.Logf("Response body length: %d bytes", len(body))
+
+	// Verify the monitor captured the HTTP traffic
+	require.Eventuallyf(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
+
+		for key, reqStats := range stats {
+			t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
+
+			if key.Method != http.MethodGet {
+				continue
+			}
+			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
+				continue
+			}
+			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+				continue
+			}
+
+			if stat := reqStats.Data[expectedStatus]; stat != nil && stat.Count >= 1 {
+				// Verify IIS dynamic tags are present
+				require.NotNil(t, stat.DynamicTags, "Dynamic tags should be present for IIS traffic")
+
+				statsTags := make(map[string]struct{})
+				for _, tag := range stat.DynamicTags.GetAll() {
+					if name, _, ok := strings.Cut(tag, ":"); ok && name != "" {
+						statsTags[name] = struct{}{}
+					}
+				}
+
+				// Verify all expected tags are present
+				for tag := range expectedTags {
+					require.Contains(t, statsTags, tag, "Expected IIS tag %s to be present", tag)
+				}
+				t.Logf("Successfully captured IIS HTTP traffic: %d requests with status %d", stat.Count, expectedStatus)
+				return true
+			}
+		}
+
+		return false
+	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
