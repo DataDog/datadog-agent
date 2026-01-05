@@ -1330,14 +1330,11 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
-	// Infrastructure mode
-	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device.
-	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+	config.BindEnvAndSetDefault("integration.enabled", true)
 
-	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{
+	config.BindEnvAndSetDefault("integration.allowed_checks.basic", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
@@ -1363,10 +1360,19 @@ func agent(config pkgconfigmodel.Setup) {
 		"winproc",
 	})
 
-	// Infrastructure basic mode - additional checks
-	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
+	// Infrastructure mode
+	// The infrastructure mode is used to determine the features that are available to the agent.
+	// The possible values are: full, basic, end_user_device.
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+
+	// Infrastructure mode - additional checks
+	// When infrastructure_mode is set some mode only allow a limited set of checks to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
 	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
+	// Infrastructure mode - excluded checks
+	// This setting allows customers to exclude checks from the allowlist.
+	config.BindEnvAndSetDefault("excluded_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
