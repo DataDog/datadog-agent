@@ -60,8 +60,8 @@ func newAIAgent(deps dependencies) Component {
 	}
 }
 
-// generateConversationID generates a unique 8-character conversation identifier
-func generateConversationID() string {
+// GenerateConversationID generates a unique 8-character conversation identifier
+func GenerateConversationID() string {
 	b := make([]byte, 4)
 	rand.Read(b)
 	return hex.EncodeToString(b)
@@ -75,8 +75,13 @@ func (a *aiAgent) Solve(
 	*AgentResult,
 	error,
 ) {
-	// Generate unique conversation ID for this solving session
-	conversationID := generateConversationID()
+	// Use conversation ID from issue metadata if available, otherwise generate a new one
+	var conversationID string
+	if id, ok := issue.Metadata["conversation_id"].(string); ok && id != "" {
+		conversationID = id
+	} else {
+		conversationID = GenerateConversationID()
+	}
 
 	a.logger.Infof(
 		"[MCP AI Agent][%s] Attempting to solve issue: %s",
@@ -85,8 +90,9 @@ func (a *aiAgent) Solve(
 	)
 
 	result := &AgentResult{
-		Success: false,
-		Steps:   []AgentStep{},
+		Success:    false,
+		Steps:      []AgentStep{},
+		Iterations: 0,
 	}
 
 	// Ensure we're connected to the MCP server
@@ -165,6 +171,7 @@ func (a *aiAgent) Solve(
 				"%s",
 				thinkStep.Content,
 			)
+			result.Iterations++
 			break
 		}
 
@@ -173,6 +180,7 @@ func (a *aiAgent) Solve(
 			result.Success = true
 			result.FinalState = "Problem resolved"
 			a.logger.Infof("[MCP AI Agent][%s] Problem is solved", conversationID)
+			result.Iterations++
 			break
 		}
 
@@ -197,6 +205,7 @@ func (a *aiAgent) Solve(
 					),
 				},
 			)
+			result.Iterations++
 			continue
 		}
 		result.Steps = append(
@@ -223,6 +232,9 @@ func (a *aiAgent) Solve(
 			conversationID,
 			observeStep.Content,
 		)
+
+		// Increment iteration counter after completing think-act-observe cycle
+		result.Iterations++
 	}
 
 	if !result.Success {

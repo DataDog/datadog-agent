@@ -37,6 +37,9 @@ type AgentResult struct {
 	// Steps contains a log of all steps the agent took
 	Steps []AgentStep
 
+	// Iterations is the number of think-act-observe cycles completed
+	Iterations int
+
 	// FinalState describes the final state after the agent finished
 	FinalState string
 
