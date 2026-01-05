@@ -15,13 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	sdmodule "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -146,18 +143,16 @@ func runSysinfoWithConfig(sysprobeconfig sysconfigcomponent.Component, _ *comman
 	for _, proc := range procList {
 		var svc *procutil.Service
 
-		// First, try to extract DD_SERVICE from process environment variables
-		if targetEnvs, err := getTargetEnvsFromPID(proc.Pid); err == nil {
-			if ddService := extractDDServiceFromEnvs(targetEnvs); ddService != "" {
-				svc = &procutil.Service{
-					DDService: ddService,
-				}
+		// First priority: DD_SERVICE from process environment (not command-line)
+		if ddService := readDDServiceFromEnviron(proc.Pid); ddService != "" {
+			svc = &procutil.Service{
+				DDService: ddService,
 			}
 		}
 
-		// Then get the generated service name from ServiceExtractor
+		// Second priority: Generated service name from ServiceExtractor
+		// (handles DD_SERVICE from command-line and generates names)
 		if serviceContext := serviceExtractor.GetServiceContext(proc.Pid); len(serviceContext) > 0 {
-			// Service context is in format "process_context:servicename", extract just the name
 			serviceName := strings.TrimPrefix(serviceContext[0], processContextPrefix)
 			if svc == nil {
 				svc = &procutil.Service{}
@@ -316,33 +311,44 @@ func formatCmdline(args []string) string {
 	return builder.String()
 }
 
-// getTargetEnvsFromPID reads the environment variables of interest from the /proc/<pid>/environ file.
-// This is a convenience wrapper around sdmodule.GetTargetEnvs that takes a PID directly.
-func getTargetEnvsFromPID(pid int32) (envs.Variables, error) {
-	proc, err := process.NewProcess(pid)
+// readDDServiceFromEnviron reads DD_SERVICE from /proc/<pid>/environ
+// This is a lightweight direct reader that avoids heavy service discovery imports.
+// It looks for DD_SERVICE first, then falls back to parsing DD_TAGS for "service:" prefix.
+func readDDServiceFromEnviron(pid int32) string {
+	environPath := fmt.Sprintf("/proc/%d/environ", pid)
+	data, err := os.ReadFile(environPath)
 	if err != nil {
-		return envs.Variables{}, err
-	}
-	return sdmodule.GetTargetEnvs(proc)
-}
-
-// extractDDServiceFromEnvs extracts the DD_SERVICE value from environment variables.
-// It checks DD_SERVICE first, then falls back to parsing DD_TAGS for "service:" prefix.
-// Returns empty string if no service name is found.
-func extractDDServiceFromEnvs(targetEnvs envs.Variables) string {
-	// Convert envs.Variables to []string format expected by parser.ChooseServiceNameFromEnvs
-	var envSlice []string
-	if ddService, ok := targetEnvs.Get("DD_SERVICE"); ok && ddService != "" {
-		envSlice = append(envSlice, "DD_SERVICE="+ddService)
-	}
-	if ddTags, ok := targetEnvs.Get("DD_TAGS"); ok && ddTags != "" {
-		envSlice = append(envSlice, "DD_TAGS="+ddTags)
-	}
-
-	if len(envSlice) == 0 {
 		return ""
 	}
 
-	svc, _ := parser.ChooseServiceNameFromEnvs(envSlice)
-	return svc
+	// Environment variables are null-terminated in /proc/<pid>/environ
+	envVars := strings.Split(string(data), "\x00")
+
+	// First priority: DD_SERVICE
+	for _, env := range envVars {
+		if strings.HasPrefix(env, "DD_SERVICE=") {
+			service := strings.TrimPrefix(env, "DD_SERVICE=")
+			if service != "" {
+				return service
+			}
+		}
+	}
+
+	// Second priority: service: tag in DD_TAGS
+	for _, env := range envVars {
+		if strings.HasPrefix(env, "DD_TAGS=") {
+			tags := strings.TrimPrefix(env, "DD_TAGS=")
+			// Parse comma-separated tags
+			for _, tag := range strings.Split(tags, ",") {
+				if strings.HasPrefix(tag, "service:") {
+					service := strings.TrimPrefix(tag, "service:")
+					if service != "" {
+						return service
+					}
+				}
+			}
+		}
+	}
+
+	return ""
 }
