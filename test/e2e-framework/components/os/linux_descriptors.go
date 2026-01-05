@@ -36,6 +36,12 @@ var (
 
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
+
+	AmazonLinuxEKS132 = NewDescriptor(AmazonLinuxEKS, "1.32")
+	AmazonLinuxEKS133 = NewDescriptor(AmazonLinuxEKS, "1.33")
+
+	BottlerocketEKS132 = NewDescriptor(BottlerocketEKS, "1.32")
+	BottlerocketEKS133 = NewDescriptor(BottlerocketEKS, "1.33")
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{

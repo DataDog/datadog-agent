@@ -118,6 +118,32 @@
     "x86_64": {
       "sonoma": "ami-0801764b08904a0e4"
     }
+  },
+  "amazon-linux-eks": {
+    "x86_64": {
+      "1.32-al2023": "ami-0f2d19a6e3f5156d3",
+      "1.33-al2023": "ami-023c909b59ae2cc9b"
+    },
+    "arm64": {
+      "1.32-al2023": "ami-0af02a0ee70728ca9",
+      "1.33-al2023": "ami-0a4bacbae27f7f1dc"
+    }
+  },
+  "bottlerocket-eks": {
+    "x86_64": {
+      "1.32": "ami-0ec87efffce2bb445",
+      "1.33": "ami-0868c56168941b9be"
+    },
+    "arm64": {
+      "1.32": "ami-0a72b8b58d9b94890",
+      "1.33": "ami-0a4bacbae27f7f1dc"
+    }
+  },
+  "windows-server-eks": {
+    "x86_64": {
+      "1.32-server-2022": "ami-0f9b7490001a5d7b7",
+      "1.33-server-2022": "ami-000d46938faf0c47e"
+    }
   }
 }
 

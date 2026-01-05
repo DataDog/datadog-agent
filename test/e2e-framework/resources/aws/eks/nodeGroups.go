@@ -6,11 +6,12 @@
 package eks
 
 import (
+	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
 	awsEc2 "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
@@ -20,20 +21,18 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-const (
-	amazonLinux2023AMD64AmiType = "AL2023_x86_64_STANDARD"
-	amazonLinux2023ARM64AmiType = "AL2023_ARM_64_STANDARD"
-	bottlerocketAmiType         = "BOTTLEROCKET_x86_64"
-	windowsAmiType              = "WINDOWS_CORE_2022_x86_64"
-)
-
 func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux"
 	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023AMD64AmiType, e.DefaultInstanceType(), lt, opts...)
+	descriptor := os.NewDescriptorWithArch(os.AmazonLinuxEKS, fmt.Sprintf("%s-%s", e.KubernetesVersion(), "al2023"), os.AMD64Arch)
+	amiId, err := aws.GetAMI(&descriptor)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, name, cluster, nodeRole, amiId, e.DefaultInstanceType(), false, lt, opts...)
 
 }
 
@@ -44,16 +43,30 @@ func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRol
 	if err != nil {
 		return nil, err
 	}
-
-	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023ARM64AmiType, e.DefaultARMInstanceType(), lt, opts...)
+	descriptor := os.NewDescriptorWithArch(os.AmazonLinuxEKS, fmt.Sprintf("%s-%s", e.KubernetesVersion(), "al2023"), os.ARM64Arch)
+	amiId, err := aws.GetAMI(&descriptor)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, name, cluster, nodeRole, amiId, e.DefaultARMInstanceType(), false, lt, opts...)
 }
 
 func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, bottlerocketAmiType, e.DefaultInstanceType(), nil, opts...)
+	descriptor := os.NewDescriptorWithArch(os.BottlerocketEKS, e.KubernetesVersion(), os.AMD64Arch)
+	amiId, err := aws.GetAMI(&descriptor)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, amiId, e.DefaultInstanceType(), false, nil, opts...)
 }
 
 func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
+	descriptor := os.NewDescriptorWithArch(os.WindowsServerEKS, fmt.Sprintf("%s-%s", e.KubernetesVersion(), "server-2022"), os.AMD64Arch)
+	amiId, err := aws.GetAMI(&descriptor)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "windows", cluster, nodeRole, amiId, e.DefaultInstanceType(), true, nil, opts...)
 }
 
 func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
@@ -117,9 +130,9 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 	}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
 }
 
-func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiId, instanceType string, isWindows bool, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	taints := awsEks.NodeGroupTaintArray{}
-	if strings.Contains(amiType, "WINDOWS") {
+	if isWindows {
 		taints = append(taints,
 			awsEks.NodeGroupTaintArgs{
 				Key:    pulumi.String("node.kubernetes.io/os"),
@@ -131,7 +144,7 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 
 	// common args
 	args := &eks.ManagedNodeGroupArgs{
-		AmiType:             pulumi.StringPtr(amiType),
+		AmiId:               pulumi.StringPtr(amiId),
 		Cluster:             cluster.Core,
 		InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),
 		ForceUpdateVersion:  pulumi.BoolPtr(true),

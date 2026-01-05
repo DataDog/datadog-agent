@@ -22,6 +22,9 @@ var (
 	WindowsClient1022H2  = NewDescriptor(WindowsClient, "windows-10:win10-22h2-pro")
 	WindowsClient1021H2  = NewDescriptor(WindowsClient, "windows-10:win10-21h2-pro")
 	WindowsClient1019H1  = NewDescriptor(WindowsClient, "Windows-10:19h1-pro-gensecond")
+
+	WindowsServerEKS132 = NewDescriptor(WindowsServerEKS, "1.32")
+	WindowsServerEKS133 = NewDescriptor(WindowsServerEKS, "1.33")
 )
 
 var WindowsDescriptorsDefault = map[Flavor]Descriptor{

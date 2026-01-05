@@ -48,16 +48,19 @@ const (
 	Ubuntu Flavor = (100 + iota)
 	AmazonLinux
 	AmazonLinuxECS
+	AmazonLinuxEKS
 	Debian
 	RedHat
 	Suse
 	Fedora
 	CentOS
 	RockyLinux
+	BottlerocketEKS
 
 	// Windows
 	WindowsServer Flavor = (500 + iota)
 	WindowsClient
+	WindowsServerEKS
 
 	// MacOS
 	MacosOS Flavor = (1000 + iota)
@@ -72,6 +75,8 @@ func FlavorFromString(flavorStr string) Flavor {
 		return AmazonLinux
 	case "amazon-linux-ecs", "amazonlinuxecs":
 		return AmazonLinuxECS
+	case "amazon-linux-eks", "amazonlinuxeks":
+		return AmazonLinuxEKS
 	case "debian":
 		return Debian
 	case "redhat":
@@ -88,6 +93,10 @@ func FlavorFromString(flavorStr string) Flavor {
 		return WindowsServer
 	case "windows-client":
 		return WindowsClient
+	case "windows-server-eks":
+		return WindowsServerEKS
+	case "bottlerocket-eks":
+		return BottlerocketEKS
 	case "macos":
 		return MacosOS
 	default:
@@ -116,6 +125,8 @@ func (f Flavor) String() string {
 		return "amazon-linux"
 	case AmazonLinuxECS:
 		return "amazon-linux-ecs"
+	case AmazonLinuxEKS:
+		return "amazon-linux-eks"
 	case Debian:
 		return "debian"
 	case RedHat:
