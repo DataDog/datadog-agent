@@ -47,11 +47,11 @@ type EmbeddedConfigProvider struct {
 }
 
 // NewEmbeddedConfigProvider creates a new EmbeddedConfigProvider.
-func NewEmbeddedConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
-	return newEmbeddedConfigProvider(pkgconfigsetup.Datadog(), telemetryStore), nil
+func NewEmbeddedConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+	return newEmbeddedConfigProvider(pkgconfigsetup.Datadog()), nil
 }
 
-func newEmbeddedConfigProvider(config pkgconfigmodel.Reader, _ *telemetry.Store) *EmbeddedConfigProvider {
+func newEmbeddedConfigProvider(config pkgconfigmodel.Reader) *EmbeddedConfigProvider {
 	return &EmbeddedConfigProvider{
 		config:    config,
 		collected: false,
