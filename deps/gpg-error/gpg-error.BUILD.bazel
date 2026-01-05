@@ -126,6 +126,13 @@ copy_file(
     out = "src/config.h",
 )
 
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
 genrule(
     name = "err-codes_h",
     srcs = [
@@ -155,8 +162,11 @@ cc_binary(
 
 cc_binary(
     name = "gen-posix-lock-obj",
-    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h", ":copy_config_h"],
+    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h"],
     local_defines = ["HAVE_CONFIG_H"],
+    deps = [
+        ":config_h",
+    ],
     includes = ["src"],
 )
 
@@ -236,7 +246,6 @@ cc_library(
         "src/argparse.c",
         "src/gettext.h",
         # Generated sources
-        ":copy_config_h",
         ":code_to_errno_h",
         ":code_from_errno_h",
         ":err-codes_h",
@@ -256,6 +265,9 @@ cc_library(
     copts = ["-O2"],
     includes = ["src"],
     visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":config_h",
+    ],
 )
 
 cc_shared_library(
