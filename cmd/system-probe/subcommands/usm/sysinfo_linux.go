@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -69,7 +70,7 @@ type SystemInfo struct {
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
-func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength int) error {
+func runSysinfoWithConfig(sysprobeconfig sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength int) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -99,35 +100,91 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 	procs, err := probe.ProcessesByPID(time.Now(), false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: unable to list processes: %v\n", err)
-	} else {
-		// Convert map to sorted slice by PID
-		procList := make([]*procutil.Process, 0, len(procs))
-		for _, proc := range procs {
-			procList = append(procList, proc)
-		}
-		sort.Slice(procList, func(i, j int) bool {
-			return procList[i].Pid < procList[j].Pid
-		})
+		return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
+	}
 
-		// Detect languages for all processes
-		detector := privileged.NewLanguageDetector()
-		languageProcs := make([]languagemodels.Process, len(procList))
-		for i, p := range procList {
-			languageProcs[i] = p
-		}
-		languages := detector.DetectWithPrivileges(languageProcs)
+	if len(procs) == 0 {
+		sysInfo.Processes = []*ProcessInfo{} // Explicit empty slice
+		return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
+	}
 
-		// Combine processes with their detected languages
-		sysInfo.Processes = make([]*ProcessInfo, len(procList))
-		for i, proc := range procList {
-			sysInfo.Processes[i] = &ProcessInfo{
-				Process:  proc,
-				Language: languages[i],
-			}
+	// Convert map to sorted slice by PID
+	procList := make([]*procutil.Process, 0, len(procs))
+	for _, proc := range procs {
+		procList = append(procList, proc)
+	}
+	sort.Slice(procList, func(i, j int) bool {
+		return procList[i].Pid < procList[j].Pid
+	})
+
+	// Detect languages using two-phase detection strategy
+	languages := detectProcessLanguages(procList, sysprobeconfig)
+
+	// Combine processes with their detected languages
+	sysInfo.Processes = make([]*ProcessInfo, len(procList))
+	for i, proc := range procList {
+		sysInfo.Processes[i] = &ProcessInfo{
+			Process:  proc,
+			Language: languages[i],
 		}
 	}
 
 	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
+}
+
+// detectProcessLanguages performs two-phase language detection for the given processes.
+//
+// Phase 1: Standard detection via command-line parsing (Python, Node, Ruby, PHP, etc.)
+//
+//	and optionally RPC to system-probe if language_detection.enabled is set.
+//	Does NOT require elevated privileges for command-line detection.
+//
+// Phase 2: Privileged detection fallback for any processes that remain Unknown.
+//
+//	Performs direct binary analysis to detect Go, .NET, and processes with
+//	tracer/injector metadata. Requires elevated privileges (CAP_PTRACE or root).
+//
+// Returns a slice of detected languages corresponding to the input processes.
+func detectProcessLanguages(procList []*procutil.Process, sysprobeconfig sysconfigcomponent.Component) []languagemodels.Language {
+	// Phase 1: Standard language detection
+	languageProcs := make([]languagemodels.Process, len(procList))
+	for i, p := range procList {
+		languageProcs[i] = p
+	}
+
+	languagesPtr := languagedetection.DetectLanguage(languageProcs, sysprobeconfig.Object())
+
+	// Phase 2: Privileged detection fallback
+	// Build list of unknown processes and convert pointer results to values
+	languages := make([]languagemodels.Language, len(procList))
+	unknownIndices := make([]int, 0, len(procList))
+	unknownProcs := make([]languagemodels.Process, 0, len(procList))
+
+	for i, langPtr := range languagesPtr {
+		if langPtr != nil {
+			languages[i] = *langPtr
+			// Check if we need privileged fallback for this process
+			if langPtr.Name == "" || langPtr.Name == languagemodels.Unknown {
+				unknownIndices = append(unknownIndices, i)
+				unknownProcs = append(unknownProcs, procList[i])
+			}
+		} else {
+			// Nil pointer - treat as unknown and try privileged detection
+			unknownIndices = append(unknownIndices, i)
+			unknownProcs = append(unknownProcs, procList[i])
+		}
+	}
+
+	// Apply privileged detection to unknown processes
+	if len(unknownProcs) > 0 {
+		detector := privileged.NewLanguageDetector()
+		privilegedLangs := detector.DetectWithPrivileges(unknownProcs)
+		for i, idx := range unknownIndices {
+			languages[idx] = privilegedLangs[i]
+		}
+	}
+
+	return languages
 }
 
 // formatLanguage formats a language for display
