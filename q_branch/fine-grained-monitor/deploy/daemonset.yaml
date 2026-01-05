@@ -85,11 +85,11 @@ spec:
             readOnly: true
         resources:
           requests:
-            memory: "32Mi"
-            cpu: "10m"
-          limits:
-            memory: "128Mi"
+            memory: "256Mi"
             cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
       # REQ-CON-005: Consolidator sidecar for background file merging
       - name: consolidator
         image: fine-grained-monitor:latest
