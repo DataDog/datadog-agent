@@ -46,7 +46,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	var filterConfigs []connfilter.Config
 	err := structure.UnmarshalKey(agentConfig, "network_path.collector.filters", &filterConfigs)
 	if err != nil {
-		logger.Errorf("Error unmarshalling network_path.collector.filters")
+		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
 	return &collectorConfigs{

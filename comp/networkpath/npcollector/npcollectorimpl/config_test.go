@@ -38,8 +38,10 @@ func TestNewConfig(t *testing.T) {
 		expectedConfig *collectorConfigs
 	}{
 		{
-			name:           "default configuration",
-			configOverride: map[string]any{},
+			name: "default configuration",
+			configOverride: map[string]any{
+				"network_path.collector.filters": []map[string]any{},
+			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
 				workers:                      4,
@@ -67,7 +69,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                50,
 				disableWindowsDriver:      false,
 				networkDevicesNamespace:   "default",
-				filterConfig:              nil,
+				filterConfig:              []connfilter.Config{},
 				monitorIPWithoutDomain:    false,
 				ddSite:                    "",
 			},
