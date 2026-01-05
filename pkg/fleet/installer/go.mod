@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/DataDog/datadog-agent/pkg/template v0.73.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2

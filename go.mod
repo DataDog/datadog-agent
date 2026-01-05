@@ -140,8 +140,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/tagset v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/template v0.73.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
@@ -159,14 +159,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/json v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.73.0-rc.11
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v0.1.33

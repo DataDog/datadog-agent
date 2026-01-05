@@ -11,8 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // GetExecutable returns the path to the current executable.
@@ -23,7 +21,6 @@ func GetExecutable() (string, error) {
 	if err1 == nil {
 		return executable, nil
 	}
-	log.Warnf("Failed to get executable using os.Executable: %v", err1)
 
 	// Get the absolute path of the current process from argv[0]
 	executable, err2 := fromArgv0()
