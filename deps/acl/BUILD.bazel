@@ -10,7 +10,10 @@ generate_module_bazel(
     sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
     strip_prefix = "acl-%s" % VERSION,
     tags = ["manual"],
-    url = "http://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/acl-%s.tar.xz" % VERSION,
+        "https://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
+    ],
 )
 
 diff_test(
