@@ -16,9 +16,8 @@ import (
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list or starting with "custom_" are permitted.
 func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
-	// When not in basic mode, all checks are allowed
-	if cfg.GetString("infrastructure_mode") != "basic" {
-		return true
+	if !cfg.GetBool("integration.enabled") || slices.Contains(cfg.GetStringSlice("excluded_checks"), checkName) {
+		return false
 	}
 
 	// Allow all custom checks
@@ -26,6 +25,11 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 		return true
 	}
 
-	// Check if it's in the allowed checks (default + additional)
-	return slices.Contains(append(cfg.GetStringSlice("allowed_checks"), cfg.GetStringSlice("allowed_additional_checks")...), checkName)
+	infraMode := cfg.GetString("infrastructure_mode")
+	// if allowed checks is empty, all checks are allowed
+	if allowedChecks := cfg.GetStringSlice("integration.allowed_checks." + infraMode); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
+		return true
+	}
+
+	return slices.Contains(cfg.GetStringSlice("allowed_additional_checks"), checkName) || slices.Contains(cfg.GetStringSlice("integration.infrastructure_mode_exclusive_checks."+infraMode), checkName)
 }

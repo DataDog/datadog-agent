@@ -14,6 +14,7 @@ const (
 	CloudFoundryBBS         = "cloudfoundry-bbs"
 	ClusterChecks           = "cluster-checks"
 	EndpointsChecks         = "endpoints-checks"
+	Embedded                = "embedded" // Embedded is used to load check configurations embedded in the agent code.It is primarily used for infrastructure modes (basic, end_user_device) to load exclusive checks without requiring configuration files on disk.
 	Etcd                    = "etcd"
 	File                    = "file"
 	KubeContainer           = "kubernetes-container-allinone"

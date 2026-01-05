@@ -54,6 +54,7 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider, providerCatalog)
 	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
+	RegisterProvider(names.Embedded, NewEmbeddedConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsFileRegisterName, NewKubeEndpointsFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
