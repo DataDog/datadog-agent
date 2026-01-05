@@ -65,6 +65,12 @@ func TestPull(t *testing.T) {
 	for _, uuid := range testutil.GPUUUIDs {
 		require.True(t, foundIDs[uuid], "GPU with UUID %s not found", uuid)
 	}
+
+	for _, migChildrenUUIDs := range testutil.MIGChildrenUUIDs {
+		for _, migChildUUID := range migChildrenUUIDs {
+			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
+		}
+	}
 }
 
 func TestGpuArchToString(t *testing.T) {

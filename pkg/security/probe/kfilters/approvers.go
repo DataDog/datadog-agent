@@ -53,8 +53,9 @@ func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilte
 	return &eventMaskKFilter{
 		approverType: InUpperLayerApproverType,
 		tableName:    tableName,
-		tableKey:     uint32(0),
+		tableKey:     ebpf.Uint32MapItem(0),
 		eventMask:    uint64(1 << (eventType - 1)),
+		isArrayMap:   true,
 	}, nil
 }
 
