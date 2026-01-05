@@ -304,13 +304,7 @@ def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
 
 
 def _add_version_to_matrix(
-    lines: list[str],
-    version: str,
-    digest: str,
-    matrix_start: int,
-    matrix_end: int,
-    indent: int,
-    extra_params_line: int
+    lines: list[str], version: str, digest: str, matrix_start: int, matrix_end: int, indent: int, extra_params_line: int
 ) -> tuple[list[str], int]:
     """
     Add a version to the matrix section.
@@ -397,7 +391,7 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
             matrix_start,
             matrix_end,
             indent,
-            extra_params_line
+            extra_params_line,
         )
         added_versions.append(current_latest['version'])
 
@@ -406,7 +400,7 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
     new_line = re.sub(
         r'kubernetesVersion=v?\d+\.\d+\.\d+@sha256:[a-f0-9]+',
         f'kubernetesVersion={desired_latest_version}@{desired_latest_digest}',
-        old_line
+        old_line,
     )
     lines[extra_params_line] = new_line
 
