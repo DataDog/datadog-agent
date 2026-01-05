@@ -44,6 +44,7 @@ type ListenerConfig struct {
 	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
 	Deduplicate             bool                       `mapstructure:"use_deduplication"`
 	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
+	OidBatchSize            int                        `mapstructure:"oid_batch_size"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -259,6 +260,10 @@ func NewListenerConfig() (ListenerConfig, error) {
 
 		if config.MinCollectionInterval == 0 {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
+		}
+
+		if config.OidBatchSize == 0 {
+			config.OidBatchSize = snmpConfig.OidBatchSize
 		}
 
 		config.PingConfig.Enabled = firstNonNil(config.PingConfig.Enabled, snmpConfig.PingConfig.Enabled)

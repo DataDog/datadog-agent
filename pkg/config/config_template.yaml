@@ -4147,6 +4147,15 @@ api_key:
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 #     use_deduplication: false
 
+
+#     # @param oid_batch_size - integer - optional - default: 5
+#     # The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
+#     # Can be overridden on a per-configuration basis.
+#     #
+#     # By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
+#
+#     # oid_batch_size: 5
+
 #     # @param configs - list - required
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
 #     # Example:

@@ -388,6 +388,37 @@ network_devices:
 	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
 }
 
+func Test_GlobalOIDBatchSize(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       oid_batch_size: 200
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, 5, conf.Configs[0].OidBatchSize)
+	assert.Equal(t, 200, conf.Configs[1].OidBatchSize)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    oid_batch_size: 100
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       oid_batch_size: 200
+`)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, 100, conf.Configs[0].OidBatchSize)
+	assert.Equal(t, 200, conf.Configs[1].OidBatchSize)
+}
+
 func Test_LoaderConfig(t *testing.T) {
 	configmock.NewFromYAML(t, `
 network_devices:
