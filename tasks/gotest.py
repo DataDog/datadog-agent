@@ -219,7 +219,7 @@ def process_test_result(
     success = process_result(flavor=flavor, result=test_result)
 
     if success:
-        print(color_message("All tests passed", "green"))
+        print(color_message("All Go tests passed", "green"))
         return True
 
     if test_washer or running_in_ci():
@@ -441,7 +441,7 @@ def test(
             print(color_message(f"Rust tests failed: {', '.join(rust_result.failures)}", "red"))
             rust_success = False
         else:
-            print(color_message(f"All {rust_result.test_count} Rust tests passed", "green"))
+            print(color_message("All Rust tests passed", "green"))
 
         # Include Rust JUnit files in the list
         if rust_result.junit_files:
