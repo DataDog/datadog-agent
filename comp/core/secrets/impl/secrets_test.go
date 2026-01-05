@@ -248,7 +248,7 @@ func TestResolveNoCommand(t *testing.T) {
 	}
 
 	// since we didn't set any command this should return without any error
-	resConf, err := resolver.Resolve(testConf, "test", "", "")
+	resConf, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NoError(t, err)
 	assert.Equal(t, testConf, resConf)
 }
@@ -262,7 +262,7 @@ func TestResolveSecretError(t *testing.T) {
 		return nil, errors.New("some error")
 	}
 
-	_, err := resolver.Resolve(testConf, "test", "", "")
+	_, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NotNil(t, err)
 }
 
@@ -282,7 +282,7 @@ func TestResolveDoestSendDuplicates(t *testing.T) {
 	}
 
 	// test configuration should still resolve correctly even though handle appears more than once
-	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "", true)
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 }
@@ -471,7 +471,7 @@ func TestResolve(t *testing.T) {
 			scrubbedKey := []string{}
 			resolver.scrubHookFunc = func(k []string) { scrubbedKey = append(scrubbedKey, k[0]) }
 
-			newConf, err := resolver.Resolve(tc.testConf, "test", "", "")
+			newConf, err := resolver.Resolve(tc.testConf, "test", "", "", true)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.resolvedConf, string(newConf))
@@ -512,7 +512,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 			assert.Fail(t, "unknown yaml path: %s", path)
 		}
 	})
-	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "", true)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, topLevelResolved, "'top_level' secret was not resolved or resolved multiple times")
@@ -540,7 +540,7 @@ func TestResolveCached(t *testing.T) {
 	resolver.SubscribeToChanges(func(handle, _ string, _ []string, _, _ any) {
 		totalResolved = append(totalResolved, handle)
 	})
-	_, err := resolver.Resolve(testConfNested, "test", "", "")
+	_, err := resolver.Resolve(testConfNested, "test", "", "", true)
 
 	// Resolve doesn't need to fetch because value is cached, but subscription is still called
 	require.NoError(t, err)
@@ -574,7 +574,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	}
 
 	// resolve the secrets the first time
-	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "", true)
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -736,7 +736,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// test configuration resolves, the secret appears at two setting paths
-	resolved, err := resolver.Resolve(testMultiUsageConf, "datadog.yaml", "", "")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "datadog.yaml", "", "", true)
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 
@@ -1200,9 +1200,9 @@ func TestSecretFiltering(t *testing.T) {
 
 			// Some source might have a namespace but not a image name or the opposite
 			if test.params.ImageToHandle == nil {
-				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "", "namespace1")
+				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "", "namespace1", true)
 			} else {
-				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "image1", "")
+				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "image1", "", true)
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectedConf, string(resolvedConf))
@@ -1215,9 +1215,131 @@ func TestSecretFiltering(t *testing.T) {
   - value2
   - value3
 `
-			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "")
+			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "", true)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedConf, string(resolvedConf))
 		})
 	}
+}
+
+func TestRemoveOrigin(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+			"pass2": "password2",
+			"pass3": "password3",
+		}, nil
+	}
+
+	conf := []byte("test: [\"ENC[pass1]\", \"ENC[pass2]\"]")
+	conf2 := []byte("test2: ENC[pass3]")
+
+	_, err := resolver.Resolve(conf, "origin1", "", "", true)
+	require.NoError(t, err)
+	_, err = resolver.Resolve(conf, "origin2", "", "", true)
+	require.NoError(t, err)
+	_, err = resolver.Resolve(conf2, "origin3", "", "", true)
+	require.NoError(t, err)
+
+	assert.Equal(t, handleToContext{
+		"pass1": []secretContext{
+			{origin: "origin1", path: []string{"test", "0"}},
+			{origin: "origin2", path: []string{"test", "0"}},
+		},
+		"pass2": []secretContext{
+			{origin: "origin1", path: []string{"test", "1"}},
+			{origin: "origin2", path: []string{"test", "1"}},
+		},
+		"pass3": []secretContext{
+			{origin: "origin3", path: []string{"test2"}},
+		},
+	}, resolver.origin)
+
+	resolver.RemoveOrigin("origin2")
+
+	assert.Equal(t, handleToContext{
+		"pass1": []secretContext{
+			{origin: "origin1", path: []string{"test", "0"}},
+		},
+		"pass2": []secretContext{
+			{origin: "origin1", path: []string{"test", "1"}},
+		},
+		"pass3": []secretContext{
+			{origin: "origin3", path: []string{"test2"}},
+		},
+	}, resolver.origin)
+
+	resolver.RemoveOrigin("unknown")
+	assert.Equal(t, handleToContext{
+		"pass1": []secretContext{
+			{origin: "origin1", path: []string{"test", "0"}},
+		},
+		"pass2": []secretContext{
+			{origin: "origin1", path: []string{"test", "1"}},
+		},
+		"pass3": []secretContext{
+			{origin: "origin3", path: []string{"test2"}},
+		},
+	}, resolver.origin)
+
+	resolver.RemoveOrigin("origin1")
+	assert.Equal(t, handleToContext{
+		"pass3": []secretContext{
+			{origin: "origin3", path: []string{"test2"}},
+		},
+	}, resolver.origin)
+
+	resolver.RemoveOrigin("origin3")
+	assert.Equal(t, handleToContext{}, resolver.origin)
+}
+
+func TestRefreshOutput(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	password := "password1"
+
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": password,
+		}, nil
+	}
+
+	_, err := resolver.Resolve(testSimpleConf, "origin1", "", "", true)
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {})
+	}
+
+	password = "password2"
+
+	res, err := resolver.Refresh(true)
+	require.NoError(t, err)
+	res = strings.ReplaceAll(res, "\r", "") // templates use OS line breaks, removes \r line breaks from windows
+	assert.Equal(t, "=== Secret stats ===\nNumber of secrets reloaded: 1\nSecrets handle reloaded:\n\n- 'pass1':\n\tused in 'origin1' configuration in entry 'secret_backend_arguments/0'\n", res)
+}
+
+func TestResolveNoNotify(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+
+	password := "password1"
+
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": password,
+		}, nil
+	}
+	resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
+		assert.Fail(t, "test should not have send notifications")
+	})
+
+	_, err := resolver.Resolve(testSimpleConf, "origin1", "", "", false)
+	require.NoError(t, err)
 }

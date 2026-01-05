@@ -317,6 +317,14 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
 
+func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error {
+	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
+	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
+}
+
 func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
 		return false, err

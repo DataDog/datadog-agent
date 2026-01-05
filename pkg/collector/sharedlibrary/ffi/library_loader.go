@@ -9,6 +9,7 @@
 package ffi
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"runtime"
@@ -39,7 +40,7 @@ const aggregator_t aggregator = {
 	SubmitEventPlatformEvent,
 };
 
-const aggregator_t *get_aggregator() {
+const aggregator_t *get_aggregator(void) {
 	return &aggregator;
 }
 */
@@ -60,17 +61,17 @@ func getLibExtension() string {
 
 // Library stores everything needed for using the shared libraries' symbols
 type Library struct {
-	Handle  unsafe.Pointer
-	Run     *C.run_function_t
-	Version *C.version_function_t
+	handle  unsafe.Pointer
+	run     *C.run_function_t
+	version *C.version_function_t
 }
 
 // LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
-	Open(name string) (Library, error)
-	Close(lib Library) error
-	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
-	Version(versionPtr *C.version_function_t) (string, error)
+	Open(name string) (*Library, error)
+	Close(lib *Library) error
+	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
+	Version(lib *Library) (string, error)
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -80,7 +81,7 @@ type SharedLibraryLoader struct {
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
-func (l *SharedLibraryLoader) Open(name string) (Library, error) {
+func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 
@@ -92,21 +93,21 @@ func (l *SharedLibraryLoader) Open(name string) (Library, error) {
 	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return Library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
+		return nil, fmt.Errorf("Failed to load shared library at %s: %s", libPath, C.GoString(cErr))
 	}
 
-	return Library{
-		Handle:  cLib.handle,
-		Run:     cLib.run,
-		Version: cLib.version,
-	}, nil
+	return (*Library)(&cLib), nil
 }
 
 // Close closes the shared library
-func (l *SharedLibraryLoader) Close(lib Library) error {
+func (l *SharedLibraryLoader) Close(lib *Library) error {
+	if lib == nil {
+		return errors.New("Pointer to 'Library' struct is NULL")
+	}
+
 	var cErr *C.char
 
-	C.close_shared_library(lib.Handle, &cErr)
+	C.close_shared_library(lib.handle, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Close failed: %s", C.GoString(cErr))
@@ -116,7 +117,11 @@ func (l *SharedLibraryLoader) Close(lib Library) error {
 }
 
 // Run calls the `Run` symbol of the shared library to execute the check's implementation
-func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
+func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string) error {
+	if lib == nil {
+		return errors.New("Pointer to 'Library' struct is NULL")
+	}
+
 	cID := C.CString(checkID)
 	defer C.free(unsafe.Pointer(cID))
 
@@ -128,20 +133,24 @@ func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, init
 
 	var cErr *C.char
 
-	C.run_shared_library(runPtr, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
+	C.run_shared_library(lib.run, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
+		return fmt.Errorf("Failed to run check: %s", C.GoString(cErr))
 	}
 
 	return nil
 }
 
 // Version calls the `Version` symbol to retrieve the check version
-func (l *SharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
+func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
+	if lib == nil {
+		return "", errors.New("Pointer to 'Library' struct is NULL")
+	}
+
 	var cErr *C.char
 
-	cLibVersion := C.get_version_shared_library(versionPtr, &cErr)
+	cLibVersion := C.get_version_shared_library(lib.version, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return "", fmt.Errorf("Failed to get version: %s", C.GoString(cErr))

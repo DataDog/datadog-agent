@@ -502,7 +502,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
-	github.com/DataDog/jsonapi v0.12.0 // indirect
+	github.com/DataDog/jsonapi v0.12.0
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 // indirect
@@ -855,7 +855,7 @@ require (
 	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.4 // indirect
-	go.mongodb.org/mongo-driver v1.17.4 // indirect
+	go.mongodb.org/mongo-driver v1.17.4
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.142.0 // indirect
@@ -977,9 +977,13 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.8.0
+	go.temporal.io/api v1.59.0
+	go.temporal.io/sdk v1.38.0
 )
 
 require (
@@ -990,9 +994,14 @@ require (
 require (
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
+	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.142.0 // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20250914183048-a974e0d45e0a // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 )
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
