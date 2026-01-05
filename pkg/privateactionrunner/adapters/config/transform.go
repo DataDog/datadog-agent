@@ -100,6 +100,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
+		Credentials:               creds,
 	}, nil
 }
 
