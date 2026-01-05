@@ -5,154 +5,170 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from tasks.libs.testing.rust_test_utils import (
-    _enhance_junit_error_message,
-    discover_rust_tests,
-)
+from tasks.libs.testing.rust_test_utils import _enhance_junit_error_message, run_rust_tests
+from tasks.libs.types.arch import Arch
 
 
-class TestDiscoverRustTests(unittest.TestCase):
-    """Tests for discover_rust_tests() function using Bazel query"""
+class TestRunRustTests(unittest.TestCase):
+    """Tests for run_rust_tests() function with single Bazel command"""
 
     @patch('subprocess.run')
-    def test_discover_single_rust_test(self, mock_run):
-        """Test discovering a single Rust test via Bazel query"""
-        # Mock bazel query output
+    @patch('invoke.context.Context.run')
+    def test_run_with_rust_tests(self, mock_ctx_run, mock_subprocess_run):
+        """Test running Rust tests when tests are found"""
+        # Mock query to return one test
         mock_query = MagicMock()
         mock_query.returncode = 0
-        mock_query.stdout = "//pkg/collector/test:my_test\n"
+        mock_query.stdout = "//pkg/test:my_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_query]
+        mock_subprocess_run.return_value = mock_query
 
-        result = discover_rust_tests(["./pkg"])
+        # Mock test execution
+        mock_test_result = MagicMock()
+        mock_test_result.exited = 0
+        mock_ctx_run.return_value = mock_test_result
 
-        self.assertEqual(len(result), 1)
-        self.assertIn("my_test", result)
-        self.assertEqual(result["my_test"], "pkg/collector/test")
+        # Mock XML file existence and content
+        with patch('os.path.exists', return_value=True):
+            with patch('shutil.copy2'):
+                with patch('tasks.libs.testing.rust_test_utils._enhance_junit_error_message'):
+                    with patch('xml.etree.ElementTree.parse') as mock_parse:
+                        mock_tree = MagicMock()
+                        mock_root = MagicMock()
+                        mock_testsuite = MagicMock()
+                        mock_testsuite.get.side_effect = lambda key, default=0: 0
+                        mock_root.find.return_value = mock_testsuite
+                        mock_tree.getroot.return_value = mock_root
+                        mock_parse.return_value = mock_tree
+
+                        ctx = MagicMock()
+                        ctx.run = mock_ctx_run
+
+                        result = run_rust_tests(ctx, ["./pkg"], Arch.local())
+
+                        self.assertTrue(result.success)
+                        self.assertEqual(result.test_count, 1)
+                        self.assertEqual(len(result.failures), 0)
 
     @patch('subprocess.run')
-    def test_discover_multiple_rust_tests(self, mock_run):
-        """Test discovering multiple Rust tests from different packages"""
+    def test_no_rust_tests_found(self, mock_subprocess_run):
+        """Test when no Rust tests are found"""
+        # Mock query to return no tests (exit code 7)
         mock_query = MagicMock()
-        mock_query.returncode = 0
-        mock_query.stdout = "//pkg/module1:test_one\n//pkg/module2:test_two\n"
-        mock_query.stderr = ""
-
-        mock_run.side_effect = [mock_query]
-
-        result = discover_rust_tests(["./pkg"])
-
-        self.assertEqual(len(result), 2)
-        self.assertIn("test_one", result)
-        self.assertIn("test_two", result)
-        self.assertEqual(result["test_one"], "pkg/module1")
-        self.assertEqual(result["test_two"], "pkg/module2")
-
-    @patch('subprocess.run')
-    def test_discover_no_tests_exit_code_7(self, mock_run):
-        """Test handling bazel query exit code 7 (no targets found)"""
-        mock_query = MagicMock()
-        mock_query.returncode = 7  # No targets found
+        mock_query.returncode = 7
         mock_query.stdout = ""
-        mock_query.stderr = "ERROR: no targets found beneath 'pkg'"
+        mock_query.stderr = "ERROR: no targets found"
 
-        mock_run.side_effect = [mock_query]
+        mock_subprocess_run.return_value = mock_query
 
-        result = discover_rust_tests(["./pkg"])
+        ctx = MagicMock()
+        result = run_rust_tests(ctx, ["./pkg"], Arch.local())
 
-        self.assertEqual(len(result), 0)
+        self.assertTrue(result.success)
+        self.assertEqual(result.test_count, 0)
+        self.assertEqual(len(result.failures), 0)
 
     @patch('subprocess.run')
-    def test_discover_multiple_paths(self, mock_run):
-        """Test discovering tests from multiple target paths"""
-        # First query returns one test
+    @patch('invoke.context.Context.run')
+    def test_multiple_target_paths(self, mock_ctx_run, mock_subprocess_run):
+        """Test with multiple target paths"""
+        # First query returns one test, second returns empty
         mock_query1 = MagicMock()
         mock_query1.returncode = 0
         mock_query1.stdout = "//pkg/test:test1\n"
         mock_query1.stderr = ""
 
-        # Second query returns exit code 7 (no tests)
         mock_query2 = MagicMock()
         mock_query2.returncode = 7
         mock_query2.stdout = ""
         mock_query2.stderr = ""
 
-        mock_run.side_effect = [mock_query1, mock_query2]
+        mock_subprocess_run.side_effect = [mock_query1, mock_query2]
 
-        result = discover_rust_tests(["./pkg", "./cmd"])
+        mock_test_result = MagicMock()
+        mock_test_result.exited = 0
+        mock_ctx_run.return_value = mock_test_result
 
-        self.assertEqual(len(result), 1)
-        self.assertIn("test1", result)
+        with patch('os.path.exists', return_value=True):
+            with patch('shutil.copy2'):
+                with patch('tasks.libs.testing.rust_test_utils._enhance_junit_error_message'):
+                    with patch('xml.etree.ElementTree.parse') as mock_parse:
+                        mock_tree = MagicMock()
+                        mock_root = MagicMock()
+                        mock_testsuite = MagicMock()
+                        mock_testsuite.get.side_effect = lambda key, default=0: 0
+                        mock_root.find.return_value = mock_testsuite
+                        mock_tree.getroot.return_value = mock_root
+                        mock_parse.return_value = mock_tree
+
+                        ctx = MagicMock()
+                        ctx.run = mock_ctx_run
+
+                        result = run_rust_tests(ctx, ["./pkg", "./cmd"], Arch.local())
+
+                        self.assertTrue(result.success)
+                        self.assertEqual(result.test_count, 1)
 
     @patch('subprocess.run')
-    def test_query_output_with_loading_messages(self, mock_run):
-        """Test parsing bazel query output that includes loading messages"""
+    @patch('invoke.context.Context.run')
+    def test_test_failure_detected(self, mock_ctx_run, mock_subprocess_run):
+        """Test that failures are detected from JUnit XML"""
+        # Mock query
         mock_query = MagicMock()
         mock_query.returncode = 0
-        mock_query.stdout = "Loading: 0 packages loaded\n//pkg/test:my_test\n"
+        mock_query.stdout = "//pkg/test:failing_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_query]
+        mock_subprocess_run.return_value = mock_query
 
-        result = discover_rust_tests(["./pkg"])
+        # Mock test execution (Bazel returns non-zero)
+        mock_test_result = MagicMock()
+        mock_test_result.exited = 1
+        mock_ctx_run.return_value = mock_test_result
 
-        self.assertEqual(len(result), 1)
-        self.assertIn("my_test", result)
+        with patch('os.path.exists', return_value=True):
+            with patch('shutil.copy2'):
+                with patch('tasks.libs.testing.rust_test_utils._enhance_junit_error_message'):
+                    with patch('xml.etree.ElementTree.parse') as mock_parse:
+                        # Mock XML showing failures
+                        mock_tree = MagicMock()
+                        mock_root = MagicMock()
+                        mock_testsuite = MagicMock()
 
-    @patch('subprocess.run')
-    def test_query_error_handling(self, mock_run):
-        """Test handling of bazel query errors (non-7 exit codes)"""
-        mock_query = MagicMock()
-        mock_query.returncode = 1  # Some other error
-        mock_query.stdout = ""
-        mock_query.stderr = "ERROR: some other error"
+                        def get_attr(key, default=0):
+                            if key == 'failures':
+                                return 1
+                            return 0
 
-        mock_run.side_effect = [mock_query]
+                        mock_testsuite.get = get_attr
+                        mock_root.find.return_value = mock_testsuite
+                        mock_tree.getroot.return_value = mock_root
+                        mock_parse.return_value = mock_tree
 
-        # Should not raise, just return empty dict
-        result = discover_rust_tests(["./pkg"])
+                        ctx = MagicMock()
+                        ctx.run = mock_ctx_run
 
-        self.assertEqual(len(result), 0)
+                        result = run_rust_tests(ctx, ["./pkg"], Arch.local())
 
-    @patch('subprocess.run')
-    def test_path_normalization_trailing_slash(self, mock_run):
-        """Test that trailing slashes in paths are handled correctly"""
-        mock_query = MagicMock()
-        mock_query.returncode = 0
-        mock_query.stdout = "//pkg/test:my_test\n"
-        mock_query.stderr = ""
+                        self.assertFalse(result.success)
+                        self.assertEqual(result.test_count, 1)
+                        self.assertEqual(len(result.failures), 1)
+                        self.assertIn("pkg/test:failing_test", result.failures)
 
-        mock_run.side_effect = [mock_query]
+    def test_windows_and_macos_skip(self):
+        """Test that Windows and macOS are skipped"""
+        with patch('sys.platform', 'win32'):
+            ctx = MagicMock()
+            result = run_rust_tests(ctx, ["./pkg"], Arch.local())
+            self.assertTrue(result.success)
+            self.assertEqual(result.test_count, 0)
 
-        # Path with trailing slash should work
-        result = discover_rust_tests(["./pkg/"])
-
-        self.assertEqual(len(result), 1)
-        # Verify the query was called with correct pattern (no double slashes)
-        query_call = mock_run.call_args_list[0]
-        query_cmd = query_call[0][0]
-        self.assertIn("//pkg/...", query_cmd[2])
-        self.assertNotIn("//pkg//", query_cmd[2])
-
-    @patch('subprocess.run')
-    def test_path_normalization_with_ellipsis(self, mock_run):
-        """Test that paths ending with ... are normalized correctly"""
-        mock_query = MagicMock()
-        mock_query.returncode = 0
-        mock_query.stdout = "//pkg/test:my_test\n"
-        mock_query.stderr = ""
-
-        mock_run.side_effect = [mock_query]
-
-        # Path already with ... should work
-        result = discover_rust_tests(["./pkg/..."])
-
-        self.assertEqual(len(result), 1)
-        # Verify the query was called with correct pattern
-        query_call = mock_run.call_args_list[0]
-        query_cmd = query_call[0][0]
-        self.assertIn("//pkg/...", query_cmd[2])
+        with patch('sys.platform', 'darwin'):
+            ctx = MagicMock()
+            result = run_rust_tests(ctx, ["./pkg"], Arch.local())
+            self.assertTrue(result.success)
+            self.assertEqual(result.test_count, 0)
 
 
 class TestEnhanceJunitErrorMessage(unittest.TestCase):

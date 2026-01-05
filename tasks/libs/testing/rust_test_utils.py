@@ -1,5 +1,5 @@
 """
-Utilities for discovering and running Rust tests via Bazel
+Utilities for running Rust tests via Bazel
 """
 
 from __future__ import annotations
@@ -24,75 +24,9 @@ class RustTestResult:
     junit_files: list[str]  # Paths to generated JUnit XML files
 
 
-def discover_rust_tests(target_paths: list[str]) -> dict[str, str]:
-    """
-    Discover Rust tests in the given target paths using Bazel query.
-
-    Args:
-        target_paths: List of paths to scan for Rust tests (e.g., ["./pkg", "./cmd/..."])
-
-    Returns:
-        Dictionary mapping test_name -> source_path
-        Example: {"sd-agent_test": "pkg/collector/corechecks/servicediscovery/module/rust"}
-    """
-    import subprocess
-
-    rust_tests = {}
-
-    # Skip on Windows and macOS
-    if sys.platform == 'win32' or sys.platform == 'darwin':
-        return rust_tests
-
-    for target in target_paths:
-        # Convert "./pkg/" -> "//pkg/..." or "./pkg/..." -> "//pkg/..."
-        # Strip leading "./" and trailing "/" to avoid double slashes
-        clean_target = target.lstrip('./').rstrip('/')
-        # Also strip "..." to normalize (we'll add it back)
-        clean_target = clean_target.rstrip('.')
-        clean_target = clean_target.rstrip('/')
-        # Add wildcard pattern
-        bazel_pattern = f"//{clean_target}/..."
-
-        # Query Bazel for rust_test targets
-        try:
-            result = subprocess.run(
-                ["bazelisk", "query", f"kind(rust_test, {bazel_pattern})", "--output=label"],
-                capture_output=True,
-                text=True,
-                check=False,  # Don't raise on non-zero exit (no targets = exit 7)
-            )
-
-            # Exit code 7 means "no targets found" - this is OK, just skip
-            # Exit code 3 means "partial success" - also OK
-            if result.returncode == 7 or result.returncode == 3:
-                continue
-            elif result.returncode != 0:
-                # Other errors should be logged but not fail discovery
-                print(color_message(f"Warning: bazel query failed for {bazel_pattern}: {result.stderr}", "yellow"))
-                continue
-
-            # Parse output: "//path/to/package:test_name"
-            for line in result.stdout.strip().split('\n'):
-                # Skip empty lines and loading messages
-                if not line or line.startswith('Loading:'):
-                    continue
-
-                # Split on last ':' to separate package from target
-                if ':' in line:
-                    package_path = line.split(':')[0].lstrip('/')
-                    test_name = line.split(':')[1]
-                    rust_tests[test_name] = package_path
-
-        except Exception as e:
-            print(color_message(f"Warning: Failed to query Bazel for {bazel_pattern}: {e}", "yellow"))
-            continue
-
-    return rust_tests
-
-
 def run_rust_tests(
     ctx: Context,
-    rust_tests: dict[str, str],
+    target_paths: list[str],
     arch: Arch,
     junit_base_name: str | None = None,
     flavor=None,
@@ -102,7 +36,7 @@ def run_rust_tests(
 
     Args:
         ctx: Invoke context
-        rust_tests: Dictionary mapping test_name -> source_path
+        target_paths: List of paths to scan for Rust tests (e.g., ["./pkg", "./cmd"])
         arch: Architecture to run tests for
         junit_base_name: Base name for JUnit XML files (e.g., "junit-rust-base")
         flavor: Agent flavor for JUnit XML enrichment
@@ -111,14 +45,12 @@ def run_rust_tests(
         RustTestResult with success status, failures, and JUnit file paths
     """
     import shutil
-    from datetime import datetime, timezone
+    import subprocess
+    import xml.etree.ElementTree as ET
 
     # Skip on Windows and macOS
     if sys.platform == 'win32' or sys.platform == 'darwin':
         print(color_message("Rust tests are only supported on Linux, skipping", "yellow"))
-        return RustTestResult(success=True, failures=[], test_count=0, junit_files=[])
-
-    if not rust_tests:
         return RustTestResult(success=True, failures=[], test_count=0, junit_files=[])
 
     # Platform mapping for Bazel
@@ -131,59 +63,103 @@ def run_rust_tests(
     if arch.kmt_arch in platform_map:
         platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
 
-    test_results = []
-    test_count = len(rust_tests)
+    all_targets = []
+    patterns = []
+    for path in target_paths:
+        # Normalize path: "./pkg/" -> "//pkg/..."
+        clean_path = os.path.normpath(path)
+        clean_path = clean_path.lstrip('./').rstrip('/').rstrip('.')
+        bazel_pattern = f"//{clean_path}/..."
+        patterns.append(bazel_pattern)
 
-    for test_name, source_path in rust_tests.items():
-        print(f"Running Rust test: {test_name} ({source_path})")
-        start_time = datetime.now(timezone.utc)
-
-        # Run Bazel test - it automatically generates test.xml in bazel-testlogs
-        result = ctx.run(
-            f"bazelisk test {platform_flag} --test_output=errors -- @//{source_path}:{test_name}", warn=True
+    try:
+        # --keep_going is needed since otherwise the command fails if any of the
+        # paths do not have any test targets.
+        cmd = (
+            [
+                "bazelisk",
+                "query",
+                f"tests({' + '.join(patterns)})",
+                "--output=label",
+                "--keep_going",
+                "--noshow_progress",
+            ],
+        )
+        query_result = subprocess.run(
+            *cmd,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
-        end_time = datetime.now(timezone.utc)
+        # We don't check the return code since it returns an error if any of the
+        # paths do not have any test targets.
 
-        # Bazel creates test.xml in bazel-testlogs/{source_path}/{test_name}/test.xml
-        bazel_xml_path = f"bazel-testlogs/{source_path}/{test_name}/test.xml"
+        # Parse targets (one per line)
+        for line in query_result.stdout.strip().split('\n'):
+            if line:
+                all_targets.append(line)
+    except Exception as e:
+        print(color_message(f"Warning: Failed to query Bazel for {patterns}: {e}", "yellow"))
 
-        test_results.append(
-            {
-                'test_name': test_name,
-                'source_path': source_path,
-                'start_time': start_time,
-                'end_time': end_time,
-                'xml_path': bazel_xml_path if os.path.exists(bazel_xml_path) else None,
-                'exit_code': result.exited if result.exited is not None else 1,
-            }
-        )
+    if not all_targets:
+        # No Rust tests found, don't run "bazelisk test" on the paths since it will error out.
+        return RustTestResult(success=True, failures=[], test_count=0, junit_files=[])
 
-    # Collect JUnit XML files
+    print(color_message(f"Found {len(all_targets)} Rust test(s) in target paths", "blue"))
+
+    result = ctx.run(f"bazelisk test {platform_flag} --test_output=errors -- " + " ".join(all_targets), warn=True)
+
     junit_files = []
-    if junit_base_name and flavor:
-        from tasks.libs.common.junit_upload_core import enrich_junitxml
+    failed_tests = []
 
-        for result in test_results:
-            if result['xml_path'] and os.path.exists(result['xml_path']):
-                # Copy Bazel's test.xml to our output location with consistent naming
-                output_xml = f"{junit_base_name}-{result['test_name']}.xml"
-                shutil.copy2(result['xml_path'], output_xml)
+    for target in all_targets:
+        # Parse "//pkg/test:my_test" -> package_path="pkg/test", test_name="my_test"
+        if ':' not in target:
+            continue
+        package_path = target.split(':')[0].lstrip('//')
+        test_name = target.split(':')[1]
 
-                # Enhance error message with full test output from system-out
-                _enhance_junit_error_message(output_xml, result['source_path'], result['test_name'])
+        xml_path = f"bazel-testlogs/{package_path}/{test_name}/test.xml"
 
-                # Enrich JUnit XML with flavor info (same as Go tests)
+        if os.path.exists(xml_path):
+            if junit_base_name and flavor:
+                # Copy and enhance JUnit XML
+                output_xml = f"{junit_base_name}-{package_path.replace('/', '_')}-{test_name}.xml"
+                shutil.copy2(xml_path, output_xml)
+                _enhance_junit_error_message(output_xml, package_path, test_name)
+
+                from tasks.libs.common.junit_upload_core import enrich_junitxml
+
                 enrich_junitxml(output_xml, flavor)
 
                 junit_files.append(output_xml)
 
-    # Determine success/failure
-    failed_tests = [f"{r['source_path']}:{r['test_name']}" for r in test_results if r['exit_code'] != 0]
+            # Check if test failed by parsing XML
+            try:
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
+                testsuite = root.find('.//testsuite')
+                if testsuite is not None:
+                    failures = int(testsuite.get('failures', 0))
+                    errors = int(testsuite.get('errors', 0))
+                    if failures > 0 or errors > 0:
+                        failed_tests.append(f"{package_path}:{test_name}")
+            except Exception as e:
+                print(color_message(f"Warning: Failed to parse XML for {test_name}: {e}", "yellow"))
 
-    return RustTestResult(
-        success=len(failed_tests) == 0, failures=failed_tests, test_count=test_count, junit_files=junit_files
-    )
+    # 4. Determine overall success
+    success = result.exited == 0 and len(failed_tests) == 0
+
+    if success:
+        print(color_message(f"All {len(all_targets)} Rust tests passed", "green"))
+    else:
+        if failed_tests:
+            print(color_message(f"Rust tests failed: {', '.join(failed_tests)}", "red"))
+        else:
+            print(color_message("Rust tests failed", "red"))
+
+    return RustTestResult(success=success, failures=failed_tests, test_count=len(all_targets), junit_files=junit_files)
 
 
 def _enhance_junit_error_message(xml_path: str, source_path: str, test_name: str):

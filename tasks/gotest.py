@@ -38,7 +38,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
-from tasks.libs.testing.rust_test_utils import discover_rust_tests, run_rust_tests
+from tasks.libs.testing.rust_test_utils import run_rust_tests
 from tasks.libs.types.arch import Arch
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
@@ -393,12 +393,16 @@ def test(
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
-    # Check for Rust tests in the target paths
+    # Collect target paths for Rust tests
     target_paths = []
     for module in modules:
-        target_paths.extend(module.test_targets)
-
-    rust_tests = discover_rust_tests(target_paths)
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            path = os.path.join(module.path, target)
+            if not path.startswith('./'):
+                path = f"./{path}"
+            target_paths.append(path)
 
     # Determine overall success based on Go and Rust test results
     go_success = True
@@ -420,35 +424,29 @@ def test(
     else:
         all_junit_files = []
 
-    # Run Rust tests if any are found
-    if rust_tests:
-        print(color_message(f"Found {len(rust_tests)} Rust test(s) in target paths", "blue"))
+    # Run Rust tests
+    # Generate rust-specific junit filename to avoid conflicts
+    rust_junit_base = None
+    if result_junit:
+        rust_junit_base = result_junit.replace("junit-out-", "junit-rust-")
 
-        # Generate rust-specific junit filename to avoid conflicts
-        rust_junit_base = None
-        if result_junit:
-            rust_junit_base = result_junit.replace("junit-out-", "junit-rust-")
+    rust_result = run_rust_tests(
+        ctx,
+        target_paths,
+        Arch.local(),
+        junit_base_name=rust_junit_base,
+        flavor=flavor,
+    )
 
-        rust_result = run_rust_tests(
-            ctx,
-            rust_tests,
-            Arch.local(),
-            junit_base_name=rust_junit_base,
-            flavor=flavor,
-        )
-
+    if rust_result.test_count > 0:
         if not rust_result.success:
-            print(color_message(f"Rust tests failed: {', '.join(rust_result.failures)}", "red"))
             rust_success = False
-        else:
-            print(color_message("All Rust tests passed", "green"))
-
         # Include Rust JUnit files in the list
         if rust_result.junit_files:
             all_junit_files.extend(rust_result.junit_files)
 
     # Process test results (both Go and Rust JUnit files)
-    if test_result or (rust_tests and rust_result.junit_files):
+    if test_result or rust_result.junit_files:
         go_success = process_test_result(test_result, junit_tar, all_junit_files, flavor, test_washer)
 
         # If we have Rust tests but Go tests failed because there were no packages,
