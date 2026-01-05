@@ -11,13 +11,14 @@ package mount
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"path"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"go.uber.org/atomic"
 
@@ -211,64 +212,57 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 		}
 	}
 
-	allChildren, err := mr.getAllChildren(mount)
-	if err != nil {
-		seclog.Warnf("Error getting the list of children for mount id %d. err = %v", mount.MountID, err)
-	}
-
-	for _, child := range allChildren {
+	mr.walkMountSubtree(mount, true, func(child *model.Mount) {
 		child.Path = ""
 		_, _, _, _ = mr.getMountPath(child.MountID, 0)
-	}
+	})
 }
 
-func (mr *Resolver) getAllChildren(mount *model.Mount) (map[uint32]*model.Mount, error) {
-	children := map[uint32]*model.Mount{}
+func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool, cb func(*model.Mount)) {
+	stack := []*model.Mount{mount}
+	visited := make(map[uint32]struct{})
 
-	err := mr.getAllChildrenRecursive(mount, children)
+	var getMount func(uint32) *model.Mount
 
-	return children, err
-}
-
-func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, mountList map[uint32]*model.Mount) error {
-	if _, existed := mountList[mount.MountID]; existed {
-		return nil
-	}
-	mountList[mount.MountID] = mount
-
-	for _, mountid := range mount.Children {
-		mnt := mr.lookupByMountID(mountid, true)
-		if mnt != nil {
-			err := mr.getAllChildrenRecursive(mnt, mountList)
-			if err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("could not find mount with the id %d", mountid)
+	if lookIntoRedemption {
+		getMount = func(mountid uint32) *model.Mount {
+			return mr.lookupByMountID(mountid)
+		}
+	} else {
+		getMount = func(mountid uint32) *model.Mount {
+			m, _ := mr.mounts.Get(mountid, true)
+			return m
 		}
 	}
-	return nil
+
+	for len(stack) > 0 {
+		n := len(stack) - 1
+		curr := stack[n]
+		stack = stack[:n]
+
+		if _, ok := visited[curr.MountID]; ok {
+			continue
+		}
+		visited[curr.MountID] = struct{}{}
+
+		for _, childID := range curr.Children {
+			if child := getMount(childID); child != nil {
+				if _, seen := visited[childID]; !seen {
+					stack = append(stack, child)
+				}
+			}
+		}
+
+		cb(curr)
+	}
 }
 
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
-	mr.deleteOne(mount, now)
-
-	openQueue := make([]uint32, 0, openQueuePreAllocSize)
-	openQueue = append(openQueue, mount.MountID)
-
-	for len(openQueue) != 0 {
-		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
-		openQueue = rest
-
-		for child := range mr.mounts.ValuesIter() {
-			if child.ParentPathKey.MountID == curr {
-				openQueue = append(openQueue, child.MountID)
-				mr.deleteOne(child, now)
-			}
-		}
-	}
+	mr.walkMountSubtree(mount, true, func(child *model.Mount) {
+		mr.deleteOne(child, now)
+	})
 }
 
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
