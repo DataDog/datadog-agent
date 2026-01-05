@@ -206,7 +206,10 @@ metadata:
   displayName: Datadog-agent CI
   tags:
     - datadog-agent-ci
-  owner: agent-devx
+  owner: agent-supply-chain
+  additionalOwners:
+    - name: agent-devx
+    - name: agent-build
   links:
     - name: datadog-agent
       type: repo
@@ -263,9 +266,6 @@ metadata:
     - name: datadog-agent-pipelines
       type: slack
       contact: https://dd.enterprise.slack.com/archives/CR5TV8QBY
-integrations:
-  pagerduty:
-    serviceURL: https://datadog.pagerduty.com/service-directory/P9SGXPT
 datadog:
   pipelines:
     fingerprints:
