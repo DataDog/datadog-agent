@@ -9,7 +9,7 @@ package backend
 import (
 	"context"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 // errorBackend links an error to its backend

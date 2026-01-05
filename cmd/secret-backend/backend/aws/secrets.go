@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 // secretsManagerClient is an interface that defines the methods we use from the ssm client
