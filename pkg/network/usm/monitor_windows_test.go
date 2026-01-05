@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"fmt"
 	nethttp "net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,11 +92,13 @@ func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protoc
 // TestHTTPStats tests basic HTTP monitoring functionality on Windows.
 func TestHTTPStats(t *testing.T) {
 	const (
-		serverAddr     = "127.0.0.1:8081"
-		serverPort     = 8081
 		expectedStatus = 204
 		testPath       = "/test"
 	)
+
+	serverPort := tracetestutil.FreeTCPPort(t)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+	t.Logf("Using server address: %s (port: %d)", serverAddr, serverPort)
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableKeepAlive: true,
@@ -121,7 +125,7 @@ func TestHTTPStats(t *testing.T) {
 			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
 				continue
 			}
-			if key.SrcPort != serverPort && key.DstPort != serverPort {
+			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
 				continue
 			}
 
