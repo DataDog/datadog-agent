@@ -24,6 +24,7 @@ import yaml
 from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke import Context
 from invoke.exceptions import Exit
+from requests.adapters import HTTPAdapter
 
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
@@ -66,7 +67,9 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
-    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+    session = requests.Session()
+    session.mount('https://', HTTPAdapter(max_retries=2))
+    res = session.get(url, headers={'Authorization': infra_token}, timeout=30)
 
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')

@@ -33,13 +33,15 @@ const (
 
 const (
 	cloudRunJobNamespace = "gcrj."
-	jobNameTag           = "job_name"
-	executionNameTag     = "execution_name"
-	taskIndexTag         = "task_index"
-	taskAttemptTag       = "task_attempt"
-	taskCountTag         = "task_count"
-	resourceNameTag      = "resource_name"
 	cloudRunJobsPrefix   = "gcp.run.job"
+	// Low cardinality (include with metrics)
+	jobNameTag      = "job_name"
+	resourceNameTag = "resource_name"
+	// High cardinality (avoid adding to metrics)
+	executionNameTag = "execution_name"
+	taskIndexTag     = "task_index"
+	taskAttemptTag   = "task_attempt"
+	taskCountTag     = "task_count" // not really high cardinality, but not necessary for metrics
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
@@ -61,7 +63,6 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
 	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
 
-	// TODO: remove high cardinality tags and include them only in logs/traces.
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
 		tags[jobNameTag] = jobNameVal
@@ -123,7 +124,11 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
+	succeededTag := "succeeded:true"
+	if exitCode != 0 {
+		succeededTag = "succeeded:false"
+	}
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
 
 	c.completeAndSubmitJobSpan(traceAgent, runErr)
 }

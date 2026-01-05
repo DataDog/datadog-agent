@@ -1555,7 +1555,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 
 	elementSize := int(s.Data.Element.GetByteSize())
 	var sliceData []byte
-	var sliceLength int
+	var displayLen int
 	if elementSize > 0 {
 		sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
 		if !ok {
@@ -1571,9 +1571,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 				tokenNotCapturedReasonUnavailable,
 			)
 		}
-		sliceLength = int(len(sliceData)) / elementSize
+		// We might have captured less data then the length, due to max capture limits.
+		// We might have captured more data then the length, due to multiple variables
+		// aliasing the same underlying buffer (for now we capture as much data as the length
+		// of the first variable pointing to the buffer).
+		displayLen = min(int(len(sliceData))/elementSize, int(length))
 	} else {
-		sliceLength = int(length)
+		displayLen = int(length)
 	}
 	if err := writeTokens(enc,
 		jsontext.String("elements"),
@@ -1583,7 +1587,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 	elementByteSize := int(s.Data.Element.GetByteSize())
 	elementName := s.Data.Element.GetName()
 	elementID := s.Data.Element.GetID()
-	for i := range int(sliceLength) {
+	for i := range int(displayLen) {
 		var elementData []byte
 		if elementSize > 0 {
 			elementData = sliceData[i*elementByteSize : (i+1)*elementByteSize]
@@ -1601,7 +1605,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
-	if length > uint64(sliceLength) {
+	if length > uint64(displayLen) {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonCollectionSize,
@@ -1776,6 +1780,7 @@ func (s *goStringHeaderType) encodeValueFields(
 			tokenNotCapturedReasonDepth,
 		)
 	}
+	// See notes about slice serialization for possible differences between captured and actual length.
 	stringData, ok := stringValue.Data()
 	if !ok {
 		// The string data was corrupted, report it as unavailable.
@@ -1801,7 +1806,7 @@ func (s *goStringHeaderType) encodeValueFields(
 	if err := writeTokens(enc, jsontext.String("value")); err != nil {
 		return err
 	}
-	str := unsafe.String(unsafe.SliceData(stringData), int(length))
+	str := unsafe.String(unsafe.SliceData(stringData), min(int(length), int(strLen)))
 	return writeTokens(enc, jsontext.String(str))
 }
 
@@ -1838,26 +1843,18 @@ func (s *goStringHeaderType) formatValueFields(
 		return nil
 	}
 
-	if uint64(len(strData)) < length {
-		length = uint64(len(strData))
+	// We can only display as much data as was collected, and up to the limits.
+	displayLen := min(int(length), len(strData), limits.maxBytes)
+	if displayLen == int(length) {
+		// We can just display the whole string.
+		writeBoundedString(buf, limits, string(strData[:displayLen]))
+		return nil
 	}
-
-	// Truncate string if it would exceed remaining bytes.
-	str := string(strData[:length])
-	maxStrLen := limits.maxBytes - len(formatEllipsis)
-	if maxStrLen < 0 {
-		maxStrLen = 0
+	// We display truncated string with ellipsis if possible, nothing otherwise.
+	if limits.maxBytes > len(formatEllipsis) {
+		str := string(strData[:min(displayLen, limits.maxBytes-len(formatEllipsis))]) + formatEllipsis
+		writeBoundedString(buf, limits, str)
 	}
-	if len(str) > maxStrLen {
-		if maxStrLen > 0 {
-			str = str[:maxStrLen] + formatEllipsis
-		} else {
-			// Can't even fit ellipsis, return empty.
-			return nil
-		}
-	}
-
-	writeBoundedString(buf, limits, str)
 	return nil
 }
 

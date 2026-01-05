@@ -45,7 +45,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["@@//packages:__subpackages__"],
 )
 
 license(
@@ -162,6 +162,7 @@ pkg_install(
         ":lib_files",
         ":license_files",
     ],
+    destdir_flag = "@@//:install_dir",
 )
 
 # buildifier: disable=no-effect

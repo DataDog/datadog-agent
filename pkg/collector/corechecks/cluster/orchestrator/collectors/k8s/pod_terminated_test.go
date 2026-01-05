@@ -105,10 +105,6 @@ func TestTerminatedPodCollector(t *testing.T) {
 			assert.Len(t, processResult.Result.ManifestMessages, 1)
 			assert.IsType(t, &model.CollectorPod{}, processResult.Result.MetadataMessages[0])
 			assert.IsType(t, &model.CollectorManifest{}, processResult.Result.ManifestMessages[0])
-
-			// Test GetNodeName method
-			nodeName := collector.GetNodeName(nil, pod)
-			assert.Equal(t, "test-node", nodeName)
 		},
 	}
 

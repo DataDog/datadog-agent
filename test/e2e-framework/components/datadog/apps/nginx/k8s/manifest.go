@@ -25,7 +25,7 @@ func runtimeClassToPulumi(runtimeClass string) pulumi.StringInput {
 }
 
 // NewNginxDeploymentManifest creates a new deployment manifest for Nginx server
-func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
+func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
 	manifest := &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),
@@ -85,19 +85,19 @@ func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),
-									ContainerPort: pulumi.Int(80),
+									ContainerPort: pulumi.Int(nginxPort),
 									Protocol:      pulumi.String("TCP"),
 								},
 							},
 							LivenessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
 							ReadinessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
@@ -167,6 +167,8 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 							Name:  pulumi.String("query"),
 							Image: pulumi.String("ghcr.io/datadog/apps-http-client:" + apps.Version),
 							Args: pulumi.StringArray{
+								pulumi.String("-url"),
+								pulumi.String("http://nginx"),
 								pulumi.String("-min-tps"),
 								pulumi.String("1"),
 								pulumi.String("-max-tps"),

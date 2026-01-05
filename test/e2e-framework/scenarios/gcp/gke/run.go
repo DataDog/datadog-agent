@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -81,10 +82,6 @@ func Run(ctx *pulumi.Context) error {
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithoutDDDevForwarding())
 			}
 
-			if storeType := env.AgentFakeintakeStoreType(); storeType != "" {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithStoreType(storeType))
-			}
-
 			if retentionPeriod := env.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithRetentionPeriod(retentionPeriod))
 			}
@@ -115,7 +112,7 @@ func Run(ctx *pulumi.Context) error {
 	// Deploy testing workload
 	if env.TestingWorkloadDeploy() {
 
-		if _, err := nginx.K8sAppDefinition(&env, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, cluster.KubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 			return err
 		}
 
@@ -135,11 +132,15 @@ func Run(ctx *pulumi.Context) error {
 			return err
 		}
 
+		if _, err := redis.K8sAppDefinition(&env, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			return err
+		}
+
 		// These workloads cannot be deployed on Autopilot because of the constraints on hostPath volumes
 		if !env.GKEAutopilot() {
 			// Deploy standalone dogstatsd
-			if env.DogstatsdDeploy() {
-				if _, err := dogstatsdstandalone.K8sAppDefinition(&env, cluster.KubeProvider, "dogstatsd-standalone", nil, true, ""); err != nil {
+			if env.DogstatsdDeploy() && env.AgentDeploy() {
+				if _, err := dogstatsdstandalone.K8sAppDefinition(&env, cluster.KubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", nil, true, ""); err != nil {
 					return err
 				}
 
@@ -149,9 +150,11 @@ func Run(ctx *pulumi.Context) error {
 				}
 			}
 
-			// dogstatsd clients that report to the Agent
-			if _, err := dogstatsd.K8sAppDefinition(&env, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
-				return err
+			if env.AgentDeploy() {
+				// dogstatsd clients that report to the Agent
+				if _, err := dogstatsd.K8sAppDefinition(&env, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+					return err
+				}
 			}
 
 			if _, err := tracegen.K8sAppDefinition(&env, cluster.KubeProvider, "workload-tracegen"); err != nil {

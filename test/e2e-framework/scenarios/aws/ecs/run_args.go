@@ -8,13 +8,14 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const defaultECSName = "ecs"
@@ -63,9 +64,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 		fi := []scenfi.Option{}
 		if e.InfraShouldDeployFakeintakeWithLB() {
 			fi = append(fi, scenfi.WithLoadBalancer())
-		}
-		if store := e.AgentFakeintakeStoreType(); store != "" {
-			fi = append(fi, scenfi.WithStoreType(store))
 		}
 		if retention := e.AgentFakeintakeRetentionPeriod(); retention != "" {
 			fi = append(fi, scenfi.WithRetentionPeriod(retention))

@@ -72,10 +72,16 @@ build do
       end
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
     else
       msgoroot = "/usr/local/msgo"
       env["GOROOT"] = msgoroot
       env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      # also update the global env so that the symbol inspector use the correct go version
+      ENV['GOROOT'] = msgoroot
+      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
     end
   end
 
@@ -96,11 +102,7 @@ build do
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
-    include_sds = ""
-    if linux_target?
-        include_sds = "--include-sds" # we only support SDS on Linux targets for now
-    end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if osx_target?
@@ -138,10 +140,10 @@ build do
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
@@ -240,14 +242,6 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # APM Injection agent
-  if windows_target?
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
-    end
-  end
-
   if osx_target?
     # Launchd service definition
     erb source: "launchd.plist.example.erb",
@@ -267,7 +261,12 @@ build do
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+        }
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -303,9 +302,10 @@ build do
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
+        "#{install_dir}/embedded/bin/installer",
       ]
 
-      symbol = "_Cfunc_go_openssl"
+      symbol = "_Cfunc__mkcgo_OPENSSL"
       check_block = Proc.new { |binary, symbols|
         count = symbols.scan(symbol).count
         if count > 0

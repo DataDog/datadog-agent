@@ -91,6 +91,7 @@ const (
 	setenvProbe                  probeFuncName = "uprobe__setenv"
 	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
 	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
+	cuLaunchKernelProbe          probeFuncName = "uprobe__cuLaunchKernel"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -446,6 +447,7 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 				Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelProbe}},
 				},
 			},
 		},

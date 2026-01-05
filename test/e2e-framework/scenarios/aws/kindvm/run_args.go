@@ -25,12 +25,13 @@ const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
 
 // RunParams collects parameters for the Kind-on-VM scenario
 type RunParams struct {
-	Name              string
-	vmOptions         []ec2.VMOption
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	ciliumOptions     []cilium.Option
-	workloadAppFuncs  []kubecomp.WorkloadAppFunc
+	Name                string
+	vmOptions           []ec2.VMOption
+	agentOptions        []kubernetesagentparams.Option
+	fakeintakeOptions   []fakeintake.Option
+	ciliumOptions       []cilium.Option
+	workloadAppFuncs    []kubecomp.WorkloadAppFunc
+	depWorkloadAppFuncs []kubecomp.AgentDependentWorkloadAppFunc
 
 	deployOperator     bool
 	operatorDDAOptions []agentwithoperatorparams.Option
@@ -49,6 +50,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		agentOptions:       []kubernetesagentparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
 		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
+		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
 		operatorOptions:    []operatorparams.Option{},
 		operatorDDAOptions: []agentwithoperatorparams.Option{},
 		deployDogstatsd:    false,
@@ -83,9 +85,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 		}
 		if e.AgentUseDualShipping() {
 			fi = append(fi, fakeintake.WithoutDDDevForwarding())
-		}
-		if store := e.AgentFakeintakeStoreType(); store != "" {
-			fi = append(fi, fakeintake.WithStoreType(store))
 		}
 		if retention := e.AgentFakeintakeRetentionPeriod(); retention != "" {
 			fi = append(fi, fakeintake.WithRetentionPeriod(retention))
@@ -150,6 +149,14 @@ func WithDeployTestWorkload() RunOption {
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
+}
+
+// WithAgentDependentWorkloadApp adds a workload app to the environment with the agent passed in
+func WithAgentDependentWorkloadApp(appFunc kubecomp.AgentDependentWorkloadAppFunc) RunOption {
+	return func(p *RunParams) error {
+		p.depWorkloadAppFuncs = append(p.depWorkloadAppFuncs, appFunc)
+		return nil
+	}
 }
 
 // WithDeployArgoRollout enables Argo Rollout deployment

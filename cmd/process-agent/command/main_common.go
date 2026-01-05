@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -144,6 +145,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
 
+		remotetraceroute.Module(),
 		// Provide network path bundle
 		networkpath.Bundle(),
 

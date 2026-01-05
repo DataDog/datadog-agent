@@ -82,14 +82,18 @@ type ResolverOpts struct {
 type LRUCacheKey struct {
 	path        string
 	containerID string
-	inode       uint64
-	pathID      uint32
 }
 
 // LRUCacheEntry is the structure used to cache hashes
+// It includes file metadata (inode, mtime, size) to detect if the file has changed
 type LRUCacheEntry struct {
 	state  model.HashState
 	hashes []string
+	// File metadata to detect changes
+	inode  uint64 // file inode
+	pathID uint32 // internal path ID
+	mtime  uint64 // modification time in nanoseconds
+	size   int64  // file size in bytes
 }
 
 // Resolver represents a cache for mountpoints and the corresponding file systems
@@ -199,10 +203,10 @@ type fileUniqKey struct {
 	inode uint64
 }
 
-func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
+func getFileInfo(path string) (fs.FileMode, int64, uint64, fileUniqKey, error) {
 	stat, err := utils.UnixStat(path)
 	if err != nil {
-		return 0, 0, fileUniqKey{}, err
+		return 0, 0, 0, fileUniqKey{}, err
 	}
 
 	fkey := fileUniqKey{
@@ -210,7 +214,10 @@ func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
 		inode: stat.Ino,
 	}
 
-	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, fkey, nil
+	// Convert mtime to nanoseconds
+	mtime := uint64(stat.Mtim.Sec)*1e9 + uint64(stat.Mtim.Nsec)
+
+	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, mtime, fkey, nil
 }
 
 // HashFileEvent hashes the provided file event
@@ -251,18 +258,10 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	fileKey := LRUCacheKey{
 		path:        file.PathnameStr,
 		containerID: string(ctrID),
-		inode:       file.Inode,
-		pathID:      file.PathKey.PathID,
 	}
-	if resolver.cache != nil {
-		cacheEntry, ok := resolver.cache.Get(fileKey)
-		if ok {
-			file.HashState = cacheEntry.state
-			file.Hashes = cacheEntry.hashes
-			hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
-			return
-		}
-	}
+
+	// Note: we'll check after stat if the cached entry matches the file metadata
+	// This is done later after we get the actual file stats
 
 	// check the rate limiter
 	rateReservation := resolver.limiter.Reserve()
@@ -276,7 +275,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(ctrID)
+		w, ok := resolver.cgroupResolver.GetContainerWorkload(ctrID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}
@@ -288,12 +287,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		f           *os.File
 		mode        fs.FileMode
 		size        int64
+		mtime       uint64
 		fkey        fileUniqKey
 		failedCache = make(map[fileUniqKey]struct{})
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		mode, size, fkey, lastErr = getFileInfo(path)
+		mode, size, mtime, fkey, lastErr = getFileInfo(path)
 		if lastErr != nil {
 			continue
 		}
@@ -358,6 +358,27 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		return
 	}
 
+	// Now that we have the file stats, check if we have a cached entry
+	// and if it matches the current file metadata
+	if resolver.cache != nil {
+		cacheEntry, ok := resolver.cache.Get(fileKey)
+		if ok {
+			// Check if the cached entry matches the current file metadata
+			if cacheEntry.inode == file.Inode &&
+				cacheEntry.pathID == file.PathKey.PathID &&
+				cacheEntry.mtime == mtime &&
+				cacheEntry.size == size {
+				// Cache hit: file hasn't changed
+				file.HashState = cacheEntry.state
+				file.Hashes = cacheEntry.hashes
+				hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
+				rateReservation.Cancel()
+				return
+			}
+			// Cache entry exists but file has changed, we'll recompute and update the entry
+		}
+	}
+
 	var hashers []io.Writer
 	for _, algorithm := range resolver.opts.HashAlgorithms {
 		h := resolver.getHashFunction(algorithm)
@@ -416,11 +437,16 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 
 	file.HashState = model.Done
 
-	// cache entry
+	// cache entry with file metadata
+	// This will either create a new entry or update an existing one for the same path
 	if resolver.cache != nil {
 		cacheEntry := &LRUCacheEntry{
 			state:  model.Done,
 			hashes: make([]string, len(file.Hashes)),
+			inode:  file.Inode,
+			pathID: file.PathKey.PathID,
+			mtime:  mtime,
+			size:   size,
 		}
 		copy(cacheEntry.hashes, file.Hashes)
 		resolver.cache.Add(fileKey, cacheEntry)

@@ -78,10 +78,6 @@ providers:
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithoutDDDevForwarding())
 			}
 
-			if storeType := env.AgentFakeintakeStoreType(); storeType != "" {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithStoreType(storeType))
-			}
-
 			if retentionPeriod := env.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithRetentionPeriod(retentionPeriod))
 			}
@@ -116,18 +112,18 @@ providers:
 
 	// Deploy standalone dogstatsd
 	if env.DogstatsdDeploy() {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&env, aksCluster.KubeProvider, "dogstatsd-standalone", nil, true, ""); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&env, aksCluster.KubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", nil, true, ""); err != nil {
 			return err
 		}
 	}
 
 	// Deploy testing workload
 	if env.TestingWorkloadDeploy() {
-		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */); err != nil {
 			return err
 		}
 
-		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx-kata", kataRuntimeClass, true, dependsOnDDAgent /* for DDM */); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx-kata", 80, kataRuntimeClass, true, dependsOnDDAgent /* for DDM */); err != nil {
 			return err
 		}
 

@@ -53,6 +53,8 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"dd_url",
 	"additional_endpoints",
 
+	"multi_region_failover.api_key",
+
 	"external_metrics_provider.api_key",
 	"external_metrics_provider.app_key",
 

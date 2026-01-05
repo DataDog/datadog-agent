@@ -205,10 +205,6 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 
 	for _, mf := range parsedMetrics {
 		for _, sample := range mf.Samples {
-			if sample == nil {
-				continue
-			}
-
 			metric := sample.Metric
 
 			metricName, ok := metric["__name__"]
@@ -217,10 +213,10 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 				continue
 			}
 
-			transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+			transform, found := defaultContainerdOpenmetricsTransformers[metricName]
 
 			if found {
-				transform(sender, string(metricName), *sample)
+				transform(sender, metricName, sample)
 			}
 		}
 	}

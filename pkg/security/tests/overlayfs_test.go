@@ -610,6 +610,10 @@ func TestOverlayOpOverride(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
 		return docker.Info["Storage Driver"] != "overlay2"
 	})

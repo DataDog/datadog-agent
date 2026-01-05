@@ -35,9 +35,10 @@ func TestBasicFileTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	test.RunMultiMode(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
@@ -78,9 +79,10 @@ func TestRenameFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -115,9 +117,10 @@ func TestDeleteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -151,9 +154,10 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -199,9 +203,10 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")

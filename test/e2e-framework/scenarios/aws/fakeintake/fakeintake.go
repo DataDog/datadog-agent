@@ -224,10 +224,6 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 		command = append(command, "--dddev-forward")
 	}
 
-	if params.StoreStype != "" {
-		command = append(command, "-store="+params.StoreStype)
-	}
-
 	if params.RetentionPeriod != "" {
 		command = append(command, "-retention-period="+params.RetentionPeriod)
 	}

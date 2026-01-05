@@ -19,6 +19,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 )
 
@@ -46,4 +47,5 @@ type FactoryDependencies struct {
 	Statsd      ddgostatsd.ClientInterface
 	Hostname    hostname.Component
 	Ipc         ipc.Component
+	Traceroute  traceroute.Component
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
@@ -46,12 +47,14 @@ const (
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubeletMetrics         Kind = "kubelet_metrics"
+	KindKubeCapabilities       Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
+	KindCRD                    Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -221,6 +224,14 @@ const (
 	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
 	// There can only be one per node.
 	KubeletMetricsID = "kubelet-metrics"
+)
+
+const (
+	// KubeCapabilitiesID is a constant ID used to build workloadmeta kubelet capabilities entities
+	// This does not need to be unique because there can only be one per cluster.
+	KubeCapabilitiesID = "kube-capability-id"
+	// KubeCapabilitiesName is used to name the workloadmeta kubelet capabilities entity
+	KubeCapabilitiesName = "kube-capability"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -452,10 +463,13 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 	return sb.String()
 }
 
+// RequestAllGPUs is a constant for requesting all GPUs in a host, used in Docker runtimes
+const RequestAllGPUs = -1
+
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *uint64 // Number of GPUs
-	GPULimit      *uint64
+	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
@@ -2006,6 +2020,15 @@ type GPU struct {
 
 	// VirtualizationMode contains the virtualization mode of the device
 	VirtualizationMode string
+
+	// Healthy indicates whether or not the GPU device is healthy
+	Healthy bool
+
+	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
+	ParentGPUUUID string
+
+	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
+	ChildrenGPUUUIDs []string
 }
 
 var _ Entity = &GPU{}
@@ -2025,6 +2048,11 @@ func (g *GPU) Merge(e Entity) error {
 	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
+	}
+
+	// If the source has children GPU UUIDs, remove the ones from the destination so merge() takes latest children GPU UUIDs from the source
+	if gg.ChildrenGPUUUIDs != nil {
+		g.ChildrenGPUUUIDs = nil
 	}
 
 	return merge(g, gg)
@@ -2092,3 +2120,122 @@ const (
 	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
 	CollectorsInitialized
 )
+
+// CRD struct exposes known CRD group/kind/versions
+type CRD struct {
+	EntityID
+	EntityMeta
+	Group   string
+	Kind    string
+	Version string
+}
+
+var _ Entity = &CRD{}
+
+// GetID returns the CRD entity ID
+func (crd CRD) GetID() EntityID {
+	return crd.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (crd *CRD) Merge(e Entity) error {
+	otherCrd, ok := e.(*CRD)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(crd, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (crd CRD) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(crd).(*CRD)
+	return copyCrd
+}
+
+// String return the string representation of the given CRD entity.
+// set verbose to true to increase verbosity.
+func (crd CRD) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Group:", crd.Group)
+	_, _ = fmt.Fprintln(&sb, "Kind:", crd.Kind)
+	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
+
+	return sb.String()
+}
+
+// FeatureGateStage represents the maturity level of a Kubernetes feature gate
+type FeatureGateStage string
+
+// FeatureGateStage constants represent the maturity level of a Kubernetes feature gate
+const (
+	StageAlpha      FeatureGateStage = "ALPHA"
+	StageBeta       FeatureGateStage = "BETA"
+	StageGA         FeatureGateStage = "" // StageGA is represented as an empty string
+	StageDeprecated FeatureGateStage = "DEPRECATED"
+)
+
+// FeatureGate represents a single Kubernetes feature gate
+type FeatureGate struct {
+	Name    string
+	Stage   FeatureGateStage
+	Enabled bool
+}
+
+// KubeCapabilities represents the capabilities of a Kubernetes cluster.
+type KubeCapabilities struct {
+	EntityID
+	EntityMeta
+	FeatureGates map[string]FeatureGate
+	Version      *version.Info
+}
+
+var _ Entity = &KubeCapabilities{}
+
+// GetID returns the CRD entity ID
+func (kc KubeCapabilities) GetID() EntityID {
+	return kc.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (kc *KubeCapabilities) Merge(e Entity) error {
+	otherCrd, ok := e.(*KubeCapabilities)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(kc, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (kc KubeCapabilities) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
+	return copyCrd
+}
+
+func (kc KubeCapabilities) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Version:", kc.Version)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Feature Gates:")
+		for _, featureGate := range kc.FeatureGates {
+			_, _ = fmt.Fprintln(&sb, "\t", featureGate.Name, ":", featureGate.Enabled)
+		}
+	}
+
+	return sb.String()
+}

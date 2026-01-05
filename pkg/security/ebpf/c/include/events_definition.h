@@ -585,4 +585,8 @@ struct tracer_memfd_seal_event_t {
     u32 fd;
 };
 
+struct nop_event_t {
+    struct kevent_t event;
+};
+
 #endif

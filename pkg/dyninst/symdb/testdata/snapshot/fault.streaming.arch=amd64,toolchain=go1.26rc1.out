@@ -1,0 +1,16 @@
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+Package: main
+	Function: callMe (main.callMe) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go [53:55] injectible: [53-55]
+		Arg: s1: string (declared at line 53, available: [53-55])
+		Arg: s2: string (declared at line 53, available: [53-55])
+		Arg: i: *int (declared at line 53, available: [53-55])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go [20:50] injectible: [20-24], [26-28], [30-32], [34-35], [37-39], [41-42], [44-48], [50-50]
+		Var: f: *os.File (declared at line 26, available: [20-50])
+		Var: &i: *int (declared at line 45, available: [46-46])
+		Var: err: error (declared at line 22, available: [23-24], [27-28], [31-32], [35-35], [38-39])
+		Var: v: []uint8 (declared at line 37, available: [38-39], [41-50])
+		Var: s: string (declared at line 44, available: )
+		Scope: 41-44
+			Var: err: error (declared at line 41, available: [41-42])
+		Scope: 47-50
+			Var: err: error (declared at line 47, available: [47-48])

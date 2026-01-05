@@ -15,17 +15,36 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
+build do
+  command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
+    " #{install_dir}/embedded/lib/libacl.so"
+
+  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libselinux.pc" \
+    " #{install_dir}/embedded/lib/libselinux.so"
+
+  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
+    " #{install_dir}/embedded/lib/libsepol.so"
+
+  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
+    "--prefix #{install_dir}/embedded " \
+    "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
+    "#{install_dir}/embedded/lib/libpcre2*.so"
+end
+
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
 dependency 'dbus'
-dependency 'libacl'
 dependency 'libgcrypt'
-dependency 'libselinux'
-dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
-dependency 'pcre2'
 dependency 'popt'
 dependency 'rpm'
 dependency 'util-linux'
@@ -64,7 +83,7 @@ build do
     "-DCURL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DCURL_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libcurl.so",
     "-DDBUS_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/dbus-1.0",
-    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.so",
+    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.a",
     "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
     "-DLIBXML2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/libxml2",

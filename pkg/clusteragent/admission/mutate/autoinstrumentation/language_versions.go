@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,56 +66,6 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string) 
 	}
 }
 
-const (
-	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
-	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
-	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
-	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
-)
-
-func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo("", image), nil
-		},
-	}
-}
-
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver("", registry, version), nil
-		},
-	}
-}
-
-func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo(ctr, image), nil
-		},
-	}
-}
-
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver(ctr, registry, version), nil
-		},
-	}
-}
-
-func (l language) libConfigAnnotationExtractor() annotationExtractor[common.LibConfig] {
-	return annotationExtractor[common.LibConfig]{
-		key: fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l),
-		do:  parseConfigJSON,
-	}
-}
-
 // supportedLanguages defines a list of the languages that we will attempt
 // to do injection on.
 var supportedLanguages = []language{
@@ -152,7 +101,7 @@ const defaultVersionMagicString = "default"
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v3", // https://datadoghq.atlassian.net/browse/INPLAT-598
+	python: "v4", // https://datadoghq.atlassian.net/browse/INPLAT-852
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
@@ -167,15 +116,16 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName    string // empty means all containers
-	lang       language
-	image      string
-	registry   string
-	repository string
-	tag        string
+	ctrName          string // empty means all containers
+	lang             language
+	image            string
+	canonicalVersion string
+	registry         string
+	repository       string
+	tag              string
 }
 
-func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
+func (i *libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(imageResolver)
 		if !ok {
@@ -187,6 +137,10 @@ func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResol
 
 		reqs.libRequirementOptions = opts
 
+		if i.canonicalVersion != "" {
+			SetAnnotation(pod, AnnotationLibraryCanonicalVersion.Format(string(i.lang)), i.canonicalVersion)
+		}
+
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
 			return err
 		}
@@ -197,7 +151,7 @@ func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResol
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
+func (i *libInfo) initContainers(resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -226,8 +180,12 @@ func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 	if resolver != nil {
 		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
 		image, ok := resolver.Resolve(i.registry, i.repository, i.tag)
+
 		if ok {
 			i.image = image.FullImageRef
+			i.canonicalVersion = image.CanonicalVersion
+		} else {
+			i.canonicalVersion = ""
 		}
 	}
 
@@ -244,11 +202,11 @@ func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 	}
 }
 
-func (i libInfo) volumeMount() volumeMount {
+func (i *libInfo) volumeMount() volumeMount {
 	return v2VolumeMountLibrary
 }
 
-func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
+func (i *libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
@@ -258,4 +216,8 @@ func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 		volumeMounts:   []volumeMount{i.volumeMount()},
 		volumes:        []volume{sourceVolume},
 	}, true
+}
+
+func initContainerName(lang language) string {
+	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }

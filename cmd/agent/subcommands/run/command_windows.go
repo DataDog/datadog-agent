@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
@@ -148,6 +149,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ipc ipc.Component,
 			delegatedAuthComp delegatedauth.Component,
 			snmpScanManager snmpscanmanager.Component,
+			traceroute traceroute.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -173,6 +175,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				ipc,
 				delegatedAuthComp,
 				snmpScanManager,
+				traceroute,
 			)
 			if err != nil {
 				return err

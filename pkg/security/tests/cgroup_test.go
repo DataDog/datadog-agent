@@ -338,6 +338,10 @@ func TestCGroupVariables(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
@@ -411,6 +415,10 @@ func TestCGroupVariablesReleased(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
@@ -466,7 +474,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond) // wait just a bit of time for the cgroup to be released
 
-	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
 	assert.NotNil(t, variables)
 	assert.Len(t, variables, 0)
 }

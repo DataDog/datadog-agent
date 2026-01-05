@@ -270,6 +270,7 @@ func printClassification(fd *driver.PerFlowData) {
 			log.Infof("Flow classify ALPN chosen    Protocols %x", fd.Tls_alpn_chosen)
 			log.Infof("tls versions offered:  %x", fd.Tls_versions_offered)
 			log.Infof("tls version  chosen:   %x", fd.Tls_version_chosen)
+			log.Infof("tls cipher suite:      %x", fd.Tls_cipher_suite)
 		}
 	}
 }

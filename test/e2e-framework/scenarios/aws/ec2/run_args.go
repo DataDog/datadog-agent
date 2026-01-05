@@ -88,9 +88,6 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 		if e.InfraShouldDeployFakeintakeWithLB() {
 			fiOpts = append(fiOpts, fakeintake.WithLoadBalancer())
 		}
-		if storeType := e.AgentFakeintakeStoreType(); storeType != "" {
-			fiOpts = append(fiOpts, fakeintake.WithStoreType(storeType))
-		}
 		if retention := e.AgentFakeintakeRetentionPeriod(); retention != "" {
 			fiOpts = append(fiOpts, fakeintake.WithRetentionPeriod(retention))
 		}

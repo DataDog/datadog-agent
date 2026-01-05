@@ -131,8 +131,6 @@ modules:
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
   comp/otelcol/otlp/components/processor/infraattributesprocessor: default
-  comp/otelcol/otlp/components/statsprocessor:
-    used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
   comp/otelcol/status/def: default
@@ -236,7 +234,6 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sds: default
   pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
@@ -286,6 +283,7 @@ modules:
     should_test_condition: never
   pkg/serializer:
     used_by_otel: true
+  pkg/ssi/testutils: default
   pkg/status/health:
     used_by_otel: true
   pkg/tagger/types:
