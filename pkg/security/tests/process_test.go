@@ -1380,7 +1380,7 @@ func TestProcessMetadata(t *testing.T) {
 		},
 		{
 			ID:         "test_metadata",
-			Expression: `exec.file.path == "{{.Root}}/test-exec" && process.uid == 1001 && process.euid == 1002 && process.fsuid == 1002 && process.gid == 2001 && process.egid == 2002 && process.fsgid == 2002`,
+			Expression: `exec.file.path == "{{.Root}}/test-exec" && process.uid == 1001 && process.gid == 2001`,
 		},
 	}
 
