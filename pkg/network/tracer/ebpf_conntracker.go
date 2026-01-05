@@ -94,7 +94,8 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	var m *manager.Manager
 	var err error
 	if cfg.EnableCORE {
-		m, err = ebpfConntrackerCORECreator(cfg) // JMW1
+		log.Debug("JMW1 attempting to load CO-RE ebpf conntracker")
+		m, err = ebpfConntrackerCORECreator(cfg)
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 				log.Warnf("error loading CO-RE conntracker, falling back to runtime compiled: %s", err)
@@ -104,25 +105,33 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 			} else {
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
+		} else {
+			log.Debug("JMW successfully loaded CO-RE ebpf conntracker")
 		}
 	}
 
 	if m == nil && allowRC {
-		m, err = ebpfConntrackerRCCreator(cfg) // JMW2
+		log.Debug("JMW2 attempting to load runtime compiled ebpf conntracker")
+		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
 			if !cfg.AllowPrebuiltFallback {
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 			}
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
+		} else {
+			log.Debug("JMW successfully loaded runtime compiled ebpf conntracker")
 		}
 	}
 
-	var isPrebuilt bool
+	log.Debug("JMW3 attempting to load prebuilt ebpf conntracker")
+	var isPrebuilt bool // JMWLOOKATTHIS
 	if m == nil {
-		m, err = ebpfConntrackerPrebuiltCreator(cfg) // JMW3
+		m, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
+		} else {
+			log.Debug("JMW successfully loaded prebuilt ebpf conntracker")
 		}
 
 		isPrebuilt = true
@@ -147,6 +156,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	// conntrackArgsMap is only used by CO-RE/Runtime conntracker (not prebuilt) // JMWREVIEW
+	// JMW but it's only used if the fallback probes are used, so how should this be handled?
 	var conntrackArgsMap *maps.GenericMap[uint64, uint64]
 	if !isPrebuilt {
 		conntrackArgsMap, err = maps.GetMap[uint64, uint64](m, probes.ConntrackArgsMap)
@@ -454,11 +464,15 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 	// - Prebuilt: Always use __nf_conntrack_hash_insert (no fallback)
 	// - CO-RE/Runtime: Try __nf_conntrack_hash_insert first, fall back to __nf_conntrack_confirm
 	//   and nf_conntrack_hash_check_insert if not available
-	// JMWIMPROVELOGIC
-	useHashInsert := false
-	if isPrebuilt { // JMWREVIEW
+	// JMWIMPROVELOGIC:
+	// 1) isPrebuilt --> useNFConntrackHashInsert = true
+	// 2) !isPrebuilt check if __nf_conntrack_hash_insert is available
+	//    Yes --> useNFConntrackHashInsert = true
+	//    No --> useNFConntrackHashInsert = false (use new kprobe/kretprobe pairs)
+	useNFConntrackHashInsert := false // JMWNAME --> useConntrackFallbackProbes?
+	if isPrebuilt {                   // JMWREVIEW
 		// JMW Prebuilt always uses __nf_conntrack_hash_insert, no fallback
-		useHashInsert = true
+		useNFConntrackHashInsert = true
 	} else {
 		// JMW CO-RE and Runtime: check if __nf_conntrack_hash_insert is available
 		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert")
@@ -466,7 +480,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 			log.Debugf("error checking for __nf_conntrack_hash_insert: %v, falling back to alternate probes", err)
 		} else if len(missing) == 0 {
 			// __nf_conntrack_hash_insert is available
-			useHashInsert = true
+			useNFConntrackHashInsert = true
 			// JMW use info level log?
 			log.Debug("using __nf_conntrack_hash_insert probe for conntracker")
 		} else {
@@ -475,8 +489,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 	}
 
 	// JMWIMPROVELOGIC
-	if useHashInsert {
-		// JMW Use __nf_conntrack_hash_insert which directly receives struct nf_conn*
+	if useNFConntrackHashInsert {
 		probesList = append(probesList, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
@@ -484,7 +497,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 			},
 		})
 	} else {
-		// JMW Use __nf_conntrack_confirm and nf_conntrack_hash_check_insert (entry and return probes)
 		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
 		probesList = append(probesList,
 			&manager.Probe{
@@ -539,7 +551,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	if !isPrebuilt {
+	if !useNFConntrackHashInsert {
 		opts.MapSpecEditors[probes.ConntrackArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number - it there a config option w/ default?  what do other arg maps do?
 	}
 	if opts.MapEditors == nil {

@@ -182,15 +182,16 @@ const (
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
 	// JMWREVIEW
-	// JMW thi is the default probe
-	// ConntrackHashInsert is the kprobe for __nf_conntrack_hash_insert (used by prebuilt)
-	// This probe directly receives struct nf_conn*, avoiding the need to extract it from sk_buff
+	// JMW this is the default probe for CO-RE and runtime conntrackers if it exists, and is the only probe for prebuilt
+	// ConntrackHashInsert is the kprobe for __nf_conntrack_hash_insert
+	// JMWRM This probe directly receives struct nf_conn*, avoiding the need to extract it from sk_buff
 	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
 
-	// JMW these are the alternate probes if ConntrackHashInsert is not available
-	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
+	// JMW these are the alternate probes for CO-RE and runtime conntrackers if ConntrackHashInsert is not available
+	// JMW but not for prebuilt because offset guessing of struct nf_conn in struct sk_buff is problematic
+	// ConntrackConfirm is the kprobe for __nf_conntrack_confirm
 	ConntrackConfirm ProbeFuncName = "kprobe___nf_conntrack_confirm"
-	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe___nf_conntrack_confirm"
 
 	// ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
@@ -231,8 +232,7 @@ const (
 	TCPFailureTelemetry BPFMapName = "tcp_failure_telemetry"
 	// ConnCloseBatchMap is the map storing connection close batch events
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
-	// ConntrackArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
-	// JMWNAME ConntrackConfirmArgsMap?  JMWNEXT can the map be used by both nf_conntrack_confirm and nf_conntrack_hash_insert?  if so pick better name - maybe ConntrackArgsMap = "conntrack_args"
+	// ConntrackArgsMap is the map storing the arguments of the __nf_conntrack_confirm() and nf_conntrack_hash_check_insert() kernel functions
 	ConntrackArgsMap = "conntrack_args"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"

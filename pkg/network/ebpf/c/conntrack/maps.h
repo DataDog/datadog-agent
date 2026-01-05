@@ -7,11 +7,10 @@
 #include "conn_tuple.h"
 #include "conntrack/types.h"
 
-/* JMW update comment to mention both probes thatuse it */
-/* This map is used for tracking JMW pending confirmations (pid_tgid -> ct pointer) to allow correlation between kprobe and kretprobe of
- * nf_conntrack_confirm JMW
+/* This map is used to hold struct nf_conn * from __nf_conntrack_confirm and
+ * nf_conntrack_hash_check_insert kprobes to be used in their respective kretprobes
  */
-BPF_HASH_MAP(conntrack_args, u64, struct nf_conn *, 10240) // JMW size?  add config and resize like for conntrack map?
+BPF_HASH_MAP(conntrack_args, u64, struct nf_conn *, 1024)
 
 /* This map is used for tracking conntrack entries
  */
