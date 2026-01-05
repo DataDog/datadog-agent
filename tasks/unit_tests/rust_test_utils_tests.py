@@ -1,5 +1,4 @@
 import shutil
-import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -18,17 +17,13 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_discover_single_rust_test(self, mock_run):
         """Test discovering a single Rust test via Bazel query"""
-        # Mock 'which bazelisk' check - success
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         # Mock bazel query output
         mock_query = MagicMock()
         mock_query.returncode = 0
         mock_query.stdout = "//pkg/collector/test:my_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         result = discover_rust_tests(["./pkg"])
 
@@ -39,15 +34,12 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_discover_multiple_rust_tests(self, mock_run):
         """Test discovering multiple Rust tests from different packages"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 0
         mock_query.stdout = "//pkg/module1:test_one\n//pkg/module2:test_two\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         result = discover_rust_tests(["./pkg"])
 
@@ -60,15 +52,12 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_discover_no_tests_exit_code_7(self, mock_run):
         """Test handling bazel query exit code 7 (no targets found)"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 7  # No targets found
         mock_query.stdout = ""
         mock_query.stderr = "ERROR: no targets found beneath 'pkg'"
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         result = discover_rust_tests(["./pkg"])
 
@@ -77,9 +66,6 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_discover_multiple_paths(self, mock_run):
         """Test discovering tests from multiple target paths"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         # First query returns one test
         mock_query1 = MagicMock()
         mock_query1.returncode = 0
@@ -92,7 +78,7 @@ class TestDiscoverRustTests(unittest.TestCase):
         mock_query2.stdout = ""
         mock_query2.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query1, mock_query2]
+        mock_run.side_effect = [mock_query1, mock_query2]
 
         result = discover_rust_tests(["./pkg", "./cmd"])
 
@@ -100,29 +86,14 @@ class TestDiscoverRustTests(unittest.TestCase):
         self.assertIn("test1", result)
 
     @patch('subprocess.run')
-    def test_bazelisk_not_available(self, mock_run):
-        """Test graceful handling when bazelisk is not available"""
-        mock_which = MagicMock()
-        mock_which.side_effect = subprocess.CalledProcessError(1, 'which')
-
-        mock_run.side_effect = [mock_which]
-
-        result = discover_rust_tests(["./pkg"])
-
-        self.assertEqual(len(result), 0)
-
-    @patch('subprocess.run')
     def test_query_output_with_loading_messages(self, mock_run):
         """Test parsing bazel query output that includes loading messages"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 0
         mock_query.stdout = "Loading: 0 packages loaded\n//pkg/test:my_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         result = discover_rust_tests(["./pkg"])
 
@@ -132,15 +103,12 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_query_error_handling(self, mock_run):
         """Test handling of bazel query errors (non-7 exit codes)"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 1  # Some other error
         mock_query.stdout = ""
         mock_query.stderr = "ERROR: some other error"
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         # Should not raise, just return empty dict
         result = discover_rust_tests(["./pkg"])
@@ -150,22 +118,19 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_path_normalization_trailing_slash(self, mock_run):
         """Test that trailing slashes in paths are handled correctly"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 0
         mock_query.stdout = "//pkg/test:my_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         # Path with trailing slash should work
         result = discover_rust_tests(["./pkg/"])
 
         self.assertEqual(len(result), 1)
         # Verify the query was called with correct pattern (no double slashes)
-        query_call = mock_run.call_args_list[1]
+        query_call = mock_run.call_args_list[0]
         query_cmd = query_call[0][0]
         self.assertIn("//pkg/...", query_cmd[2])
         self.assertNotIn("//pkg//", query_cmd[2])
@@ -173,22 +138,19 @@ class TestDiscoverRustTests(unittest.TestCase):
     @patch('subprocess.run')
     def test_path_normalization_with_ellipsis(self, mock_run):
         """Test that paths ending with ... are normalized correctly"""
-        mock_which = MagicMock()
-        mock_which.returncode = 0
-
         mock_query = MagicMock()
         mock_query.returncode = 0
         mock_query.stdout = "//pkg/test:my_test\n"
         mock_query.stderr = ""
 
-        mock_run.side_effect = [mock_which, mock_query]
+        mock_run.side_effect = [mock_query]
 
         # Path already with ... should work
         result = discover_rust_tests(["./pkg/..."])
 
         self.assertEqual(len(result), 1)
         # Verify the query was called with correct pattern
-        query_call = mock_run.call_args_list[1]
+        query_call = mock_run.call_args_list[0]
         query_cmd = query_call[0][0]
         self.assertIn("//pkg/...", query_cmd[2])
 
