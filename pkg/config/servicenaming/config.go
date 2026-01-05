@@ -3,13 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/)
 // Copyright 2016-present Datadog, Inc.
 
+// Package servicenaming provides configuration loading and validation for service discovery.
 package servicenaming
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/ext"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,8 +33,7 @@ type ServiceDefinition struct {
 
 // IntegrationConfig represents service discovery configuration in autoconf.yaml
 type IntegrationConfig struct {
-	AdIdentifiers    []string                 `yaml:"ad_identifiers,omitempty"`
-	AdIdentifier     []string                 `yaml:"ad_identifier,omitempty"` // Singular form from spec
+	AdIdentifier     []string                 `yaml:"ad_identifier,omitempty"` // From spec (singular name, plural value)
 	ServiceDiscovery *ServiceDiscoverySection `yaml:"service_discovery"`
 }
 
@@ -65,14 +69,14 @@ func LoadAgentConfig(path string) (*AgentServiceDiscoveryConfig, error) {
 
 	// Try to detect legacy format first (has 'enabled' and 'rules', no 'service_discovery')
 	var legacyCheck struct {
-		Enabled          *bool                `yaml:"enabled"`
-		Rules            []map[string]any     `yaml:"rules"`
-		ServiceDiscovery map[string]any       `yaml:"service_discovery"`
+		Enabled          *bool            `yaml:"enabled"`
+		Rules            []map[string]any `yaml:"rules"`
+		ServiceDiscovery map[string]any   `yaml:"service_discovery"`
 	}
 	if err := yaml.Unmarshal(data, &legacyCheck); err == nil &&
-	   legacyCheck.Enabled != nil &&
-	   len(legacyCheck.Rules) > 0 &&
-	   legacyCheck.ServiceDiscovery == nil {
+		legacyCheck.Enabled != nil &&
+		len(legacyCheck.Rules) > 0 &&
+		legacyCheck.ServiceDiscovery == nil {
 		// Legacy format detected
 		return loadLegacyConfig(data)
 	}
@@ -179,12 +183,6 @@ func LoadIntegrationConfig(data []byte) (*IntegrationConfig, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Normalize: merge ad_identifier (singular) into AdIdentifiers (plural)
-	if len(config.AdIdentifier) > 0 {
-		config.AdIdentifiers = append(config.AdIdentifiers, config.AdIdentifier...)
-		config.AdIdentifier = nil // Clear singular form after merge
-	}
-
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -194,8 +192,8 @@ func LoadIntegrationConfig(data []byte) (*IntegrationConfig, error) {
 
 // Validate checks the integration configuration for errors
 func (c *IntegrationConfig) Validate() error {
-	// Validate ad_identifiers (already normalized in LoadIntegrationConfig)
-	for i, adID := range c.AdIdentifiers {
+	// Validate ad_identifier
+	for i, adID := range c.AdIdentifier {
 		if adID == "" {
 			return fmt.Errorf("ad_identifier[%d]: cannot be empty", i)
 		}
@@ -204,16 +202,16 @@ func (c *IntegrationConfig) Validate() error {
 		}
 	}
 
-	// If ad_identifiers exist, service_discovery section is required
-	if len(c.AdIdentifiers) > 0 && c.ServiceDiscovery == nil {
-		return fmt.Errorf("service_discovery section is required when ad_identifier is present")
+	// If ad_identifier exists, service_discovery section is required
+	if len(c.AdIdentifier) > 0 && c.ServiceDiscovery == nil {
+		return errors.New("service_discovery section is required when ad_identifier is present")
 	}
 
 	// Validate service_discovery section
 	if c.ServiceDiscovery != nil {
 		sd := c.ServiceDiscovery
 		if sd.ServiceName == "" {
-			return fmt.Errorf("service_discovery.service_name: cannot be empty")
+			return errors.New("service_discovery.service_name: cannot be empty")
 		}
 		if err := validateCELStringExpression(sd.ServiceName); err != nil {
 			return fmt.Errorf("service_discovery.service_name: %w", err)
@@ -233,4 +231,81 @@ func (c *IntegrationConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// validateCELBooleanExpression validates that an expression compiles and returns boolean
+func validateCELBooleanExpression(expr string) error {
+	env, err := createCELEnvironment()
+	if err != nil {
+		return err
+	}
+
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return fmt.Errorf("compilation error: %w", issues.Err())
+	}
+
+	// Check return type
+	if ast.OutputType() != cel.BoolType {
+		return fmt.Errorf("expression must return boolean, got %v", ast.OutputType())
+	}
+
+	return nil
+}
+
+// validateCELStringExpression validates that an expression compiles and returns string
+func validateCELStringExpression(expr string) error {
+	env, err := createCELEnvironment()
+	if err != nil {
+		return err
+	}
+
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return fmt.Errorf("compilation error: %w", issues.Err())
+	}
+
+	// For DynType, we can't check output type statically
+	// Accept dyn or string
+	outType := ast.OutputType()
+	if outType != cel.StringType && outType != types.DynType {
+		return fmt.Errorf("expression must return string, got %v", outType)
+	}
+
+	return nil
+}
+
+// validateCELStringExpressionOrLiteral validates expression or accepts literal
+func validateCELStringExpressionOrLiteral(expr string) error {
+	env, err := createCELEnvironment()
+	if err != nil {
+		return err
+	}
+
+	_, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		// Not valid CEL → treat as literal, which is OK
+		return nil
+	}
+
+	// Valid CEL → no further validation needed
+	return nil
+}
+
+// createCELEnvironment creates the CEL environment for validation
+func createCELEnvironment() (*cel.Env, error) {
+	env, err := cel.NewEnv(
+		// Declare variables as DynType for flexibility with field aliasing
+		cel.Variable("process", cel.DynType),
+		cel.Variable("container", cel.DynType),
+		cel.Variable("pod", cel.DynType),
+
+		// Enable standard CEL string extensions (split, startsWith, etc.)
+		ext.Strings(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return env, nil
 }

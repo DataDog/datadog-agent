@@ -7,10 +7,13 @@ package servicenaming
 
 // ProcessCEL represents a process in the CEL environment
 type ProcessCEL struct {
-	Cmd    string     `cel:"cmd"`
-	Binary BinaryCEL  `cel:"binary"`
-	Ports  []int      `cel:"ports"`
-	User   string     `cel:"user"`
+	Cmd    string    `cel:"cmd"`
+	Binary BinaryCEL `cel:"binary"`
+	Ports  []int     `cel:"ports"`
+	User   string    `cel:"user"`
+
+	// Spec examples reference process.container.pod...
+	Container *ContainerCEL `cel:"container"`
 }
 
 // BinaryCEL represents binary information in the CEL environment
@@ -41,6 +44,15 @@ type PodCEL struct {
 	OwnerRefName string      `cel:"ownerrefname"`
 	OwnerRefKind string      `cel:"ownerrefkind"`
 	Metadata     MetadataCEL `cel:"metadata"`
+
+	// Spec examples reference pod.ownerref.name / pod.ownerref.kind
+	OwnerRef OwnerRefCEL `cel:"ownerref"`
+}
+
+// OwnerRefCEL represents the structured owner reference (name/kind)
+type OwnerRefCEL struct {
+	Name string `cel:"name"`
+	Kind string `cel:"kind"`
 }
 
 // MetadataCEL represents Kubernetes metadata in the CEL environment

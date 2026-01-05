@@ -243,7 +243,7 @@ func TestAgentConfig_Validate_ValidValues(t *testing.T) {
 
 // TestLoadIntegrationConfig_Valid tests loading integration config
 func TestLoadIntegrationConfig_Valid(t *testing.T) {
-	yaml := `ad_identifiers:
+	yaml := `ad_identifier:
   - "process.binary.name.startsWith('java')"
   - "container.image.shortname == 'redis'"
 service_discovery:
@@ -253,28 +253,28 @@ service_discovery:
 `
 	config, err := LoadIntegrationConfig([]byte(yaml))
 	require.NoError(t, err)
-	assert.Len(t, config.AdIdentifiers, 2)
+	assert.Len(t, config.AdIdentifier, 2)
 	assert.NotNil(t, config.ServiceDiscovery)
 	assert.Equal(t, "process.cmd.split(' ')[0]", config.ServiceDiscovery.ServiceName)
 	assert.Equal(t, "java", config.ServiceDiscovery.SourceName)
 	assert.Equal(t, "container.image.tag", config.ServiceDiscovery.Version)
 }
 
-// TestLoadIntegrationConfig_NoAdIdentifiers tests config without ad_identifiers
+// TestLoadIntegrationConfig_NoAdIdentifiers tests config without ad_identifier
 func TestLoadIntegrationConfig_NoAdIdentifiers(t *testing.T) {
 	yaml := `service_discovery:
   service_name: "container.name"
 `
 	config, err := LoadIntegrationConfig([]byte(yaml))
 	require.NoError(t, err)
-	assert.Len(t, config.AdIdentifiers, 0)
+	assert.Len(t, config.AdIdentifier, 0)
 	assert.NotNil(t, config.ServiceDiscovery)
 }
 
 // TestIntegrationConfig_Validate_EmptyAdIdentifier tests validation
 func TestIntegrationConfig_Validate_EmptyAdIdentifier(t *testing.T) {
 	config := &IntegrationConfig{
-		AdIdentifiers: []string{""},
+		AdIdentifier: []string{""},
 	}
 	err := config.Validate()
 	require.Error(t, err)
@@ -284,7 +284,7 @@ func TestIntegrationConfig_Validate_EmptyAdIdentifier(t *testing.T) {
 // TestIntegrationConfig_Validate_AdIdentifierNotBoolean tests validation
 func TestIntegrationConfig_Validate_AdIdentifierNotBoolean(t *testing.T) {
 	config := &IntegrationConfig{
-		AdIdentifiers: []string{"container.name"}, // Returns string, not bool
+		AdIdentifier: []string{"container.name"}, // Returns string, not bool
 	}
 	err := config.Validate()
 	require.Error(t, err)
@@ -312,7 +312,7 @@ func TestIntegrationConfig_Validate_ValidExamples(t *testing.T) {
 		{
 			name: "process cmd split",
 			config: &IntegrationConfig{
-				AdIdentifiers: []string{"process.binary.name.startsWith('java')"},
+				AdIdentifier: []string{"process.binary.name.startsWith('java')"},
 				ServiceDiscovery: &ServiceDiscoverySection{
 					ServiceName: "process.cmd.split(' ')[process.cmd.split(' ').size() - 1]",
 					SourceName:  "java",
@@ -323,7 +323,7 @@ func TestIntegrationConfig_Validate_ValidExamples(t *testing.T) {
 		{
 			name: "container image shortname",
 			config: &IntegrationConfig{
-				AdIdentifiers: []string{"container.image.shortname == 'java'"},
+				AdIdentifier: []string{"container.image.shortname == 'java'"},
 				ServiceDiscovery: &ServiceDiscoverySection{
 					ServiceName: "container.name",
 				},
@@ -332,7 +332,7 @@ func TestIntegrationConfig_Validate_ValidExamples(t *testing.T) {
 		{
 			name: "OR condition in ad_identifier",
 			config: &IntegrationConfig{
-				AdIdentifiers: []string{
+				AdIdentifier: []string{
 					"process.binary.name.startsWith('java') || process.user != 'root'",
 				},
 				ServiceDiscovery: &ServiceDiscoverySection{
