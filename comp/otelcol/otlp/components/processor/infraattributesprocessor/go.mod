@@ -46,6 +46,8 @@ require (
 	cloud.google.com/go/compute v1.38.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0 // indirect
@@ -200,6 +202,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ../../../../../../comp/core/delegatedauth/def
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ../../../../../../comp/core/delegatedauth/fx
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ../../../../../../comp/core/delegatedauth/impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ../../../../../../comp/core/delegatedauth/mock
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ../../../../../../comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../../comp/core/hostname/hostnameinterface

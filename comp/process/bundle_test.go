@@ -123,8 +123,8 @@ func TestBundleOneShot(t *testing.T) {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		// Provide None for optional delegated auth component in tests
-		fx.Provide(func() option.Option[delegatedauth.Component] {
-			return option.None[delegatedauth.Component]()
+		fx.Provide(func() delegatedauth.Component {
+			return delegatedauthimpl.NewComponent().Comp
 		}),
 		Bundle(),
 	)

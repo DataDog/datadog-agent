@@ -303,7 +303,7 @@ func run(log log.Component,
 	_ healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
-	delegatedAuthComp option.Option[delegatedauth.Component],
+	delegatedAuthComp delegatedauth.Component,
 	snmpScanManager snmpscanmanager.Component,
 ) error {
 	defer func() {
@@ -586,7 +586,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
-	_ option.Option[delegatedauth.Component],
+	_ delegatedauth.Component,
 	snmpScanManager snmpscanmanager.Component,
 ) error {
 	var err error

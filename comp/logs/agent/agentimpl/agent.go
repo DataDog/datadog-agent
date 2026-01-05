@@ -20,7 +20,6 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -88,9 +87,6 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
-	// DelegatedAuth ensures the delegated auth component is initialized before the logs agent
-	// This is critical because the API key from delegated auth must be available before endpoints are created
-	DelegatedAuth option.Option[delegatedauth.Component]
 }
 
 type provides struct {

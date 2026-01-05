@@ -45,9 +45,10 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.177 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
@@ -276,6 +277,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ../../../../../../comp/core/delegatedauth/def
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ../../../../../../comp/core/delegatedauth/fx
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ../../../../../../comp/core/delegatedauth/impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ../../../../../../comp/core/delegatedauth/mock
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ../../../../../../comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../../comp/core/hostname/hostnameinterface

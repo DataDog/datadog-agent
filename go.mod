@@ -974,7 +974,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx v0.0.0-00010101000000-000000000000
 )
 
@@ -986,7 +986,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
-require github.com/go-jose/go-jose/v4 v4.1.3
+require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0
+	github.com/go-jose/go-jose/v4 v4.1.3
+)
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
@@ -1042,6 +1045,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ./comp/core/delegatedauth/def
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ./comp/core/delegatedauth/fx
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ./comp/core/delegatedauth/impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ./comp/core/delegatedauth/mock
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ./comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface

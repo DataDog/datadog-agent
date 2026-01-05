@@ -22,6 +22,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -2336,8 +2337,8 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) error {
+// LoadDatadog reads config files and initializes config with decrypted secrets and delegated auth
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2359,6 +2360,11 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	LoadProxyFromEnv(config)
 
 	if err := resolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
+		return err
+	}
+
+	// Configure delegated auth after secrets are resolved but before other components initialize
+	if err := configureDelegatedAuth(config, delegatedAuthComp); err != nil {
 		return err
 	}
 
@@ -2596,6 +2602,31 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		}
 	}
 	log.Info("Finished resolving secrets")
+	return nil
+}
+
+// configureDelegatedAuth initializes the delegated auth component with configuration parameters.
+// This allows the component to fetch API keys from cloud providers and write them to the config
+// before other components are initialized.
+func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
+	// Check if delegated auth is enabled before configuring
+	if !config.GetBool("delegated_auth.enabled") {
+		log.Debug("Delegated authentication is not enabled, skipping configuration")
+		return nil
+	}
+
+	log.Info("Configuring delegated authentication")
+
+	delegatedAuthComp.Configure(delegatedauth.ConfigParams{
+		Config:          config,
+		Enabled:         true, // Already checked above
+		Provider:        config.GetString("delegated_auth.provider"),
+		OrgUUID:         config.GetString("delegated_auth.org_uuid"),
+		RefreshInterval: config.GetInt("delegated_auth.refresh_interval_mins"),
+		AWSRegion:       config.GetString("delegated_auth.aws_region"),
+	})
+
+	log.Info("Finished configuring delegated authentication")
 	return nil
 }
 

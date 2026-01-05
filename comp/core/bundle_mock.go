@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -44,8 +45,8 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		// Provide None for optional delegated auth component in tests
-		fx.Provide(func() option.Option[delegatedauth.Component] {
-			return option.None[delegatedauth.Component]()
+		fx.Provide(func() delegatedauth.Component {
+			return delegatedauthimpl.NewComponent().Comp
 		}),
 	)
 }

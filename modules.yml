@@ -32,6 +32,12 @@ modules:
   comp/core/delegatedauth/impl:
     independent: false
     used_by_otel: true
+  comp/core/delegatedauth/mock:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/noop-impl:
+    independent: false
+    used_by_otel: true
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:

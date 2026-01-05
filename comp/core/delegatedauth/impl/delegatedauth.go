@@ -13,15 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	delegatedauthpkg "github.com/DataDog/datadog-agent/pkg/delegatedauth"
 	"github.com/DataDog/datadog-agent/pkg/delegatedauth/cloudauth"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -34,138 +31,133 @@ const (
 	maxConsecutiveFailures = 10
 )
 
+// delegatedAuthComponent implements the delegatedauth.Component interface.
+//
+// Thread-safety: This struct uses sync.RWMutex (mu) to protect concurrent access to all
+// fields except config, which is immutable after construction.
 type delegatedAuthComponent struct {
+	// Immutable fields (safe for concurrent access without locking)
 	config config.Component
-	log    log.Component
 
+	// Mutable fields (protected by mu)
 	mu              sync.RWMutex
 	apiKey          *string
 	provider        delegatedauthpkg.Provider
 	authConfig      *delegatedauthpkg.AuthConfig
 	refreshInterval time.Duration
 
-	// Exponential backoff tracking
+	// Exponential backoff tracking (protected by mu)
 	consecutiveFailures int
 	nextRetryInterval   time.Duration
 
-	// Context and cancellation for background refresh goroutine
+	// Context and cancellation for background refresh goroutine (protected by mu for initialization)
 	refreshCtx    context.Context
 	refreshCancel context.CancelFunc
 }
 
-type dependencies struct {
-	fx.In
-	Config config.Component
-	Log    log.Component
-	Lc     fx.Lifecycle
+// Provides list the provided interfaces from the delegatedauth Component
+type Provides struct {
+	Comp delegatedauth.Component
 }
 
-// NewDelegatedAuth creates a new delegated auth Component based on the current configuration
-func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] {
-	if !deps.Config.GetBool("delegated_auth.enabled") {
-		deps.Log.Info("Delegated authentication is disabled")
-		return option.None[delegatedauth.Component]()
+// Requires list the required objects to initialize the delegatedauth Component
+type Requires struct {
+}
+
+// NewComponent creates a new delegated auth Component
+func NewComponent(_ Requires) Provides {
+	comp := &delegatedAuthComponent{}
+
+	return Provides{
+		Comp: comp,
+	}
+}
+
+// Configure initializes the delegated auth component with the provided configuration
+func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
+	// Store the config for later use
+	if params.Config != nil {
+		d.config = params.Config.(config.Component)
 	}
 
-	provider := deps.Config.GetString("delegated_auth.provider")
-	orgUUID := deps.Config.GetString("delegated_auth.org_uuid")
-	refreshInterval := deps.Config.GetDuration("delegated_auth.refresh_interval_mins") * time.Minute
+	if !params.Enabled {
+		log.Info("Delegated authentication is disabled")
+		return
+	}
 
+	refreshInterval := time.Duration(params.RefreshInterval) * time.Minute
 	if refreshInterval == 0 {
 		// Default to 60 minutes if refresh interval was set incorrectly
 		refreshInterval = 60 * time.Minute
-		deps.Log.Warn("Refresh interval was set to 0 defaulting to 60 minutes")
+		log.Warn("Refresh interval was set to 0 defaulting to 60 minutes")
 	}
 
-	if orgUUID == "" {
-		deps.Log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
-		return option.None[delegatedauth.Component]()
+	if params.OrgUUID == "" {
+		log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
+		return
 	}
 
 	var tokenProvider delegatedauthpkg.Provider
-	switch provider {
+	switch params.Provider {
 	case cloudauth.ProviderAWS:
 		tokenProvider = &cloudauth.AWSAuth{
-			AwsRegion: deps.Config.GetString("delegated_auth.aws_region"),
+			AwsRegion: params.AWSRegion,
 		}
 	default:
-		deps.Log.Errorf("unsupported delegated auth provider: %s", provider)
-		return option.None[delegatedauth.Component]()
+		log.Errorf("unsupported delegated auth provider: %s", params.Provider)
+		return
 	}
 
 	authConfig := &delegatedauthpkg.AuthConfig{
-		OrgUUID:      orgUUID,
-		Provider:     provider,
+		OrgUUID:      params.OrgUUID,
+		Provider:     params.Provider,
 		ProviderAuth: tokenProvider,
 	}
 
-	comp := &delegatedAuthComponent{
-		config:          deps.Config,
-		log:             deps.Log,
-		provider:        tokenProvider,
-		authConfig:      authConfig,
-		refreshInterval: refreshInterval,
+	d.mu.Lock()
+	d.provider = tokenProvider
+	d.authConfig = authConfig
+	d.refreshInterval = refreshInterval
+	d.mu.Unlock()
+
+	log.Info("Delegated authentication is enabled, fetching initial API key...")
+
+	// Create a context for the background refresh goroutine
+	d.refreshCtx, d.refreshCancel = context.WithCancel(context.Background())
+
+	// Fetch the initial API key synchronously
+	apiKey, err := d.GetAPIKey(context.Background())
+	if err != nil {
+		log.Errorf("Failed to get initial delegated API key: %v", err)
+		// Track the initial failure for exponential backoff
+		d.mu.Lock()
+		d.consecutiveFailures = 1
+		d.mu.Unlock()
+	} else {
+		// Update the config with the initial API key
+		d.updateConfigWithAPIKey(*apiKey)
+		log.Info("Successfully fetched and set initial delegated API key")
 	}
 
-	// Register lifecycle hooks to ensure API key is fetched early
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			comp.log.Info("Delegated authentication is enabled, fetching initial API key...")
-
-			// Create a context for the background refresh goroutine
-			comp.refreshCtx, comp.refreshCancel = context.WithCancel(context.Background())
-
-			// Fetch the initial API key synchronously during startup
-			apiKey, err := comp.GetAPIKey(ctx)
-			if err != nil {
-				comp.log.Errorf("Failed to get initial delegated API key: %v", err)
-				// Track the initial failure for exponential backoff
-				comp.mu.Lock()
-				comp.consecutiveFailures = 1
-				comp.mu.Unlock()
-			} else {
-				// Update the config with the initial API key
-				comp.updateConfigWithAPIKey(*apiKey)
-				comp.log.Info("Successfully fetched and set initial delegated API key")
-			}
-
-			// Always start the background refresh goroutine, even if initial fetch failed
-			// This ensures retries will happen with exponential backoff
-			comp.startBackgroundRefresh()
-
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			comp.log.Info("Stopping delegated auth background refresh...")
-
-			// Cancel the background refresh context
-			if comp.refreshCancel != nil {
-				comp.refreshCancel()
-			}
-
-			comp.log.Info("Delegated auth background refresh stopped")
-			return nil
-		},
-	})
-
-	return option.New[delegatedauth.Component](comp)
+	// Always start the background refresh goroutine, even if initial fetch failed
+	// This ensures retries will happen with exponential backoff
+	d.startBackgroundRefresh()
 }
 
-// GetAPIKey returns the current API key or fetches one if it has not yet been fetched
+// GetAPIKey returns the current API key or fetches one if it has not yet been fetched.
+//
+// Thread-safe: Uses RLock for read-only access and Lock for write access.
 func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
 	creds, _, err := d.refreshAndGetAPIKey(ctx, false)
 	return creds, err
 }
 
-// RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue
+// RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue.
+//
+// Thread-safe: Uses internal locking via refreshAndGetAPIKey.
 func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
 	_, _, err := d.refreshAndGetAPIKey(ctx, true)
 	return err
-}
-
-// RefreshAndGetAPIKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
-func (d *delegatedAuthComponent) RefreshAndGetAPIKey(ctx context.Context) (*string, bool, error) {
-	return d.refreshAndGetAPIKey(ctx, true)
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
@@ -190,12 +182,12 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRef
 		return d.apiKey, false, nil
 	}
 
-	d.log.Info("Fetching delegated API key")
+	log.Info("Fetching delegated API key")
 
 	// Authenticate with the configured provider
 	apiKey, err := d.authenticate()
 	if err != nil {
-		d.log.Errorf("Failed to generate auth proof: %v", err)
+		log.Errorf("Failed to generate auth proof: %v", err)
 		return nil, false, err
 	}
 
@@ -245,18 +237,18 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 			select {
 			case <-d.refreshCtx.Done():
 				// Context was canceled, exit the goroutine
-				d.log.Debug("Background refresh goroutine exiting due to context cancellation")
+				log.Debug("Background refresh goroutine exiting due to context cancellation")
 				return
 			case <-ticker.C:
 				// Time to refresh
-				lCreds, updated, lErr := d.RefreshAndGetAPIKey(d.refreshCtx)
+				lCreds, updated, lErr := d.refreshAndGetAPIKey(d.refreshCtx, true)
 
 				d.mu.Lock()
 				if lErr != nil {
 					// Check if the error is due to context cancellation
 					if d.refreshCtx.Err() != nil {
 						d.mu.Unlock()
-						d.log.Debug("Refresh failed due to context cancellation, exiting")
+						log.Debug("Refresh failed due to context cancellation, exiting")
 						return
 					}
 
@@ -265,12 +257,12 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 						d.consecutiveFailures++
 					}
 					d.nextRetryInterval = d.calculateNextRetryInterval()
-					d.log.Errorf("Failed to refresh delegated API key (attempt %d): %v. Next retry in %v",
+					log.Errorf("Failed to refresh delegated API key (attempt %d): %v. Next retry in %v",
 						d.consecutiveFailures, lErr, d.nextRetryInterval)
 				} else {
 					// Success - reset backoff
 					if d.consecutiveFailures > 0 {
-						d.log.Infof("Successfully refreshed delegated API key after %d failed attempts", d.consecutiveFailures)
+						log.Infof("Successfully refreshed delegated API key after %d failed attempts", d.consecutiveFailures)
 					}
 					d.consecutiveFailures = 0
 					d.nextRetryInterval = d.refreshInterval
@@ -303,5 +295,5 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(apiKey string) {
 	// Update the api_key config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set("api_key", apiKey, pkgconfigmodel.SourceAgentRuntime)
-	d.log.Infof("Updated config with new apiKey")
+	log.Infof("Updated config with new apiKey")
 }

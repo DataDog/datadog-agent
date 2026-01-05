@@ -7,14 +7,15 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	delegatedauthimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component
-func Module() fx.Option {
-	return fx.Module("delegatedauth",
-		fx.Provide(delegatedauthimpl.NewDelegatedAuth),
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			delegatedauthimpl.NewComponent,
+		),
 	)
 }
