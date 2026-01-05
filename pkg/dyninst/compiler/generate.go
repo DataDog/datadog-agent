@@ -15,7 +15,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )

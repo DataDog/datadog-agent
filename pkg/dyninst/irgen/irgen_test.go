@@ -35,10 +35,6 @@ func TestCompileUnitFromNameCases(t *testing.T) {
 			"a/b.Foo.Bar.Baz",
 			"a/b",
 		),
-		tc(
-			"github.com/pkg/errors.(*withStack).Format",
-			"github.com/pkg/errors",
-		),
 		tc("int", "runtime"),
 		{
 			testName: "long generic type",

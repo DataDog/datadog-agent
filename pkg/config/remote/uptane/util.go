@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
 	bbolterr "go.etcd.io/bbolt/errors"
 )

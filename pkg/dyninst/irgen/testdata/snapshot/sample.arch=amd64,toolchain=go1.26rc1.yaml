@@ -9019,13 +9019,6 @@ Types:
       GoKind: 22
       Pointee: 1205 UnresolvedPointeeType github.com/json-iterator/go.Stream
     - __kind: PointerType
-      ID: 943
-      Name: '*github.com/pkg/errors.fundamental'
-      ByteSize: 8
-      GoRuntimeType: 1.230976e+06
-      GoKind: 22
-      Pointee: 944 UnresolvedPointeeType github.com/pkg/errors.fundamental
-    - __kind: PointerType
       ID: 916
       Name: '*github.com/tinylib/msgp/msgp.ArrayError'
       ByteSize: 8
@@ -19558,10 +19551,6 @@ Types:
     - __kind: UnresolvedPointeeType
       ID: 1205
       Name: github.com/json-iterator/go.Stream
-      ByteSize: 8
-    - __kind: UnresolvedPointeeType
-      ID: 944
-      Name: github.com/pkg/errors.fundamental
       ByteSize: 8
     - __kind: StructureType
       ID: 917

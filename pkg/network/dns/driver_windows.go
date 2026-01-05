@@ -18,7 +18,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"errors"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
