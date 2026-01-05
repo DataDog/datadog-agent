@@ -138,23 +138,23 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	npi, foundInStore := c.store.LockRead(name, true)
 	defer c.store.Unlock(name)
 
-	// Get Target NodePool from Lister if needed
-	var targetNp *karpenterv1.NodePool
-	if npi.TargetName() != "" {
-		targetNp = &karpenterv1.NodePool{}
-		targetNpUnstr, err := c.Lister.Get(npi.TargetName())
-		if err != nil {
-			log.Errorf("Error retrieving Target NodePool: %v", err)
-			return autoscaling.Requeue
-		}
-		err = autoscaling.FromUnstructured(targetNpUnstr, targetNp)
-		if err != nil {
-			log.Errorf("Error converting Target NodePool: %v", err)
-			return autoscaling.Requeue
-		}
-	}
-
 	if foundInStore {
+		// Get Target NodePool from Lister if needed
+		var targetNp *karpenterv1.NodePool
+		if npi.TargetName() != "" {
+			targetNp = &karpenterv1.NodePool{}
+			targetNpUnstr, err := c.Lister.Get(npi.TargetName())
+			if err != nil {
+				log.Errorf("Error retrieving Target NodePool: %v", err)
+				return autoscaling.Requeue
+			}
+			err = autoscaling.FromUnstructured(targetNpUnstr, targetNp)
+			if err != nil {
+				log.Errorf("Error converting Target NodePool: %v", err)
+				return autoscaling.Requeue
+			}
+		}
+
 		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
 		if !checkTargetHash(npi, targetNp) {
 			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
@@ -191,6 +191,9 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 }
 
 func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
+	if targetNp == nil {
+		return false
+	}
 	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
 }
 

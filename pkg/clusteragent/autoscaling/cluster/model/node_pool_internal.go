@@ -211,9 +211,10 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	// Update NodePool with recommendation
 	instanceTypeLabelFound := false
 	for i := range knp.Spec.Template.Spec.Requirements {
-		if knp.Spec.Template.Spec.Requirements[i].Key == corev1.LabelInstanceTypeStable {
-			knp.Spec.Template.Spec.Requirements[i].Operator = corev1.NodeSelectorOpIn
-			knp.Spec.Template.Spec.Requirements[i].Values = npi.RecommendedInstanceTypes()
+		r := &knp.Spec.Template.Spec.Requirements[i]
+		if r.Key == corev1.LabelInstanceTypeStable {
+			r.Operator = corev1.NodeSelectorOpIn
+			r.Values = npi.RecommendedInstanceTypes()
 
 			instanceTypeLabelFound = true
 			break
