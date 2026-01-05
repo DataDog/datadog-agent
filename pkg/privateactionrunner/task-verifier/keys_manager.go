@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package remoteconfig
+package taskverifier
 
 import (
 	"context"
@@ -42,7 +42,7 @@ type RcClient interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-func New(rcClient RcClient) KeysManager {
+func NewKeyManager(rcClient RcClient) KeysManager {
 	return &keysManager{
 		stopChan: make(chan bool),
 		keys:     make(map[string]types.DecodedKey),
