@@ -29,6 +29,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
@@ -82,7 +83,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
+	github.com/cihub/seelog v2.0.0-20151216151435-d2c6e5aa9fbf+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -96,8 +97,8 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
-	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
+	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -143,6 +144,11 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ../../../comp/core/delegatedauth/def
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ../../../comp/core/delegatedauth/fx
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ../../../comp/core/delegatedauth/impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ../../../comp/core/delegatedauth/mock
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ../../../comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
@@ -218,6 +224,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/delegatedauth => ../../../pkg/delegatedauth
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
@@ -262,6 +269,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ../../../pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../pkg/util/cache
