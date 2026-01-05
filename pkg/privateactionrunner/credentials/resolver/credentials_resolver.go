@@ -284,7 +284,7 @@ func (p *privateCredentialResolver) resolveAgentConfigurationCredentials(tokens 
 	// Look for the "credential-name" token
 	credentialName := ""
 	for _, token := range tokens {
-		if connlib.GetName(token) == "credential-name" {
+		if connlib.GetName(token) == "credentialName" {
 			if plainText := token.GetPlainText(); plainText != nil {
 				credentialName = plainText.GetValue()
 				break
@@ -293,7 +293,7 @@ func (p *privateCredentialResolver) resolveAgentConfigurationCredentials(tokens 
 	}
 
 	if credentialName == "" {
-		return nil, errors.New("credential-name token not found")
+		return nil, errors.New("invalid connection, token credentialName not found")
 	}
 
 	if p.config == nil || p.config.Credentials == nil {
