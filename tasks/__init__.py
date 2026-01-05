@@ -62,6 +62,7 @@ from tasks import (
     process_agent,
     process_manager,
     protobuf,
+    python_version,
     quality_gates,
     release,
     rtloader,
@@ -207,6 +208,7 @@ ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
 ns.add_collection(protobuf)
+ns.add_collection(python_version, "python-version")
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)

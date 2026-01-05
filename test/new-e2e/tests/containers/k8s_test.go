@@ -16,8 +16,9 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -535,6 +536,14 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
 			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
 		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
+	})
+
+	suite.Run("cluster-agent CRD collector", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"agent", "workload-list"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
+		suite.Contains(stdout, "=== Entity crd sources(merged):[kubeapiserver] id: datadogmetrics.datadoghq.com ===")
+
 	})
 }
 

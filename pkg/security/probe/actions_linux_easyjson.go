@@ -43,6 +43,8 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.Filter = string(in.String())
 		case "policy":
 			out.Policy = string(in.String())
+		case "status":
+			out.Status = RawPacketActionStatus(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -66,6 +68,11 @@ func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"policy\":"
 		out.RawString(prefix)
 		out.String(string(in.Policy))
+	}
+	{
+		const prefix string = ",\"status\":"
+		out.RawString(prefix)
+		out.String(string(in.Status))
 	}
 	out.RawByte('}')
 }

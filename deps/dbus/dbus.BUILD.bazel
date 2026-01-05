@@ -126,6 +126,7 @@ cc_library(
     ],
     includes = ["."],
     linkstatic = True,
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
@@ -166,11 +167,19 @@ pkg_files(
     prefix = "lib/pkgconfig",
 )
 
+pkg_files(
+    name = "dbus_arch_deps_install",
+    srcs = [":dbus_arch_deps_h"],
+    # This header is really meant to be installed in the lib dir.
+    prefix = "lib/dbus-1.0/include/dbus",
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":headers",
         ":pkgconfig",
         ":lib_files",
+        ":dbus_arch_deps_install"
     ],
 )

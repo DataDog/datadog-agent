@@ -35,6 +35,14 @@ func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.
 		PIDs:             make(map[uint32]bool, 10),
 	}
 
+	// should not happen but added as a safe-guard to avoid overriding
+	// a Releasable pointer which would cause Releasable callbacks to not be called
+	if newCGroup.ContainerContext.Releasable == nil {
+		// we need this here because the newCGroup entry will be propagated back to both the cgroup resolver
+		// and the process cache entry upon context context resolution
+		newCGroup.ContainerContext.Releasable = &model.Releasable{}
+	}
+
 	for _, pid := range pids {
 		newCGroup.PIDs[pid] = true
 	}

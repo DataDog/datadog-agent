@@ -79,9 +79,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Span:      span,
 		Config: config.Config{
 			DatadogYAML: config.DatadogConfig{
-				APIKey:   env.APIKey,
+				APIKey:   os.Getenv("DD_API_KEY"),
 				Hostname: os.Getenv("DD_HOSTNAME"),
-				Site:     env.Site,
+				Site:     os.Getenv("DD_SITE"),
 				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
@@ -119,7 +119,7 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString("Applying configurations...\n")
 	// ensure config root is created with correct permissions
-	err = paths.EnsureInstallerDataDir()
+	err = paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}

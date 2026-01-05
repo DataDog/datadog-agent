@@ -217,23 +217,23 @@ func (n *nodeImpl) RemoveChild(name string) {
 	delete(n.children, name)
 }
 
-// DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
+// dumpSettings clones the entire tree starting from the root into a map[string]interface{}
 //
-// The selector will be call with the source of each leaf to determine if it should be included in the dump.
-func (n *nodeImpl) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
+// If includeDefaults is false, then leafs with default source will be skipped (only useful for the merged tree)
+func (n *nodeImpl) dumpSettings(includeDefaults bool) map[string]interface{} {
 	res := map[string]interface{}{}
 
 	for _, k := range n.ChildrenKeys() {
 		child, _ := n.GetChild(k)
 		if child.IsLeafNode() {
-			if selector(child.Source()) {
-				res[k] = child.Get()
+			if child.Source() == model.SourceDefault && !includeDefaults {
+				continue
 			}
-			continue
+			res[k] = child.Get()
 		}
 
 		if child.IsInnerNode() {
-			childDump := child.DumpSettings(selector)
+			childDump := child.dumpSettings(includeDefaults)
 			if len(childDump) != 0 {
 				res[k] = childDump
 			}

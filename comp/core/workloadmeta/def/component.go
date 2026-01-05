@@ -67,6 +67,9 @@ type Component interface {
 	// GetKubeletMetrics returns metadata about kubelet metrics.
 	GetKubeletMetrics() (*KubeletMetrics, error)
 
+	// GetKubeCapabilities returns metadata about kubernetes cluster capabilities.
+	GetKubeCapabilities() (*KubeCapabilities, error)
+
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)

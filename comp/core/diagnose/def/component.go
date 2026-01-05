@@ -8,6 +8,7 @@ package diagnose
 
 import (
 	"encoding/json"
+	"slices"
 	"sync"
 
 	"github.com/fatih/color"
@@ -65,13 +66,7 @@ type Catalog struct {
 
 // Register registers a diagnose function
 func (c *Catalog) Register(name string, diagnoseFunc func(Config) []Diagnosis) {
-	registeredSuite := false
-	for _, suite := range AllSuites {
-		if suite == name {
-			registeredSuite = true
-			break
-		}
-	}
+	registeredSuite := slices.Contains(AllSuites, name)
 	if !registeredSuite {
 		panic("suite not registered. plase update the AllSuites list")
 	}
@@ -184,7 +179,7 @@ type Diagnosis struct {
 	Category string `json:"category,omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string `json:"description,omitempty"`
-	// run-time (what can be done of what docs need to be consulted to address the issue)
+	// run-time (what can be done or what docs need to be consulted to address the issue)
 	Remediation string `json:"remediation,omitempty"`
 	// run-time
 	RawError string `json:"rawerror,omitempty"`

@@ -4770,6 +4770,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers30(
 			continue
 		}
 		switch key {
+		case "signature":
+			out.Signature = string(in.String())
 		case "network":
 			if in.IsNull() {
 				in.Skip()
@@ -5141,10 +5143,20 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers30(
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.NetworkContextSerializer != nil {
-		const prefix string = ",\"network\":"
+	if in.Signature != "" {
+		const prefix string = ",\"signature\":"
 		first = false
 		out.RawString(prefix[1:])
+		out.String(string(in.Signature))
+	}
+	if in.NetworkContextSerializer != nil {
+		const prefix string = ",\"network\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(*in.NetworkContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.DDContextSerializer != nil {

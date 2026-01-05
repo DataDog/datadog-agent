@@ -2,6 +2,95 @@
 Release Notes
 =============
 
+.. _Release Notes_7.73.3:
+
+7.73.3
+======
+
+.. _Release Notes_7.73.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-31
+
+- Please refer to the `7.73.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7733>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed device-mapper (LVM) device tagging in the diskv2 check to match Python psutil behavior.
+  Previously, devices were reported as ``dm-X`` (e.g., ``device:dm-0``) instead of their friendly
+  ``/dev/mapper/*`` names (e.g., ``device:ocivolume-root``). This ensures backward compatibility
+  with the Python disk check and preserves existing dashboards and monitors.
+
+- Fix an issue introduced in 7.73.0 that can cause the MSI to overwrite the ``site`` option in ``datadog.yaml`` with the default value of ``datadoghq.com``.
+  
+  This issue impacts users who do not provide the ``SITE`` option to the MSI when upgrading AND who have an error in their ``datadog.yaml`` file that prevents the MSI from reading the existing ``site`` option (MSI log contains ``ReadConfig. User config could not be read``).
+  
+  This issue also impacts users of ``datadog-installer.exe`` and ``Install-Datadog.ps1``, introduced in 7.72.0, who do not provide the ``DD_SITE`` environment variable when upgrading.
+
+
+.. _Release Notes_7.73.2:
+
+7.73.2
+======
+
+.. _Release Notes_7.73.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-23
+
+- Please refer to the `7.73.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7732>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The disk check now handles ``PartitionsWithContext`` errors gracefully instead of failing entirely.
+  When some partitions fail to load, the check continues collecting metrics for the partitions that
+  succeeded. This aligns the Go implementation with the Python check behavior.
+
+- The new version of the disk check on Windows now normalizes the ``device:`` tag by stripping
+  backslashes and lowercasing, matching the Python disk check behavior.
+  This ensures customers that migrated from Python to Go disk check see
+  consistent ``device:`` tag values (e.g., ``C:\`` becomes ``c:``).
+
+- Implemented a fix so that the Agent does not try to schedule the ``orchestrator_kubelet_config`` check when
+  the ``orchestrator_explorer.kubelet_config_check.enabled`` config is
+  set to ``false``.
+
+
+.. _Release Notes_7.73.1:
+
+7.73.1
+======
+
+.. _Release Notes_7.73.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-12-17
+
+- Please refer to the `7.73.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7731>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.73.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.11``.
+
+
 .. _Release Notes_7.73.0:
 
 7.73.0

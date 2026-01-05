@@ -3,13 +3,20 @@
 #import <IOKit/IOKitKeys.h>
 #import "battery_darwin.h"
 
+// kIOMainPortDefault was introduced in macOS 12.0, use kIOMasterPortDefault for older versions
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 120000
+#define IOKIT_MAIN_PORT kIOMainPortDefault
+#else
+#define IOKIT_MAIN_PORT kIOMasterPortDefault
+#endif
+
 static NSDictionary *getSmartBatteryProperties(void) {
     CFMutableDictionaryRef matching = IOServiceMatching("AppleSmartBattery");
     if (matching == NULL) {
         return nil;
     }
 
-    io_service_t batteryEntry = IOServiceGetMatchingService(kIOMainPortDefault, matching);
+    io_service_t batteryEntry = IOServiceGetMatchingService(IOKIT_MAIN_PORT, matching);
     if (batteryEntry == 0) {
         return nil;
     }

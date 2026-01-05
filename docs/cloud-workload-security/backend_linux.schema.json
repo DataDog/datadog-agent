@@ -2297,6 +2297,9 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
+    "signature": {
+      "type": "string"
+    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
