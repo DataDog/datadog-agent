@@ -23,7 +23,6 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
-			libraryName: "libdatadog-agent-example.dll",
 			checksdPath: "C:\\Temp\\Datadog\\checks.d",
 		},
 	}
@@ -32,5 +31,6 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 }
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
-	v.testCheckExample()
+	v.copyToRemote("libdatadog-agent-example.dll")
+	v.testCheckExecutionAndVerifyMetrics()
 }

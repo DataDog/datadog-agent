@@ -23,7 +23,6 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
-			libraryName: "libdatadog-agent-example.so",
 			checksdPath: "/tmp/datadog-agent/checks.d",
 		},
 	}
@@ -31,6 +30,11 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
-	v.testCheckExample()
+func (v *linuxSharedLibrarySuite) TestLinuxCheck_ExampleCheck() {
+	v.copyToRemote("libdatadog-agent-example.so")
+	v.testCheckExecutionAndVerifyMetrics()
+}
+
+func (v *linuxSharedLibrarySuite) TestLinuxCheck_SharedLibraryWithoutRequiredSymbols() {
+
 }

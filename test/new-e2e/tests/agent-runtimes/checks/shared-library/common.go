@@ -29,7 +29,6 @@ var exampleCheckConfig string
 type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor  osVM.Descriptor
-	libraryName string
 	checksdPath string
 }
 
@@ -54,13 +53,13 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-func (v *sharedLibrarySuite) init() {
+func (v *sharedLibrarySuite) copyToRemote(filename string) {
 	// copy the lib with the right permissions
-	sourceLibPath := path.Join(".", "files", v.libraryName)
-	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	sourceLibPath := path.Join(".", "files", filename)
+	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, filename))
 
 	// verify that the library has been successfully copied
-	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, filename))
 	require.NoError(v.T(), err)
 	require.True(v.T(), res)
 }
@@ -98,9 +97,4 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	assert.Equal(v.T(), "hello.text", event.Text)
 	assert.Equal(v.T(), "normal", event.Priority)
 	assert.Equal(v.T(), "info", event.AlertType)
-}
-
-func (v *sharedLibrarySuite) testCheckExample() {
-	v.init()
-	v.testCheckExecutionAndVerifyMetrics()
 }
