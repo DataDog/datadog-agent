@@ -245,6 +245,7 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 		Kind:       "NodePool",
 		APIVersion: "karpenter.sh/v1",
 	}
+
 	// Reset the top-level labels and annotations
 	knp.ObjectMeta = metav1.ObjectMeta{
 		Name:        npi.Name(),
@@ -257,6 +258,9 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
 	}
 	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+
+	// Reset the status
+	knp.Status = karpenterv1.NodePoolStatus{}
 }
 
 // BuildNodePoolPatch is used to construct JSON patch

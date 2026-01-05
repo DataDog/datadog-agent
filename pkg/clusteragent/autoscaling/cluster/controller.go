@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -219,7 +220,7 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 		knp = model.ConvertToKarpenterNodePool(npi, u.GetName())
 	}
 
-	npUnstr, err := autoscaling.ToUnstructured(knp)
+	npUnstr, err := convertNodePoolToUnstructured(knp)
 	if err != nil {
 		return err
 	}
@@ -266,4 +267,26 @@ func isCreatedByDatadog(labels map[string]string) bool {
 		return true
 	}
 	return false
+}
+
+// Helper function to convert a typed Karpenter NodePool object to unstructured. Handles custom Go types gracefully
+func convertNodePoolToUnstructured(np interface{}) (*unstructured.Unstructured, error) {
+	// Marshal the structured object to JSON bytes.
+	bytes, err := json.Marshal(np)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal the JSON bytes into a map[string]interface{}.
+	var unstructuredMap map[string]interface{}
+	if err := json.Unmarshal(bytes, &unstructuredMap); err != nil {
+		return nil, err
+	}
+
+	// Wrap the map in unstructured.Unstructured.
+	unstructuredObj := &unstructured.Unstructured{
+		Object: unstructuredMap,
+	}
+
+	return unstructuredObj, nil
 }
