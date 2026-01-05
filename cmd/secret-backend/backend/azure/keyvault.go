@@ -17,7 +17,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
 )
 

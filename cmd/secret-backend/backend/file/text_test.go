@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 func TestFileBackendGetSecretOutput(t *testing.T) {

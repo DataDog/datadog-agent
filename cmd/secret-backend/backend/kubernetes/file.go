@@ -10,7 +10,7 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-secret-backend/backend/file"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/file"
 )
 
 // NewK8sFileBackend returns a new Kubernetes file-based secrets backend

@@ -10,7 +10,7 @@ package docker
 import (
 	"runtime"
 
-	"github.com/DataDog/datadog-secret-backend/backend/file"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend/file"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/stretchr/testify/assert"
