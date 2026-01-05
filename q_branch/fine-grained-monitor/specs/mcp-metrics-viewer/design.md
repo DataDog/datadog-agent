@@ -8,28 +8,38 @@ MCP tools via HTTP/SSE transport, enabling access from both local development
 (via port-forward) and remote AI SRE agents.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Kubernetes Cluster                           │
-│                                                                  │
-│  ┌────────────────────┐       ┌────────────────────────────────┐│
-│  │  MCP Deployment    │       │  fine-grained-monitor DaemonSet ││
-│  │  (mcp-metrics)     │       │                                 ││
-│  │                    │       │   Node A        Node B      ... ││
-│  │  - watches pods    │ HTTP  │   ┌──────┐      ┌──────┐        ││
-│  │  - routes by node  │◄─────►│   │viewer│      │viewer│        ││
-│  │  - HTTP/SSE MCP    │       │   │:8050 │      │:8050 │        ││
-│  │                    │       │   └──────┘      └──────┘        ││
-│  └─────────┬──────────┘       │   (node-local   (node-local     ││
-│            │                  │    metrics)      metrics)       ││
-│   Service (ClusterIP)         └────────────────────────────────┘│
-│   mcp-metrics:8080                                               │
-└────────────┼─────────────────────────────────────────────────────┘
-             │
-     ┌───────┴───────┐
-     │               │
- Claude Code    AI SRE Agents
-(port-forward)  (direct/ingress)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            Kubernetes Cluster                                 │
+│                                                                               │
+│  ┌──────────────────────────────────────────────────────────────────────────┐│
+│  │                    Namespace: fine-grained-monitor                        ││
+│  │                                                                           ││
+│  │  ┌────────────────────┐       ┌────────────────────────────────┐         ││
+│  │  │  MCP Deployment    │       │  fine-grained-monitor DaemonSet │         ││
+│  │  │  (fgm-mcp-server)  │       │                                 │         ││
+│  │  │                    │       │   Node A        Node B      ... │         ││
+│  │  │  - watches pods    │ HTTP  │   ┌──────┐      ┌──────┐        │         ││
+│  │  │  - routes by node  │◄─────►│   │viewer│      │viewer│        │         ││
+│  │  │  - HTTP/SSE MCP    │       │   │:8050 │      │:8050 │        │         ││
+│  │  │                    │       │   └──────┘      └──────┘        │         ││
+│  │  └─────────┬──────────┘       │   (node-local   (node-local     │         ││
+│  │            │                  │    metrics)      metrics)       │         ││
+│  │   Service (ClusterIP)         └────────────────────────────────┘         ││
+│  │   fgm-mcp-server:8080                                                     ││
+│  │                                                                           ││
+│  │   RBAC: Role (namespace-scoped, least-privilege)                          ││
+│  └──────────────────────────────────────────────────────────────────────────┘│
+└──────────────┼───────────────────────────────────────────────────────────────┘
+               │
+       ┌───────┴───────┐
+       │               │
+   Claude Code    AI SRE Agents
+  (port-forward)  (direct/ingress)
 ```
+
+All components run in the `fine-grained-monitor` namespace, enabling namespace-scoped
+RBAC. The MCP server only needs to watch pods in its own namespace, so a Role
+(not ClusterRole) provides sufficient access with least-privilege security.
 
 ### Key Design Principles
 
@@ -304,10 +314,13 @@ server.serve(sse).await?;
 ```
 
 Clients connect via:
-- **Claude Code:** `kubectl port-forward svc/mcp-metrics 8888:8080`, then configure MCP with `http://localhost:8888`
-- **AI SRE Agents:** Direct HTTP to `http://mcp-metrics.{namespace}.svc.cluster.local:8080`
+- **Claude Code:** `kubectl port-forward svc/fgm-mcp-server -n fine-grained-monitor 8888:8080`, then configure MCP with `http://localhost:8888`
+- **AI SRE Agents:** Direct HTTP to `http://fgm-mcp-server.fine-grained-monitor.svc.cluster.local:8080`
 
 ## Kubernetes Manifests
+
+All manifests use namespace `fine-grained-monitor`. The DaemonSet runs in the same
+namespace, so namespace-scoped RBAC (Role, not ClusterRole) is sufficient.
 
 ### Deployment
 
@@ -315,20 +328,21 @@ Clients connect via:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-metrics
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
-    app: mcp-metrics
+    app: fgm-mcp-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mcp-metrics
+      app: fgm-mcp-server
   template:
     metadata:
       labels:
-        app: mcp-metrics
+        app: fgm-mcp-server
     spec:
-      serviceAccountName: mcp-metrics
+      serviceAccountName: fgm-mcp-server
       containers:
       - name: mcp
         image: fine-grained-monitor:latest
@@ -336,7 +350,7 @@ spec:
         args:
           - "--port=8080"
           - "--daemonset-label=app=fine-grained-monitor"
-          - "--daemonset-namespace=default"
+          # No --daemonset-namespace needed; defaults to same namespace
         ports:
           - containerPort: 8080
             name: mcp
@@ -355,10 +369,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mcp-metrics
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
 spec:
   selector:
-    app: mcp-metrics
+    app: fgm-mcp-server
   ports:
     - name: mcp
       port: 8080
@@ -371,12 +386,14 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: mcp-metrics
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mcp-metrics
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -385,13 +402,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mcp-metrics
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
 subjects:
   - kind: ServiceAccount
-    name: mcp-metrics
+    name: fgm-mcp-server
+    namespace: fine-grained-monitor
 roleRef:
   kind: Role
-  name: mcp-metrics
+  name: fgm-mcp-server
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -400,7 +419,7 @@ roleRef:
 The MCP server binary accepts:
 
 - `--port` (default: 8080): HTTP/SSE listen port
-- `--daemonset-namespace` (default: "default"): Namespace containing DaemonSet
+- `--daemonset-namespace` (default: "fine-grained-monitor"): Namespace containing DaemonSet
 - `--daemonset-label` (default: "app=fine-grained-monitor"): Label selector for pods
 - `--viewer-port` (default: 8050): Port on viewer containers
 

@@ -19,12 +19,15 @@ cd q_branch/fine-grained-monitor
 # Cluster deployment (Kind via Lima) - per-worktree isolated
 ./dev.py cluster deploy           # Build image, load to Kind, restart pods (creates cluster if needed)
 ./dev.py cluster status           # Show cluster pod status
-./dev.py cluster forward          # Port-forward to cluster pod
-./dev.py cluster forward-stop     # Stop port-forward
+./dev.py cluster viewer start     # Port-forward to viewer on first pod
+./dev.py cluster viewer start --pod NAME  # Port-forward to specific pod
+./dev.py cluster viewer stop      # Stop viewer port-forward
 ./dev.py cluster list             # List all fgm-* clusters
 ./dev.py cluster create           # Create Kind cluster for this worktree
 ./dev.py cluster destroy          # Destroy Kind cluster for this worktree
-./dev.py cluster setup-mcp        # Setup MCP server for this worktree's cluster
+./dev.py cluster mcp setup        # Setup MCP server for this worktree's cluster
+./dev.py cluster mcp start        # Start MCP port-forward
+./dev.py cluster mcp stop         # Stop MCP port-forward
 
 # Benchmarking
 ./dev.py bench --filter <name>    # Run specific benchmark in background
@@ -102,7 +105,7 @@ Each worktree has its own Kind cluster inside the Lima VM (`gadget-k8s-host`) wi
 
 ### MCP Server Setup
 
-Run `./dev.py cluster setup-mcp` to configure the kubernetes-mcp-server for this worktree's cluster. This creates:
+Run `./dev.py cluster mcp setup` to configure the kubernetes-mcp-server for this worktree's cluster. This creates:
 - A dedicated kubeconfig at `~/.kube/mcp-fgm-{worktree}.kubeconfig`
 - A project-scoped `.mcp.json` that points to this worktree's cluster
 
@@ -143,7 +146,7 @@ limactl shell gadget-k8s-host -- kind get clusters
 
 **Check pod status:**
 ```
-Use: pods_list_in_namespace(namespace="default")
+Use: pods_list_in_namespace(namespace="fine-grained-monitor")
 ```
 
 **View pod logs:**

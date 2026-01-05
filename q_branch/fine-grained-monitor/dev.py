@@ -14,6 +14,7 @@ Binaries:
     fine-grained-monitor  - DaemonSet collecting 1Hz container metrics
     fgm-viewer            - Interactive web UI for viewing collected data
     fgm-consolidator      - Merges parquet files from multiple pods
+    fgm-mcp-server        - MCP server for Claude Code / AI agent access
 
 Local development:
     ./dev.py local build               # Build all release binaries
@@ -26,8 +27,13 @@ Local development:
 Cluster deployment (Kind via Lima):
     ./dev.py cluster deploy            # Build image, load to Kind, restart pods
     ./dev.py cluster status            # Show cluster pod status
-    ./dev.py cluster forward           # Port-forward to viewer in cluster
-    ./dev.py cluster forward-stop      # Stop port-forward
+    ./dev.py cluster viewer            # Port-forward to viewer web UI
+    ./dev.py cluster viewer stop       # Stop viewer port-forward
+    ./dev.py cluster mcp setup         # One-time Claude Code integration setup
+    ./dev.py cluster mcp start         # Start MCP port-forward
+    ./dev.py cluster mcp stop          # Stop MCP port-forward
+
+All resources deploy to the 'fine-grained-monitor' namespace.
 """
 
 import argparse
@@ -72,7 +78,7 @@ BINARY = PROJECT_ROOT / "target" / "release" / "fgm-viewer"
 IMAGE_NAME = "fine-grained-monitor"
 LIMA_VM = "gadget-k8s-host"
 POD_LABEL = "app=fine-grained-monitor"
-NAMESPACE = "default"
+NAMESPACE = "fine-grained-monitor"
 # Note: IMAGE_TAG, KIND_CLUSTER, KUBE_CONTEXT are computed dynamically per-worktree
 
 
@@ -838,7 +844,7 @@ def cmd_deploy():
     # Step 4: Apply manifests (always, to pick up any changes)
     pods = get_cluster_pods()
 
-    # Apply RBAC for DaemonSet
+    # Apply RBAC for DaemonSet (includes Namespace creation)
     rbac_path = PROJECT_ROOT / "deploy" / "rbac.yaml"
     if rbac_path.exists():
         subprocess.run(
@@ -1059,7 +1065,7 @@ def cmd_cluster_status():
     pods = get_cluster_pods()
     if pods:
         port = calculate_port()
-        print(f"To access viewer: ./dev.py cluster forward (port {port})")
+        print(f"To access viewer: ./dev.py cluster viewer start (port {port})")
 
     # Show MCP forward status
     mcp_pid = get_mcp_forward_pid()
@@ -1101,7 +1107,7 @@ def get_forward_pid() -> int | None:
     return None
 
 
-def cmd_forward(pod_name: str | None):
+def cmd_viewer(pod_name: str | None):
     """Start port-forward to cluster viewer pod."""
     kube_context = get_kube_context()
 
@@ -1191,12 +1197,12 @@ def cmd_forward(pod_name: str | None):
     print(f"  Target: {target}")
     print(f"  URL:    http://127.0.0.1:{port}/")
     print(f"  Logs:   {FORWARD_LOG_FILE}")
-    print("  Stop:   ./dev.py forward-stop")
+    print("  Stop:   ./dev.py cluster viewer stop")
     return 0
 
 
-def cmd_forward_stop():
-    """Stop port-forward."""
+def cmd_viewer_stop():
+    """Stop viewer port-forward."""
     pid = get_forward_pid()
     if not pid:
         print("Port-forward: not running")
@@ -1332,6 +1338,38 @@ def start_mcp_forward() -> bool:
             continue
 
     return False
+
+
+def cmd_mcp_start() -> int:
+    """Start MCP port-forward."""
+    mcp_port = calculate_mcp_port()
+
+    print(f"Starting MCP port-forward (local port {mcp_port})...")
+    if start_mcp_forward():
+        pid = get_mcp_forward_pid()
+        print(f"MCP port-forward running (pid {pid})")
+        print(f"  URL:  http://127.0.0.1:{mcp_port}/mcp")
+        print(f"  Logs: {MCP_FORWARD_LOG_FILE}")
+        print("  Stop: ./dev.py cluster mcp stop")
+        return 0
+    else:
+        print("Failed to start MCP port-forward")
+        print(f"Check logs: {MCP_FORWARD_LOG_FILE}")
+        print("Is the MCP server deployed? Run: ./dev.py cluster deploy")
+        return 1
+
+
+def cmd_mcp_stop() -> int:
+    """Stop MCP port-forward."""
+    pid = get_mcp_forward_pid()
+    if not pid:
+        print("MCP port-forward: not running")
+        return 0
+
+    print(f"Stopping MCP port-forward (pid {pid})...", end=" ", flush=True)
+    stop_mcp_forward()
+    print("stopped")
+    return 0
 
 
 def get_git_root() -> Path:
@@ -2281,8 +2319,8 @@ def cmd_aiops_runs():
     return 0
 
 
-def cmd_cluster_setup_mcp():
-    """Setup MCP server integration for this worktree's cluster."""
+def cmd_mcp_setup():
+    """Setup MCP server integration for this worktree's cluster (one-time)."""
     cluster_name = get_cluster_name()
     kube_context = get_kube_context()
     kubeconfig_path = get_mcp_kubeconfig_path()
@@ -2490,13 +2528,15 @@ Examples:
 
   ./dev.py cluster deploy                  # Build image, load to Kind, restart pods
   ./dev.py cluster status                  # Show cluster pod status
-  ./dev.py cluster forward                 # Port-forward to first pod
-  ./dev.py cluster forward --pod NAME      # Port-forward to specific pod
-  ./dev.py cluster forward-stop            # Stop port-forward
+  ./dev.py cluster viewer start            # Port-forward to viewer on first pod
+  ./dev.py cluster viewer start --pod NAME # Port-forward to specific pod
+  ./dev.py cluster viewer stop             # Stop viewer port-forward
   ./dev.py cluster create                  # Create Kind cluster for this worktree
   ./dev.py cluster destroy                 # Destroy Kind cluster for this worktree
   ./dev.py cluster list                    # List all fgm-* clusters
-  ./dev.py cluster setup-mcp               # Setup MCP server for this worktree's cluster
+  ./dev.py cluster mcp setup               # Setup MCP server for this worktree's cluster
+  ./dev.py cluster mcp start               # Start MCP port-forward
+  ./dev.py cluster mcp stop                # Stop MCP port-forward
 
   ./dev.py bench --filter <name>           # Run specific benchmark in background
   ./dev.py bench --full-suite              # Run all benchmarks in background
@@ -2569,17 +2609,24 @@ Per-worktree isolation:
     # cluster status
     cluster_subs.add_parser("status", help="Show cluster pod status")
 
-    # cluster forward
-    forward_parser = cluster_subs.add_parser("forward", help="Port-forward to cluster pod or MCP service")
-    forward_parser.add_argument(
+    # cluster viewer (subcommand group for viewer port-forward)
+    viewer_parser = cluster_subs.add_parser("viewer", help="Viewer web UI port-forward")
+    viewer_subs = viewer_parser.add_subparsers(dest="viewer_command", required=True)
+    viewer_start_parser = viewer_subs.add_parser("start", help="Start viewer port-forward")
+    viewer_start_parser.add_argument(
         "--pod",
         type=str,
         default=None,
         help="Specific pod name (default: first available pod)",
     )
+    viewer_subs.add_parser("stop", help="Stop viewer port-forward")
 
-    # cluster forward-stop
-    cluster_subs.add_parser("forward-stop", help="Stop port-forward")
+    # cluster mcp (subcommand group for MCP operations)
+    mcp_parser = cluster_subs.add_parser("mcp", help="MCP server operations")
+    mcp_subs = mcp_parser.add_subparsers(dest="mcp_command", required=True)
+    mcp_subs.add_parser("setup", help="One-time Claude Code integration setup")
+    mcp_subs.add_parser("start", help="Start MCP port-forward")
+    mcp_subs.add_parser("stop", help="Stop MCP port-forward")
 
     # cluster create
     cluster_subs.add_parser("create", help="Create Kind cluster for this worktree")
@@ -2589,9 +2636,6 @@ Per-worktree isolation:
 
     # cluster list
     cluster_subs.add_parser("list", help="List all fgm-* clusters")
-
-    # cluster setup-mcp
-    cluster_subs.add_parser("setup-mcp", help="Setup MCP server integration for this worktree's cluster")
 
     # --- Bench subcommands ---
     bench_parser = subparsers.add_parser("bench", help="Benchmark commands")
@@ -2684,18 +2728,24 @@ Per-worktree isolation:
             sys.exit(cmd_deploy())
         elif args.command == "status":
             sys.exit(cmd_cluster_status())
-        elif args.command == "forward":
-            sys.exit(cmd_forward(args.pod))
-        elif args.command == "forward-stop":
-            sys.exit(cmd_forward_stop())
+        elif args.command == "viewer":
+            if args.viewer_command == "start":
+                sys.exit(cmd_viewer(args.pod))
+            elif args.viewer_command == "stop":
+                sys.exit(cmd_viewer_stop())
+        elif args.command == "mcp":
+            if args.mcp_command == "setup":
+                sys.exit(cmd_mcp_setup())
+            elif args.mcp_command == "start":
+                sys.exit(cmd_mcp_start())
+            elif args.mcp_command == "stop":
+                sys.exit(cmd_mcp_stop())
         elif args.command == "create":
             sys.exit(cmd_cluster_create())
         elif args.command == "destroy":
             sys.exit(cmd_cluster_destroy())
         elif args.command == "list":
             sys.exit(cmd_cluster_list())
-        elif args.command == "setup-mcp":
-            sys.exit(cmd_cluster_setup_mcp())
     elif args.group == "bench":
         if args.bench_command == "wait":
             sys.exit(cmd_bench_wait(args.guid))

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fine-grained-monitor
+  namespace: fine-grained-monitor
   labels:
     app: fine-grained-monitor
 spec:

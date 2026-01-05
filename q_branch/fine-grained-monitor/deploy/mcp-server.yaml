@@ -4,18 +4,23 @@
 #
 # This runs as a single Deployment (not DaemonSet) and discovers
 # fine-grained-monitor DaemonSet pods to route node-targeted queries.
+#
+# All resources in fine-grained-monitor namespace. Uses namespace-scoped
+# Role (not ClusterRole) since DaemonSet is in the same namespace.
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: mcp-metrics-viewer
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
     app: mcp-metrics-viewer
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: mcp-metrics-viewer
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
     app: mcp-metrics-viewer
 rules:
@@ -25,24 +30,26 @@ rules:
     verbs: ["list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: mcp-metrics-viewer
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
     app: mcp-metrics-viewer
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: mcp-metrics-viewer
+  kind: Role
+  name: fgm-mcp-server
 subjects:
   - kind: ServiceAccount
-    name: mcp-metrics-viewer
-    namespace: default
+    name: fgm-mcp-server
+    namespace: fine-grained-monitor
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-metrics-viewer
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
     app: mcp-metrics-viewer
 spec:
@@ -63,7 +70,7 @@ spec:
         command: ["/usr/local/bin/mcp-metrics-viewer"]
         args:
           - "--port=8080"
-          - "--daemonset-namespace=default"
+          - "--daemonset-namespace=fine-grained-monitor"
           - "--daemonset-label=app=fine-grained-monitor"
           - "--viewer-port=8050"
         env:
@@ -96,7 +103,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mcp-metrics-viewer
+  name: fgm-mcp-server
+  namespace: fine-grained-monitor
   labels:
     app: mcp-metrics-viewer
 spec:
