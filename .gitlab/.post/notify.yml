@@ -9,12 +9,12 @@
 
 # Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
 .notify-job:
-  stage: notify
+  stage: .post
   allow_failure: true
 
 notify-on-tagged-success:
   extends: .notify-job
-  stage: notify
+  stage: .post
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
@@ -28,7 +28,7 @@ notify-on-tagged-success:
 
 notify:
   extends: .notify-job
-  stage: notify
+  stage: .post
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
