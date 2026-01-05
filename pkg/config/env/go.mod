@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0

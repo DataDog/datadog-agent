@@ -59,7 +59,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.3 // indirect

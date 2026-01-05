@@ -22,7 +22,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect

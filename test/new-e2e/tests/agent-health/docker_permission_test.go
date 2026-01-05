@@ -68,11 +68,11 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
 	report := healthReports[len(healthReports)-1]
 
 	// Verify docker permission issue is present
-	dockerIssue, found := report.Issues["docker-socket-check"]
+	dockerIssue, found := report.Issues["docker-socket-access"]
 	require.True(suite.T(), found, "Docker permission issue not found in health report")
 	require.NotNil(suite.T(), dockerIssue)
 
-	assert.Equal(suite.T(), "docker-permission-issue", dockerIssue.ID)
+	assert.Equal(suite.T(), "docker-socket-permission-denied", dockerIssue.ID)
 	assert.Equal(suite.T(), "permissions", dockerIssue.Category)
 	assert.Contains(suite.T(), dockerIssue.Tags, "integration:docker")
 
