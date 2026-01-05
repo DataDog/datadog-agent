@@ -4150,11 +4150,22 @@ api_key:
 
 #     # @param oid_batch_size - integer - optional - default: 5
 #     # The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
-#     # Can be overridden on a per-configuration basis.
-#     #
+#     # Applies to all configurations if not overridden.
 #     # By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
 #
 #     # oid_batch_size: 5
+
+
+#     # @param timeout - integer - optional - default: 5
+#     # The number of seconds before timing out. Applies to all configurations if not overridden.
+#
+#     # timeout: 5
+
+
+#     # @param retries - integer - optional - default: 3
+#     # The number of retries before failure. Applies to all configurations if not overridden.
+#
+#     # retries: 3
 
 #     # @param configs - list - required
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
@@ -4193,6 +4204,16 @@ api_key:
 #
 #         port: 161
 
+#         # @param timeout - integer - optional - default: 5
+#         # The number of seconds before timing out. Applies to all authentications if not overridden.
+#
+#         # timeout: 5
+
+#         # @param retries - integer - optional - default: 3
+#         # The number of retries before failure. Applies to all authentications if not overridden.
+#
+#         # retries: 3
+
 #         # @param authentications - list of custom objects - optional
 #         # A list of authentication configurations to try when connecting to your SNMP devices.
 #         # The Agent tries each configuration until it successfully connects.
@@ -4214,12 +4235,12 @@ api_key:
 #             # @param timeout - integer - optional - default: 5
 #             # The number of seconds before timing out.
 #
-#             timeout: 5
+#             # timeout: 5
 
 #             # @param retries - integer - optional - default: 3
 #             # The number of retries before failure.
 #
-#             retries: 3
+#             # retries: 3
 
 #             # @param community_string - string - optional
 #             # Required for SNMP v1 & v2.
@@ -4310,7 +4331,7 @@ api_key:
 #         # @param oid_batch_size - integer - optional - default: 5
 #         # The number of OIDs handled by each batch.
 #
-#         oid_batch_size: 5
+#         # oid_batch_size: 5
 
 #         # @param interface_configs - map - optional
 #         # This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces

@@ -24,9 +24,7 @@ import (
 )
 
 const (
-	defaultPort    = 161
-	defaultTimeout = 5
-	defaultRetries = 3
+	defaultPort = 161
 )
 
 // ListenerConfig holds global configuration for SNMP discovery
@@ -45,6 +43,8 @@ type ListenerConfig struct {
 	Deduplicate             bool                       `mapstructure:"use_deduplication"`
 	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
 	OidBatchSize            int                        `mapstructure:"oid_batch_size"`
+	Timeout                 int                        `mapstructure:"timeout"`
+	Retries                 int                        `mapstructure:"retries"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -223,11 +223,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		}
 
 		if config.Timeout == 0 {
-			config.Timeout = defaultTimeout
+			config.Timeout = snmpConfig.Timeout
 		}
 
 		if config.Retries == 0 {
-			config.Retries = defaultRetries
+			config.Retries = snmpConfig.Retries
 		}
 
 		if unmarshalledConfig.CollectDeviceMetadata != nil {
@@ -301,10 +301,10 @@ func NewListenerConfig() (ListenerConfig, error) {
 
 		for authIndex := range config.Authentications {
 			if config.Authentications[authIndex].Timeout == 0 {
-				config.Authentications[authIndex].Timeout = defaultTimeout
+				config.Authentications[authIndex].Timeout = config.Timeout
 			}
 			if config.Authentications[authIndex].Retries == 0 {
-				config.Authentications[authIndex].Retries = defaultRetries
+				config.Authentications[authIndex].Retries = config.Retries
 			}
 		}
 
