@@ -32,6 +32,7 @@ import (
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
+// JMW how to test old probe vs new probes on different kernels?
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
 	t.Run("netlink", func(t *testing.T) {

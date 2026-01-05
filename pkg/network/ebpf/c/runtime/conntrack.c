@@ -68,6 +68,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
     return 0;
 }
 
+//JMWRM
 // JMWCOMMENt
 // Track conntrack confirmations (return) - correlation approach
 // Return probe: Process successful confirmations and populate conntrack map
@@ -117,6 +118,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     return 0;
 }
 
+//JMWRM
 // Track nf_conntrack_hash_check_insert - used for early conntrack insertion
 // This function takes struct nf_conn *ct directly and returns 0 on success
 SEC("kprobe/nf_conntrack_hash_check_insert")
@@ -142,6 +144,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
     return 0;
 }
 
+//JMWRM
 // Return probe for nf_conntrack_hash_check_insert
 // Only update conntrack map if return value is 0 (success)
 SEC("kretprobe/nf_conntrack_hash_check_insert")

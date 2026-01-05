@@ -58,12 +58,14 @@ var conntrackerTelemetry = struct {
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
+	// JMW look at these histograms
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	//JMWORIG telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	//JMWNEWWHY
 	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
+	// JMW what is NewDesc?  why not NewCounter?  why prometheus here instead of telemetry?
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
@@ -419,12 +421,17 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+// JMWREVIEW changes from cursor
+// from prompt: change the probe attaching strategy?  If prebuilt attach the ConntrackHashInsert probe, do not fallback to the new probes if that fails.  If runtime or CO-RE, first attempt to attach the   ConntrackHashInsert probe, if that is not available or fails then fall back to the ConntrackConfirm and ConntrackHashCheckInsert kprobes/kretprobes.  It was also suggested that You can use ebpf.VerifyKernelFuncs to see if a particular function is available if that helps
+//
 // getManager creates a manager for the conntracker.
 // isPrebuilt determines which probes and maps to configure: // JMWREVIEW
-//   - Prebuilt uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
+//   - Prebuilt: Always uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
 //     avoiding the need to extract it from sk_buff->_nfct (which would require offset guessing).
-//   - CO-RE and Runtime use __nf_conntrack_confirm which can handle the _nfct field access
-//     using CO-RE relocations or kernel headers.
+//     No fallback is attempted if this probe is not available.
+//   - CO-RE and Runtime: First attempts to use __nf_conntrack_hash_insert. If that kernel function
+//     is not available, falls back to using __nf_conntrack_confirm and nf_conntrack_hash_check_insert
+//     kprobes/kretprobes, which can handle the _nfct field access using CO-RE relocations or kernel headers.
 func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPrebuilt bool) (*manager.Manager, error) {
 	// Common maps for all modes
 	maps := []*manager.Map{
@@ -443,10 +450,33 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		},
 	}
 
-	// JMWNEXT check if available and do fallback logic here
-	// JMW Bryce says You can use ebpf.VerifyKernelFuncs to see if a particular function is available
+	// Determine which conntrack probes to use based on build mode and kernel support
+	// - Prebuilt: Always use __nf_conntrack_hash_insert (no fallback)
+	// - CO-RE/Runtime: Try __nf_conntrack_hash_insert first, fall back to __nf_conntrack_confirm
+	//   and nf_conntrack_hash_check_insert if not available
+	// JMWIMPROVELOGIC
+	useHashInsert := false
 	if isPrebuilt { // JMWREVIEW
-		// Prebuilt uses __nf_conntrack_hash_insert
+		// JMW Prebuilt always uses __nf_conntrack_hash_insert, no fallback
+		useHashInsert = true
+	} else {
+		// JMW CO-RE and Runtime: check if __nf_conntrack_hash_insert is available
+		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert")
+		if err != nil {
+			log.Debugf("error checking for __nf_conntrack_hash_insert: %v, falling back to alternate probes", err)
+		} else if len(missing) == 0 {
+			// __nf_conntrack_hash_insert is available
+			useHashInsert = true
+			// JMW use info level log?
+			log.Debug("using __nf_conntrack_hash_insert probe for conntracker")
+		} else {
+			log.Debug("__nf_conntrack_hash_insert not available, using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes")
+		}
+	}
+
+	// JMWIMPROVELOGIC
+	if useHashInsert {
+		// JMW Use __nf_conntrack_hash_insert which directly receives struct nf_conn*
 		probesList = append(probesList, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
@@ -454,15 +484,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 			},
 		})
 	} else {
-		// CO-RE and Runtime use __nf_conntrack_confirm (entry and return)
+		// JMW Use __nf_conntrack_confirm and nf_conntrack_hash_check_insert (entry and return probes)
 		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
 		probesList = append(probesList,
-			&manager.Probe{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirm,
-					UID:          "conntracker",
-				},
-			},
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackConfirmReturn,
@@ -471,13 +495,19 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 			},
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashCheckInsert,
+					EBPFFuncName: probes.ConntrackConfirm,
 					UID:          "conntracker",
 				},
 			},
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackHashCheckInsertReturn,
+					UID:          "conntracker",
+				},
+			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackHashCheckInsert,
 					UID:          "conntracker",
 				},
 			},
@@ -564,7 +594,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 
 	opts := manager.Options{ConstantEditors: constants}
-	return getManager(cfg, buf, opts, true)
+	return getManager(cfg, buf, opts, true) // JMWREVIEW
 }
 
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
@@ -598,7 +628,7 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 	defer buf.Close()
 
-	return getManager(cfg, buf, manager.Options{}, false)
+	return getManager(cfg, buf, manager.Options{}, false) // JMWREVIEW
 }
 
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
@@ -616,7 +646,7 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", cfg.CollectUDPv6Conns),
 		)
-		m, err = getManager(cfg, ar, o, false)
+		m, err = getManager(cfg, ar, o, false) // JMWREVIEW
 		return err
 	})
 	return m, err
