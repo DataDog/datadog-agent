@@ -9,6 +9,7 @@ common --enable_platform_specific_config # Supported OS identifiers are linux, m
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
+common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
 # Linux config ---------------------------------------------------------------------------------------------------------
@@ -39,7 +40,6 @@ common:cache --remote_timeout=60
 
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=cache
-common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
