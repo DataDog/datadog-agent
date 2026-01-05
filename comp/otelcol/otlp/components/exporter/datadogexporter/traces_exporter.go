@@ -100,7 +100,6 @@ func (exp *traceExporter) consumeTraces(
 // exportUsageMetrics exports usage tracking metrics on traces in DDOT
 func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateArns map[string]struct{}) {
 	buildInfo := exp.params.BuildInfo
-	value, _ := exp.gatewayUsage.Gauge()
 
 	if exp.coatTracesMetric != nil {
 		for host := range hosts {
@@ -112,6 +111,7 @@ func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFarga
 	}
 
 	if exp.coatGWUsageMetric != nil {
+		value, _ := exp.gatewayUsage.Gauge()
 		exp.coatGWUsageMetric.Set(value, buildInfo.Version, buildInfo.Command)
 	}
 }
