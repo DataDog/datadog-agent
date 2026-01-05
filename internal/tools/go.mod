@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20241226171816-ed86f8ea0a6f
 	github.com/frapposelli/wwhrd v0.4.0
-	github.com/go-enry/go-license-detector/v4 v4.3.0
+	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.7.0
 	github.com/goware/modvendor v0.5.0
 	github.com/stormcat24/protodep v0.1.8
@@ -70,17 +70,17 @@ require (
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/chigopher/pathlib v0.19.1 // indirect
 	github.com/ckaznocha/intrange v0.3.1 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.2-0.20250618153321-aa837fd1539d // indirect
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/dave/dst v0.27.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
-	github.com/dgryski/go-minhash v0.0.0-20170608043002-7fe510aff544 // indirect
+	github.com/dgryski/go-minhash v0.0.0-20190315135803-ad340ca03076 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dnephin/pflag v1.0.7 // indirect
-	github.com/ekzhu/minhash-lsh v0.0.0-20171225071031-5c06ee8586a1 // indirect
+	github.com/ekzhu/minhash-lsh v0.0.0-20190924033628-faac2c6342f8 // indirect
 	github.com/emicklei/dot v0.15.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/go-critic/go-critic v0.14.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
-	github.com/go-git/go-git/v5 v5.13.2 // indirect
+	github.com/go-git/go-git/v5 v5.14.0 // indirect
 	github.com/go-quicktest/qt v1.101.1-0.20240301121107-c6c8733fa1e6 // indirect
 	github.com/go-toolsmith/astcast v1.1.0 // indirect
 	github.com/go-toolsmith/astcopy v1.1.0 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
-	github.com/jdkato/prose v1.1.0 // indirect
+	github.com/jdkato/prose v1.2.1 // indirect
 	github.com/jessevdk/go-flags v1.6.1 // indirect
 	github.com/jgautheron/goconst v1.8.2 // indirect
 	github.com/jingyugao/rowserrcheck v1.1.1 // indirect
@@ -210,10 +210,10 @@ require (
 	github.com/sashamelentyev/usestdlibvars v1.29.0 // indirect
 	github.com/securego/gosec/v2 v2.22.10 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
-	github.com/shogo82148/go-shuffle v0.0.0-20170808115208-59829097ff3b // indirect
+	github.com/shogo82148/go-shuffle v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sivchari/containedctx v1.0.3 // indirect
-	github.com/skeema/knownhosts v1.3.0 // indirect
+	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/sonatard/noctx v0.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/sourcegraph/go-diff v0.7.0 // indirect
@@ -263,7 +263,7 @@ require (
 	golang.org/x/tools v0.40.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/neurosnap/sentences.v1 v1.0.6 // indirect
+	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

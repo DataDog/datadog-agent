@@ -114,7 +114,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
+	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
@@ -129,7 +129,7 @@ require (
 	github.com/google/pprof v0.0.0-20250923004556-9e5a51aed1e8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.2.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
