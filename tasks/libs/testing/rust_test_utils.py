@@ -39,11 +39,8 @@ def discover_rust_tests(target_paths: list[str]) -> dict[str, str]:
 
     rust_tests = {}
 
-    # Check if bazelisk is available
-    try:
-        subprocess.run(["which", "bazelisk"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Bazelisk not available - return empty dict (graceful degradation)
+    # Skip on Windows and macOS
+    if sys.platform == 'win32' or sys.platform == 'darwin':
         return rust_tests
 
     for target in target_paths:
@@ -119,16 +116,6 @@ def run_rust_tests(
     # Skip on Windows and macOS
     if sys.platform == 'win32' or sys.platform == 'darwin':
         print(color_message("Rust tests are only supported on Linux, skipping", "yellow"))
-        return RustTestResult(success=True, failures=[], test_count=0, junit_files=[])
-
-    # Check if bazelisk is available
-    check_bazel = ctx.run("which bazelisk", warn=True, hide=True)
-    if check_bazel.exited != 0:
-        print(
-            color_message(
-                "Warning: bazelisk not found, skipping Rust tests. Install with: brew install bazelisk", "yellow"
-            )
-        )
         return RustTestResult(success=True, failures=[], test_count=0, junit_files=[])
 
     if not rust_tests:
