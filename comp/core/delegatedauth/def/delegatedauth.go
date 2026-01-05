@@ -10,10 +10,6 @@
 // The component runs a background goroutine to periodically refresh the API key with exponential backoff on failures.
 package delegatedauth
 
-import (
-	"context"
-)
-
 // team: agent-shared-components
 
 // ConfigParams holds parameters for delegated auth configuration.
@@ -88,36 +84,4 @@ type Component interface {
 	//   - The goroutine continues until the agent shuts down.
 	//   - There is no explicit Stop or Close method; cleanup happens automatically on process exit.
 	Configure(config ConfigParams)
-
-	// GetAPIKey returns the currently cached API key.
-	//
-	// If no API key has been fetched yet (e.g., Configure hasn't been called or the initial fetch failed),
-	// this method will attempt to fetch one synchronously.
-	//
-	// The returned string pointer may be nil if:
-	//   - Delegated auth is disabled (Configure not called or Enabled=false)
-	//   - The API key fetch failed
-	//
-	// Thread-safe: Can be called concurrently from multiple goroutines.
-	// Blocking: May block briefly if this is the first call and an API key fetch is needed.
-	//
-	// Context: The provided context controls the timeout for the API key fetch operation.
-	// If the context is canceled, the operation returns immediately with an error.
-	GetAPIKey(ctx context.Context) (*string, error)
-
-	// RefreshAPIKey forces an immediate refresh of the API key from the cloud provider.
-	//
-	// This method fetches a new API key and updates both the internal cache and the agent config.
-	// It's typically used for manual refresh operations or testing, as the component automatically
-	// handles periodic refreshes via the background goroutine.
-	//
-	// Thread-safe: Can be called concurrently from multiple goroutines.
-	// Blocking: Blocks until the API key fetch completes or the context is canceled.
-	//
-	// Context: The provided context controls the timeout for the API key fetch operation.
-	//
-	// Returns:
-	//   - nil on success
-	//   - error if the fetch fails or delegated auth is disabled
-	RefreshAPIKey(ctx context.Context) error
 }

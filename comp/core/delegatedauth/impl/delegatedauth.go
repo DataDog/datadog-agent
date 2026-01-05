@@ -126,7 +126,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	d.refreshCtx, d.refreshCancel = context.WithCancel(context.Background())
 
 	// Fetch the initial API key synchronously
-	apiKey, err := d.GetAPIKey(context.Background())
+	apiKey, _, err := d.refreshAndGetAPIKey(context.Background(), false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key: %v", err)
 		// Track the initial failure for exponential backoff
@@ -142,22 +142,6 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	// Always start the background refresh goroutine, even if initial fetch failed
 	// This ensures retries will happen with exponential backoff
 	d.startBackgroundRefresh()
-}
-
-// GetAPIKey returns the current API key or fetches one if it has not yet been fetched.
-//
-// Thread-safe: Uses RLock for read-only access and Lock for write access.
-func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
-	creds, _, err := d.refreshAndGetAPIKey(ctx, false)
-	return creds, err
-}
-
-// RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue.
-//
-// Thread-safe: Uses internal locking via refreshAndGetAPIKey.
-func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
-	_, _, err := d.refreshAndGetAPIKey(ctx, true)
-	return err
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh

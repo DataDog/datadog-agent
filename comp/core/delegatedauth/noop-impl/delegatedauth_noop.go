@@ -7,8 +7,6 @@
 package delegatedauthimpl
 
 import (
-	"context"
-
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
@@ -35,13 +33,3 @@ func NewComponent(_ Requires) Provides {
 
 // Configure does nothing in the noop implementation
 func (d *delegatedAuthNoop) Configure(_ delegatedauth.ConfigParams) {}
-
-// GetAPIKey returns nil as there's no delegated auth in noop mode
-func (d *delegatedAuthNoop) GetAPIKey(_ context.Context) (*string, error) {
-	return nil, nil
-}
-
-// RefreshAPIKey does nothing in the noop implementation
-func (d *delegatedAuthNoop) RefreshAPIKey(_ context.Context) error {
-	return nil
-}

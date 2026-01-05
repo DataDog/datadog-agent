@@ -45,19 +45,3 @@ func (m *Mock) Configure(params delegatedauth.ConfigParams) {
 		m.ConfigureFunc(params)
 	}
 }
-
-// GetAPIKey calls the mock function if set, otherwise returns nil
-func (m *Mock) GetAPIKey(ctx context.Context) (*string, error) {
-	if m.GetAPIKeyFunc != nil {
-		return m.GetAPIKeyFunc(ctx)
-	}
-	return nil, nil
-}
-
-// RefreshAPIKey calls the mock function if set, otherwise returns nil
-func (m *Mock) RefreshAPIKey(ctx context.Context) error {
-	if m.RefreshAPIKeyFunc != nil {
-		return m.RefreshAPIKeyFunc(ctx)
-	}
-	return nil
-}
