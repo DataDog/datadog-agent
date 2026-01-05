@@ -61,6 +61,9 @@ configure_make(
     deps = [
         "@openssl//:openssl",
     ],
+    out_binaries = [
+        "kinit",
+    ],
     out_shared_libs = SHARED_LIBS.keys(),
     out_data_dirs = ["lib/pkgconfig"],
 )
@@ -127,9 +130,23 @@ filegroup(
     output_group = "include"
 )
 
+filegroup(
+    name = "_bins",
+    srcs = [":krb5"],
+    output_group = "kinit",
+)
+
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":_bins",
+    ],
+    prefix = "bin",
 )
 
 pkg_install(
@@ -137,5 +154,6 @@ pkg_install(
     srcs = [
         ":hdr_files",
         ":pc_files",
+        ":bin_files",
     ] + [":_lib_" + libname for libname in SHARED_LIBS.keys()],
 )
