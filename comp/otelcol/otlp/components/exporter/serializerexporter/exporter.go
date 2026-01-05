@@ -75,18 +75,19 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type Exporter struct {
-	tr                metrics.Provider
-	s                 serializer.MetricSerializer
-	hostGetter        SourceProviderFunc
-	extraTags         []string
-	apmReceiverAddr   string
-	createConsumer    createConsumerFunc
-	params            exporter.Settings
-	hostmetadata      datadogconfig.HostMetadataConfig
-	reporter          *inframetadata.Reporter
-	gatewayUsage      otel.GatewayUsage
-	coatUsageMetric   telemetry.Gauge
-	coatGWUsageMetric telemetry.Gauge
+	tr                 metrics.Provider
+	s                  serializer.MetricSerializer
+	hostGetter         SourceProviderFunc
+	extraTags          []string
+	apmReceiverAddr    string
+	createConsumer     createConsumerFunc
+	params             exporter.Settings
+	hostmetadata       datadogconfig.HostMetadataConfig
+	reporter           *inframetadata.Reporter
+	gatewayUsage       otel.GatewayUsage
+	coatUsageMetric    telemetry.Gauge
+	coatGWUsageMetric  telemetry.Gauge
+	coatGWEnvVarMetric telemetry.Gauge
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -155,6 +156,7 @@ func NewExporter(
 	gatewayUsage otel.GatewayUsage,
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
+	coatGWEnvVarMetric telemetry.Gauge,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -165,18 +167,19 @@ func NewExporter(
 		zap.String("apm_receiver_url", cfg.Metrics.APMStatsReceiverAddr),
 		zap.String("histogram_mode", fmt.Sprintf("%v", cfg.Metrics.Metrics.HistConfig.Mode)))
 	return &Exporter{
-		tr:                tr,
-		s:                 s,
-		hostGetter:        hostGetter,
-		apmReceiverAddr:   cfg.Metrics.APMStatsReceiverAddr,
-		extraTags:         extraTags,
-		createConsumer:    createConsumer,
-		params:            params,
-		hostmetadata:      cfg.HostMetadata,
-		reporter:          reporter,
-		gatewayUsage:      gatewayUsage,
-		coatUsageMetric:   coatUsageMetric,
-		coatGWUsageMetric: coatGWUsageMetric,
+		tr:                 tr,
+		s:                  s,
+		hostGetter:         hostGetter,
+		apmReceiverAddr:    cfg.Metrics.APMStatsReceiverAddr,
+		extraTags:          extraTags,
+		createConsumer:     createConsumer,
+		params:             params,
+		hostmetadata:       cfg.HostMetadata,
+		reporter:           reporter,
+		gatewayUsage:       gatewayUsage,
+		coatUsageMetric:    coatUsageMetric,
+		coatGWUsageMetric:  coatGWUsageMetric,
+		coatGWEnvVarMetric: coatGWEnvVarMetric,
 	}, nil
 }
 
@@ -201,7 +204,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
+	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric, e.coatGWEnvVarMetric)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

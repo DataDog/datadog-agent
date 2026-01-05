@@ -8,6 +8,7 @@ package probe
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"syscall"
 
@@ -80,7 +81,14 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 		return errors.New("create at timestamps don't match")
 	}
 
-	return syscall.Kill(pc.pid, syscall.Signal(sig))
+	err = syscall.Kill(pc.pid, syscall.Signal(sig))
+	if err != nil && p.killFunc != nil {
+		err = p.killFunc(uint32(pc.pid), sig)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to kill process %d: %w", pc.pid, err)
+	}
+	return nil
 }
 
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
