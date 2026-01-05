@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - arch: x86_64
+            rust_target: x86_64-unknown-linux-gnu
+            linker_package: ""
+            linker: ""
+          - arch: aarch64
+            rust_target: aarch64-unknown-linux-gnu
+            linker_package: gcc-aarch64-linux-gnu
+            linker: aarch64-linux-gnu-gcc
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install target toolchain
+      run: rustup target add ${{ matrix.target.rust_target }}
+
+    - name: Install cross-compilation linker
+      if: matrix.target.linker_package != ''
+      run: sudo apt-get update && sudo apt-get install -y ${{ matrix.target.linker_package }}
+
+    - name: Configure linker
+      if: matrix.target.linker != ''
+      run: |
+        echo "CARGO_TARGET_$(echo ${{ matrix.target.rust_target }} | tr '[:lower:]-' '[:upper:]_')_LINKER=${{ matrix.target.linker }}" >> $GITHUB_ENV
+
+    - name: Build release binary
+      run: cargo build --verbose --release --target ${{ matrix.target.rust_target }}
+
+    - name: Prepare binary with release name
+      run: |
+        cp target/${{ matrix.target.rust_target }}/release/sd-agent sd-agent-${{ github.event.release.tag_name }}-${{ matrix.target.arch }}
+        chmod +x sd-agent-${{ github.event.release.tag_name }}-${{ matrix.target.arch }}
+
+    - name: Upload binary to release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release upload ${{ github.event.release.tag_name }} sd-agent-${{ github.event.release.tag_name }}-${{ matrix.target.arch }}

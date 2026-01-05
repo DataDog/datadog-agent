@@ -43,6 +43,12 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
+crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+include("//deps:crates.MODULE.bazel")
+
+crate.from_specs()
+use_repo(crate, "crates")
+
 # Temporary until rules_pkg 1.2.0 is in BCR
 archive_override(
     module_name = "rules_pkg",

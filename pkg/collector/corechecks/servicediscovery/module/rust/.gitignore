@@ -1,1 +1,13 @@
-sd-agent
+target
+.claude
+.helix
+
+# Bazel build outputs
+/bazel-*
+bazel-bin
+bazel-out
+bazel-sd-agent
+bazel-testlogs
+
+# Editors backup files
+*~
