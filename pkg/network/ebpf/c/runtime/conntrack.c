@@ -45,7 +45,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
 }
 
 SEC("kprobe/__nf_conntrack_confirm")
-int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_confirm, struct sk_buff *skb) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/__nf_conntrack_confirm: pid_tgid: %llu", pid_tgid);
 
@@ -73,7 +73,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct sk_buff *skb) {
 // Track conntrack confirmations (return) - correlation approach
 // Return probe: Process successful confirmations and populate conntrack map
 SEC("kretprobe/__nf_conntrack_confirm")
-int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
+int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {

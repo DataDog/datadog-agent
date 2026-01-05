@@ -189,9 +189,9 @@ const (
 
 	// JMW these are the alternate probes if ConntrackHashInsert is not available
 	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
-	ConntrackConfirm ProbeFuncName = "kprobe__nf_conntrack_confirm"
+	ConntrackConfirm ProbeFuncName = "kprobe___nf_conntrack_confirm"
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm (used by CO-RE and runtime)
-	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
+	ConntrackConfirmReturn ProbeFuncName = "kretprobe___nf_conntrack_confirm"
 
 	// ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
 	ConntrackHashCheckInsert ProbeFuncName = "kprobe_nf_conntrack_hash_check_insert"
