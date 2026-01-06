@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"runtime"
 	"strconv"
-	"strings"
+	//"strings"  // for LogTracePipeFilter
 	"testing"
 	"time"
 
