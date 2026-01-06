@@ -324,7 +324,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
 	github.com/safchain/ethtool v0.7.0
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.52.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v4 v4.25.11
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
