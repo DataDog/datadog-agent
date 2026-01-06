@@ -11,4 +11,3 @@ package lsof
 func ListLoadedModulesReportJSON() ([]byte, error) {
 	return nil, nil
 }
- 
