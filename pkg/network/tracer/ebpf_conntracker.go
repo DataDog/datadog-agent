@@ -25,6 +25,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -165,13 +166,12 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	e := &ebpfConntracker{
-		m:                m,
-		ctMap:            ctMap,
-		conntrackArgsMap: conntrackArgsMap,
-		telemetryMap:     telemetryMap,
-		rootNS:           rootNS,
-		stop:             make(chan struct{}),
-		isPrebuilt:       isPrebuilt,
+		m:            m,
+		ctMap:        ctMap,
+		telemetryMap: telemetryMap,
+		rootNS:       rootNS,
+		stop:         make(chan struct{}),
+		isPrebuilt:   isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -464,7 +464,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	}
 
 	if useNFConntrackHashInsert {
-		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker for build mode ", mode.String())
+		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker for build mode ", mode)
 		probesList = append(probesList, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
@@ -472,7 +472,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 			},
 		})
 	} else {
-		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker for build mode ", mode.String())
+		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker for build mode ", mode)
 		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
 		probesList = append(probesList,
 			&manager.Probe{
