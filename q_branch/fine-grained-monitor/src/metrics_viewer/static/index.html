@@ -10,8 +10,6 @@
     <!-- REQ-MV-001: uPlot for canvas-based rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
     <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
-    <!-- Fuzzy search for metrics -->
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
     <style>
         /* ============================================================
            THEME SYSTEM - CSS Variables
@@ -349,58 +347,152 @@
             background: var(--bg-primary);
         }
 
-        /* Charts container */
-        .charts-container {
-            flex: 1;
-            background: var(--chart-bg);
-            margin: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 16px;
+        /* REQ-MV-020: Panel tabs */
+        .panel-tabs-container {
             display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            gap: 4px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            overflow-x: auto;
+            flex-shrink: 0;
         }
 
-        .legend {
+        .panel-tab {
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 8px;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
             font-size: 12px;
-            flex-shrink: 0;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .panel-tab:hover {
+            background: var(--bg-hover);
+        }
+
+        .panel-tab-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--bg-accent);
+            color: var(--text-inverse);
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .panel-tab-metric {
             color: var(--text-primary);
         }
 
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
+        .panel-tab-remove {
+            margin-left: 4px;
+            padding: 0 4px;
+            font-size: 14px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
         }
 
-        .legend-color {
-            width: 16px;
-            height: 3px;
-            border-radius: 2px;
+        .panel-tab-remove:hover {
+            color: var(--text-primary);
         }
 
-        #mainChart {
-            flex: 1;
-            min-height: 200px;
-        }
-
-        #overviewChart {
-            height: 80px;
-            margin-top: 12px;
-            border-top: 1px solid var(--border-primary);
-            padding-top: 8px;
-            background: var(--bg-tertiary);
+        .panel-tab-add {
+            padding: 6px 12px;
             border-radius: 4px;
-            flex-shrink: 0;
+            background: var(--bg-accent);
+            color: var(--text-inverse);
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .panel-tab-add:hover {
+            opacity: 0.9;
+        }
+
+        /* REQ-MV-020: Multi-panel container */
+        .panels-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        .panel {
+            background: var(--chart-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            min-height: 250px;
             position: relative;
         }
 
-        /* REQ-MV-005: Range selector overlay */
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .panel-metric-select {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .panel-metric-select:focus {
+            outline: none;
+            border-color: var(--border-accent);
+            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+        }
+
+        .panel-chart-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+            position: relative;
+        }
+
+        .panel-main-chart {
+            flex: 1;
+            min-height: 180px;
+        }
+
+        /* REQ-MV-025: Shared overview chart */
+        #sharedOverview {
+            height: 80px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border-top: 2px solid var(--border-accent);
+            margin: 0 12px 12px 12px;
+            padding: 8px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        /* Range selector overlay */
         .range-overlay {
             position: absolute;
             top: 8px;
@@ -466,8 +558,27 @@
             right: -4px;
         }
 
-        .charts-container .uplot {
-            margin-left: 10px;
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            flex-shrink: 0;
+            color: var(--text-primary);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 3px;
+            border-radius: 2px;
         }
 
         .empty-state {
@@ -476,10 +587,10 @@
             justify-content: center;
             height: 100%;
             color: var(--text-secondary);
-            font-size: 16px;
+            font-size: 14px;
         }
 
-        /* REQ-MV-006: Per-container study icon */
+        /* Study icon */
         .study-btn {
             background: none;
             border: 1px solid var(--border-primary);
@@ -500,23 +611,17 @@
             color: var(--border-accent);
         }
 
-        .container-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .container-avg {
-            margin-left: auto;
-            margin-right: 8px;
-        }
-
-        /* REQ-MV-007: Study results panel */
+        /* Study results panel */
         .study-panel {
             background: var(--study-panel-bg);
             border: 1px solid var(--study-panel-border);
             border-radius: 6px;
             padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .study-panel:last-child {
+            margin-bottom: 0;
         }
 
         .study-panel-header {
@@ -556,23 +661,6 @@
 
         .study-panel-stats div {
             margin: 2px 0;
-        }
-
-        .study-panel-restore {
-            margin-top: 12px;
-            width: 100%;
-            padding: 6px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-primary);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            color: var(--text-primary);
-        }
-
-        .study-panel-restore:hover {
-            background: var(--bg-hover);
-            border-color: var(--text-muted);
         }
 
         .study-panel-summary {
@@ -621,25 +709,6 @@
 
         .period-window-item:hover {
             background: var(--bg-selected);
-        }
-
-        /* REQ-MV-007: Periodicity tooltip */
-        .periodicity-tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 1000;
-            display: none;
-        }
-
-        /* Metric match highlight */
-        .metric-item .match {
-            background: var(--match-highlight);
-            border-radius: 2px;
         }
 
         /* Loading indicators */
@@ -725,10 +794,6 @@
             background: var(--bg-accent);
             color: var(--text-inverse);
         }
-
-        .charts-container {
-            position: relative;
-        }
     </style>
 </head>
 
@@ -750,6 +815,12 @@
                 </div>
             </div>
             <div class="sidebar-content">
+                <!-- REQ-MV-020: Panel tabs -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Panels</div>
+                    <div id="panelTabs"></div>
+                </div>
+
                 <!-- REQ-MV-002: Metric selection with fuzzy search -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Metrics</div>
@@ -788,1872 +859,29 @@
 
         <!-- Main content -->
         <div class="main-content">
-            <div class="charts-container">
-                <div id="loadingOverlay" class="loading-overlay" style="display: none;">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Loading data...</div>
-                </div>
-                <div class="legend" id="legend"></div>
-                <div id="mainChart"></div>
-                <div id="overviewChart"></div>
+            <div id="loadingOverlay" class="loading-overlay" style="display: none; position: fixed; z-index: 1000;">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Loading data...</div>
             </div>
+
+            <!-- REQ-MV-020: Multi-panel container -->
+            <div class="panels-container" id="panelsContainer"></div>
+
+            <!-- REQ-MV-025: Shared overview chart -->
+            <div id="sharedOverview"></div>
         </div>
     </div>
 
-    <!-- REQ-MV-007: Periodicity tooltip -->
-    <div class="periodicity-tooltip" id="periodicityTooltip"></div>
+    <!-- REQ-MV-001, REQ-MV-020: Initialize application with ES modules -->
+    <script type="module">
+        import { initialize } from './static/js/ui.js';
 
-    <script>
-        // ============================================================
-        // SECTION 0: THEME MANAGEMENT
-        // ============================================================
-
-        const ThemeManager = {
-            STORAGE_KEY: 'fgm-theme-preference',
-
-            // Get stored preference or default to 'auto'
-            getStoredPreference() {
-                try {
-                    return localStorage.getItem(this.STORAGE_KEY) || 'auto';
-                } catch {
-                    return 'auto';
-                }
-            },
-
-            // Store preference
-            setStoredPreference(value) {
-                try {
-                    localStorage.setItem(this.STORAGE_KEY, value);
-                } catch {
-                    // localStorage not available
-                }
-            },
-
-            // Get effective theme based on preference
-            getEffectiveTheme(preference) {
-                if (preference === 'auto') {
-                    // Check system preference
-                    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                        return 'dark';
-                    }
-                    return 'light';
-                }
-                return preference;
-            },
-
-            // Apply theme to document
-            applyTheme(theme) {
-                if (theme === 'dark') {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                } else {
-                    document.documentElement.removeAttribute('data-theme');
-                }
-            },
-
-            // Update button states
-            updateButtons(preference) {
-                document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.themeValue === preference);
-                });
-            },
-
-            // Set theme preference and apply
-            setPreference(preference) {
-                this.setStoredPreference(preference);
-                const effectiveTheme = this.getEffectiveTheme(preference);
-                this.applyTheme(effectiveTheme);
-                this.updateButtons(preference);
-            },
-
-            // Initialize theme system
-            init() {
-                // Apply stored preference immediately
-                const preference = this.getStoredPreference();
-                const effectiveTheme = this.getEffectiveTheme(preference);
-                this.applyTheme(effectiveTheme);
-
-                // Update buttons once DOM is ready
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', () => {
-                        this.updateButtons(preference);
-                        this.setupListeners();
-                    });
-                } else {
-                    this.updateButtons(preference);
-                    this.setupListeners();
-                }
-
-                // Listen for system theme changes (for auto mode)
-                if (window.matchMedia) {
-                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-                        const currentPref = this.getStoredPreference();
-                        if (currentPref === 'auto') {
-                            const effectiveTheme = this.getEffectiveTheme('auto');
-                            this.applyTheme(effectiveTheme);
-                            this.onThemeChange();
-                        }
-                    });
-                }
-            },
-
-            // Set up click listeners for theme buttons
-            setupListeners() {
-                document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        this.setPreference(btn.dataset.themeValue);
-                        // Re-render chart with new theme colors
-                        this.onThemeChange();
-                    });
-                });
-            },
-
-            // Called when theme changes - re-render chart with new colors
-            onThemeChange() {
-                // Small delay to let CSS variables update
-                setTimeout(() => {
-                    if (typeof ChartRenderer !== 'undefined' && AppState && AppState.selectedContainerIds.length > 0) {
-                        const preservedXRange = ChartRenderer.getCurrentXRange();
-                        ChartRenderer.renderChart(AppState, preservedXRange);
-                    }
-                }, 50);
-            }
-        };
-
-        // Initialize theme immediately (before DOM ready) to prevent flash
-        ThemeManager.init();
-
-        // ============================================================
-        // SECTION 1: CONSTANTS
-        // ============================================================
-
-        const COLORS = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-        ];
-
-        const DEFAULT_METRIC = 'total_cpu_usage_millicores';
-
-        // ============================================================
-        // SECTION 2: STATE
-        // ============================================================
-
-        const AppState = {
-            // Data from API
-            metrics: [],                    // [{name, sample_count}]
-            containers: [],                 // [{info: {short_id, qos_class, namespace}, avg, max}]
-            timeseries: {},                 // {containerId: [{time_ms, value}]}
-
-            // UI state
-            selectedMetric: null,
-            selectedContainerIds: [],       // Array of short_ids
-            metricSearchQuery: '',
-            containerSearchQuery: '',
-
-            // Chart state
-            chart: {
-                xRange: null,               // {min, max} in seconds, null = full range
-                originalXRange: null,       // [min, max] for reset
-                originalYRange: null,       // [min, max] for reset
-            },
-
-            // REQ-MV-006, REQ-MV-017: Study state
-            study: {
-                active: false,
-                type: 'periodicity',        // 'periodicity' or 'changepoint'
-                containerId: null,
-                previousSelection: [],      // For restore functionality
-                results: {},                // {containerId: study results}
-            },
-
-            // Loading states
-            loading: {
-                initial: true,              // Initial page load
-                containers: false,          // Loading containers for a metric
-                timeseries: false,          // Loading chart data
-                study: false,               // Running periodicity study
-            },
-
-            // Internal (not persisted)
-            _fuse: null,                    // Fuse.js instance
-            _mainPlot: null,                // uPlot instance
-            _overviewPlot: null,            // uPlot instance
-            _rangeOverlay: null,            // DOM element
-            _rangeDrag: {
-                active: false,
-                mode: null,
-                startX: 0,
-                startLeft: 0,
-                startWidth: 0
-            },
-            _listeners: new Set(),
-        };
-
-        // ============================================================
-        // SECTION 3: STATE MANAGEMENT
-        // ============================================================
-
-        function deepMerge(target, source) {
-            for (const key of Object.keys(source)) {
-                if (source[key] !== null &&
-                    typeof source[key] === 'object' &&
-                    !Array.isArray(source[key]) &&
-                    key in target &&
-                    target[key] !== null &&
-                    typeof target[key] === 'object' &&
-                    !Array.isArray(target[key])) {
-                    deepMerge(target[key], source[key]);
-                } else {
-                    target[key] = source[key];
-                }
-            }
-            return target;
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
         }
-
-        function updateState(changes) {
-            deepMerge(AppState, changes);
-            AppState._listeners.forEach(fn => fn(AppState));
-        }
-
-        function subscribe(fn) {
-            AppState._listeners.add(fn);
-            return () => AppState._listeners.delete(fn);
-        }
-
-        // ============================================================
-        // SECTION 4: HELPER FUNCTIONS
-        // ============================================================
-
-        function escapeHtml(str) {
-            if (str == null) return '';
-            const div = document.createElement('div');
-            div.textContent = String(str);
-            return div.innerHTML;
-        }
-
-        function escapeAttr(str) {
-            if (str == null) return '';
-            return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
-
-        // Get display name for a container: pod_name/container_name or pod_name or short_id
-        function getContainerDisplayName(containerInfo, fallbackId) {
-            if (containerInfo?.pod_name && containerInfo?.container_name) {
-                return `${containerInfo.pod_name}/${containerInfo.container_name}`;
-            }
-            return containerInfo?.pod_name || fallbackId;
-        }
-
-        function filterMetrics(metrics, query) {
-            if (!query || !query.trim()) {
-                return metrics;
-            }
-            if (!AppState._fuse) {
-                return metrics;
-            }
-            return AppState._fuse.search(query);
-        }
-
-        function getContainerColor(containerId, selectedIds) {
-            const index = selectedIds.indexOf(containerId);
-            if (index === -1) {
-                return '#ddd';
-            }
-            return COLORS[index % COLORS.length];
-        }
-
-        // Get CSS variable value from computed styles
-        function getCssVar(name) {
-            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        }
-
-        // Show/hide loading overlay with custom message
-        function setLoading(isLoading, message = 'Loading data...') {
-            const overlay = document.getElementById('loadingOverlay');
-            const textEl = overlay?.querySelector('.loading-text');
-            if (overlay) {
-                overlay.style.display = isLoading ? 'flex' : 'none';
-                if (textEl && message) {
-                    textEl.textContent = message;
-                }
-            }
-        }
-
-        // ============================================================
-        // SECTION 5: API FUNCTIONS
-        // ============================================================
-
-        const Api = {
-            async fetchInstance() {
-                const res = await fetch('/api/instance');
-                return await res.json();
-            },
-
-            async fetchMetrics() {
-                const res = await fetch('/api/metrics');
-                const data = await res.json();
-                return data.metrics;
-            },
-
-            async fetchContainers(metricName, search) {
-                let url = `/api/containers?metric=${encodeURIComponent(metricName)}`;
-                if (search) {
-                    url += `&search=${encodeURIComponent(search)}`;
-                }
-                const res = await fetch(url);
-                const data = await res.json();
-                return data.containers;
-            },
-
-            async fetchTimeseries(metricName, containerIds) {
-                const res = await fetch(
-                    `/api/timeseries?metric=${encodeURIComponent(metricName)}&containers=${containerIds.join(',')}`
-                );
-                const data = await res.json();
-                const result = {};
-                data.forEach(d => {
-                    result[d.container] = d.data;
-                });
-                return result;
-            },
-
-            async fetchPeriodicityStudy(metricName, containerId) {
-                const res = await fetch(
-                    `/api/study/periodicity?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
-                );
-                const data = await res.json();
-                if (data.results && data.results.length > 0) {
-                    return data.results[0];
-                }
-                return null;
-            },
-
-            // REQ-MV-017: Changepoint study API
-            async fetchChangepointStudy(metricName, containerId) {
-                const res = await fetch(
-                    `/api/study/changepoint?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
-                );
-                const data = await res.json();
-                if (data.results && data.results.length > 0) {
-                    return data.results[0];
-                }
-                return null;
-            },
-        };
-
-        // ============================================================
-        // SECTION 6: COMPONENTS (Pure Rendering Functions)
-        // ============================================================
-
-        const Components = {
-            // REQ-MV-002: Metric list with search
-            // REQ-MV-012: Show waiting message when no metrics available
-            MetricList(state) {
-                // REQ-MV-012: Show waiting message when no data collected yet
-                if (state.metrics.length === 0) {
-                    return `
-                        <div style="padding: 16px; text-align: center;">
-                            <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
-                            <div style="color: #666; font-size: 13px; font-weight: 500;">Waiting for data...</div>
-                            <div style="color: #888; font-size: 11px; margin-top: 4px;">
-                                Collector is writing metrics.<br>
-                                Page will refresh automatically.
-                            </div>
-                        </div>
-                    `;
-                }
-
-                const filtered = filterMetrics(state.metrics, state.metricSearchQuery);
-
-                if (filtered.length === 0) {
-                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No metrics match search</div>';
-                }
-
-                return filtered.map(m => {
-                    const metric = m.item || m;  // Handle Fuse result or raw metric
-                    const isSelected = metric.name === state.selectedMetric;
-                    const selectedClass = isSelected ? 'selected' : '';
-                    return `
-                        <div class="metric-item ${selectedClass}" data-metric="${escapeAttr(metric.name)}">
-                            <span class="metric-name">${escapeHtml(metric.name)}</span>
-                        </div>
-                    `;
-                }).join('');
-            },
-
-            // REQ-MV-003: Container list with checkboxes and study buttons
-            // REQ-MV-019: Containers sorted by last_seen (most recent first)
-            ContainerList(state) {
-                if (state.containers.length === 0) {
-                    return '<div style="padding: 8px; color: #888; font-size: 12px;">No containers found</div>';
-                }
-
-                const now = Date.now();
-                const ONE_HOUR_MS = 60 * 60 * 1000;
-
-                return state.containers.map((c, index) => {
-                    // REQ-MV-019: API now returns flat ContainerInfo, not {info: ContainerInfo}
-                    const containerId = c.short_id;
-                    // Show pod_name/container_name if available, otherwise fall back to container ID
-                    const displayName = getContainerDisplayName(c, containerId);
-                    const isSelected = state.selectedContainerIds.includes(containerId);
-                    const color = getContainerColor(containerId, state.selectedContainerIds);
-                    const selectedClass = isSelected ? 'selected' : '';
-
-                    // REQ-MV-019: Show reduced prominence for containers not seen in last hour
-                    const lastSeenMs = c.last_seen_ms || 0;
-                    const isStale = lastSeenMs > 0 && (now - lastSeenMs) > ONE_HOUR_MS;
-                    const staleStyle = isStale ? 'opacity: 0.6;' : '';
-
-                    // REQ-MV-006: Study icon - highlight if this container is being studied
-                    const isStudied = state.study.active && state.study.containerId === containerId;
-                    const studyBtnStyle = isStudied
-                        ? 'background: #007bff; color: white; opacity: 1;'
-                        : '';
-
-                    return `
-                        <label class="container-item ${selectedClass}" style="${staleStyle}">
-                            <input type="checkbox"
-                                   value="${escapeAttr(containerId)}"
-                                   ${isSelected ? 'checked' : ''}
-                                   data-container-checkbox>
-                            <span class="container-color" style="background: ${color}"></span>
-                            <span class="container-id" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</span>
-                            <button class="study-btn"
-                                    style="${studyBtnStyle}"
-                                    data-study-btn="${escapeAttr(containerId)}"
-                                    title="Run Study">📊</button>
-                        </label>
-                    `;
-                }).join('');
-            },
-
-            // REQ-MV-007, REQ-MV-018: Study results panel
-            StudyPanel(state) {
-                if (!state.study.active) {
-                    return `
-                        <div style="color: #888; font-size: 12px;">
-                            Click the study icon on a container to analyze
-                        </div>
-                    `;
-                }
-
-                const containerId = state.study.containerId;
-                // REQ-MV-019: API now returns flat ContainerInfo
-                const container = state.containers.find(c => c.short_id === containerId);
-                const displayName = getContainerDisplayName(container, containerId);
-                const result = state.study.results[containerId];
-                const studyType = state.study.type;
-
-                // Dispatch to study-specific panel
-                if (studyType === 'changepoint') {
-                    return Components.ChangepointPanel(state, containerId, displayName, result);
-                } else {
-                    return Components.PeriodicityPanel(state, containerId, displayName, result);
-                }
-            },
-
-            // REQ-MV-007: Periodicity study panel
-            PeriodicityPanel(state, containerId, displayName, result) {
-                const windowCount = result?.windows?.length || 0;
-
-                // Compute summary stats
-                let dominantPeriod = 'N/A';
-                let avgConfidence = 'N/A';
-                let groupedSummaryHtml = '';
-
-                if (result && result.windows && result.windows.length > 0) {
-                    // Group windows by period
-                    const periodGroups = {};
-                    result.windows.forEach(w => {
-                        const p = Math.round(w.metrics.period);
-                        if (!periodGroups[p]) {
-                            periodGroups[p] = [];
-                        }
-                        periodGroups[p].push(w);
-                    });
-
-                    // Find dominant period (most windows)
-                    const sortedPeriods = Object.keys(periodGroups)
-                        .map(p => parseInt(p))
-                        .sort((a, b) => periodGroups[b].length - periodGroups[a].length);
-                    dominantPeriod = sortedPeriods[0] + 's';
-
-                    // Average confidence
-                    const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
-                    avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
-
-                    // Format time helper
-                    const formatTime = (ms) => {
-                        const d = new Date(ms);
-                        return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    };
-
-                    // Build grouped summary HTML
-                    groupedSummaryHtml = sortedPeriods.map(period => {
-                        const windows = periodGroups[period];
-                        // Sort windows by start time
-                        windows.sort((a, b) => a.start_time_ms - b.start_time_ms);
-
-                        const windowLines = windows.map(w => {
-                            const startTime = formatTime(w.start_time_ms);
-                            const endTime = formatTime(w.end_time_ms);
-                            const confidence = Math.round((w.metrics.score || 0) * 100);
-                            const amplitude = (w.metrics.amplitude || 0).toFixed(1);
-                            return `<div class="period-window-item"
-                                        data-window-start="${w.start_time_ms}"
-                                        data-window-end="${w.end_time_ms}"
-                                        title="Click to zoom">${startTime} - ${endTime} (${confidence}%, amp: ${amplitude})</div>`;
-                        }).join('');
-
-                        return `
-                            <div class="period-group">
-                                <div class="period-group-header">${period}s period (${windows.length} windows)</div>
-                                <div class="period-group-windows">${windowLines}</div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-
-                const restoreBtn = state.study.previousSelection.length > 0
-                    ? `<button class="study-panel-restore" data-restore-btn>Restore previous view (${state.study.previousSelection.length} containers)</button>`
-                    : '';
-
-                const summarySection = groupedSummaryHtml ? `
-                    <div class="study-panel-summary">
-                        <div class="study-panel-summary-title">Detected Patterns</div>
-                        ${groupedSummaryHtml}
-                    </div>
-                ` : '';
-
-                return `
-                    <div class="study-panel">
-                        <div class="study-panel-header">
-                            <span>Periodicity Study</span>
-                            <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
-                        </div>
-                        <div class="study-panel-container" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</div>
-                        <div class="study-panel-stats">
-                            <div><strong>${windowCount}</strong> periodic windows</div>
-                            <div>Dominant period: <strong>${dominantPeriod}</strong></div>
-                            <div>Avg confidence: <strong>${avgConfidence}</strong></div>
-                        </div>
-                        ${summarySection}
-                        ${restoreBtn}
-                    </div>
-                `;
-            },
-
-            // REQ-MV-018: Changepoint study panel
-            ChangepointPanel(state, containerId, displayName, result) {
-                const changepoints = result?.windows || [];
-                const count = changepoints.length;
-
-                // Find largest magnitude
-                let largestMagnitude = 0;
-                let summaryHtml = '';
-
-                if (count > 0) {
-                    largestMagnitude = changepoints.reduce((max, w) =>
-                        Math.max(max, w.metrics?.magnitude || 0), 0);
-
-                    // Format time helper
-                    const formatTime = (ms) => {
-                        const d = new Date(ms);
-                        return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    };
-
-                    // Build changepoint list
-                    const changepointLines = changepoints
-                        .sort((a, b) => a.start_time_ms - b.start_time_ms)
-                        .map(w => {
-                            const time = formatTime(w.start_time_ms);
-                            const direction = (w.metrics?.direction || 0) > 0 ? '+' : '';
-                            const magnitude = (w.metrics?.magnitude || 0).toFixed(1);
-                            const before = (w.metrics?.value_before || 0).toFixed(1);
-                            const after = (w.metrics?.value_after || 0).toFixed(1);
-                            return `<div class="period-window-item"
-                                        data-changepoint-time="${w.start_time_ms}"
-                                        title="Click to zoom: ${before} → ${after}">${time}: ${direction}${magnitude}</div>`;
-                        }).join('');
-
-                    summaryHtml = `
-                        <div class="study-panel-summary">
-                            <div class="study-panel-summary-title">Detected Changes</div>
-                            <div class="period-group-windows">${changepointLines}</div>
-                        </div>
-                    `;
-                }
-
-                const restoreBtn = state.study.previousSelection.length > 0
-                    ? `<button class="study-panel-restore" data-restore-btn>Restore previous view (${state.study.previousSelection.length} containers)</button>`
-                    : '';
-
-                return `
-                    <div class="study-panel" style="background: #fff7e6; border-color: #ffd591;">
-                        <div class="study-panel-header">
-                            <span>Changepoint Study</span>
-                            <button class="study-panel-close" data-close-study title="Exit study">&times;</button>
-                        </div>
-                        <div class="study-panel-container" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</div>
-                        <div class="study-panel-stats">
-                            <div><strong>${count}</strong> changepoint${count !== 1 ? 's' : ''} detected</div>
-                            <div>Largest change: <strong>${largestMagnitude.toFixed(1)}</strong></div>
-                        </div>
-                        ${summaryHtml}
-                        ${restoreBtn}
-                    </div>
-                `;
-            },
-
-            Legend(state) {
-                if (state.selectedContainerIds.length === 0) {
-                    return '';
-                }
-
-                return state.selectedContainerIds.map((id, i) => {
-                    // REQ-MV-019: API now returns flat ContainerInfo
-                    const container = state.containers.find(c => c.short_id === id);
-                    const displayName = getContainerDisplayName(container, id);
-                    const qos = container?.qos_class || '?';
-                    return `
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: ${COLORS[i % COLORS.length]}"></div>
-                            <span title="${escapeAttr(id)}">${escapeHtml(displayName)} (${escapeHtml(qos)})</span>
-                        </div>
-                    `;
-                }).join('');
-            },
-        };
-
-        // ============================================================
-        // SECTION 7: ACTIONS (State Mutations + Side Effects)
-        // ============================================================
-
-        const Actions = {
-            // Initialize the application
-            async initialize() {
-                setLoading(true, 'Loading metrics...');
-                try {
-                    // Fetch instance info for in-cluster identification
-                    const instanceInfo = await Api.fetchInstance();
-                    Actions.updateInstanceInfo(instanceInfo);
-
-                    const metrics = await Api.fetchMetrics();
-
-                    // Initialize Fuse.js for fuzzy search
-                    const fuse = new Fuse(metrics, {
-                        keys: ['name'],
-                        threshold: 0.4,
-                        includeMatches: true
-                    });
-
-                    // Select default metric
-                    let selectedMetric = null;
-                    if (metrics.some(m => m.name === DEFAULT_METRIC)) {
-                        selectedMetric = DEFAULT_METRIC;
-                    } else if (metrics.length > 0) {
-                        selectedMetric = metrics[0].name;
-                    }
-
-                    updateState({
-                        metrics: metrics,
-                        selectedMetric: selectedMetric,
-                        _fuse: fuse,
-                    });
-
-                    if (metrics.length > 0) {
-                        await Actions.loadContainers();
-                    } else {
-                        // REQ-MV-012: Auto-refresh when no data available
-                        console.log('No metrics found, will auto-refresh in 5 seconds...');
-                        setTimeout(() => {
-                            console.log('Refreshing to check for new data...');
-                            window.location.reload();
-                        }, 5000);
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            },
-
-            // Update instance info display in header
-            updateInstanceInfo(info) {
-                const container = document.getElementById('instanceInfo');
-                if (!container) return;
-
-                // Only show if we have pod info (i.e., running in-cluster)
-                if (!info.pod_name) {
-                    container.innerHTML = '';
-                    return;
-                }
-
-                let nodeHtml = '';
-                if (info.node_name) {
-                    nodeHtml = `<div class="node-name">Node: ${escapeHtml(info.node_name)}</div>`;
-                }
-
-                container.innerHTML = `
-                    <div class="instance-info">
-                        <div class="pod-name">${escapeHtml(info.pod_name)}</div>
-                        ${nodeHtml}
-                    </div>
-                `;
-            },
-
-            // User selects a metric
-            async selectMetric(metricName) {
-                setLoading(true, 'Loading containers...');
-                try {
-                    updateState({ selectedMetric: metricName });
-                    await Actions.loadContainers();
-                } finally {
-                    setLoading(false);
-                }
-            },
-
-            // User changes metric search query
-            setMetricSearchQuery(query) {
-                updateState({ metricSearchQuery: query });
-            },
-
-            // User changes container search query
-            setContainerSearchQuery(query) {
-                updateState({ containerSearchQuery: query });
-            },
-
-            // Load containers for current metric
-            // REQ-MV-019: Containers are now returned instantly, sorted by last_seen
-            async loadContainers() {
-                if (!AppState.selectedMetric) return;
-
-                const containers = await Api.fetchContainers(
-                    AppState.selectedMetric,
-                    AppState.containerSearchQuery
-                );
-
-                // Determine selected containers
-                const currentlySelected = AppState.selectedContainerIds;
-                // REQ-MV-019: API now returns flat ContainerInfo
-                const newContainerIds = containers.map(c => c.short_id);
-                const anyMatch = currentlySelected.some(id => newContainerIds.includes(id));
-
-                let selectedContainerIds;
-                if (currentlySelected.length === 0 || !anyMatch) {
-                    // Auto-select first 5 (most recently seen)
-                    selectedContainerIds = newContainerIds.slice(0, 5);
-                } else {
-                    // Keep existing selection that still exists
-                    selectedContainerIds = currentlySelected.filter(id => newContainerIds.includes(id));
-                }
-
-                updateState({
-                    containers: containers,
-                    selectedContainerIds: selectedContainerIds,
-                });
-
-                await Actions.loadTimeseries();
-            },
-
-            // User toggles a container checkbox
-            toggleContainer(containerId) {
-                const current = AppState.selectedContainerIds;
-                let updated;
-                if (current.includes(containerId)) {
-                    updated = current.filter(id => id !== containerId);
-                } else {
-                    updated = [...current, containerId];
-                }
-                updateState({ selectedContainerIds: updated });
-                Actions.loadTimeseries();
-            },
-
-            // User clicks "Clear" button
-            clearSelection() {
-                updateState({ selectedContainerIds: [] });
-                Actions.loadTimeseries();
-            },
-
-            // REQ-MV-002, REQ-MV-003, REQ-MV-003: Load timeseries data
-            async loadTimeseries() {
-                // Capture current time range FIRST
-                const preservedXRange = ChartRenderer.getCurrentXRange();
-
-                const selectedIds = AppState.selectedContainerIds;
-
-                if (selectedIds.length === 0) {
-                    updateState({ timeseries: {} });
-                    ChartRenderer.showEmptyState();
-                    return;
-                }
-
-                const timeseries = await Api.fetchTimeseries(
-                    AppState.selectedMetric,
-                    selectedIds
-                );
-
-                // REQ-MV-006: If study is active and user changes selection externally, exit study
-                if (AppState.study.active) {
-                    Actions.exitStudy(false);
-                }
-
-                updateState({ timeseries: timeseries });
-                ChartRenderer.renderChart(AppState, preservedXRange);
-            },
-
-            // REQ-MV-006, REQ-MV-017: Start study on specific container
-            async startStudy(containerId) {
-                // Get selected study type from dropdown
-                const studyTypeSelect = document.getElementById('studyTypeSelect');
-                const studyType = studyTypeSelect ? studyTypeSelect.value : 'periodicity';
-
-                // If already studying this container with same type, exit instead
-                if (AppState.study.active &&
-                    AppState.study.containerId === containerId &&
-                    AppState.study.type === studyType) {
-                    Actions.exitStudy(false);
-                    return;
-                }
-
-                // Capture current time range BEFORE any changes
-                const preservedXRange = ChartRenderer.getCurrentXRange();
-
-                // Save current selection for potential restoration
-                const previousSelection = [...AppState.selectedContainerIds];
-
-                updateState({
-                    study: {
-                        active: true,
-                        type: studyType,
-                        containerId: containerId,
-                        previousSelection: previousSelection,
-                        results: {},
-                    },
-                    selectedContainerIds: [containerId],
-                });
-
-                const loadingMsg = studyType === 'changepoint'
-                    ? 'Running changepoint analysis...'
-                    : 'Running periodicity analysis...';
-                setLoading(true, loadingMsg);
-
-                try {
-                    // Load timeseries for single container
-                    const timeseries = await Api.fetchTimeseries(
-                        AppState.selectedMetric,
-                        [containerId]
-                    );
-                    updateState({ timeseries: timeseries });
-
-                    // Render chart with preserved range
-                    ChartRenderer.renderChart(AppState, preservedXRange);
-
-                    // Fetch study-specific data
-                    let studyResult = null;
-                    if (studyType === 'changepoint') {
-                        studyResult = await Api.fetchChangepointStudy(
-                            AppState.selectedMetric,
-                            containerId
-                        );
-                    } else {
-                        studyResult = await Api.fetchPeriodicityStudy(
-                            AppState.selectedMetric,
-                            containerId
-                        );
-                    }
-
-                    const results = {};
-                    if (studyResult) {
-                        results[containerId] = studyResult;
-                    }
-                    updateState({ study: { results: results } });
-
-                    // Redraw to show study overlay
-                    if (AppState._mainPlot) {
-                        AppState._mainPlot.redraw();
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            },
-
-            // REQ-MV-006, REQ-MV-007: Exit study mode
-            async exitStudy(restorePrevious) {
-                // Capture current time range BEFORE any changes
-                const preservedXRange = ChartRenderer.getCurrentXRange();
-
-                let newSelectedIds;
-                if (restorePrevious && AppState.study.previousSelection.length > 0) {
-                    newSelectedIds = [...AppState.study.previousSelection];
-                } else {
-                    // Keep current single-container selection
-                    newSelectedIds = [...AppState.selectedContainerIds];
-                }
-
-                updateState({
-                    study: {
-                        active: false,
-                        containerId: null,
-                        previousSelection: [],
-                        results: {},
-                    },
-                    selectedContainerIds: newSelectedIds,
-                });
-
-                // Reload timeseries with preserved time range
-                const timeseries = await Api.fetchTimeseries(
-                    AppState.selectedMetric,
-                    AppState.selectedContainerIds
-                );
-                updateState({ timeseries: timeseries });
-                ChartRenderer.renderChart(AppState, preservedXRange);
-            },
-
-            // REQ-MV-004: Reset zoom
-            resetZoom() {
-                ChartRenderer.resetZoom();
-            },
-
-            // Zoom to a specific time range (in milliseconds)
-            zoomToTimeRange(startMs, endMs) {
-                const plot = AppState._mainPlot;
-                if (!plot) return;
-
-                const startSec = startMs / 1000;
-                const endSec = endMs / 1000;
-                const duration = endSec - startSec;
-                const padding = duration * 0.1;
-
-                plot.setScale('x', {
-                    min: startSec - padding,
-                    max: endSec + padding
-                });
-            },
-        };
-
-        // ============================================================
-        // SECTION 8: CHART RENDERING (uPlot-specific)
-        // ============================================================
-
-        const ChartRenderer = {
-            getCurrentXRange() {
-                const plot = AppState._mainPlot;
-                if (plot && plot.scales.x) {
-                    return {
-                        min: plot.scales.x.min,
-                        max: plot.scales.x.max
-                    };
-                }
-                return null;
-            },
-
-            showEmptyState() {
-                document.getElementById('mainChart').innerHTML =
-                    '<div class="empty-state">Select containers to display timeseries</div>';
-                document.getElementById('overviewChart').innerHTML = '';
-                document.getElementById('legend').innerHTML = '';
-                AppState._mainPlot = null;
-                AppState._overviewPlot = null;
-            },
-
-            // REQ-MV-009: Show state when metric has timestamps but no actual values
-            showNoDataState(metricName) {
-                document.getElementById('mainChart').innerHTML =
-                    `<div class="empty-state">
-                        <div style="text-align: center;">
-                            <div style="font-size: 14px; margin-bottom: 8px;">No data recorded for</div>
-                            <div style="font-family: monospace; font-size: 12px; color: #888;">${escapeHtml(metricName) || 'this metric'}</div>
-                            <div style="font-size: 12px; color: #999; margin-top: 8px;">
-                                This metric exists but has no non-zero values in the selected time range
-                            </div>
-                        </div>
-                    </div>`;
-                document.getElementById('overviewChart').innerHTML = '';
-                document.getElementById('legend').innerHTML = '';
-                AppState._mainPlot = null;
-                AppState._overviewPlot = null;
-            },
-
-            renderChart(state, preservedXRange = null) {
-                const chartDiv = document.getElementById('mainChart');
-                const overviewDiv = document.getElementById('overviewChart');
-                const legendDiv = document.getElementById('legend');
-                const containerIds = state.selectedContainerIds;
-
-                // Build uPlot data: [timestamps, ...values]
-                const allTimes = new Set();
-                containerIds.forEach(id => {
-                    const data = state.timeseries[id] || [];
-                    data.forEach(p => allTimes.add(p.time_ms));
-                });
-                const timestamps = Array.from(allTimes).sort((a, b) => a - b);
-
-                if (timestamps.length === 0) {
-                    ChartRenderer.showEmptyState();
-                    return;
-                }
-
-                // Build value arrays (aligned to timestamps)
-                const timeToIdx = new Map(timestamps.map((t, i) => [t, i]));
-                const series = containerIds.map(id => {
-                    const values = new Array(timestamps.length).fill(null);
-                    const data = state.timeseries[id] || [];
-                    data.forEach(p => {
-                        const idx = timeToIdx.get(p.time_ms);
-                        if (idx !== undefined) {
-                            values[idx] = p.value;
-                        }
-                    });
-                    return values;
-                });
-
-                // REQ-MV-009: Check if all series values are null (no actual data)
-                let hasAnyData = false;
-                series.forEach(s => {
-                    s.forEach(v => {
-                        if (v !== null) {
-                            hasAnyData = true;
-                        }
-                    });
-                });
-                if (!hasAnyData) {
-                    ChartRenderer.showNoDataState(state.selectedMetric);
-                    return;
-                }
-
-                // Convert timestamps to seconds for uPlot
-                const uplotData = [
-                    timestamps.map(t => t / 1000),
-                    ...series
-                ];
-
-                // Build series config
-                const uplotSeries = [
-                    { label: 'Time' },
-                    ...containerIds.map((id, i) => ({
-                        label: id,
-                        stroke: COLORS[i % COLORS.length],
-                        width: 1.5,
-                        points: { show: false }
-                    }))
-                ];
-
-                // Build legend
-                legendDiv.innerHTML = Components.Legend(state);
-
-                // Store original ranges for reset
-                const xMin = timestamps[0] / 1000;
-                const xMax = timestamps[timestamps.length - 1] / 1000;
-                let yMax = 0;
-                series.forEach(s => {
-                    s.forEach(v => {
-                        if (v !== null && v > yMax) {
-                            yMax = v;
-                        }
-                    });
-                });
-                // REQ-MV-009: Ensure minimum Y-axis range for all-zero/constant data
-                if (yMax === 0) {
-                    yMax = 1;
-                }
-                const originalXRange = [xMin, xMax];
-                const originalYRange = [0, yMax * 1.1];
-
-                updateState({
-                    chart: {
-                        originalXRange: originalXRange,
-                        originalYRange: originalYRange,
-                    }
-                });
-
-                // REQ-MV-002: Calculate initial X scale range (preserve zoom if available)
-                let initialXScale = { time: true };
-                if (preservedXRange && preservedXRange.min != null && preservedXRange.max != null) {
-                    const clampedMin = Math.max(xMin, Math.min(preservedXRange.min, xMax));
-                    const clampedMax = Math.min(xMax, Math.max(preservedXRange.max, xMin));
-                    // Only apply preserved range if it's a meaningful zoom (less than 99% of full range)
-                    if (clampedMax - clampedMin < (xMax - xMin) * 0.99) {
-                        initialXScale.min = clampedMin;
-                        initialXScale.max = clampedMax;
-                    }
-                }
-
-                // REQ-MV-004: uPlot options with zoom/pan
-                // REQ-MV-009: Y-axis range function ensures minimum range for zero/constant data
-                const opts = {
-                    width: chartDiv.clientWidth,
-                    height: chartDiv.clientHeight,
-                    series: uplotSeries,
-                    scales: {
-                        x: initialXScale,
-                        y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
-                    },
-                    cursor: {
-                        drag: { x: true, y: false, setScale: true }
-                    },
-                    hooks: {
-                        draw: [ChartRenderer.drawStudyOverlay],
-                        setScale: [ChartRenderer.syncOverview]
-                    },
-                    axes: [
-                        { stroke: getCssVar('--chart-axis'), grid: { stroke: getCssVar('--chart-grid') } },
-                        { stroke: getCssVar('--chart-axis'), grid: { stroke: getCssVar('--chart-grid') }, size: 80 }
-                    ],
-                    padding: [8, 16, 8, 8],
-                    legend: { show: false }
-                };
-
-                // Destroy previous plots
-                if (AppState._mainPlot) {
-                    AppState._mainPlot.destroy();
-                }
-                if (AppState._overviewPlot) {
-                    AppState._overviewPlot.destroy();
-                }
-
-                chartDiv.innerHTML = '';
-                overviewDiv.innerHTML = '';
-
-                AppState._mainPlot = new uPlot(opts, uplotData, chartDiv);
-
-                // REQ-MV-005: Overview chart
-                // REQ-MV-009: Y-axis range function ensures minimum range for zero/constant data
-                const overviewOpts = {
-                    width: overviewDiv.clientWidth,
-                    height: 60,
-                    series: uplotSeries.map((s, i) => i === 0 ? s : { ...s, width: 1 }),
-                    scales: {
-                        x: { time: true },
-                        y: { range: (u, min, max) => [0, Math.max(max * 1.1, 1)] }
-                    },
-                    cursor: { show: false },
-                    axes: [
-                        { show: false },
-                        { show: false }
-                    ],
-                    legend: { show: false }
-                };
-
-                AppState._overviewPlot = new uPlot(overviewOpts, uplotData, overviewDiv);
-
-                // REQ-MV-005: Add HTML overlay for range selection
-                ChartRenderer.createRangeOverlay(overviewDiv);
-
-                // REQ-MV-002: Sync overview after chart creation to reflect preserved zoom
-                requestAnimationFrame(() => {
-                    ChartRenderer.syncOverview(AppState._mainPlot);
-                });
-            },
-
-            // REQ-MV-005: Sync range overlay with main chart zoom
-            syncOverview(u) {
-                if (AppState._rangeOverlay && AppState._rangeOverlay.update) {
-                    AppState._rangeOverlay.update();
-                }
-            },
-
-            // REQ-MV-007, REQ-MV-018: Draw study overlay (periodicity or changepoint)
-            drawStudyOverlay(u) {
-                if (!AppState.study.active) return;
-
-                const studyType = AppState.study.type;
-                if (studyType === 'changepoint') {
-                    ChartRenderer.drawChangepointOverlay(u);
-                } else {
-                    ChartRenderer.drawPeriodicityOverlay(u);
-                }
-            },
-
-            // REQ-MV-007: Draw periodicity overlay
-            drawPeriodicityOverlay(u) {
-                const ctx = u.ctx;
-                const { left, top, width, height } = u.bbox;
-                const plotRight = left + width;
-                const plotBottom = top + height;
-
-                const selectedIds = AppState.selectedContainerIds;
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(left, top, width, height);
-                ctx.clip();
-
-                selectedIds.forEach((id, idx) => {
-                    const result = AppState.study.results[id];
-                    if (!result || !result.windows) return;
-
-                    const color = COLORS[idx % COLORS.length];
-
-                    result.windows.forEach(w => {
-                        let x1 = u.valToPos(w.start_time_ms / 1000, 'x', true);
-                        let x2 = u.valToPos(w.end_time_ms / 1000, 'x', true);
-
-                        if (x2 < left || x1 > plotRight) return;
-
-                        x1 = Math.max(x1, left);
-                        x2 = Math.min(x2, plotRight);
-
-                        const y1 = top;
-                        const y2 = plotBottom;
-
-                        // Draw shaded region
-                        ctx.fillStyle = color + '20';
-                        ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
-
-                        // Draw period markers (dashed lines)
-                        const period = w.metrics.period || 10;
-                        const periodMs = period * 1000;
-                        ctx.strokeStyle = color;
-                        ctx.setLineDash([4, 4]);
-                        ctx.lineWidth = 1;
-
-                        for (let t = w.start_time_ms; t <= w.end_time_ms; t += periodMs) {
-                            const x = u.valToPos(t / 1000, 'x', true);
-                            if (x >= left && x <= plotRight) {
-                                ctx.beginPath();
-                                ctx.moveTo(x, y1);
-                                ctx.lineTo(x, y2);
-                                ctx.stroke();
-                            }
-                        }
-                        ctx.setLineDash([]);
-                    });
-                });
-
-                ctx.restore();
-            },
-
-            // REQ-MV-018: Draw changepoint overlay
-            drawChangepointOverlay(u) {
-                const ctx = u.ctx;
-                const { left, top, width, height } = u.bbox;
-                const plotRight = left + width;
-                const plotBottom = top + height;
-
-                const selectedIds = AppState.selectedContainerIds;
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(left, top, width, height);
-                ctx.clip();
-
-                selectedIds.forEach((id, idx) => {
-                    const result = AppState.study.results[id];
-                    if (!result || !result.windows) return;
-
-                    const color = COLORS[idx % COLORS.length];
-
-                    result.windows.forEach(w => {
-                        const x = u.valToPos(w.start_time_ms / 1000, 'x', true);
-
-                        if (x < left || x > plotRight) return;
-
-                        const y1 = top;
-                        const y2 = plotBottom;
-
-                        // Draw solid vertical line (distinguishes from periodicity's dashed lines)
-                        ctx.strokeStyle = color;
-                        ctx.setLineDash([]);
-                        ctx.lineWidth = 2;
-                        ctx.beginPath();
-                        ctx.moveTo(x, y1);
-                        ctx.lineTo(x, y2);
-                        ctx.stroke();
-
-                        // Draw direction indicator (small arrow)
-                        const direction = w.metrics?.direction || 0;
-                        const arrowSize = 8;
-                        const arrowY = direction > 0 ? y1 + 15 : y2 - 15;
-                        const arrowDir = direction > 0 ? 1 : -1;
-
-                        ctx.fillStyle = color;
-                        ctx.beginPath();
-                        ctx.moveTo(x, arrowY);
-                        ctx.lineTo(x - arrowSize / 2, arrowY + arrowDir * arrowSize);
-                        ctx.lineTo(x + arrowSize / 2, arrowY + arrowDir * arrowSize);
-                        ctx.closePath();
-                        ctx.fill();
-                    });
-                });
-
-                ctx.restore();
-            },
-
-            createRangeOverlay(overviewDiv) {
-                const existing = overviewDiv.querySelector('.range-overlay');
-                if (existing) existing.remove();
-
-                const overlay = document.createElement('div');
-                overlay.className = 'range-overlay';
-                overlay.innerHTML = `
-                    <div class="range-dim left"></div>
-                    <div class="range-selection">
-                        <div class="range-handle left"></div>
-                        <div class="range-handle right"></div>
-                    </div>
-                    <div class="range-dim right"></div>
-                `;
-                overviewDiv.appendChild(overlay);
-                AppState._rangeOverlay = overlay;
-
-                const dimLeft = overlay.querySelector('.range-dim.left');
-                const dimRight = overlay.querySelector('.range-dim.right');
-                const selection = overlay.querySelector('.range-selection');
-                const handleLeft = overlay.querySelector('.range-handle.left');
-                const handleRight = overlay.querySelector('.range-handle.right');
-
-                const getChartBounds = () => {
-                    if (!AppState._overviewPlot) return { left: 0, width: overviewDiv.clientWidth };
-                    const bbox = AppState._overviewPlot.bbox;
-                    return {
-                        left: bbox.left / devicePixelRatio,
-                        width: bbox.width / devicePixelRatio
-                    };
-                };
-
-                const posToVal = (px) => {
-                    if (!AppState._overviewPlot) return 0;
-                    const bounds = getChartBounds();
-                    return AppState._overviewPlot.posToVal(px - bounds.left, 'x');
-                };
-
-                const valToPos = (val) => {
-                    if (!AppState._overviewPlot) return 0;
-                    const bounds = getChartBounds();
-                    return AppState._overviewPlot.valToPos(val, 'x') + bounds.left;
-                };
-
-                const updateOverlayFromScale = () => {
-                    if (!AppState._mainPlot || !AppState._overviewPlot) return;
-                    const xScale = AppState._mainPlot.scales.x;
-                    const bounds = getChartBounds();
-
-                    const left = valToPos(xScale.min);
-                    const right = valToPos(xScale.max);
-                    const width = right - left;
-
-                    selection.style.left = left + 'px';
-                    selection.style.width = width + 'px';
-                    dimLeft.style.width = left + 'px';
-                    dimRight.style.left = right + 'px';
-                    dimRight.style.width = (bounds.left + bounds.width - right) + 'px';
-                };
-
-                updateOverlayFromScale();
-
-                handleLeft.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    AppState._rangeDrag = {
-                        active: true,
-                        mode: 'resize-left',
-                        startX: e.clientX,
-                        startLeft: selection.offsetLeft,
-                        startWidth: selection.offsetWidth
-                    };
-                });
-
-                handleRight.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    AppState._rangeDrag = {
-                        active: true,
-                        mode: 'resize-right',
-                        startX: e.clientX,
-                        startLeft: selection.offsetLeft,
-                        startWidth: selection.offsetWidth
-                    };
-                });
-
-                selection.addEventListener('mousedown', (e) => {
-                    if (e.target.classList.contains('range-handle')) return;
-                    AppState._rangeDrag = {
-                        active: true,
-                        mode: 'pan',
-                        startX: e.clientX,
-                        startLeft: selection.offsetLeft,
-                        startWidth: selection.offsetWidth
-                    };
-                });
-
-                const onDimClick = (e) => {
-                    const overlayRect = overlay.getBoundingClientRect();
-                    AppState._rangeDrag = {
-                        active: true,
-                        mode: 'select',
-                        startX: e.clientX,
-                        startLeft: e.clientX - overlayRect.left,
-                        startWidth: 0
-                    };
-                };
-                dimLeft.addEventListener('mousedown', onDimClick);
-                dimRight.addEventListener('mousedown', onDimClick);
-
-                overlay.update = updateOverlayFromScale;
-            },
-
-            resetZoom() {
-                const plot = AppState._mainPlot;
-                const originalX = AppState.chart.originalXRange;
-                const originalY = AppState.chart.originalYRange;
-                if (!plot || !originalX) return;
-                plot.setScale('x', { min: originalX[0], max: originalX[1] });
-                plot.setScale('y', { min: originalY[0], max: originalY[1] });
-            },
-
-            // REQ-MV-007, REQ-MV-018: Find study window at a given time value
-            findStudyWindowAtTime(timeVal) {
-                if (!AppState.study.active) return null;
-
-                const studyType = AppState.study.type;
-                const selectedIds = AppState.selectedContainerIds;
-
-                for (const id of selectedIds) {
-                    const result = AppState.study.results[id];
-                    if (!result || !result.windows) continue;
-
-                    for (const w of result.windows) {
-                        if (studyType === 'changepoint') {
-                            // Changepoints are point events - check if near the time
-                            const changepointSec = w.start_time_ms / 1000;
-                            const tolerance = 5; // 5 seconds tolerance for clicking
-                            if (Math.abs(timeVal - changepointSec) < tolerance) {
-                                return { window: w, containerId: id, type: 'changepoint' };
-                            }
-                        } else {
-                            // Periodicity windows are ranges
-                            const startSec = w.start_time_ms / 1000;
-                            const endSec = w.end_time_ms / 1000;
-                            if (timeVal >= startSec && timeVal <= endSec) {
-                                return { window: w, containerId: id, type: 'periodicity' };
-                            }
-                        }
-                    }
-                }
-                return null;
-            },
-
-            // REQ-MV-007, REQ-MV-018: Zoom to study window
-            zoomToStudyWindow(windowData) {
-                const plot = AppState._mainPlot;
-                if (!plot) return;
-
-                const w = windowData.window;
-
-                if (windowData.type === 'changepoint') {
-                    // For changepoints, zoom to ±30 seconds around the point
-                    const centerSec = w.start_time_ms / 1000;
-                    const padding = 30; // 30 seconds context
-                    plot.setScale('x', {
-                        min: centerSec - padding,
-                        max: centerSec + padding
-                    });
-                } else {
-                    // For periodicity, zoom to the window range
-                    const startSec = w.start_time_ms / 1000;
-                    const endSec = w.end_time_ms / 1000;
-                    const duration = endSec - startSec;
-                    const padding = duration * 0.1;
-                    plot.setScale('x', {
-                        min: startSec - padding,
-                        max: endSec + padding
-                    });
-                }
-            },
-        };
-
-        // ============================================================
-        // SECTION 9: RENDER FUNCTION
-        // ============================================================
-
-        function render(state) {
-            // Update metric list
-            document.getElementById('metricList').innerHTML = Components.MetricList(state);
-
-            // Scroll selected metric into view
-            const selectedMetric = document.querySelector('#metricList .metric-item.selected');
-            if (selectedMetric) {
-                selectedMetric.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-            }
-
-            // Update container list
-            document.getElementById('containerList').innerHTML = Components.ContainerList(state);
-
-            // Update studies panel
-            document.getElementById('studiesContent').innerHTML = Components.StudyPanel(state);
-        }
-
-        // ============================================================
-        // SECTION 10: EVENT LISTENERS
-        // ============================================================
-
-        function setupEventListeners() {
-            // Metric list clicks (event delegation)
-            document.getElementById('metricList').addEventListener('click', (e) => {
-                const item = e.target.closest('.metric-item');
-                if (item) {
-                    Actions.selectMetric(item.dataset.metric);
-                }
-            });
-
-            // Metric search with fuzzy matching (debounced)
-            let metricSearchTimeout;
-            document.getElementById('metricSearch').addEventListener('input', (e) => {
-                clearTimeout(metricSearchTimeout);
-                metricSearchTimeout = setTimeout(() => {
-                    Actions.setMetricSearchQuery(e.target.value);
-                }, 150);
-            });
-
-            // Container search (debounced)
-            let containerSearchTimeout;
-            document.getElementById('containerSearch').addEventListener('input', (e) => {
-                clearTimeout(containerSearchTimeout);
-                containerSearchTimeout = setTimeout(() => {
-                    Actions.setContainerSearchQuery(e.target.value);
-                    Actions.loadContainers();
-                }, 300);
-            });
-
-            // Container list interactions (event delegation)
-            document.getElementById('containerList').addEventListener('change', (e) => {
-                if (e.target.hasAttribute('data-container-checkbox')) {
-                    Actions.toggleContainer(e.target.value);
-                }
-            });
-
-            document.getElementById('containerList').addEventListener('click', (e) => {
-                const studyBtn = e.target.closest('[data-study-btn]');
-                if (studyBtn) {
-                    e.preventDefault();
-                    Actions.startStudy(studyBtn.dataset.studyBtn);
-                }
-            });
-
-            // Action buttons
-            document.querySelector('.action-buttons').addEventListener('click', (e) => {
-                const btn = e.target.closest('button');
-                if (!btn) return;
-
-                const action = btn.dataset.action;
-                switch (action) {
-                    case 'clear':
-                        Actions.clearSelection();
-                        break;
-                    case 'reset':
-                        Actions.resetZoom();
-                        break;
-                }
-            });
-
-            // REQ-MV-007, REQ-MV-018: Study panel interactions (event delegation)
-            document.getElementById('studiesContent').addEventListener('click', (e) => {
-                if (e.target.closest('[data-close-study]')) {
-                    Actions.exitStudy(false);
-                } else if (e.target.closest('[data-restore-btn]')) {
-                    Actions.exitStudy(true);
-                } else if (e.target.closest('.period-window-item')) {
-                    const item = e.target.closest('.period-window-item');
-                    // Check if this is a changepoint item
-                    const changepointTime = item.dataset.changepointTime;
-                    if (changepointTime) {
-                        // Zoom to ±30 seconds around changepoint
-                        const centerMs = parseFloat(changepointTime);
-                        const padding = 30000; // 30 seconds in ms
-                        Actions.zoomToTimeRange(centerMs - padding, centerMs + padding);
-                    } else {
-                        // Periodicity window
-                        const startMs = parseFloat(item.dataset.windowStart);
-                        const endMs = parseFloat(item.dataset.windowEnd);
-                        if (!isNaN(startMs) && !isNaN(endMs)) {
-                            Actions.zoomToTimeRange(startMs, endMs);
-                        }
-                    }
-                }
-            });
-
-            // Handle resize
-            window.addEventListener('resize', () => {
-                if (AppState._mainPlot) {
-                    const chartDiv = document.getElementById('mainChart');
-                    AppState._mainPlot.setSize({ width: chartDiv.clientWidth, height: chartDiv.clientHeight });
-                }
-                if (AppState._overviewPlot) {
-                    const overviewDiv = document.getElementById('overviewChart');
-                    AppState._overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 60 });
-                    if (AppState._rangeOverlay && AppState._rangeOverlay.update) {
-                        setTimeout(() => AppState._rangeOverlay.update(), 10);
-                    }
-                }
-            });
-
-            // REQ-MV-004: Scroll wheel zoom on main chart
-            document.getElementById('mainChart').addEventListener('wheel', (e) => {
-                const plot = AppState._mainPlot;
-                if (!plot) return;
-                e.preventDefault();
-
-                const rect = plot.root.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const xVal = plot.posToVal(x, 'x');
-
-                const xRange = plot.scales.x;
-                const factor = e.deltaY > 0 ? 1.2 : 0.8;
-                const newMin = xVal - (xVal - xRange.min) * factor;
-                const newMax = xVal + (xRange.max - xVal) * factor;
-
-                plot.setScale('x', { min: newMin, max: newMax });
-            }, { passive: false });
-
-            // Range overlay mouse handlers (global)
-            document.addEventListener('mousemove', (e) => {
-                const rangeDrag = AppState._rangeDrag;
-                if (!rangeDrag.active || !AppState._overviewPlot || !AppState._mainPlot) return;
-
-                const overlay = AppState._rangeOverlay;
-                if (!overlay) return;
-
-                const selection = overlay.querySelector('.range-selection');
-                const dimLeft = overlay.querySelector('.range-dim.left');
-                const dimRight = overlay.querySelector('.range-dim.right');
-
-                const overviewDiv = document.getElementById('overviewChart');
-                const bbox = AppState._overviewPlot.bbox;
-                const bounds = {
-                    left: bbox.left / devicePixelRatio,
-                    width: bbox.width / devicePixelRatio
-                };
-
-                const overlayRect = overlay.getBoundingClientRect();
-                const delta = e.clientX - rangeDrag.startX;
-                const currentX = e.clientX - overlayRect.left;
-
-                let newLeft, newWidth, newRight;
-
-                switch (rangeDrag.mode) {
-                    case 'pan':
-                        newLeft = rangeDrag.startLeft + delta;
-                        newWidth = rangeDrag.startWidth;
-                        newLeft = Math.max(bounds.left, Math.min(newLeft, bounds.left + bounds.width - newWidth));
-                        break;
-
-                    case 'resize-left':
-                        newLeft = rangeDrag.startLeft + delta;
-                        newRight = rangeDrag.startLeft + rangeDrag.startWidth;
-                        newLeft = Math.max(bounds.left, Math.min(newLeft, newRight - 20));
-                        newWidth = newRight - newLeft;
-                        break;
-
-                    case 'resize-right':
-                        newLeft = rangeDrag.startLeft;
-                        newWidth = rangeDrag.startWidth + delta;
-                        newWidth = Math.max(20, Math.min(newWidth, bounds.left + bounds.width - newLeft));
-                        break;
-
-                    case 'select':
-                        const x1 = Math.max(bounds.left, Math.min(rangeDrag.startLeft, currentX));
-                        const x2 = Math.min(bounds.left + bounds.width, Math.max(rangeDrag.startLeft, currentX));
-                        newLeft = x1;
-                        newWidth = x2 - x1;
-                        break;
-                }
-
-                selection.style.left = newLeft + 'px';
-                selection.style.width = newWidth + 'px';
-                dimLeft.style.width = newLeft + 'px';
-                dimRight.style.left = (newLeft + newWidth) + 'px';
-                dimRight.style.width = (bounds.left + bounds.width - newLeft - newWidth) + 'px';
-
-                if (newWidth > 10) {
-                    const minVal = AppState._overviewPlot.posToVal(newLeft - bounds.left, 'x');
-                    const maxVal = AppState._overviewPlot.posToVal(newLeft + newWidth - bounds.left, 'x');
-                    AppState._mainPlot.setScale('x', { min: minVal, max: maxVal });
-                }
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (AppState._rangeDrag.active) {
-                    AppState._rangeDrag = {
-                        active: false,
-                        mode: null,
-                        startX: 0,
-                        startLeft: 0,
-                        startWidth: 0
-                    };
-                }
-            });
-
-            // REQ-MV-007, REQ-MV-018: Study interaction handlers
-            setupStudyInteraction();
-        }
-
-        // REQ-MV-007, REQ-MV-018: Set up study interaction handlers on chart
-        function setupStudyInteraction() {
-            const chartDiv = document.getElementById('mainChart');
-            const tooltip = document.getElementById('periodicityTooltip');
-
-            let overWindow = null;
-            let isDragging = false;
-            let dragStartPos = null;
-
-            chartDiv.addEventListener('mousedown', (e) => {
-                dragStartPos = { x: e.clientX, y: e.clientY };
-                isDragging = false;
-            });
-
-            chartDiv.addEventListener('mousemove', (e) => {
-                // Detect drag
-                if (dragStartPos) {
-                    const dx = Math.abs(e.clientX - dragStartPos.x);
-                    const dy = Math.abs(e.clientY - dragStartPos.y);
-                    if (dx > 5 || dy > 5) {
-                        isDragging = true;
-                    }
-                }
-
-                // Tooltip handling
-                const plot = AppState._mainPlot;
-                if (!AppState.study.active || !plot) {
-                    if (overWindow) {
-                        tooltip.style.display = 'none';
-                        chartDiv.style.cursor = '';
-                        overWindow = null;
-                    }
-                    return;
-                }
-
-                const rect = plot.root.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-
-                const bbox = plot.bbox;
-                const plotLeft = bbox.left / devicePixelRatio;
-                const plotTop = bbox.top / devicePixelRatio;
-                const plotWidth = bbox.width / devicePixelRatio;
-                const plotHeight = bbox.height / devicePixelRatio;
-
-                if (x < plotLeft || x > plotLeft + plotWidth ||
-                    y < plotTop || y > plotTop + plotHeight) {
-                    if (overWindow) {
-                        tooltip.style.display = 'none';
-                        chartDiv.style.cursor = '';
-                        overWindow = null;
-                    }
-                    return;
-                }
-
-                const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findStudyWindowAtTime(timeVal);
-
-                if (windowData) {
-                    overWindow = windowData;
-                    chartDiv.style.cursor = 'pointer';
-
-                    const w = windowData.window;
-
-                    // Build tooltip based on study type
-                    let tooltipContent;
-                    if (windowData.type === 'changepoint') {
-                        const valueBefore = (w.metrics?.value_before || 0).toFixed(1);
-                        const valueAfter = (w.metrics?.value_after || 0).toFixed(1);
-                        const magnitude = (w.metrics?.magnitude || 0).toFixed(1);
-                        const direction = (w.metrics?.direction || 0) > 0 ? 'increase' : 'decrease';
-                        const time = new Date(w.start_time_ms).toLocaleTimeString('en-US', { hour12: false });
-
-                        tooltipContent = `
-                            <div style="font-weight: 600; margin-bottom: 4px;">Changepoint Detected</div>
-                            <div>Time: <strong>${time}</strong></div>
-                            <div>Before: <strong>${valueBefore}</strong></div>
-                            <div>After: <strong>${valueAfter}</strong></div>
-                            <div>Change: <strong>${magnitude}</strong> (${direction})</div>
-                            <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
-                        `;
-                    } else {
-                        const period = w.metrics?.period || 0;
-                        const score = w.metrics?.score || 0;
-                        const amplitude = w.metrics?.amplitude || 0;
-
-                        tooltipContent = `
-                            <div style="font-weight: 600; margin-bottom: 4px;">Periodic Pattern Detected</div>
-                            <div>Period: <strong>${period.toFixed(1)}s</strong></div>
-                            <div>Confidence: <strong>${(score * 100).toFixed(0)}%</strong></div>
-                            <div>Amplitude: <strong>${amplitude.toFixed(1)}</strong></div>
-                            <div style="margin-top: 6px; font-size: 11px; color: #aaa;">Click to zoom</div>
-                        `;
-                    }
-
-                    tooltip.innerHTML = tooltipContent;
-
-                    const offsetX = 15;
-                    const offsetY = 15;
-                    let tx = e.clientX + offsetX;
-                    let ty = e.clientY + offsetY;
-
-                    tooltip.style.display = 'block';
-                    const measuredWidth = tooltip.offsetWidth;
-                    const measuredHeight = tooltip.offsetHeight;
-
-                    if (tx + measuredWidth > window.innerWidth - 10) {
-                        tx = e.clientX - measuredWidth - offsetX;
-                    }
-                    if (ty + measuredHeight > window.innerHeight - 10) {
-                        ty = e.clientY - measuredHeight - offsetY;
-                    }
-
-                    tooltip.style.left = tx + 'px';
-                    tooltip.style.top = ty + 'px';
-                } else {
-                    if (overWindow) {
-                        tooltip.style.display = 'none';
-                        chartDiv.style.cursor = '';
-                        overWindow = null;
-                    }
-                }
-            });
-
-            chartDiv.addEventListener('mouseup', () => {
-                setTimeout(() => {
-                    dragStartPos = null;
-                    isDragging = false;
-                }, 50);
-            });
-
-            chartDiv.addEventListener('mouseleave', () => {
-                if (overWindow) {
-                    tooltip.style.display = 'none';
-                    chartDiv.style.cursor = '';
-                    overWindow = null;
-                }
-            });
-
-            chartDiv.addEventListener('click', (e) => {
-                if (isDragging) return;
-                const plot = AppState._mainPlot;
-                if (!AppState.study.active || !plot) return;
-
-                const rect = plot.root.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-
-                const timeVal = plot.posToVal(x, 'x');
-                const windowData = ChartRenderer.findStudyWindowAtTime(timeVal);
-
-                if (windowData) {
-                    e.stopPropagation();
-                    ChartRenderer.zoomToStudyWindow(windowData);
-                    tooltip.style.display = 'none';
-                }
-            }, true);
-        }
-
-        // ============================================================
-        // SECTION 11: INITIALIZATION
-        // ============================================================
-
-        // Subscribe render to state changes
-        subscribe(render);
-
-        // Set up event listeners
-        setupEventListeners();
-
-        // Initialize the application
-        Actions.initialize();
     </script>
 </body>
 

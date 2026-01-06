@@ -11,7 +11,8 @@ use crate::metrics_viewer::lazy_data::LazyDataStore;
 use crate::metrics_viewer::studies::{StudyInfo, StudyRegistry, StudyResult};
 use axum::{
     extract::{Path, Query, State},
-    response::{Html, IntoResponse, Json},
+    http::{header, StatusCode},
+    response::{Html, IntoResponse, Json, Response},
     routing::get,
     Router,
 };
