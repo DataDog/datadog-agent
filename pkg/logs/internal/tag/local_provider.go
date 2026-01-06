@@ -39,7 +39,7 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 	}
 
 	if config.IsExpectedTagsSet(pkgconfigsetup.Datadog()) {
-		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.Background(), false, pkgconfigsetup.Datadog()).System...)
+		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
