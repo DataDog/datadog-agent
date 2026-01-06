@@ -1874,6 +1874,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
+	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+	// up to this ceiling, then continue checking at this interval. Default: 1 hour
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", "1h")
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
@@ -1950,6 +1954,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then a source_host tag (IP Address) will be added to TCP/UDP logs.
 	config.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", true)
+	// Add per-line logsource:{stdout,stderr} tag to container logs (disabled by default)
+	config.BindEnvAndSetDefault("logs_config.add_logsource_tag", false)
 
 	// If set, the agent will look in this path for docker container log files.  Use this option if
 	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In

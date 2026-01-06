@@ -28,9 +28,9 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/CycloneDX/cyclonedx-go v0.9.2
+	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.177
+	github.com/DataDog/agent-payload/v5 v5.0.178
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -140,8 +140,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/tagset v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/template v0.73.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
@@ -159,14 +159,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/json v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.74.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.73.0-rc.11
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v0.1.33
@@ -199,14 +199,14 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aquasecurity/trivy-db v0.0.0-20250227071930-8bd8a9b89e2d
-	github.com/avast/retry-go/v4 v4.6.1
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.277.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.113.1
 	github.com/aws/karpenter-provider-aws v1.8.2
-	github.com/beevik/ntp v1.4.3
+	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -293,8 +293,8 @@ require (
 	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
-	github.com/mailru/easyjson v0.9.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mailru/easyjson v0.9.1
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/mdlayher/netlink v1.8.0
 	github.com/miekg/dns v1.1.68
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
@@ -324,7 +324,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
 	github.com/safchain/ethtool v0.7.0
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.52.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v4 v4.25.11
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -342,9 +342,9 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.1
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/twmb/franz-go v1.18.2-0.20250413173443-1d5a55fa468d
-	github.com/twmb/franz-go/pkg/kadm v1.12.0
-	github.com/twmb/franz-go/pkg/kmsg v1.11.2-0.20250413173443-1d5a55fa468d
+	github.com/twmb/franz-go v1.20.6
+	github.com/twmb/franz-go/pkg/kadm v1.17.1
+	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uptrace/bun v1.2.15
 	github.com/uptrace/bun/dialect/pgdialect v1.2.15
@@ -356,7 +356,7 @@ require (
 	github.com/vishvananda/netns v0.0.5
 	github.com/vmihailenco/msgpack/v4 v4.3.13
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	github.com/wI2L/jsondiff v0.6.1
+	github.com/wI2L/jsondiff v0.7.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
@@ -485,7 +485,7 @@ require (
 	github.com/DataDog/aptly v1.5.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.73.0-rc.11 // indirect
@@ -855,7 +855,7 @@ require (
 	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.4 // indirect
-	go.mongodb.org/mongo-driver v1.17.4
+	go.mongodb.org/mongo-driver v1.17.6
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.142.0 // indirect
