@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -46,14 +47,6 @@ var zero uint32
 var tuplePool = ddsync.NewDefaultTypedPool[netebpf.ConntrackTuple]()
 
 const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
-
-type buildMode int
-
-const (
-	prebuilt buildMode = iota
-	runtimeCompiled
-	core
-)
 
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
@@ -449,7 +442,7 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 //   - CO-RE and Runtime: First attempts to use __nf_conntrack_hash_insert. If that kernel function
 //     is not available, falls back to using __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 //     kprobes/kretprobes, which can handle the _nfct field access using CO-RE relocations or kernel headers.
-func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode buildMode) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode buildmode.Type) (*manager.Manager, error) {
 	// Common maps for all modes
 	maps := []*manager.Map{
 		{Name: probes.ConntrackMap},
@@ -472,7 +465,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	// - CO-RE/Runtime: use __nf_conntrack_hash_insert if available, otherwise fall back to
 	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 	useNFConntrackHashInsert := true
-	if mode != prebuilt {
+	if mode != buildmode.Prebuilt {
 		// CO-RE and RuntimeCompiled: check if __nf_conntrack_hash_insert is available
 		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert") // JMWCONST
 		if err != nil {
@@ -485,7 +478,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	}
 
 	if useNFConntrackHashInsert {
-		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker")
+		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker for build mode ", mode.String())
 		probesList = append(probesList, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
@@ -493,7 +486,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 			},
 		})
 	} else {
-		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker")
+		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker for build mode ", mode.String())
 		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
 		probesList = append(probesList,
 			&manager.Probe{
@@ -600,7 +593,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 
 	opts := manager.Options{ConstantEditors: constants}
-	return getManager(cfg, buf, opts, prebuilt)
+	return getManager(cfg, buf, opts, buildmode.Prebuilt)
 }
 
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
@@ -634,7 +627,7 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 	defer buf.Close()
 
-	return getManager(cfg, buf, manager.Options{}, runtimeCompiled)
+	return getManager(cfg, buf, manager.Options{}, buildmode.RuntimeCompiled)
 }
 
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
@@ -652,7 +645,7 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", cfg.CollectUDPv6Conns),
 		)
-		m, err = getManager(cfg, ar, o, core)
+		m, err = getManager(cfg, ar, o, buildmode.CORE)
 		return err
 	})
 	return m, err
