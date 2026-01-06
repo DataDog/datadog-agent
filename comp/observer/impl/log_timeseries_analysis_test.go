@@ -28,7 +28,7 @@ func TestLogTimeSeriesAnalysis_JSONNumericExtraction(t *testing.T) {
 		tags:    []string{"service:api"},
 	}
 
-	res := a.Analyze(log)
+	res := a.Process(log)
 	assert.Len(t, res.Metrics, 3) // 2 numeric fields + pattern count
 
 	// Order is map iteration dependent; just assert set membership.
@@ -65,7 +65,7 @@ func TestLogTimeSeriesAnalysis_UnstructuredPatternCount(t *testing.T) {
 		tags:    []string{"service:web"},
 	}
 
-	res := a.Analyze(log)
+	res := a.Process(log)
 	assert.Len(t, res.Metrics, 1)
 	assert.Equal(t, float64(1), res.Metrics[0].Value)
 	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
@@ -89,7 +89,7 @@ func TestLogTimeSeriesAnalysis_JSONIncludeFields(t *testing.T) {
 		tags:    []string{"service:api"},
 	}
 
-	res := a.Analyze(log)
+	res := a.Process(log)
 	require.Len(t, res.Metrics, 2) // selected numeric field + pattern count
 
 	got := map[string]observer.MetricOutput{}
@@ -117,7 +117,7 @@ func TestLogTimeSeriesAnalysis_InvalidJSONFallsBackToUnstructured(t *testing.T) 
 	input := []byte(`{"duration_ms":45,`)
 	log := &mockLogView{content: input, tags: []string{"service:api"}}
 
-	res := a.Analyze(log)
+	res := a.Process(log)
 	require.Len(t, res.Metrics, 1)
 
 	sig := logSignature(input, 0)

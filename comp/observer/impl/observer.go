@@ -65,7 +65,7 @@ type logObs struct {
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
-		logAnalyses: []observerdef.LogAnalysis{
+		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
 				// Keep defaults minimal; future steps add filtering + caps.
 				MaxEvalBytes: 4096,
@@ -75,8 +75,11 @@ func NewComponent(deps Requires) Provides {
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			&SpikeDetector{},
 		},
-		consumers: []observerdef.AnomalyConsumer{
-			&MemoryConsumer{},
+		anomalyProcessors: []observerdef.AnomalyProcessor{
+			&PassthroughProcessor{},
+		},
+		reporters: []observerdef.Reporter{
+			&StdoutReporter{},
 		},
 		storage: newTimeSeriesStorage(),
 		obsCh:   make(chan observation, 1000),
@@ -195,11 +198,12 @@ func samplePass(rate float64, n uint64) bool {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	logAnalyses []observerdef.LogAnalysis
-	tsAnalyses  []observerdef.TimeSeriesAnalysis
-	consumers   []observerdef.AnomalyConsumer
-	storage     *timeSeriesStorage
-	obsCh       chan observation
+	logProcessors     []observerdef.LogProcessor
+	tsAnalyses        []observerdef.TimeSeriesAnalysis
+	anomalyProcessors []observerdef.AnomalyProcessor
+	reporters         []observerdef.Reporter
+	storage           *timeSeriesStorage
+	obsCh             chan observation
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -224,18 +228,18 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 		o.runTSAnalyses(*series)
 	}
 
-	o.reportAll()
+	o.flushAndReport()
 }
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
-	// Create a view for analyses
+	// Create a view for processors
 	view := &logView{obs: l}
 
-	for _, analysis := range o.logAnalyses {
-		result := analysis.Analyze(view)
+	for _, processor := range o.logProcessors {
+		result := processor.Process(view)
 
-		// Add metrics from log analysis to storage, then run TS analyses
+		// Add metrics from log processing to storage, then run TS analyses
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
 			if series := o.storage.GetSeries(source, m.Name, m.Tags, AggregateAverage); series != nil {
@@ -243,13 +247,13 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			}
 		}
 
-		// Forward anomalies to consumers
+		// Forward anomalies to processors
 		for _, anomaly := range result.Anomalies {
-			o.consumeAnomaly(anomaly)
+			o.processAnomaly(anomaly)
 		}
 	}
 
-	o.reportAll()
+	o.flushAndReport()
 }
 
 // runTSAnalyses runs all time series analyses on a series.
@@ -257,22 +261,27 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series) {
 	for _, tsAnalysis := range o.tsAnalyses {
 		result := tsAnalysis.Analyze(series)
 		for _, anomaly := range result.Anomalies {
-			o.consumeAnomaly(anomaly)
+			o.processAnomaly(anomaly)
 		}
 	}
 }
 
-// consumeAnomaly sends an anomaly to all registered consumers.
-func (o *observerImpl) consumeAnomaly(anomaly observerdef.AnomalyOutput) {
-	for _, consumer := range o.consumers {
-		consumer.Consume(anomaly)
+// processAnomaly sends an anomaly to all registered anomaly processors.
+func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
+	for _, processor := range o.anomalyProcessors {
+		processor.Process(anomaly)
 	}
 }
 
-// reportAll calls Report() on all consumers.
-func (o *observerImpl) reportAll() {
-	for _, consumer := range o.consumers {
-		consumer.Report()
+// flushAndReport flushes all anomaly processors and sends reports to all reporters.
+func (o *observerImpl) flushAndReport() {
+	for _, processor := range o.anomalyProcessors {
+		reports := processor.Flush()
+		for _, report := range reports {
+			for _, reporter := range o.reporters {
+				reporter.Report(report)
+			}
+		}
 	}
 }
 

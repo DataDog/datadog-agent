@@ -55,18 +55,18 @@ type LogView interface {
 	GetHostname() string
 }
 
-// LogAnalysis transforms observed logs into metrics and events.
+// LogProcessor transforms observed logs into metrics and anomaly events.
 // Implementations should be stateless and fast since they run synchronously
 // on every observed log.
-type LogAnalysis interface {
-	// Name returns the analysis name for debugging and logging.
+type LogProcessor interface {
+	// Name returns the processor name for debugging and logging.
 	Name() string
-	// Analyze examines a log and returns any detected signals.
-	Analyze(log LogView) LogAnalysisResult
+	// Process examines a log and returns any detected signals.
+	Process(log LogView) LogProcessorResult
 }
 
-// LogAnalysisResult contains outputs from analyzing a log.
-type LogAnalysisResult struct {
+// LogProcessorResult contains outputs from processing a log.
+type LogProcessorResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
 	// Anomalies are detected anomaly events.
@@ -84,9 +84,19 @@ type MetricOutput struct {
 
 // AnomalyOutput is a detected anomaly event.
 type AnomalyOutput struct {
+	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
+	Source      string
 	Title       string
 	Description string
 	Tags        []string
+}
+
+// ReportOutput is a processed summary from anomaly processors.
+// It represents clustered, filtered, or summarized anomaly information ready for display.
+type ReportOutput struct {
+	Title    string
+	Body     string
+	Metadata map[string]string
 }
 
 // Series is a time series with simple timestamp/value points.
@@ -118,13 +128,31 @@ type TimeSeriesAnalysisResult struct {
 	Anomalies []AnomalyOutput
 }
 
-// AnomalyConsumer receives and accumulates anomaly events.
-// Unlike analyses, consumers are stateful and accumulate events for later reporting.
-type AnomalyConsumer interface {
-	// Name returns the consumer name for debugging.
+// AnomalyProcessor accumulates anomaly events and produces reports.
+// Unlike analyses, processors are stateful and cluster/filter/summarize anomaly streams.
+type AnomalyProcessor interface {
+	// Name returns the processor name for debugging.
 	Name() string
-	// Consume receives an anomaly event.
-	Consume(anomaly AnomalyOutput)
-	// Report processes accumulated anomalies (e.g., logs them, sends them somewhere).
-	Report()
+	// Process receives an anomaly event for accumulation.
+	Process(anomaly AnomalyOutput)
+	// Flush processes accumulated anomalies and returns reports.
+	Flush() []ReportOutput
+}
+
+// Reporter receives reports and displays or delivers them.
+type Reporter interface {
+	// Name returns the reporter name for debugging.
+	Name() string
+	// Report delivers a report to its destination (stdout, file, webserver, etc).
+	Report(report ReportOutput)
+}
+
+// MetricStorageReader provides read-only access to stored metric series.
+// This allows reporters to query historical data for visualization.
+type MetricStorageReader interface {
+	// GetSeries returns a series by namespace, name, and tags.
+	// Returns nil if series doesn't exist.
+	GetSeries(namespace, name string, tags []string) *Series
+	// AllSeries returns all series in a namespace.
+	AllSeries(namespace string) []Series
 }

@@ -33,14 +33,14 @@ type LogTimeSeriesAnalysis struct {
 
 func (a *LogTimeSeriesAnalysis) Name() string { return "log_timeseries" }
 
-func (a *LogTimeSeriesAnalysis) Analyze(log observer.LogView) observer.LogAnalysisResult {
+func (a *LogTimeSeriesAnalysis) Process(log observer.LogView) observer.LogProcessorResult {
 	content := log.GetContent()
 	tags := log.GetTags()
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.MaxEvalBytes)
 	if patternSig == "" {
-		return observer.LogAnalysisResult{}
+		return observer.LogProcessorResult{}
 	}
 
 	metrics := []observer.MetricOutput{{
@@ -54,7 +54,7 @@ func (a *LogTimeSeriesAnalysis) Analyze(log observer.LogView) observer.LogAnalys
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogAnalysisResult{Metrics: metrics}
+	return observer.LogProcessorResult{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {

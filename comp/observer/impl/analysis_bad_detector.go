@@ -11,29 +11,30 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// BadDetector is a simple example analysis that looks for "this is bad" in logs.
-// It serves as a template for implementing real analyses.
+// BadDetector is a simple example log processor that looks for "this is bad" in logs.
+// It serves as a template for implementing real log processors.
 type BadDetector struct{}
 
-// Name returns the analysis name.
+// Name returns the processor name.
 func (b *BadDetector) Name() string {
 	return "bad_detector"
 }
 
-// Analyze checks if a log contains "this is bad" and returns metrics/anomalies if so.
-func (b *BadDetector) Analyze(log observer.LogView) observer.LogAnalysisResult {
+// Process checks if a log contains "this is bad" and returns metrics/anomalies if so.
+func (b *BadDetector) Process(log observer.LogView) observer.LogProcessorResult {
 	content := string(log.GetContent())
 	if !strings.Contains(content, "this is bad") {
-		return observer.LogAnalysisResult{}
+		return observer.LogProcessorResult{}
 	}
 
-	return observer.LogAnalysisResult{
+	return observer.LogProcessorResult{
 		Metrics: []observer.MetricOutput{{
 			Name:  "observer.bad_logs.count",
 			Value: 1,
 			Tags:  log.GetTags(),
 		}},
 		Anomalies: []observer.AnomalyOutput{{
+			Source:      "observer.bad_logs.count",
 			Title:       "Bad log detected",
 			Description: content,
 			Tags:        log.GetTags(),
