@@ -7,17 +7,13 @@
 package automultilinedetection
 
 import (
-	"bytes"
 	"math"
 	"strings"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/pattern"
 )
-
-// maxRun is the maximum run of a char or digit before it is capped.
-// Note: This must not exceed d10 or c10 below.
-const maxRun = 10
 
 // Tokenizer is a heuristic to compute tokens from a log message.
 // The tokenizer is used to convert a log message (string of bytes) into a list of tokens that
@@ -26,14 +22,14 @@ const maxRun = 10
 // as bufferes are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       *bytes.Buffer
+	impl         *pattern.Tokenizer
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
 func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	return &Tokenizer{
 		maxEvalBytes: maxEvalBytes,
-		strBuf:       bytes.NewBuffer(make([]byte, 0, maxRun)),
+		impl:         pattern.NewTokenizer(),
 	}
 }
 
@@ -50,80 +46,11 @@ func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 // tokenize converts a byte slice to a list of tokens.
 // This function return the slice of tokens, and a slice of indices where each token starts.
 func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
-	// len(ts) will always be <= len(input)
-	ts := make([]tokens.Token, 0, len(input))
-	indicies := make([]int, 0, len(input))
-	if len(input) == 0 {
-		return ts, indicies
-	}
-
-	idx := 0
-	run := 0
-	lastToken := getToken(input[0])
-	t.strBuf.Reset()
-	t.strBuf.WriteRune(unicode.ToUpper(rune(input[0])))
-
-	insertToken := func() {
-		defer func() {
-			run = 0
-			t.strBuf.Reset()
-		}()
-
-		// Only test for special tokens if the last token was a charcater (Special tokens are currently only A-Z).
-		if lastToken == tokens.C1 {
-			if t.strBuf.Len() == 1 {
-				if specialToken := getSpecialShortToken(t.strBuf.Bytes()[0]); specialToken != tokens.End {
-					ts = append(ts, specialToken)
-					indicies = append(indicies, idx)
-					return
-				}
-			} else if t.strBuf.Len() > 1 { // Only test special long tokens if buffer is > 1 token
-				if specialToken := getSpecialLongToken(t.strBuf.String()); specialToken != tokens.End {
-					ts = append(ts, specialToken)
-					indicies = append(indicies, idx-run)
-					return
-				}
-			}
-		}
-
-		// Check for char or digit runs
-		if lastToken == tokens.C1 || lastToken == tokens.D1 {
-			indicies = append(indicies, idx-run)
-			// Limit max run size
-			if run >= maxRun {
-				run = maxRun - 1
-			}
-			ts = append(ts, lastToken+tokens.Token(run))
-		} else {
-			ts = append(ts, lastToken)
-			indicies = append(indicies, idx-run)
-		}
-	}
-
-	for _, char := range input[1:] {
-		currentToken := getToken(char)
-		if currentToken != lastToken {
-			insertToken()
-		} else {
-			run++
-		}
-		if currentToken == tokens.C1 {
-			// Store upper case A-Z characters for matching special tokens
-			t.strBuf.WriteRune(unicode.ToUpper(rune(char)))
-		} else {
-			t.strBuf.WriteByte(char)
-		}
-		lastToken = currentToken
-		idx++
-	}
-
-	// Flush any remaining buffered tokens
-	insertToken()
-
-	return ts, indicies
+	return t.impl.Tokenize(input)
 }
 
 // getToken returns a single token from a single byte.
+// This helper is used by tests to ensure token/string round-tripping remains valid.
 func getToken(char byte) tokens.Token {
 	if unicode.IsDigit(rune(char)) {
 		return tokens.D1
@@ -191,39 +118,6 @@ func getToken(char byte) tokens.Token {
 	}
 
 	return tokens.C1
-}
-
-func getSpecialShortToken(char byte) tokens.Token {
-	switch char {
-	case 'T':
-		return tokens.T
-	case 'Z':
-		return tokens.Zone
-	}
-	return tokens.End
-}
-
-// getSpecialLongToken returns a special token that is > 1 character.
-// NOTE: This set of tokens is non-exhaustive and can be expanded.
-func getSpecialLongToken(input string) tokens.Token {
-	switch input {
-	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
-		"AUG", "SEP", "OCT", "NOV", "DEC":
-		return tokens.Month
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return tokens.Day
-	case "AM", "PM":
-		return tokens.Apm
-	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-		"MST", "MDT", "PST", "PDT", "JST", "KST",
-		"IST", "MSK", "CEST", "CET", "BST", "NZST",
-		"NZDT", "ACST", "ACDT", "AEST", "AEDT",
-		"AWST", "AWDT", "AKST", "AKDT", "HST",
-		"HDT", "CHST", "CHDT", "NST", "NDT":
-		return tokens.Zone
-	}
-
-	return tokens.End
 }
 
 // tokenToString converts a single token to a debug string.
