@@ -24,6 +24,8 @@ replace (
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
+replace google.golang.org/protobuf => github.com/pgimalac/protobuf-go v0.0.0-20260106094427-35bb641416e3
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
