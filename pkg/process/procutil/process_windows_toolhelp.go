@@ -114,7 +114,6 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 	}
 
 	for err = windows.Process32First(allProcsSnap, &pe32); err == nil; err = windows.Process32Next(allProcsSnap, &pe32) {
-		// TODO: We're not checking the err from Process32Next
 		pid := pe32.ProcessID
 		ppid := pe32.ParentProcessID
 
@@ -285,7 +284,6 @@ func GetParentPid(pid uint32) (uint32, error) {
 	}
 	defer windows.CloseHandle(allProcsSnap)
 	for err = windows.Process32First(allProcsSnap, &pe32); err == nil; err = windows.Process32Next(allProcsSnap, &pe32) {
-		// TODO: We're not checking the err from Process32Next
 		if pid == pe32.ProcessID {
 			return pe32.ParentProcessID, nil
 		}
