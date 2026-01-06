@@ -120,7 +120,6 @@ func (l *Loop) handleTask(
 
 	output, err := l.runner.RunTask(taskCtx, task, credential)
 	if err == nil {
-		logger.Info("task executed successfully")
 		l.publishSuccess(ctx, task, output)
 	} else {
 		logger.Warn("task execution failed", log.ErrorField(err))
