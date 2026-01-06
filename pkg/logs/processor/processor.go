@@ -304,7 +304,7 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 	if p.hostname == nil {
 		return "unknown"
 	}
-	hname, err := p.hostname.Get(context.TODO())
+	hname, err := p.hostname.Get(context.Background())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname

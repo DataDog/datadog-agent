@@ -26,7 +26,7 @@ type logFormatter struct {
 }
 
 func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) string {
-	hname, err := l.hostname.Get(context.TODO())
+	hname, err := l.hostname.Get(context.Background())
 	if err != nil {
 		hname = "unknown"
 	}
