@@ -60,6 +60,8 @@ func TestConntrackers(t *testing.T) {
 
 // JMWREVIEW
 // JMW combine with previous test?
+// JMWNEXT this tests __nf_conntrack_confirm.  What can I do to test nf_conntrack_hash_check_insert?
+// JMWNEXT can I dump conntrack maps in the tests?
 // TestConntrackerAlternateProbes tests the conntracker with the alternate probes
 // (__nf_conntrack_confirm + nf_conntrack_hash_check_insert) by mocking verifyKernelFuncs
 // to report that __nf_conntrack_hash_insert is not available.
