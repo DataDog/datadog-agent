@@ -15,17 +15,12 @@ type Provides struct {
 	Comp delegatedauth.Component
 }
 
-// Requires list the required objects to initialize the noop delegatedauth Component
-type Requires struct {
-	Log interface{} // Accept any log component or nil
-}
-
 type delegatedAuthNoop struct{}
 
 var _ delegatedauth.Component = (*delegatedAuthNoop)(nil)
 
 // NewComponent returns a no-op implementation for the delegated auth component
-func NewComponent(_ Requires) Provides {
+func NewComponent() Provides {
 	return Provides{
 		Comp: &delegatedAuthNoop{},
 	}

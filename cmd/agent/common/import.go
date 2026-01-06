@@ -58,7 +58,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 
 	cfg.AddConfigPath(newConfigDir)
-	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, delegatedauthnoop.NewComponent(delegatedauthnoop.Requires{}).Comp, nil)
+	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, delegatedauthnoop.NewComponent().Comp, nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

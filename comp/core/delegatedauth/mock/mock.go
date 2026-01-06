@@ -27,13 +27,8 @@ type Provides struct {
 	Comp delegatedauth.Component
 }
 
-// Requires list the required objects to initialize the mock delegatedauth Component
-type Requires struct {
-	Log interface{} // Accept any log component or nil
-}
-
 // New creates a new mock delegatedauth component for testing
-func New(_ *testing.T, _ Requires) Provides {
+func New(_ *testing.T) Provides {
 	return Provides{
 		Comp: &Mock{},
 	}

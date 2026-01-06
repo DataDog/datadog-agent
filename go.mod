@@ -978,6 +978,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/aymerick/raymond v2.0.2+incompatible

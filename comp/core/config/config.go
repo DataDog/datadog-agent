@@ -61,7 +61,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	d := dependencies{
 		Params:        NewParams(path, options...),
 		Secret:        secretsnoop.NewComponent().Comp,
-		DelegatedAuth: delegatedauthnoop.NewComponent(delegatedauthnoop.Requires{}).Comp,
+		DelegatedAuth: delegatedauthnoop.NewComponent().Comp,
 	}
 	return newConfig(d)
 }

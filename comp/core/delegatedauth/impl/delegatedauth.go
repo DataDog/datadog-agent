@@ -60,12 +60,8 @@ type Provides struct {
 	Comp delegatedauth.Component
 }
 
-// Requires list the required objects to initialize the delegatedauth Component
-type Requires struct {
-}
-
 // NewComponent creates a new delegated auth Component
-func NewComponent(_ Requires) Provides {
+func NewComponent() Provides {
 	comp := &delegatedAuthComponent{}
 
 	return Provides{
