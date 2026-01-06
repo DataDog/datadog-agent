@@ -32,7 +32,7 @@ Upgrade Notes
 New Features
 ------------
 
-- - Added the `agent workloadfilter` CLI command, which shows the active workload filter bundles,
+- Added the `agent workloadfilter` CLI command, which shows the active workload filter bundles,
     their load status, and the effective filter configuration.
 
 - Adds new Cluster Autoscaling controller in Cluster Agent.
