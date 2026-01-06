@@ -140,6 +140,9 @@ build do
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
 
+            # removing the local folder to reduce package size by ~0.5MB
+            delete "#{install_dir}/embedded/share/locale"
+
             # remove some debug ebpf object files to reduce the size of the package
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
