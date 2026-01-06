@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: agent-runtimes
@@ -44,7 +43,6 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
-		// Provide None for optional delegated auth component in tests
 		fx.Provide(func() delegatedauth.Component {
 			return delegatedauthimpl.NewComponent().Comp
 		}),

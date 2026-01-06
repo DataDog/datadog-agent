@@ -37,7 +37,6 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockTimeNow mocks time.Now
@@ -60,7 +59,6 @@ var testOptions = fx.Options(
 	logscompression.MockModule(),
 	telemetryimpl.MockModule(),
 	hostnameimpl.MockModule(),
-	// Provide None for optional delegated auth component in tests
 	fx.Provide(func() delegatedauth.Component {
 		return delegatedauthimpl.NewComponent().Comp
 	}),
