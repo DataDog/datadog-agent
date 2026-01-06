@@ -74,6 +74,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_confirm, struct sk_buff *skb) {
 
 SEC("kretprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
+    //JMWNEXT JMWDUP
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {
@@ -135,6 +136,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
 // Only update conntrack map if return value is 0 (success)
 SEC("kretprobe/nf_conntrack_hash_check_insert")
 int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
+    //JMWNEXT JMWDUP
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {
