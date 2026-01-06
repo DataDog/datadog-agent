@@ -18,12 +18,12 @@ import (
 
 // FileVersionInfo contains common version resource strings for a file.
 type FileVersionInfo struct {
-	CompanyName     string
-	ProductName     string
-	FileVersion     string
-	ProductVersion  string
-	OriginalFilename string
-	InternalName    string
+	CompanyName      string //nolint:revive
+	ProductName      string //nolint:revive
+	FileVersion      string //nolint:revive
+	ProductVersion   string //nolint:revive
+	OriginalFilename string //nolint:revive
+	InternalName     string //nolint:revive
 }
 
 // GetFileVersionInfoStrings returns common version resource strings for the specified file.
@@ -113,5 +113,3 @@ func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
 
 	return info, nil
 }
-
-
