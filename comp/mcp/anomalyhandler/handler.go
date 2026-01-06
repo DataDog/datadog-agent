@@ -167,23 +167,52 @@ func (h *anomalyHandler) OnAnomaly(anom anomaly.Anomaly) {
 	// Submit Datadog event for anomaly detection
 	sender, err := h.demultiplexer.GetDefaultSender()
 	if err != nil {
-		h.logger.Errorf("[MCP Anomaly Handler][%s] Failed to get sender: %v", conversationID, err)
+		h.logger.Errorf(
+			"[MCP Anomaly Handler][%s] Failed to get sender: %v",
+			conversationID,
+			err,
+		)
 	} else {
 		alertType := h.getAlertType(anom.Severity)
 
 		ev := event.Event{
-			Title: fmt.Sprintf("Anomaly Detected: %s", anom.MetricName),
-			Text: fmt.Sprintf("Anomaly type: %s\nValue: %.2f\nBaseline: %.2f\nSeverity: %s (%.2f)\nConversation ID: %s",
-				anom.Type, anom.Value, anom.Baseline, h.determineSeverity(anom.Severity), anom.Severity, conversationID),
+			Title: fmt.Sprintf(
+				"Anomaly Detected: %s",
+				anom.MetricName,
+			),
+			Text: fmt.Sprintf(
+				"Anomaly type: %s\nValue: %.2f\nBaseline: %.2f\nSeverity: %s (%.2f)\nConversation ID: %s",
+				anom.Type,
+				anom.Value,
+				anom.Baseline,
+				h.determineSeverity(anom.Severity),
+				anom.Severity,
+				conversationID,
+			),
 			AlertType:      alertType,
 			Priority:       event.PriorityNormal,
 			SourceTypeName: "mcp_anomaly_handler",
-			AggregationKey: fmt.Sprintf("mcp_anomaly:%s", anom.MetricName),
+			AggregationKey: fmt.Sprintf(
+				"mcp_anomaly:%s",
+				anom.MetricName,
+			),
 			Tags: []string{
-				fmt.Sprintf("metric_name:%s", anom.MetricName),
-				fmt.Sprintf("anomaly_type:%s", string(anom.Type)),
-				fmt.Sprintf("severity:%s", h.determineSeverity(anom.Severity)),
-				fmt.Sprintf("conversation_id:%s", conversationID),
+				fmt.Sprintf(
+					"metric_name:%s",
+					anom.MetricName,
+				),
+				fmt.Sprintf(
+					"anomaly_type:%s",
+					string(anom.Type),
+				),
+				fmt.Sprintf(
+					"severity:%s",
+					h.determineSeverity(anom.Severity),
+				),
+				fmt.Sprintf(
+					"conversation_id:%s",
+					conversationID,
+				),
 				"component:mcp",
 			},
 		}
@@ -214,11 +243,17 @@ func (h *anomalyHandler) OnAnomaly(anom anomaly.Anomaly) {
 
 	// Launch AI agent in a goroutine to avoid blocking
 	h.wg.Add(1)
-	go h.solveAnomaly(issue, conversationID)
+	go h.solveAnomaly(
+		issue,
+		conversationID,
+	)
 }
 
 // solveAnomaly uses the AI agent to investigate and resolve the anomaly
-func (h *anomalyHandler) solveAnomaly(issue mcpagent.Issue, conversationID string) {
+func (h *anomalyHandler) solveAnomaly(
+	issue mcpagent.Issue,
+	conversationID string,
+) {
 	defer h.wg.Done()
 
 	h.logger.Infof(
@@ -230,7 +265,7 @@ func (h *anomalyHandler) solveAnomaly(issue mcpagent.Issue, conversationID strin
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		5*time.Minute,
+		30*time.Minute,
 	)
 	defer cancel()
 
@@ -249,19 +284,39 @@ func (h *anomalyHandler) solveAnomaly(issue mcpagent.Issue, conversationID strin
 		// Submit event for agent failure
 		sender, senderErr := h.demultiplexer.GetDefaultSender()
 		if senderErr != nil {
-			h.logger.Errorf("[MCP Anomaly Handler][%s] Failed to get sender for error event: %v", conversationID, senderErr)
+			h.logger.Errorf(
+				"[MCP Anomaly Handler][%s] Failed to get sender for error event: %v",
+				conversationID,
+				senderErr,
+			)
 		} else {
 			errorEvent := event.Event{
-				Title: fmt.Sprintf("MCP AI Agent Failed: %s", issue.Metadata["metric_name"]),
-				Text: fmt.Sprintf("Issue: %s\n\nError: %v\nConversation ID: %s",
-					issue.Description, err, conversationID),
+				Title: fmt.Sprintf(
+					"MCP AI Agent Failed: %s",
+					issue.Metadata["metric_name"],
+				),
+				Text: fmt.Sprintf(
+					"Issue: %s\n\nError: %v\nConversation ID: %s",
+					issue.Description,
+					err,
+					conversationID,
+				),
 				AlertType:      event.AlertTypeError,
 				Priority:       event.PriorityNormal,
 				SourceTypeName: "mcp_ai_agent",
-				AggregationKey: fmt.Sprintf("mcp_agent_error:%s", issue.Metadata["metric_name"]),
+				AggregationKey: fmt.Sprintf(
+					"mcp_agent_error:%s",
+					issue.Metadata["metric_name"],
+				),
 				Tags: []string{
-					fmt.Sprintf("metric_name:%s", issue.Metadata["metric_name"]),
-					fmt.Sprintf("conversation_id:%s", conversationID),
+					fmt.Sprintf(
+						"metric_name:%s",
+						issue.Metadata["metric_name"],
+					),
+					fmt.Sprintf(
+						"conversation_id:%s",
+						conversationID,
+					),
 					"component:mcp",
 					"status:error",
 				},
@@ -290,38 +345,76 @@ func (h *anomalyHandler) solveAnomaly(issue mcpagent.Issue, conversationID strin
 	// Submit Datadog event for AI agent resolution
 	sender, senderErr := h.demultiplexer.GetDefaultSender()
 	if senderErr != nil {
-		h.logger.Errorf("[MCP Anomaly Handler][%s] Failed to get sender for resolution event: %v", conversationID, senderErr)
+		h.logger.Errorf(
+			"[MCP Anomaly Handler][%s] Failed to get sender for resolution event: %v",
+			conversationID,
+			senderErr,
+		)
 	} else {
 		var resolutionEvent event.Event
 
 		if result.Success {
 			resolutionEvent = event.Event{
-				Title: fmt.Sprintf("MCP AI Agent Resolved: %s", issue.Metadata["metric_name"]),
-				Text: fmt.Sprintf("Issue: %s\n\nResolution: %s\n\nSteps taken: %d\nConversation ID: %s",
-					issue.Description, result.FinalState, result.Iterations, conversationID),
+				Title: fmt.Sprintf(
+					"MCP AI Agent Resolved: %s",
+					issue.Metadata["metric_name"],
+				),
+				Text: fmt.Sprintf(
+					"Issue: %s\n\nResolution: %s\n\nSteps taken: %d\nConversation ID: %s",
+					issue.Description,
+					result.FinalState,
+					result.Iterations,
+					conversationID,
+				),
 				AlertType:      event.AlertTypeSuccess,
 				Priority:       event.PriorityNormal,
 				SourceTypeName: "mcp_ai_agent",
-				AggregationKey: fmt.Sprintf("mcp_resolution:%s", issue.Metadata["metric_name"]),
+				AggregationKey: fmt.Sprintf(
+					"mcp_resolution:%s",
+					issue.Metadata["metric_name"],
+				),
 				Tags: []string{
-					fmt.Sprintf("metric_name:%s", issue.Metadata["metric_name"]),
-					fmt.Sprintf("conversation_id:%s", conversationID),
+					fmt.Sprintf(
+						"metric_name:%s",
+						issue.Metadata["metric_name"],
+					),
+					fmt.Sprintf(
+						"conversation_id:%s",
+						conversationID,
+					),
 					"component:mcp",
 					"status:resolved",
 				},
 			}
 		} else {
 			resolutionEvent = event.Event{
-				Title: fmt.Sprintf("MCP AI Agent Could Not Resolve: %s", issue.Metadata["metric_name"]),
-				Text: fmt.Sprintf("Issue: %s\n\nFinal state: %s\n\nSteps attempted: %d\nConversation ID: %s",
-					issue.Description, result.FinalState, result.Iterations, conversationID),
+				Title: fmt.Sprintf(
+					"MCP AI Agent Could Not Resolve: %s",
+					issue.Metadata["metric_name"],
+				),
+				Text: fmt.Sprintf(
+					"Issue: %s\n\nFinal state: %s\n\nSteps attempted: %d\nConversation ID: %s",
+					issue.Description,
+					result.FinalState,
+					result.Iterations,
+					conversationID,
+				),
 				AlertType:      event.AlertTypeWarning,
 				Priority:       event.PriorityNormal,
 				SourceTypeName: "mcp_ai_agent",
-				AggregationKey: fmt.Sprintf("mcp_resolution:%s", issue.Metadata["metric_name"]),
+				AggregationKey: fmt.Sprintf(
+					"mcp_resolution:%s",
+					issue.Metadata["metric_name"],
+				),
 				Tags: []string{
-					fmt.Sprintf("metric_name:%s", issue.Metadata["metric_name"]),
-					fmt.Sprintf("conversation_id:%s", conversationID),
+					fmt.Sprintf(
+						"metric_name:%s",
+						issue.Metadata["metric_name"],
+					),
+					fmt.Sprintf(
+						"conversation_id:%s",
+						conversationID,
+					),
 					"component:mcp",
 					"status:unresolved",
 				},
