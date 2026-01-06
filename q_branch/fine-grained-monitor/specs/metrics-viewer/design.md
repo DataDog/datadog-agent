@@ -791,3 +791,831 @@ Study flow:
   5. Exit study -> restore previousSelection OR keep Y -> preserve time range
 ```
 
+---
+
+## Multi-Panel Comparison Implementation
+
+### REQ-MV-020: View Multiple Metrics Simultaneously
+
+#### Panel Architecture
+
+The viewer supports up to 5 chart panels stacked vertically. Each panel is an
+independent uPlot instance sharing a synchronized time axis.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Global Series Sidebar                        │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ 🔍 Search metrics...                                         │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  Panel 1: cpu_usage                                    [Edit][✕]    │
+│    • pod-frontend / cpu_usage                                        │
+│    • pod-backend / cpu_usage                                         │
+│    [+ Add Study]                                                     │
+│                                                                      │
+│  Panel 2: memory_current                               [Edit][✕]    │
+│    • pod-frontend / memory_current                                   │
+│    • pod-backend / memory_current                                    │
+│    [+ Add Study]                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Frontend State Model
+
+```javascript
+// Panel state
+let panels = [
+  {
+    id: 1,
+    metric: 'cpu_usage',
+    uplot: null,           // uPlot instance
+    studies: []            // Active studies on this panel
+  }
+];
+let maxPanels = 5;
+
+// Shared state (applies to all panels)
+let selectedContainers = [];  // Container IDs
+let timeRange = { min: null, max: null };  // Synchronized across panels
+```
+
+#### Panel Layout Rendering
+
+```javascript
+function renderPanels() {
+  const chartArea = document.getElementById('chart-area');
+  chartArea.innerHTML = '';
+
+  panels.forEach((panel, idx) => {
+    const panelDiv = document.createElement('div');
+    panelDiv.className = 'chart-panel';
+    panelDiv.id = `panel-${panel.id}`;
+    panelDiv.style.height = `${100 / panels.length}%`;
+    chartArea.appendChild(panelDiv);
+
+    // Initialize uPlot for this panel
+    panel.uplot = createUPlot(panelDiv, panel.metric);
+  });
+}
+```
+
+### REQ-MV-021: Global Series Sidebar
+
+#### Sidebar Structure
+
+The sidebar displays all series grouped by panel. Each panel section shows:
+- Panel header with metric name, edit button, and remove button
+- Series entries for each container on that panel
+- Add Study button
+
+```html
+<div id="series-sidebar">
+  <div class="metric-search">
+    <input type="text" id="metric-search-input" placeholder="Search metrics...">
+    <div id="metric-search-results"></div>
+  </div>
+
+  <div id="panel-groups">
+    <!-- Dynamically populated -->
+  </div>
+</div>
+```
+
+#### Series Entry Rendering
+
+```javascript
+function renderSeriesList() {
+  const container = document.getElementById('panel-groups');
+  container.innerHTML = '';
+
+  panels.forEach(panel => {
+    const group = document.createElement('div');
+    group.className = 'panel-group';
+    group.innerHTML = `
+      <div class="panel-header">
+        <span class="panel-metric">${panel.metric}</span>
+        <button class="edit-btn" onclick="editPanel(${panel.id})">Edit</button>
+        <button class="remove-btn" onclick="removePanel(${panel.id})"
+                ${panels.length === 1 ? 'disabled' : ''}>✕</button>
+      </div>
+      <div class="series-list">
+        ${selectedContainers.map(c => `
+          <div class="series-entry">
+            <span class="container-name">${getContainerName(c)}</span>
+            <span class="metric-name">/ ${panel.metric}</span>
+            ${renderStudyBadges(panel, c)}
+          </div>
+        `).join('')}
+      </div>
+      <button class="add-study-btn" onclick="addStudy(${panel.id})">
+        + Add Study
+      </button>
+    `;
+    container.appendChild(group);
+  });
+}
+```
+
+### REQ-MV-022: Add Panels via Metric Search
+
+#### Fuzzy Search Implementation
+
+Uses a lightweight fuzzy matching algorithm for metric filtering:
+
+```javascript
+function fuzzyMatch(query, text) {
+  query = query.toLowerCase();
+  text = text.toLowerCase();
+  let qi = 0;
+  for (let ti = 0; ti < text.length && qi < query.length; ti++) {
+    if (text[ti] === query[qi]) qi++;
+  }
+  return qi === query.length;
+}
+
+function filterMetrics(query) {
+  return availableMetrics.filter(m => fuzzyMatch(query, m.name));
+}
+```
+
+#### Search Input Behavior
+
+```javascript
+const searchInput = document.getElementById('metric-search-input');
+searchInput.addEventListener('input', debounce(async (e) => {
+  const query = e.target.value;
+  if (query.length < 1) {
+    hideSearchResults();
+    return;
+  }
+
+  const matches = filterMetrics(query);
+  showSearchResults(matches);
+}, 150));
+
+function showSearchResults(metrics) {
+  const results = document.getElementById('metric-search-results');
+  results.innerHTML = metrics.slice(0, 10).map(m => `
+    <div class="search-result" onclick="addPanelWithMetric('${m.name}')">
+      ${m.name}
+    </div>
+  `).join('');
+  results.style.display = 'block';
+}
+```
+
+#### Add Panel Action
+
+```javascript
+function addPanelWithMetric(metric) {
+  if (panels.length >= maxPanels) return;
+
+  const newPanel = {
+    id: Date.now(),
+    metric: metric,
+    uplot: null,
+    studies: []
+  };
+  panels.push(newPanel);
+
+  renderPanels();
+  renderSeriesList();
+  loadPanelData(newPanel);
+  hideSearchResults();
+  updateSearchInputState();
+}
+
+function updateSearchInputState() {
+  const input = document.getElementById('metric-search-input');
+  input.disabled = panels.length >= maxPanels;
+  input.placeholder = panels.length >= maxPanels
+    ? 'Maximum panels reached'
+    : 'Search metrics...';
+}
+```
+
+### REQ-MV-023: Edit Panel Metric via Sidebar
+
+#### Edit Modal
+
+Clicking "Edit" opens a modal to change the panel's metric:
+
+```javascript
+function editPanel(panelId) {
+  const panel = panels.find(p => p.id === panelId);
+  if (!panel) return;
+
+  showModal({
+    title: 'Edit Panel Metric',
+    content: `
+      <select id="edit-metric-select">
+        ${availableMetrics.map(m => `
+          <option value="${m.name}" ${m.name === panel.metric ? 'selected' : ''}>
+            ${m.name}
+          </option>
+        `).join('')}
+      </select>
+    `,
+    onConfirm: () => {
+      const newMetric = document.getElementById('edit-metric-select').value;
+      if (newMetric !== panel.metric) {
+        panel.metric = newMetric;
+        panel.studies = [];  // Clear studies on metric change (REQ-MV-023)
+        loadPanelData(panel);
+        renderSeriesList();
+      }
+    }
+  });
+}
+```
+
+### REQ-MV-024: Remove Panels via Sidebar
+
+```javascript
+function removePanel(panelId) {
+  if (panels.length <= 1) return;  // Prevent removing last panel
+
+  panels = panels.filter(p => p.id !== panelId);
+  renderPanels();
+  renderSeriesList();
+  updateSearchInputState();
+}
+```
+
+### REQ-MV-025: Synchronized Time Axis Across Panels
+
+#### Time Sync Hook
+
+When any panel's time range changes, propagate to all panels:
+
+```javascript
+function createUPlot(container, metric) {
+  const opts = {
+    // ... other options ...
+    hooks: {
+      setScale: [
+        (u, key) => {
+          if (key === 'x') {
+            syncTimeRange(u.scales.x.min, u.scales.x.max);
+          }
+        }
+      ]
+    }
+  };
+  return new uPlot(opts, data, container);
+}
+
+function syncTimeRange(min, max) {
+  if (timeRange.min === min && timeRange.max === max) return;
+
+  timeRange = { min, max };
+
+  panels.forEach(panel => {
+    if (panel.uplot) {
+      panel.uplot.setScale('x', { min, max });
+    }
+  });
+
+  // Update shared range overview
+  updateRangeOverview(min, max);
+}
+```
+
+#### Reset All Panels
+
+```javascript
+function resetAllPanels() {
+  const fullRange = getFullDataRange();
+  syncTimeRange(fullRange.min, fullRange.max);
+}
+```
+
+### REQ-MV-026: Shared Container Selection Across Panels
+
+Container selection is global. When selection changes, all panels update:
+
+```javascript
+function setSelectedContainers(containerIds) {
+  selectedContainers = containerIds;
+
+  // Reload data for all panels
+  panels.forEach(panel => {
+    loadPanelData(panel);
+  });
+
+  renderSeriesList();
+}
+
+async function loadPanelData(panel) {
+  if (selectedContainers.length === 0) {
+    panel.uplot.setData([[], ...selectedContainers.map(() => [])]);
+    return;
+  }
+
+  const response = await fetch(
+    `/api/timeseries?metric=${panel.metric}&containers=${selectedContainers.join(',')}`
+  );
+  const data = await response.json();
+  panel.uplot.setData(formatForUPlot(data));
+}
+```
+
+### REQ-MV-027: Panel-Specific Y-Axis Scaling
+
+Each panel configures its own Y-axis range based on visible data:
+
+```javascript
+function createUPlot(container, metric) {
+  const opts = {
+    scales: {
+      x: { time: true },
+      y: {
+        range: (u, dataMin, dataMax) => {
+          // Panel-specific auto-scaling
+          const padding = (dataMax - dataMin) * 0.1 || 1;
+          return [Math.max(0, dataMin - padding), dataMax + padding];
+        }
+      }
+    },
+    // ... other options
+  };
+  return new uPlot(opts, data, container);
+}
+```
+
+### REQ-MV-028: Shared Range Overview in Multi-Panel Mode
+
+A single range overview sits below all panels and controls the time axis:
+
+```
+┌────────────────────────────────────────┐
+│           Panel 1: cpu_usage           │
+├────────────────────────────────────────┤
+│           Panel 2: memory              │
+├────────────────────────────────────────┤
+│       [=======] Range Overview         │  <- Single overview
+└────────────────────────────────────────┘
+```
+
+#### Overview Synchronization
+
+```javascript
+let overviewUPlot = null;
+
+function createRangeOverview() {
+  const container = document.getElementById('range-overview');
+  overviewUPlot = new uPlot({
+    width: container.clientWidth,
+    height: 50,
+    cursor: { drag: { x: true, y: false } },
+    hooks: {
+      setScale: [
+        (u, key) => {
+          if (key === 'x') {
+            syncTimeRange(u.scales.x.min, u.scales.x.max);
+          }
+        }
+      ]
+    }
+  }, overviewData, container);
+}
+
+function updateRangeOverview(min, max) {
+  if (overviewUPlot) {
+    // Draw selection box on overview
+    overviewUPlot.setSelect({ left: min, width: max - min });
+  }
+}
+```
+
+### REQ-MV-029: Add Study to Panel
+
+#### Study Selection Flow
+
+```javascript
+function addStudy(panelId) {
+  const panel = panels.find(p => p.id === panelId);
+  if (!panel) return;
+
+  showModal({
+    title: 'Add Study',
+    content: `
+      <div class="study-selector">
+        <label>Study Type:</label>
+        <select id="study-type-select">
+          <option value="periodicity">Periodicity</option>
+          <option value="changepoint">Changepoint</option>
+        </select>
+      </div>
+      <div class="container-selector">
+        <label>Target Container:</label>
+        <select id="study-container-select">
+          ${selectedContainers.map(c => `
+            <option value="${c}">${getContainerName(c)}</option>
+          `).join('')}
+        </select>
+      </div>
+    `,
+    onConfirm: async () => {
+      const studyType = document.getElementById('study-type-select').value;
+      const container = document.getElementById('study-container-select').value;
+
+      await runStudyOnPanel(panel, studyType, container);
+    }
+  });
+}
+
+async function runStudyOnPanel(panel, studyType, containerId) {
+  const response = await fetch(
+    `/api/study/${studyType}?metric=${panel.metric}&container=${containerId}`
+  );
+  const result = await response.json();
+
+  panel.studies.push({
+    type: studyType,
+    container: containerId,
+    result: result
+  });
+
+  renderStudyOverlay(panel);
+  renderSeriesList();
+}
+```
+
+### REQ-MV-030: Study Series in Sidebar
+
+Studies appear as entries in the sidebar under their panel:
+
+```javascript
+function renderStudyBadges(panel, containerId) {
+  const containerStudies = panel.studies.filter(s => s.container === containerId);
+  if (containerStudies.length === 0) return '';
+
+  return containerStudies.map(study => `
+    <span class="study-badge ${study.type}">
+      ${study.type}
+      <button class="remove-study" onclick="removeStudy(${panel.id}, '${study.type}', '${containerId}')">
+        ✕
+      </button>
+    </span>
+  `).join('');
+}
+
+function removeStudy(panelId, studyType, containerId) {
+  const panel = panels.find(p => p.id === panelId);
+  if (!panel) return;
+
+  panel.studies = panel.studies.filter(
+    s => !(s.type === studyType && s.container === containerId)
+  );
+
+  renderStudyOverlay(panel);
+  renderSeriesList();
+}
+```
+
+### REQ-MV-031: Studies Do Not Consume Panel Slots
+
+Studies are overlays on existing panels, tracked in `panel.studies[]`. The
+5-panel limit applies only to chart panels, not study overlays:
+
+```javascript
+function canAddPanel() {
+  return panels.length < maxPanels;  // Studies don't count
+}
+```
+
+---
+
+## Multi-Panel API Changes
+
+No backend API changes required. The existing endpoints support multi-panel:
+
+- `GET /api/metrics` - Returns all available metrics (used by metric search)
+- `GET /api/containers?metric=X` - Returns containers (shared selection)
+- `GET /api/timeseries?metric=X&containers=a,b` - Called once per panel
+- `GET /api/study/{type}?metric=X&container=Y` - Called for each study
+
+The frontend manages panel state and makes parallel API calls for each panel's
+data.
+
+---
+
+## Dashboard System Implementation
+
+Dashboards are declarative JSON files that configure the viewer's initial state:
+container filters, time range, and panels. They enable reproducible incident
+investigations and shareable analysis configurations.
+
+### REQ-MV-032: Filter Containers by Labels
+
+#### API Change
+
+Add `labels` query parameter to `/api/containers`:
+
+```
+GET /api/containers?metric=X&labels=key1:value1,key2:value2
+```
+
+#### Implementation
+
+Extend `ContainersQuery` struct in `server.rs`:
+
+```rust
+#[derive(Deserialize)]
+struct ContainersQuery {
+    metric: String,
+    #[serde(default)]
+    qos_class: Option<String>,
+    #[serde(default)]
+    namespace: Option<String>,
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default)]
+    labels: Option<String>,  // NEW: comma-separated key:value pairs
+}
+```
+
+Parse and filter in handler:
+
+```rust
+// Parse labels parameter
+if let Some(ref labels_str) = query.labels {
+    let label_filters: Vec<(&str, &str)> = labels_str
+        .split(',')
+        .filter_map(|kv| kv.split_once(':'))
+        .collect();
+
+    // Filter containers matching ALL labels
+    containers.retain(|c| {
+        if let Some(ref container_labels) = c.labels {
+            label_filters.iter().all(|(k, v)| {
+                container_labels.get(*k).map(|lv| lv == *v).unwrap_or(false)
+            })
+        } else {
+            false
+        }
+    });
+}
+```
+
+### REQ-MV-033: Load Dashboard Configuration
+
+#### Dashboard JSON Schema v1
+
+```json
+{
+  "schema_version": 1,
+  "name": "Dashboard Title",
+  "description": "Optional description",
+
+  "containers": {
+    "namespace": "default",
+    "label_selector": { "key": "value" },
+    "name_pattern": "pod-*/container-*"
+  },
+
+  "time_range": {
+    "mode": "from_containers",
+    "padding_seconds": 30
+  },
+
+  "panels": [
+    { "metric": "cpu_percentage", "title": "CPU Usage" },
+    { "metric": "cgroup.v2.memory.current", "title": "Memory" }
+  ]
+}
+```
+
+#### URL Parameters
+
+- `?dashboard=<url>` - Fetch dashboard from URL (relative or absolute)
+- `?dashboard_inline=<base64>` - Decode inline dashboard JSON
+- `?run_id=<value>` - Template variable substitution for `{{RUN_ID}}`
+
+#### Frontend Loading Flow
+
+In `app.js` initialization:
+
+```javascript
+async function init() {
+    const params = new URLSearchParams(window.location.search);
+
+    // Check for dashboard parameter
+    const dashboardUrl = params.get('dashboard');
+    const dashboardInline = params.get('dashboard_inline');
+
+    if (dashboardUrl || dashboardInline) {
+        try {
+            const dashboard = dashboardUrl
+                ? await Effects.loadDashboard(dashboardUrl, params)
+                : JSON.parse(atob(dashboardInline));
+
+            await applyDashboard(dashboard, params);
+        } catch (e) {
+            console.error('Failed to load dashboard:', e);
+            showError(`Dashboard load failed: ${e.message}`);
+            // Fall back to default empty view
+        }
+        return;
+    }
+
+    // Default initialization...
+}
+```
+
+#### Template Variable Substitution
+
+```javascript
+function substituteTemplateVars(dashboard, params) {
+    const json = JSON.stringify(dashboard);
+    const substituted = json.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+        const value = params.get(varName.toLowerCase());
+        return value || match;  // Keep original if no substitution
+    });
+    return JSON.parse(substituted);
+}
+```
+
+### REQ-MV-034: Filter Containers via Dashboard
+
+#### Apply Container Filters
+
+```javascript
+async function applyDashboard(dashboard, params) {
+    // Substitute template variables
+    dashboard = substituteTemplateVars(dashboard, params);
+
+    // Build API query from dashboard filters
+    const filterParams = new URLSearchParams();
+    filterParams.set('metric', dashboard.panels[0]?.metric || 'cpu_percentage');
+
+    if (dashboard.containers?.namespace) {
+        filterParams.set('namespace', dashboard.containers.namespace);
+    }
+    if (dashboard.containers?.label_selector) {
+        const labels = Object.entries(dashboard.containers.label_selector)
+            .map(([k, v]) => `${k}:${v}`)
+            .join(',');
+        filterParams.set('labels', labels);
+    }
+
+    // Fetch filtered containers
+    const containers = await Effects.fetchContainers(filterParams);
+
+    // Apply name_pattern filter client-side (glob matching)
+    const filtered = dashboard.containers?.name_pattern
+        ? containers.filter(c => globMatch(c.pod_name, dashboard.containers.name_pattern))
+        : containers;
+
+    // Select all matching containers
+    StateMachine.dispatch({
+        type: 'SET_SELECTED_CONTAINERS',
+        containers: filtered.map(c => c.short_id)
+    });
+}
+```
+
+### REQ-MV-035: Automatic Time Range from Containers
+
+#### Time Range Computation
+
+```javascript
+function computeTimeRange(containers, config) {
+    if (config.mode !== 'from_containers') {
+        return null;  // Use default behavior
+    }
+
+    // Find earliest first_seen and latest last_seen
+    let earliest = Infinity;
+    let latest = -Infinity;
+
+    containers.forEach(c => {
+        if (c.first_seen) earliest = Math.min(earliest, c.first_seen);
+        if (c.last_seen) latest = Math.max(latest, c.last_seen);
+    });
+
+    if (earliest === Infinity || latest === -Infinity) {
+        // No valid bounds, fall back to last hour
+        const now = Date.now();
+        return { min: now - 3600000, max: now };
+    }
+
+    // Apply padding
+    const padding = (config.padding_seconds || 0) * 1000;
+    return {
+        min: earliest - padding,
+        max: latest + padding
+    };
+}
+```
+
+### REQ-MV-036: Configure Panels from Dashboard
+
+#### Panel Creation
+
+```javascript
+async function createPanelsFromDashboard(dashboard) {
+    // Limit to 5 panels maximum
+    const panelConfigs = (dashboard.panels || []).slice(0, 5);
+
+    // Clear existing panels
+    StateMachine.dispatch({ type: 'CLEAR_PANELS' });
+
+    // Create each panel
+    for (const config of panelConfigs) {
+        StateMachine.dispatch({
+            type: 'ADD_PANEL',
+            metric: config.metric,
+            title: config.title || config.metric
+        });
+
+        // Run study if configured
+        if (config.study) {
+            // Studies require single container - apply pattern filter
+            const targetContainer = findContainerByPattern(config.study.container_pattern);
+            if (targetContainer) {
+                await runStudy(config.study.type, config.metric, targetContainer);
+            }
+        }
+    }
+}
+```
+
+### Dashboard Loading Effect
+
+In `effects.js`:
+
+```javascript
+async function loadDashboard(url, params) {
+    // Handle relative URLs
+    const fullUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+
+    const response = await fetch(fullUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch dashboard: ${response.status}`);
+    }
+
+    const dashboard = await response.json();
+
+    // Validate schema version
+    if (dashboard.schema_version !== 1) {
+        throw new Error(`Unsupported dashboard schema version: ${dashboard.schema_version}`);
+    }
+
+    return substituteTemplateVars(dashboard, params);
+}
+```
+
+### Example Dashboard: sigpipe-crash
+
+Located at `dashboards/sigpipe-crash.json`:
+
+```json
+{
+  "schema_version": 1,
+  "name": "SIGPIPE Crash Pattern",
+  "description": "Container crashes from SIGPIPE (exit 141) when UDS server restarts",
+
+  "containers": {
+    "namespace": "default",
+    "label_selector": { "fgm-scenario": "{{RUN_ID}}" }
+  },
+
+  "time_range": {
+    "mode": "from_containers",
+    "padding_seconds": 30
+  },
+
+  "panels": [
+    { "metric": "cpu_percentage", "title": "CPU Usage %" },
+    { "metric": "cgroup.v2.memory.current", "title": "Memory" },
+    { "metric": "cgroup.v2.pids.current", "title": "PIDs" }
+  ]
+}
+```
+
+Usage: `http://localhost:8050/?dashboard=/dashboards/sigpipe-crash.json&run_id=abc123`
+
+### Serving Dashboard Files
+
+Dashboard JSON files in `dashboards/` are served as static files. Add route in
+`server.rs`:
+
+```rust
+.route("/dashboards/:name", get(dashboard_file_handler))
+
+async fn dashboard_file_handler(Path(name): Path<String>) -> Response {
+    let static_dir = get_static_dir();
+    let path = static_dir.parent().unwrap().join("dashboards").join(&name);
+
+    match std::fs::read_to_string(&path) {
+        Ok(content) => (
+            [(header::CONTENT_TYPE, "application/json")],
+            content,
+        ).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "Dashboard not found").into_response()
+    }
+}
+

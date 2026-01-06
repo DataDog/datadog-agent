@@ -371,3 +371,314 @@ relevant to ongoing investigations. Instant container list loading enables rapid
 metric switching during incident triage.
 
 ---
+
+## Multi-Panel Comparison Requirements
+
+### REQ-MV-020: View Multiple Metrics Simultaneously
+
+WHEN user adds multiple panels
+THE SYSTEM SHALL display up to 5 chart panels stacked vertically
+
+WHEN user has one panel
+THE SYSTEM SHALL prevent removal of that panel
+
+WHEN user has 5 panels
+THE SYSTEM SHALL prevent adding additional panels
+
+**Rationale:** Engineers investigating incidents need to correlate multiple signals.
+Viewing CPU throttling alongside memory pressure and network IO reveals relationships
+invisible when switching between single metrics. The 5-panel limit balances comparison
+power with screen real estate.
+
+---
+
+### REQ-MV-021: Global Series Sidebar
+
+WHEN user views the series sidebar
+THE SYSTEM SHALL display all plotted series grouped by panel
+
+WHEN displaying a series entry
+THE SYSTEM SHALL show: Container name, Metric name, and Study type (if applicable)
+
+WHEN multiple containers are selected
+THE SYSTEM SHALL show one entry per container under each panel
+
+**Rationale:** Engineers need to see exactly what data is plotted. The sidebar
+provides a clear inventory of all series across all panels, making it easy to
+understand complex multi-panel views at a glance. Grouping by panel reinforces
+which data belongs to which chart.
+
+---
+
+### REQ-MV-022: Add Panels via Metric Search
+
+WHEN user focuses the metric search input in the sidebar
+THE SYSTEM SHALL show a searchable list of available metrics
+
+WHEN user types in the metric search
+THE SYSTEM SHALL filter metrics using fuzzy matching
+
+WHEN user selects a metric from search results
+THE SYSTEM SHALL add a new panel displaying that metric for all selected containers
+
+WHEN 5 panels already exist
+THE SYSTEM SHALL disable the metric search input
+
+**Rationale:** Fuzzy search enables rapid panel creation without navigating dropdown
+menus. Engineers can type "cpu" and quickly find cpu_user, cpu_system, cpu_throttled.
+Adding panels with all selected containers maintains consistency with the shared
+container selection model.
+
+---
+
+### REQ-MV-023: Edit Panel Metric via Sidebar
+
+WHEN user edits a panel entry in the sidebar
+THE SYSTEM SHALL allow changing that panel's metric
+
+WHEN user changes a panel's metric
+THE SYSTEM SHALL preserve the time range and container selection
+
+WHEN user changes a panel's metric
+THE SYSTEM SHALL remove any active studies on that panel
+
+**Rationale:** Engineers often realize mid-investigation they want a different
+metric. Editing in-place is faster than removing and re-adding. Removing studies
+on metric change prevents confusion from stale analysis results.
+
+---
+
+### REQ-MV-024: Remove Panels via Sidebar
+
+WHEN user removes a panel entry from the sidebar
+THE SYSTEM SHALL remove that panel and its series from the display
+
+WHEN user removes a panel
+THE SYSTEM SHALL preserve the time range and container selection for remaining panels
+
+WHEN only one panel remains
+THE SYSTEM SHALL disable the remove action for that panel
+
+**Rationale:** Engineers need to simplify views as investigations narrow focus.
+Easy panel removal supports iterative refinement. The minimum of one panel ensures
+the viewer always displays something useful.
+
+---
+
+### REQ-MV-025: Synchronized Time Axis Across Panels
+
+WHEN user zooms on any panel
+THE SYSTEM SHALL apply the same zoom level and time range to all panels
+
+WHEN user pans on any panel
+THE SYSTEM SHALL pan all panels by the same time offset
+
+WHEN user clicks reset on any panel
+THE SYSTEM SHALL reset all panels to show the full time range
+
+**Rationale:** Correlating events across metrics requires seeing the exact same time
+window. If CPU spikes at 14:32:15, engineers need to see what memory and IO were
+doing at that precise moment. Synchronized navigation eliminates tedious manual
+alignment between panels.
+
+---
+
+### REQ-MV-026: Shared Container Selection Across Panels
+
+WHEN user selects containers from the container list
+THE SYSTEM SHALL display those containers on all panels
+
+WHEN user deselects a container
+THE SYSTEM SHALL remove that container's series from all panels
+
+WHEN user changes container selection
+THE SYSTEM SHALL preserve each panel's metric and time range
+
+**Rationale:** When comparing metrics, engineers typically investigate the same
+containers across all views. Shared selection reduces clicks and ensures panels
+stay synchronized. If investigating pod "frontend-abc123", all panels should show
+that pod's CPU, memory, and IO together.
+
+---
+
+### REQ-MV-027: Panel-Specific Y-Axis Scaling
+
+WHEN panels display different metrics
+EACH PANEL SHALL scale its Y-axis independently to fit its visible data
+
+WHEN the visible time range changes
+EACH PANEL SHALL recalculate its own Y-axis bounds
+
+WHEN a panel's displayed containers or metric changes
+THAT PANEL SHALL rescale its Y-axis to fit the new data
+
+**Rationale:** Different metrics have vastly different scales. CPU percentage
+ranges 0-100% while memory might be 0-16GB. Each panel must scale independently
+to make patterns visible; a shared Y-axis would compress one metric to invisibility.
+
+---
+
+### REQ-MV-028: Shared Range Overview in Multi-Panel Mode
+
+WHEN multiple panels are displayed
+THE SYSTEM SHALL show a single range overview below all panels
+
+WHEN user interacts with the range overview
+THE SYSTEM SHALL update all panels to the selected time region
+
+**Rationale:** One range overview reinforces the mental model that all panels share
+the same time axis. Multiple overviews would waste space and create confusion. The
+overview shows "where you are" in the full timeline regardless of which panel the
+user is examining.
+
+---
+
+### REQ-MV-029: Add Study to Panel
+
+WHEN user clicks "Add Study" under a panel section in the sidebar
+THE SYSTEM SHALL show available study types (periodicity, changepoint)
+
+WHEN user selects a study type
+THE SYSTEM SHALL prompt for target container selection (single container)
+
+WHEN user completes study selection
+THE SYSTEM SHALL add a study series entry under that panel in the sidebar
+
+WHEN study is added
+THE SYSTEM SHALL display study results as overlay (raw data with markers) on that panel
+
+**Rationale:** Studies provide deep analytical insight into specific container
+behavior. The inline "Add Study" button in the sidebar makes it clear which panel
+receives the study. Single-container focus ensures meaningful statistical analysis
+without cross-container noise.
+
+---
+
+### REQ-MV-030: Study Series in Sidebar
+
+WHEN a study is active on a panel
+THE SYSTEM SHALL display the study as a series entry showing Container / Metric / Study Type
+
+WHEN user removes a study series from the sidebar
+THE SYSTEM SHALL remove the study overlay from that panel
+
+WHEN user changes the panel's base metric
+THE SYSTEM SHALL remove all studies on that panel
+
+**Rationale:** Studies appear in the sidebar alongside regular series, making it
+clear what analytical overlays are active. Removing studies when the base metric
+changes prevents confusion from stale analysis that no longer matches the displayed
+data.
+
+---
+
+### REQ-MV-031: Studies Do Not Consume Panel Slots
+
+WHEN user adds a study to a panel
+THE SYSTEM SHALL NOT count the study toward the 5-panel maximum
+
+WHEN user has 5 panels with studies on each
+THE SYSTEM SHALL allow all studies to remain active
+
+**Rationale:** Studies are overlays that enhance existing panels, not separate views
+competing for screen space. Engineers should be able to run periodicity analysis on
+all 5 panels without hitting artificial limits.
+
+---
+
+## Dashboard Requirements
+
+### REQ-MV-032: Filter Containers by Labels
+
+WHEN user requests containers with label filters via API
+THE SYSTEM SHALL return only containers whose labels match all specified key-value pairs
+
+WHEN label filter specifies a key that doesn't exist on a container
+THE SYSTEM SHALL exclude that container from results
+
+WHEN label filter is combined with other filters (namespace, search)
+THE SYSTEM SHALL apply all filters as intersection
+
+**Rationale:** Engineers investigating specific incidents need to focus on related
+containers. Filtering by Kubernetes labels (e.g., `fgm-scenario: abc123`) reduces
+noise and enables targeted analysis of correlated containers.
+
+---
+
+### REQ-MV-033: Load Dashboard Configuration
+
+WHEN user navigates to viewer with `?dashboard=<url>` parameter
+THE SYSTEM SHALL fetch and parse the dashboard JSON from the URL
+
+WHEN user navigates with `?dashboard_inline=<base64>` parameter
+THE SYSTEM SHALL decode and parse the inline dashboard JSON
+
+WHEN dashboard JSON is invalid or unreachable
+THE SYSTEM SHALL display an error message and fall back to default empty view
+
+WHEN dashboard contains template variables (e.g., `{{RUN_ID}}`)
+THE SYSTEM SHALL substitute values from URL parameters (e.g., `?run_id=abc123`)
+
+**Rationale:** Engineers need reproducible views of specific incidents. Dashboard
+URLs enable sharing investigation context with teammates and preserving analysis
+configurations for post-mortems.
+
+---
+
+### REQ-MV-034: Filter Containers via Dashboard
+
+WHEN dashboard specifies `containers.label_selector`
+THE SYSTEM SHALL filter the container list to those matching all specified labels
+
+WHEN dashboard specifies `containers.namespace`
+THE SYSTEM SHALL filter containers to those in the specified namespace
+
+WHEN dashboard specifies `containers.name_pattern`
+THE SYSTEM SHALL filter containers to those whose names match the glob pattern
+
+WHEN multiple container filters are specified
+THE SYSTEM SHALL apply all filters as intersection
+
+**Rationale:** Dashboard authors need declarative control over which containers
+appear. Label selectors integrate naturally with Kubernetes labeling conventions,
+enabling scenarios like "show all containers from this scenario run."
+
+---
+
+### REQ-MV-035: Automatic Time Range from Containers
+
+WHEN dashboard specifies `time_range.mode: "from_containers"`
+THE SYSTEM SHALL set the time range from earliest `first_seen` to latest `last_seen`
+of filtered containers
+
+WHEN dashboard specifies `time_range.padding_seconds`
+THE SYSTEM SHALL expand the computed time range by the specified padding on both ends
+
+WHEN filtered containers have no valid time bounds
+THE SYSTEM SHALL fall back to showing the last hour
+
+**Rationale:** Incident investigations should automatically focus on when the
+relevant containers were active. Manual time range selection wastes time and risks
+missing critical data outside a guessed range.
+
+---
+
+### REQ-MV-036: Configure Panels from Dashboard
+
+WHEN dashboard specifies a `panels` array
+THE SYSTEM SHALL create chart panels with the specified metrics
+
+WHEN a panel specifies a `title`
+THE SYSTEM SHALL display that title instead of the metric name
+
+WHEN a panel specifies a `study` configuration
+THE SYSTEM SHALL automatically run the study on matching containers after data loads
+
+WHEN dashboard specifies more than 5 panels
+THE SYSTEM SHALL create only the first 5 panels
+
+**Rationale:** Dashboard authors need to prescribe which metrics are relevant for
+a given investigation. Pre-configured panels with studies accelerate root cause
+analysis by surfacing analytical overlays automatically.
+
+---

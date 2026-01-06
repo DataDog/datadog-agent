@@ -73,7 +73,34 @@ collector operate independently with shared volume access.
 | **REQ-MV-018:** Visualize Changepoint Locations | ✅ Complete | Solid vertical lines with direction arrows |
 | **REQ-MV-019:** Container List Sorted by Recency | ✅ Complete | Replaces Top N; 0ms via index.json |
 
-**Progress:** 19 of 19 complete
+### Multi-Panel Comparison
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| **REQ-MV-020:** View Multiple Metrics Simultaneously | ✅ Complete | Up to 5 panels stacked vertically |
+| **REQ-MV-021:** Global Series Sidebar | ✅ Complete | Panels section in sidebar with numbered chips |
+| **REQ-MV-022:** Add Panels via Metric Search | ✅ Complete | "+" button adds panel with dropdown selection |
+| **REQ-MV-023:** Edit Panel Metric via Sidebar | ✅ Complete | Dropdown in each panel header |
+| **REQ-MV-024:** Remove Panels via Sidebar | ✅ Complete | "×" button, min 1 panel enforced |
+| **REQ-MV-025:** Synchronized Time Axis Across Panels | ✅ Complete | uPlot sync instance shared across panels |
+| **REQ-MV-026:** Shared Container Selection Across Panels | ✅ Complete | Container list applies to all panels |
+| **REQ-MV-027:** Panel-Specific Y-Axis Scaling | ✅ Complete | Each panel auto-scales independently |
+| **REQ-MV-028:** Shared Range Overview in Multi-Panel Mode | ✅ Complete | Single overview below all panels |
+| **REQ-MV-029:** Add Study to Panel | ✅ Complete | Study icon button per container |
+| **REQ-MV-030:** Study Series in Sidebar | ✅ Complete | Studies section with active studies |
+| **REQ-MV-031:** Studies Do Not Consume Panel Slots | ✅ Complete | Studies are overlays on existing panels |
+
+### Dashboard System
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| **REQ-MV-032:** Filter Containers by Labels | ✅ Complete | API: `labels=key:value` query param |
+| **REQ-MV-033:** Load Dashboard Configuration | ✅ Complete | `?dashboard=url` or `?dashboard_inline=base64` |
+| **REQ-MV-034:** Filter Containers via Dashboard | ✅ Complete | Apply label_selector, namespace from JSON |
+| **REQ-MV-035:** Automatic Time Range from Containers | ✅ Complete | Compute from first_seen/last_seen |
+| **REQ-MV-036:** Configure Panels from Dashboard | ✅ Complete | Create panels from JSON spec |
+
+**Progress:** 36 of 36 complete
 
 ## Terminology Note
 

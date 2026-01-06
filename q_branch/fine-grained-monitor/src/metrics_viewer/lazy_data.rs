@@ -338,8 +338,12 @@ impl LazyDataStore {
                     namespace: entry.namespace.clone(),
                     pod_name: entry.pod_name.clone(),
                     container_name: entry.container_name.clone(),
+                    // REQ-MV-035: Store first_seen for time range computation
+                    first_seen_ms: Some(entry.first_seen.timestamp_millis()),
                     // REQ-MV-019: Store last_seen for sorting
                     last_seen_ms: Some(entry.last_seen.timestamp_millis()),
+                    // REQ-MV-032: Pod labels from Kubernetes API
+                    labels: entry.labels.clone(),
                 },
             );
             qos_classes.insert(entry.qos_class.clone());
@@ -880,7 +884,9 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                             namespace,
                             pod_name,
                             container_name,
-                            last_seen_ms: None, // Not available from parquet scan
+                            first_seen_ms: None, // Not available from parquet scan
+                            last_seen_ms: None,  // Not available from parquet scan
+                            labels: None,        // Not available from parquet scan
                         },
                     );
                 }

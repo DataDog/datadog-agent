@@ -50,6 +50,7 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
 
     let app = Router::new()
         .route("/", get(index_handler))
+        .route("/dashboards/:name", get(dashboard_file_handler))
         .route("/api/health", get(health_handler))
         .route("/api/instance", get(instance_handler))
         .route("/api/metrics", get(metrics_handler))
@@ -107,6 +108,41 @@ async fn index_handler() -> Html<String> {
 
     // Fall back to embedded version
     Html(EMBEDDED_INDEX_HTML.to_string())
+}
+
+/// Serve dashboard JSON files from the dashboards/ directory.
+/// REQ-MV-033: Dashboard files are served for ?dashboard= URL parameter.
+async fn dashboard_file_handler(Path(name): Path<String>) -> Response {
+    // Security: only allow .json files and prevent path traversal
+    if !name.ends_with(".json") || name.contains("..") || name.contains('/') {
+        return (StatusCode::BAD_REQUEST, "Invalid dashboard name").into_response();
+    }
+
+    // Look for dashboards in parent of static dir (crate root) or common locations
+    let candidates = [
+        "dashboards",                                           // From crate root
+        "q_branch/fine-grained-monitor/dashboards",             // From repo root
+        "/dashboards",                                          // In-container
+    ];
+
+    for candidate in candidates {
+        let path = std::path::PathBuf::from(candidate).join(&name);
+        if path.exists() {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    return (
+                        [(header::CONTENT_TYPE, "application/json")],
+                        content,
+                    ).into_response();
+                }
+                Err(e) => {
+                    eprintln!("Failed to read dashboard {}: {}", path.display(), e);
+                }
+            }
+        }
+    }
+
+    (StatusCode::NOT_FOUND, format!("Dashboard not found: {}", name)).into_response()
 }
 
 /// GET /api/health - health check endpoint for dev tooling.
@@ -213,6 +249,7 @@ struct FiltersResponse {
 /// GET /api/containers - list containers for a metric with optional filters.
 /// REQ-MV-003: Search and select containers by name, qos_class, or namespace.
 /// REQ-MV-019: Containers sorted by last_seen (most recent first) - instant response.
+/// REQ-MV-032: Filter by labels (key:value pairs).
 #[derive(Deserialize)]
 struct ContainersQuery {
     #[allow(dead_code)]
@@ -223,6 +260,8 @@ struct ContainersQuery {
     namespace: Option<String>,
     #[serde(default)]
     search: Option<String>,
+    #[serde(default)]
+    labels: Option<String>, // REQ-MV-032: comma-separated key:value pairs
 }
 
 async fn containers_handler(
@@ -232,6 +271,18 @@ async fn containers_handler(
     // REQ-MV-019: Get containers from index sorted by last_seen (instant!)
     // This replaces the slow get_container_stats() which read all parquet files
     let all_containers = state.data.get_containers_by_recency();
+
+    // REQ-MV-032: Parse label filters if provided
+    let label_filters: Vec<(&str, &str)> = query
+        .labels
+        .as_ref()
+        .map(|labels_str| {
+            labels_str
+                .split(',')
+                .filter_map(|kv| kv.split_once(':'))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let containers: Vec<ContainerInfo> = all_containers
         .into_iter()
@@ -263,6 +314,19 @@ async fn containers_handler(
                     .map(|n| n.to_lowercase().contains(&search_lower))
                     .unwrap_or(false);
                 if !matches_id && !matches_pod && !matches_container {
+                    return false;
+                }
+            }
+            // REQ-MV-032: Filter by labels (all specified labels must match)
+            if !label_filters.is_empty() {
+                if let Some(ref container_labels) = c.labels {
+                    if !label_filters.iter().all(|(k, v)| {
+                        container_labels.get(*k).map(|lv| lv == *v).unwrap_or(false)
+                    }) {
+                        return false;
+                    }
+                } else {
+                    // Container has no labels but filter requires labels
                     return false;
                 }
             }
