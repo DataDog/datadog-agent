@@ -91,6 +91,61 @@ func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protoc
 	return httpStats
 }
 
+// verifyHTTPStats checks if HTTP stats matching the criteria exist and optionally validates them with a custom function.
+// Returns true if stats are found and pass validation (if provided).
+func verifyHTTPStats(t *testing.T, monitor Monitor, serverPort int, testPath string, expectedStatus int, validateFn func(*testing.T, *http.RequestStat) bool) bool {
+	t.Helper()
+
+	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
+
+	for key, reqStats := range stats {
+		t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
+
+		if key.Method != http.MethodGet {
+			continue
+		}
+		if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
+			continue
+		}
+		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+			continue
+		}
+
+		if stat := reqStats.Data[uint16(expectedStatus)]; stat != nil && stat.Count >= 1 {
+			// If no custom validation, return true
+			if validateFn == nil {
+				return true
+			}
+			// Run custom validation
+			return validateFn(t, stat)
+		}
+	}
+
+	return false
+}
+
+// verifyIISDynamicTags validates that IIS-specific dynamic tags are present in the request stats.
+func verifyIISDynamicTags(t *testing.T, stat *http.RequestStat, expectedTags map[string]struct{}) bool {
+	t.Helper()
+
+	// Verify IIS dynamic tags are present
+	require.NotNil(t, stat.DynamicTags, "Dynamic tags should be present for IIS traffic")
+
+	statsTags := make(map[string]struct{})
+	for _, tag := range stat.DynamicTags.GetAll() {
+		if name, _, ok := strings.Cut(tag, ":"); ok && name != "" {
+			statsTags[name] = struct{}{}
+		}
+	}
+
+	// Verify all expected tags are present
+	for tag := range expectedTags {
+		require.Contains(t, statsTags, tag, "Expected IIS tag %s to be present", tag)
+	}
+	t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
+	return true
+}
+
 // TestHTTPStats tests basic HTTP monitoring functionality on Windows.
 func TestHTTPStats(t *testing.T) {
 	const (
@@ -116,27 +171,7 @@ func TestHTTPStats(t *testing.T) {
 	srvDoneFn()
 
 	require.Eventuallyf(t, func() bool {
-		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
-
-		for key, reqStats := range stats {
-			t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
-
-			if key.Method != http.MethodGet {
-				continue
-			}
-			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
-				continue
-			}
-			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-				continue
-			}
-
-			if stat := reqStats.Data[expectedStatus]; stat != nil && stat.Count == 1 {
-				return true
-			}
-		}
-
-		return false
+		return verifyHTTPStats(t, monitor, serverPort, testPath, expectedStatus, nil)
 	}, 3*time.Second, 100*time.Millisecond, "http connection not found for %s", serverAddr)
 }
 
@@ -192,41 +227,8 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 
 	// Verify the monitor captured the HTTP traffic
 	require.Eventuallyf(t, func() bool {
-		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
-
-		for key, reqStats := range stats {
-			t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
-
-			if key.Method != http.MethodGet {
-				continue
-			}
-			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
-				continue
-			}
-			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-				continue
-			}
-
-			if stat := reqStats.Data[expectedStatus]; stat != nil && stat.Count >= 1 {
-				// Verify IIS dynamic tags are present
-				require.NotNil(t, stat.DynamicTags, "Dynamic tags should be present for IIS traffic")
-
-				statsTags := make(map[string]struct{})
-				for _, tag := range stat.DynamicTags.GetAll() {
-					if name, _, ok := strings.Cut(tag, ":"); ok && name != "" {
-						statsTags[name] = struct{}{}
-					}
-				}
-
-				// Verify all expected tags are present
-				for tag := range expectedTags {
-					require.Contains(t, statsTags, tag, "Expected IIS tag %s to be present", tag)
-				}
-				t.Logf("Successfully captured IIS HTTP traffic: %d requests with status %d", stat.Count, expectedStatus)
-				return true
-			}
-		}
-
-		return false
+		return verifyHTTPStats(t, monitor, serverPort, testPath, expectedStatus, func(t *testing.T, stat *http.RequestStat) bool {
+			return verifyIISDynamicTags(t, stat, expectedTags)
+		})
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
