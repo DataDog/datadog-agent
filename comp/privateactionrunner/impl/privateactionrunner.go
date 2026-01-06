@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -17,10 +18,10 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -57,6 +58,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 			Comp: &privateactionrunnerImpl{},
 		}, nil
 	}
+	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(reqs.Config)
+	if err != nil {
+		return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
+	}
+	if persistedIdentity != nil {
+		reqs.Config.Set("privateactionrunner.private_key", persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		reqs.Config.Set("privateactionrunner.urn", persistedIdentity.URN, model.SourceAgentRuntime)
+	}
+
 	cfg, err := parconfig.FromDDConfig(reqs.Config)
 	if err != nil {
 		return Provides{}, err
@@ -69,12 +79,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		if err != nil {
 			return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
 		}
+		reqs.Config.Set("privateactionrunner.private_key", updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		reqs.Config.Set("privateactionrunner.urn", updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 
-	keysManager := remoteconfig.New(reqs.RcClient)
+	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
@@ -112,16 +124,23 @@ func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *pa
 	appKey := ddConfig.GetString("app_key")
 
 	env.DetectFeatures(ddConfig)
-	runnerName, err := hostname.Get(context.Background())
+	runnerHostname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
+	now := time.Now().UTC()
+	formattedTime := now.Format("20060102150405")
+	runnerName := runnerHostname + "-" + formattedTime
 
 	enrollmentResult, err := enrollment.SelfEnroll(ddSite, runnerName, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
 	log.Info("Self-enrollment successful")
+
+	if err := enrollment.PersistIdentity(ddConfig, enrollmentResult); err != nil {
+		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
+	}
 
 	cfg.Urn = enrollmentResult.URN
 	cfg.PrivateKey = enrollmentResult.PrivateKey

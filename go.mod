@@ -140,8 +140,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/tagset v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/template v0.73.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
@@ -159,14 +159,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/json v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.73.0-rc.11
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v0.1.33
@@ -206,7 +206,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.277.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.113.1
 	github.com/aws/karpenter-provider-aws v1.8.2
-	github.com/beevik/ntp v1.4.3
+	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -294,7 +294,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/mdlayher/netlink v1.8.0
 	github.com/miekg/dns v1.1.68
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
@@ -311,7 +311,7 @@ require (
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.22
+	github.com/pierrec/lz4/v4 v4.1.23
 	github.com/pkg/errors v0.9.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
@@ -342,9 +342,9 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.1
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/twmb/franz-go v1.18.2-0.20250413173443-1d5a55fa468d
-	github.com/twmb/franz-go/pkg/kadm v1.12.0
-	github.com/twmb/franz-go/pkg/kmsg v1.11.2-0.20250413173443-1d5a55fa468d
+	github.com/twmb/franz-go v1.20.6
+	github.com/twmb/franz-go/pkg/kadm v1.17.1
+	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uptrace/bun v1.2.15
 	github.com/uptrace/bun/dialect/pgdialect v1.2.15
@@ -982,6 +982,8 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.8.0
+	go.temporal.io/api v1.59.0
+	go.temporal.io/sdk v1.38.0
 )
 
 require (
@@ -992,11 +994,14 @@ require (
 require (
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
+	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.142.0 // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20250914183048-a974e0d45e0a // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 )
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
