@@ -321,15 +321,20 @@ func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName st
 	case podKind:
 		sourceHost := ev.Source.Host
 		if sourceHost != "" {
-			info.nodename = sourceHost
-			break
-		}
-		c, err := apiserver.GetAPIClient()
-		if err == nil {
-			ctx := context.TODO()
-			node, err := c.GetNodeForPod(ctx, ev.InvolvedObject.Namespace, ev.InvolvedObject.Name)
+			// make sure this is a valid node name
+			c, err := apiserver.GetAPIClient()
 			if err == nil {
-				sourceHost = node
+				_, err := apiserver.GetNode(c, sourceHost)
+				if err == nil {
+					// set he node name as it is valid and exists.
+					info.nodename = sourceHost
+					break
+				}
+				ctx := context.Background()
+				node, err := c.GetNodeForPod(ctx, ev.InvolvedObject.Namespace, ev.InvolvedObject.Name)
+				if err == nil {
+					sourceHost = node
+				}
 			}
 		}
 		info.nodename = sourceHost
