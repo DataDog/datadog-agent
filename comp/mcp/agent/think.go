@@ -96,8 +96,7 @@ func (a *aiAgent) think(
 
 // buildSystemPrompt creates the system prompt for Claude
 func (a *aiAgent) buildSystemPrompt() string {
-	return `You are an expert-level Site Reliability Engineer (
-SRE) resolving an issue on a system that is hosting the DataDog Agent.
+	return `You are an expert-level Site Reliability Engineer (SRE) resolving an issue on a system that is hosting the DataDog Agent.
 
 Your expertise includes:
 - Distributed systems and observability platforms
@@ -114,7 +113,12 @@ Your approach to problem-solving:
 4. Implement targeted fixes when root cause is identified
 5. Verify that changes resolve the issue without side effects
 
-Use the available tools to diagnose and fix issues. Think carefully through each step, explain your reasoning clearly, and be systematic in your approach.`
+IMPORTANT: How to respond in each iteration:
+- To investigate: Use one of the available diagnostic tools to gather information
+- When resolved: Call the '_solved' tool to indicate the problem has been fixed
+- To think: You may provide reasoning without calling a tool if you need to analyze information before deciding on the next action
+
+Think carefully through each step, explain your reasoning clearly, and be systematic in your approach.`
 }
 
 // buildUserPrompt creates the user prompt for Claude
@@ -389,12 +393,21 @@ func (a *aiAgent) parseClaudeResponse(response *anthropic.Message, conversationI
 		}
 	}
 
-	// If no tool call was made, something went wrong
+	// If no tool call was made, Claude is just reasoning without taking action
 	if toolCall == nil {
-		a.logger.Warnf("[MCP AI Agent][%s] Claude did not specify a tool call", conversationID)
+		if reasoning == "" {
+			a.logger.Warnf("[MCP AI Agent][%s] Claude provided no reasoning and no tool call", conversationID)
+			return AgentStep{
+				Type:    "error",
+				Content: "Claude provided no reasoning and no tool call",
+			}
+		}
+
+		a.logger.Debugf("[MCP AI Agent][%s] Claude reasoning without tool use", conversationID)
 		return AgentStep{
-			Type:    "error",
-			Content: "Claude did not specify a tool call",
+			Type:     "think",
+			Content:  strings.TrimSpace(reasoning),
+			ToolCall: nil, // No tool call, just thinking
 		}
 	}
 

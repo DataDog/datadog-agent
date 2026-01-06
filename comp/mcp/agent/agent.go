@@ -123,6 +123,20 @@ func (a *aiAgent) Solve(
 
 	// Run the agentic loop
 	for step := 0; step < a.maxSteps; step++ {
+		// Check if context is cancelled (e.g., Ctrl+C pressed)
+		select {
+		case <-ctx.Done():
+			a.logger.Infof(
+				"[MCP AI Agent][%s] Context cancelled, stopping investigation",
+				conversationID,
+			)
+			result.FinalState = "Investigation stopped: context cancelled"
+			result.Error = ctx.Err()
+			return result, ctx.Err()
+		default:
+			// Continue with normal operation
+		}
+
 		a.logger.Infof(
 			"[MCP AI Agent][%s] Step %d/%d",
 			conversationID,
@@ -182,6 +196,17 @@ func (a *aiAgent) Solve(
 			a.logger.Infof("[MCP AI Agent][%s] Problem is solved", conversationID)
 			result.Iterations++
 			break
+		}
+
+		// If no tool call was specified, Claude is just reasoning
+		// Continue to the next iteration without acting
+		if thinkStep.ToolCall == nil {
+			a.logger.Debugf(
+				"[MCP AI Agent][%s] No tool call, continuing to next iteration",
+				conversationID,
+			)
+			result.Iterations++
+			continue
 		}
 
 		// ACT: Execute the planned action via MCP
