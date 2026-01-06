@@ -16,6 +16,8 @@ use (
 	comp/core/delegatedauth/def
 	comp/core/delegatedauth/fx
 	comp/core/delegatedauth/impl
+	comp/core/delegatedauth/mock
+	comp/core/delegatedauth/noop-impl
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
