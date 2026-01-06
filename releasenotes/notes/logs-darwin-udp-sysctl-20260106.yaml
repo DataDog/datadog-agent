@@ -1,0 +1,7 @@
+other:
+  - |
+    Logs (Darwin tests): Read UDP max datagram size from `sysctl net.inet.udp.maxdgram`
+    with a fallback to `9216`, replacing the hardcoded value in tests. No runtime impact;
+    resolves a test TODO and improves portability.
+
+
