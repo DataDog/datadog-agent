@@ -113,8 +113,8 @@ func (t *Token) Compare(t2 *Token) MergeResult {
 		return Identical
 	}
 
-	// t is wildcard - matches any value of same type
-	if t.Wildcard == IsWildcard {
+	// Either token is wildcard - matches any value of same type
+	if t.Wildcard == IsWildcard || t2.Wildcard == IsWildcard {
 		return Identical
 	}
 
@@ -132,6 +132,7 @@ func (t *Token) Compare(t2 *Token) MergeResult {
 	}
 
 	// Structured types (HTTP, IP, Numeric, Date, etc.) wildcard if same type
-	// Same TokenDate type means same format structure (e.g., both RFC3339)
+	// Note: Different date formats (RFC3339, RFC1123, etc.) all have type TokenDate
+	// and will merge together. Format structure is not enforced during comparison.
 	return Wildcard
 }

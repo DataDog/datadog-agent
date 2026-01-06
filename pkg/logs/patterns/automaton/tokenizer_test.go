@@ -155,9 +155,10 @@ func TestWildcardStatus(t *testing.T) {
 	}{
 		{" ", " ", token.NotWildcard, "Whitespace should be NotWildcard"},
 		{":", ":", token.NotWildcard, "Punctuation should be NotWildcard"},
-		{"hello", "hello", token.PotentialWildcard, "Generic word should be PotentialWildcard"},
+		{"hello", "hello", token.NotWildcard, "First word should be NotWildcard (protected)"},
 		{"12345", "12345", token.PotentialWildcard, "Generic number should be PotentialWildcard"},
 		{"INFO User logged in", "INFO", token.PotentialWildcard, "Severity level should be PotentialWildcard"},
+		{"INFO User logged in", "User", token.NotWildcard, "First actual word (after severity) is protected"},
 	}
 
 	for _, test := range tests {

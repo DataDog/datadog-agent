@@ -4,37 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package merging provides intelligent mergeability logic for pattern generation.
-// It determines which TokenLists can be merged into unified patterns with wildcards,
-// and enforces protection rules to maintain semantic quality.
+// It determines which TokenLists can be merged into unified patterns with wildcards.
 package merging
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
-// shouldProtectPosition determines if the token at this position is the first word token.
-// The first word token is protected from wildcarding to preserve semantic meaning,
-// regardless of what position it appears at (e.g., after timestamps/dates).
-func shouldProtectPosition(position int, tokenType token.TokenType, tl *token.TokenList) bool {
-	// Only word tokens can be protected
-	if tokenType != token.TokenWord {
-		return false
-	}
-
-	// Check if any word token appears before this position
-	for i := 0; i < position; i++ {
-		if tl.Tokens[i].Type == token.TokenWord {
-			return false // Not the first word token
-		}
-	}
-
-	// This is the first word token
-	return true
-}
-
 // CanMergeTokenLists checks if incoming log (tl2) can merge with existing pattern's sample (tl1).
 // Returns true only if all token positions are either identical or mergeable according
-// to their comparison results and protection rules.
+// to their comparison results. Token.Compare() respects NotWildcard status for protected tokens.
 func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 	if tl1.Length() != tl2.Length() {
 		return false
@@ -51,15 +30,7 @@ func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 			return false
 		}
 
-		// If tokens are identical, continue
-		if result == token.Identical {
-			continue
-		}
-
-		// For wildcard result, check first word protection rule
-		if result == token.Wildcard && shouldProtectPosition(i, tok1.Type, tl1) {
-			return false
-		}
+		// Identical or Wildcard - continue checking remaining tokens
 	}
 
 	return true
@@ -89,10 +60,6 @@ func MergeTokenLists(tl1, tl2 *token.TokenList) *token.TokenList {
 			merged.Add(*tok1) // Keep same
 
 		case token.Wildcard:
-			// Check protection rules before wildcarding
-			if shouldProtectPosition(i, tok1.Type, tl1) {
-				return nil
-			}
 			// Create wildcard, preserving the first token's value as representative
 			merged.AddToken(tok1.Type, tok1.Value, token.IsWildcard)
 		}

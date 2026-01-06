@@ -39,8 +39,12 @@ func TestToken_Compare_WildcardMatches(t *testing.T) {
 	wildcard := NewToken(TokenWord, "anything", IsWildcard)
 	concrete := NewToken(TokenWord, "hello", PotentialWildcard)
 
+	// Test both directions - Compare should be symmetric
 	result := wildcard.Compare(&concrete)
 	assert.Equal(t, Identical, result, "Wildcard should match any value of same type")
+
+	resultReverse := concrete.Compare(&wildcard)
+	assert.Equal(t, Identical, resultReverse, "Compare should be symmetric (concrete vs wildcard)")
 }
 
 func TestToken_Compare_WhitespaceConflict(t *testing.T) {

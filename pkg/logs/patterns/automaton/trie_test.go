@@ -103,78 +103,42 @@ func TestTrie_AddExactPattern(t *testing.T) {
 	}
 }
 
-func TestTrie_AddTerminalRule(t *testing.T) {
-	// Test adding terminal rule to global rule manager
-	err := globalRuleManager.AddRule(
-		"TestRule",
-		`^TEST\d+$`,
-		"test",
-		"Test rule for testing",
-		token.TokenNumeric,
-		PriorityHigh, // Higher priority than existing rules
-		[]string{"TEST123"},
-	)
-	if err != nil {
-		t.Fatalf("Failed to add terminal rule: %v", err)
+func TestTrie_TerminalRules(t *testing.T) {
+	// Test that predefined terminal rules work through the trie
+	result := globalTrie.Match("192.168.1.1")
+	if result != token.TokenIPv4 {
+		t.Errorf("Expected TokenIPv4 for '192.168.1.1', got %v", result)
 	}
 
-	// Test that it matches using global trie
-	result := globalTrie.Match("TEST123")
-	if result != token.TokenNumeric {
-		t.Errorf("Expected TokenNumeric for 'TEST123', got %v", result)
+	result = globalTrie.Match("test@example.com")
+	if result != token.TokenEmail {
+		t.Errorf("Expected TokenEmail for 'test@example.com', got %v", result)
 	}
 
-	// Test that non-matching patterns don't match
-	result = globalTrie.Match("TESTXYZ")
-	if result == token.TokenNumeric {
-		t.Error("Should not match non-numeric pattern")
-	}
-
-	// Clean up - remove the test rule
-	globalRuleManager.RemoveRule("TestRule")
-}
-
-func TestTrie_InvalidTerminalRule(t *testing.T) {
-	// Try to add invalid regex to global rule manager
-	err := globalRuleManager.AddRule(
-		"InvalidRule",
-		`[invalid(regex`,
-		"test",
-		"Invalid rule",
-		token.TokenWord,
-		PriorityMedium,
-		[]string{},
-	)
-	if err == nil {
-		t.Error("Expected error for invalid regex pattern")
+	// Test that non-matching patterns return TokenWord
+	result = globalTrie.Match("unknown")
+	if result != token.TokenWord {
+		t.Error("Should return TokenWord for unmatched pattern")
 	}
 }
 
 func TestTrie_ExactMatchPriority(t *testing.T) {
 	testTrie := NewTrie()
 
-	// Add exact pattern
-	testTrie.AddExactPattern("TEST", token.TokenWord)
+	// Add exact pattern for "200" which would also match the HTTPStatus regex rule
+	testTrie.AddExactPattern("200", token.TokenWord)
 
-	// Add terminal rule that would also match
-	globalRuleManager.AddRule(
-		"ExactMatchTestRule",
-		`^TEST$`,
-		"test",
-		"Test rule for exact match priority",
-		token.TokenNumeric,
-		PriorityHigh,
-		[]string{"TEST"},
-	)
-
-	// Exact match should take priority
-	result := testTrie.Match("TEST")
+	// Exact match should take priority over terminal rule
+	result := testTrie.Match("200")
 	if result != token.TokenWord {
 		t.Errorf("Exact match should take priority, expected TokenWord, got %v", result)
 	}
 
-	// Clean up
-	globalRuleManager.RemoveRule("ExactMatchTestRule")
+	// Verify that without exact match, terminal rule works
+	result = globalTrie.Match("200")
+	if result != token.TokenHTTPStatus {
+		t.Errorf("Expected TokenHTTPStatus for '200' with terminal rules, got %v", result)
+	}
 }
 
 func TestTrie_EmptyInput(t *testing.T) {
