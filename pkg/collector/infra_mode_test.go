@@ -30,11 +30,12 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: false,
 		},
 		{
-			name:      "check in excluded_checks returns false",
+			name:      "check in mode-specific excluded returns false",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
-				cfg.Set("excluded_checks", []string{"disk", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.full.excluded", []string{"disk", "memory"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
@@ -53,7 +54,7 @@ func TestIsCheckAllowed(t *testing.T) {
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.allowed_checks.basic", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.allowed", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
 		},
@@ -63,18 +64,18 @@ func TestIsCheckAllowed(t *testing.T) {
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.allowed_checks.basic", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.allowed", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
 		{
-			name:      "check in allowed_additional_checks returns true",
+			name:      "check in mode-specific additional returns true",
 			checkName: "postgres",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.allowed_checks.basic", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
-				cfg.Set("allowed_additional_checks", []string{"postgres"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.allowed", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.additional", []string{"postgres"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
 		},
@@ -83,7 +84,8 @@ func TestIsCheckAllowed(t *testing.T) {
 			checkName: "custom_excluded",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
-				cfg.Set("excluded_checks", []string{"custom_excluded"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.full.excluded", []string{"custom_excluded"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
@@ -95,6 +97,17 @@ func TestIsCheckAllowed(t *testing.T) {
 				cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
+		},
+		{
+			name:      "excluded takes precedence over allowed",
+			checkName: "disk",
+			setupCfg: func(cfg pkgconfigmodel.Config) {
+				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.allowed", []string{"cpu", "disk", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.basic.excluded", []string{"disk"}, pkgconfigmodel.SourceFile)
+			},
+			wantResult: false,
 		},
 	}
 
