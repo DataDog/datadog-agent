@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,4 +130,27 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	// Verify payload metadata still intact
 	assert.Equal(t, 1, len(payload.MessageMetas))
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
+}
+
+func TestMessageGetTagsIncludesOriginAndProcessingTags(t *testing.T) {
+	cfg := &config.LogsConfig{
+		Source:         "a",
+		SourceCategory: "b",
+		Tags:           []string{"c:d", "e"},
+	}
+	source := sources.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	origin.SetTags([]string{"foo:bar"})
+
+	msg := NewMessage([]byte("hello"), origin, "", 0)
+	msg.ProcessingTags = []string{"processing:tag"}
+
+	assert.Equal(t, []string{"foo:bar", "sourcecategory:b", "c:d", "e", "processing:tag"}, msg.GetTags())
+}
+
+func TestMessageGetTagsNilOrigin(t *testing.T) {
+	msg := NewMessage([]byte("hello"), nil, "", 0)
+	msg.ProcessingTags = []string{"processing:tag"}
+
+	assert.Equal(t, []string{"processing:tag"}, msg.GetTags())
 }
