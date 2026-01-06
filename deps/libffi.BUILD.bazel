@@ -276,6 +276,7 @@ cc_library(
 cc_shared_library(
     name = "ffi",
     deps = [":libffi"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
