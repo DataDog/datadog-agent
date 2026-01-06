@@ -33,6 +33,7 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
+from tasks.libs.common.feature_flags import is_enabled
 
 BOT_NAME = "github-actions[bot]"
 
@@ -325,14 +326,7 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
-    token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
-
-    repo = get_gitlab_repo(project_name, token=token)
-
     # Fill the environment variables to pass to the child pipeline.
-    #
-    # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
-    # Sending a dict will result in: `400: variables is invalid`.
     variables = {}
     if variable:
         for v in variable:
@@ -354,11 +348,29 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
         flush=True,
     )
 
-    try:
-        variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
-        pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
-    except GitlabError as e:
-        raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
+    # Feature flag for short lived tokens. When enabled we use short lived tokens to create the pipeline. As a consequence we need to use the "create" pipeline API instead of the "trigger" pipeline API.
+    # When disabled we use the CI_JOB_TOKEN to create the pipeline.
+    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in: 
+    if is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
+        token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
+        repo = get_gitlab_repo(project_name, token=token)
+        try:
+        # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
+        # Sending a dict will result in: `400: variables is invalid`.
+            variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
+            pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
+        except GitlabError as e:
+            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
+    else:
+        if "CI_JOB_TOKEN" not in os.environ:
+            raise Exit("CI_JOB_TOKEN environment variable is required when short lived tokens are disabled", code=1)
+        token = None if follow else os.environ["CI_JOB_TOKEN"]
+        repo = get_gitlab_repo(project_name, token=token)
+        try:
+            pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
+        except GitlabError as e:
+            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
+    
 
     print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 
