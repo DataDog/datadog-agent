@@ -5,7 +5,10 @@
 
 package actions
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func SplitFQN(fqn string) (string, string) {
 	index := strings.LastIndex(fqn, ".")

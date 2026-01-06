@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -85,6 +86,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	} else if cfg.IdentityIsIncomplete() {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
+	reqs.Log.Info("Private action runner starting")
+	reqs.Log.Info(fmt.Sprintf("==> Version : %s", parversion.RunnerVersion))
+	reqs.Log.Info(fmt.Sprintf("==> Site : %s", cfg.DatadogSite))
+	reqs.Log.Info(fmt.Sprintf("==> URN : %s", cfg.Urn))
 
 	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
