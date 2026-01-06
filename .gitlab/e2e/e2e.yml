@@ -944,6 +944,7 @@ new-e2e-otel-eks:
     - qa_dca
     - qa_agent
     - qa_agent_full
+    - qa_ot_agent_standalone
     - new-e2e-otel-eks-init
   variables:
     TARGETS: ./tests/otel
@@ -963,6 +964,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent
     - qa_agent_full
+    - qa_ot_agent_standalone
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
