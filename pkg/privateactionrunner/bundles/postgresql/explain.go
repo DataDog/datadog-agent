@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	pg_verification "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql/verification"
+	verification "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql/verification"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -98,7 +98,7 @@ func buildExplainQueryString(ctx context.Context, statement string) (string, err
 	}
 
 	// for safety reasons, we forbid access to certain admin tables and functions
-	err := pg_verification.VerifyForbiddenPgExpressions(statement)
+	err := verification.VerifyForbiddenPgExpressions(statement)
 	if err != nil {
 		log.FromContext(ctx).Error("failed due to a forbidden expression in the query", log.ErrorField(err))
 		return "", err
