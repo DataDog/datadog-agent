@@ -69,6 +69,7 @@ func TestSpikeDetector_Spike(t *testing.T) {
 
 	result := d.Analyze(series)
 	assert.Len(t, result.Anomalies, 1)
+	assert.Equal(t, "my.metric", result.Anomalies[0].Source)
 	assert.Equal(t, "Spike detected", result.Anomalies[0].Title)
 	assert.Contains(t, result.Anomalies[0].Description, "test/my.metric")
 	assert.Contains(t, result.Anomalies[0].Description, "50.00")

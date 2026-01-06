@@ -39,6 +39,7 @@ func (s *SpikeDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	if avg > 0 && latest > 2*avg {
 		return observer.TimeSeriesAnalysisResult{
 			Anomalies: []observer.AnomalyOutput{{
+				Source:      series.Name,
 				Title:       "Spike detected",
 				Description: fmt.Sprintf("%s/%s spiked to %.2f (avg: %.2f)", series.Namespace, series.Name, latest, avg),
 				Tags:        series.Tags,

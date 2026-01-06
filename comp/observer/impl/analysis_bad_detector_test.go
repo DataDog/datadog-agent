@@ -29,27 +29,27 @@ func TestBadDetector_Name(t *testing.T) {
 	assert.Equal(t, "bad_detector", d.Name())
 }
 
-func TestBadDetector_Analyze_NoMatch(t *testing.T) {
+func TestBadDetector_Process_NoMatch(t *testing.T) {
 	d := &BadDetector{}
 	log := &mockLogView{
 		content: []byte("everything is fine"),
 		tags:    []string{"env:test"},
 	}
 
-	result := d.Analyze(log)
+	result := d.Process(log)
 
 	assert.Empty(t, result.Metrics)
 	assert.Empty(t, result.Anomalies)
 }
 
-func TestBadDetector_Analyze_Match(t *testing.T) {
+func TestBadDetector_Process_Match(t *testing.T) {
 	d := &BadDetector{}
 	log := &mockLogView{
 		content: []byte("oh no this is bad news"),
 		tags:    []string{"env:prod", "service:api"},
 	}
 
-	result := d.Analyze(log)
+	result := d.Process(log)
 
 	assert.Len(t, result.Metrics, 1)
 	assert.Equal(t, "observer.bad_logs.count", result.Metrics[0].Name)
@@ -57,6 +57,7 @@ func TestBadDetector_Analyze_Match(t *testing.T) {
 	assert.Equal(t, []string{"env:prod", "service:api"}, result.Metrics[0].Tags)
 
 	assert.Len(t, result.Anomalies, 1)
+	assert.Equal(t, "observer.bad_logs.count", result.Anomalies[0].Source)
 	assert.Equal(t, "Bad log detected", result.Anomalies[0].Title)
 	assert.Equal(t, "oh no this is bad news", result.Anomalies[0].Description)
 	assert.Equal(t, []string{"env:prod", "service:api"}, result.Anomalies[0].Tags)
