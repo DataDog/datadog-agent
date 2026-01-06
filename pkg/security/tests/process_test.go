@@ -2239,7 +2239,7 @@ chmod 755 pyscript.py
 			defer os.Remove(scriptLocation)
 			defer os.Remove(test.innerScriptName) // script created by script is in working directory
 
-			testModule.WaitSignal(t, func() error {
+			testModule.WaitSignalFromRule(t, func() error {
 				cmd := exec.Command(scriptLocation)
 				cmd.Dir = os.TempDir()
 				output, scriptRunErr := cmd.CombinedOutput()
@@ -2252,7 +2252,7 @@ chmod 755 pyscript.py
 			}, testModule.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				test.check(event)
-			}))
+			}), test.rule.ID)
 		})
 	}
 }
@@ -2477,12 +2477,12 @@ func TestProcessFilelessExecution(t *testing.T) {
 					t.Skip("interpreter detection unsupported")
 				}
 
-				testModule.WaitSignal(t, func() error {
+				testModule.WaitSignalFromRule(t, func() error {
 					return runSyscallTesterFunc(context.Background(), t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
 				}, func(event *model.Event, rule *rules.Rule) {
 					assertTriggeredRule(t, rule, test.rule.ID)
 					test.check(event, rule)
-				})
+				}, test.rule.ID)
 			}
 		})
 	}
