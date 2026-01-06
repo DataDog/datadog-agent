@@ -324,7 +324,7 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 // onConfigUpdateAdditionalEndpoints handles configuration change notification to update the internal API key of the
 // endpoint, when the endpoint is an additional endpoint
 func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, _ model.Source, oldVal interface{}, _ interface{}, _ uint64) {
+	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64) {
 		if key != e.configSettingPath {
 			return
 		}
@@ -337,22 +337,12 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		}
 
 		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
-		// Handle the case where oldVal is nil (initial configuration)
-		if oldVal != nil {
-			log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
-				e.configSettingPath,
-				e.additionalEndpointsIdx,
-				scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-			)
-		} else {
-			// Initial API key setup
-			log.Debugf("initial API key setup for '%s' endpoints number %d: %s",
-				e.configSettingPath,
-				e.additionalEndpointsIdx,
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-			)
-		}
+		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
+			e.configSettingPath,
+			e.additionalEndpointsIdx,
+			scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
+			scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+		)
 		e.apiKey.Store(newAPIKey)
 	})
 }
