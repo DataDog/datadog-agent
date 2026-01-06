@@ -510,7 +510,6 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() option.Option[healthplatform.Component] {
 			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
 		}),
-		// Provide None for optional delegated auth component in tests
 	))
 }
 
