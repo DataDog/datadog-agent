@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed files/conf.yaml
-var exampleCheckConfig string
+//go:embed files/empty_conf.yaml
+var emptyConfig string
 
 type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -34,7 +34,7 @@ type sharedLibrarySuite struct {
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	agentConfig := `shared_library_check:
-  enabled: "true"
+  enabled: true
   library_folder_path: ` + v.checksdPath
 
 	var suiteOptions []e2e.SuiteOption
@@ -43,7 +43,8 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithIntegration("example.d", exampleCheckConfig),
+					agentparams.WithIntegration("example.d", emptyConfig),
+					agentparams.WithIntegration("no-run-symbol.d", emptyConfig),
 				),
 				ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 			),
@@ -65,7 +66,7 @@ func (v *sharedLibrarySuite) copyToRemote(filename string) {
 }
 
 // Test the shared library code and check it returns the right metrics
-func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
+func (v *sharedLibrarySuite) testExampleCheckExecutionAndMetrics() {
 	v.T().Log("Running Shared Library Check Example test")
 
 	// execute the check and retrieve the metrics
@@ -97,4 +98,10 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	assert.Equal(v.T(), "hello.text", event.Text)
 	assert.Equal(v.T(), "normal", event.Priority)
 	assert.Equal(v.T(), "info", event.AlertType)
+}
+
+func (v *sharedLibrarySuite) testNoRunSymbolCheckExecutionError() {
+	// TODO: check that the error message is related to the `Run` symbol
+	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
+	assert.Error(v.T(), err)
 }

@@ -30,11 +30,12 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheck_ExampleCheck() {
+func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
 	v.copyToRemote("libdatadog-agent-example.so")
-	v.testCheckExecutionAndVerifyMetrics()
+	v.testExampleCheckExecutionAndMetrics()
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheck_SharedLibraryWithoutRequiredSymbols() {
-
+func (v *linuxSharedLibrarySuite) TestLinuxCheckNoRunSymbolError() {
+	v.copyToRemote("libdatadog-agent-no-run-symbol.so")
+	v.testNoRunSymbolCheckExecutionError()
 }

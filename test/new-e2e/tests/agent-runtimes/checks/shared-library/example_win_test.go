@@ -32,5 +32,10 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
 	v.copyToRemote("libdatadog-agent-example.dll")
-	v.testCheckExecutionAndVerifyMetrics()
+	v.testExampleCheckExecutionAndMetrics()
+}
+
+func (v *linuxSharedLibrarySuite) TestWindowsCheckNoRunSymbolError() {
+	v.copyToRemote("libdatadog-agent-no-run-symbol.dll")
+	v.testNoRunSymbolCheckExecutionError()
 }
