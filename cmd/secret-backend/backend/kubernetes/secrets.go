@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,7 +122,7 @@ func NewK8sSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
 		host := os.Getenv("KUBERNETES_SERVICE_HOST")
 		port := os.Getenv("KUBERNETES_SERVICE_PORT")
 		if host == "" || port == "" {
-			return nil, fmt.Errorf("K8s port and/or host configuration missing")
+			return nil, errors.New("K8s port and/or host configuration missing")
 		}
 		apiServer = fmt.Sprintf("https://%s:%s", host, port)
 	}
@@ -134,7 +135,7 @@ func NewK8sSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
 
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(k8sConfig.CA) {
-		return nil, fmt.Errorf("failed to parse CA certificate")
+		return nil, errors.New("failed to parse CA certificate")
 	}
 
 	backend := &SecretsBackend{
@@ -183,7 +184,7 @@ func (b *SecretsBackend) GetSecretOutput(ctx context.Context, secretString strin
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		es := fmt.Sprintf("failed to create request: %s", err.Error())
+		es := "failed to create request: " + err.Error()
 		return secret.Output{Value: nil, Error: &es}
 	}
 	req.Header.Set("Authorization", "Bearer "+b.K8sConfig.BearerToken)
@@ -198,7 +199,7 @@ func (b *SecretsBackend) GetSecretOutput(ctx context.Context, secretString strin
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		es := fmt.Sprintf("failed to read response: %s", err.Error())
+		es := "failed to read response: " + err.Error()
 		return secret.Output{Value: nil, Error: &es}
 	}
 
@@ -215,7 +216,7 @@ func (b *SecretsBackend) GetSecretOutput(ctx context.Context, secretString strin
 
 	var k8sSecret k8sSecretResponse
 	if err := json.Unmarshal(body, &k8sSecret); err != nil {
-		es := fmt.Sprintf("failed to parse secret response: %s", err.Error())
+		es := "failed to parse secret response: " + err.Error()
 		return secret.Output{Value: nil, Error: &es}
 	}
 
