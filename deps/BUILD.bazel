@@ -28,6 +28,10 @@ filegroup(
         "@platforms//os:windows": [
             "@cpython//:python_win",
         ],
+        "@platforms//os:macos": [
+            "@curl",
+            "@nghttp2",
+        ],
         "//conditions:default": [],
     }),
     visibility = [
