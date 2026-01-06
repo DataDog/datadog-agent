@@ -16,13 +16,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var (
-	modVersion                   = windows.NewLazyDLL("version.dll")
-	procGetFileVersionInfoSizeW  = modVersion.NewProc("GetFileVersionInfoSizeW")
-	procGetFileVersionInfoW      = modVersion.NewProc("GetFileVersionInfoW")
-	procVerQueryValueW           = modVersion.NewProc("VerQueryValueW")
-)
-
 // FileVersionInfo contains common version resource strings for a file.
 type FileVersionInfo struct {
 	CompanyName     string
