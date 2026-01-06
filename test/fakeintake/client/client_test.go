@@ -64,6 +64,9 @@ var apiV2NDMFlow []byte
 //go:embed fixtures/api_v2_netpath_response
 var apiV2Netpath []byte
 
+//go:embed fixtures/api_v2_agenthealth_response
+var apiV2AgentHealth []byte
+
 func NewServer(handler http.Handler) *httptest.Server {
 	handlerWitHeader := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
@@ -685,6 +688,18 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.get("fakeintake/health")
 		require.NoError(t, err)
+	})
+
+	t.Run("getAgentHealth", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2AgentHealth)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		agentHealthPayloads, err := client.GetAgentHealth()
+		require.NoError(t, err)
+		require.NotEmpty(t, agentHealthPayloads)
 	})
 
 }

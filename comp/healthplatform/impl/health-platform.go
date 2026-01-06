@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
+	"github.com/DataDog/datadog-agent/pkg/util/health"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -27,6 +29,7 @@ type Requires struct {
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -41,6 +44,7 @@ type healthPlatformImpl struct {
 	// Core dependencies
 	log       log.Component       // Logger for health platform operations
 	telemetry telemetry.Component // Telemetry component for metrics collection
+	config    config.Component    // Config component for accessing configuration
 
 	// Issue tracking
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
@@ -48,6 +52,13 @@ type healthPlatformImpl struct {
 
 	// Remediation management
 	remediationRegistry *remediations.Registry // Registry of remediation templates
+
+	// Forwarder
+	forwarder *forwarder // Forwarder for sending health reports to Datadog intake
+
+	// Lifecycle
+	ctx    context.Context    // Context for managing component lifecycle
+	cancel context.CancelFunc // Cancel function for stopping background tasks
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -72,11 +83,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
+	// Create context for component lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
 		log:       reqs.Log,
 		telemetry: reqs.Telemetry,
+		config:    reqs.Config,
 
 		// Remediation management
 		remediationRegistry: remediations.NewRegistry(), // Initialize remediation registry with built-in templates
@@ -84,6 +99,23 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+
+		// Lifecycle
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	// Initialize the forwarder if API key is available
+	apiKey := reqs.Config.GetString("api_key")
+	if apiKey == "" {
+		reqs.Log.Warn("API key not configured, health platform forwarder disabled")
+	} else {
+		hostname, err := reqs.Hostname.Get(context.Background())
+		if err != nil {
+			reqs.Log.Warnf("Could not get hostname for health platform forwarder: %v", err)
+		} else {
+			comp.forwarder = newForwarder(comp, hostname, apiKey)
+		}
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -102,6 +134,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
+	// Register this component as the health checker
+	// This will flush any health checks that were registered before the component was created
+	health.SetCollector(comp)
+
 	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
 	return provides, nil
@@ -114,12 +150,27 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
+
+	// Start the forwarder if it's configured
+	if h.forwarder != nil {
+		h.forwarder.start()
+	}
+
 	return nil
 }
 
 // stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
+
+	// Cancel all background tasks
+	h.cancel()
+
+	// Stop the forwarder if it's running
+	if h.forwarder != nil {
+		h.forwarder.stop()
+	}
+
 	return nil
 }
 
@@ -286,4 +337,56 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	}
 
 	h.issues[checkID] = issue
+}
+
+// RegisterHealthCheck implements the Checker interface
+// It registers a periodic health check and starts monitoring immediately
+func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	h.log.Infof("Registering health check: %s", checkName)
+
+	// Get the check interval from config
+	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
+	if interval <= 0 {
+		interval = defaultForwarderInterval
+	}
+
+	// Run the check immediately
+	h.runHealthCheck(checkID, checkName, checkFunc)
+
+	// Schedule periodic checks using the configured interval
+	go h.periodicHealthCheck(checkID, checkName, checkFunc, interval)
+}
+
+// runHealthCheck executes a health check function and reports the result
+func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	issueID, context := checkFunc()
+
+	// Build issue report (nil if no issue detected)
+	var issueReport *healthplatform.IssueReport
+	if issueID != "" {
+		issueReport = &healthplatform.IssueReport{
+			IssueID: issueID,
+			Context: context,
+		}
+	}
+
+	// Report or clear the issue
+	if err := h.ReportIssue(checkID, checkName, issueReport); err != nil {
+		h.log.Warnf("Failed to update issue for check %s: %v", checkID, err)
+	}
+}
+
+// periodicHealthCheck runs a health check periodically
+func (h *healthPlatformImpl) periodicHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			h.runHealthCheck(checkID, checkName, checkFunc)
+		case <-h.ctx.Done():
+			return
+		}
+	}
 }
