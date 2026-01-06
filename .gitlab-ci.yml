@@ -1,6 +1,6 @@
 ---
 include:
-  local: .gitlab/**/*.yml
+  - local: .gitlab/**/*.yml
 
 default:
   retry:

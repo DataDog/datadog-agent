@@ -1006,10 +1006,13 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     if includes is None:
         includes = []
 
+    include_files = []
     if isinstance(yaml_files, str):
-        yaml_files = [yaml_files]
+        include_files = [yaml_files]
+    else:
+        include_files = extract_includes(yaml_files)
 
-    for yaml_file in [f for p in yaml_files for f in glob.glob(p, recursive=True)]:
+    for yaml_file in include_files:
         current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
@@ -1020,7 +1023,9 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
         if 'include' not in current_file:
             includes.append(current_file)
         else:
-            read_includes(ctx, current_file['include'], includes, add_file_path=add_file_path, git_ref=git_ref)
+            read_includes(
+                ctx, extract_includes(current_file['include']), includes, add_file_path=add_file_path, git_ref=git_ref
+            )
             del current_file['include']
             includes.append(current_file)
 
@@ -1031,6 +1036,20 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
             full_configuration.update(yaml_file)
 
         return full_configuration
+
+
+def extract_includes(include_list):
+    if isinstance(include_list, dict):
+        raise ValueError(f"Invalid include list: {include_list}. We only support lists for now.")
+    for include in include_list:
+        if isinstance(include, str):
+            yield include
+        elif isinstance(include, dict) and 'local' in include:
+            yield from glob.glob(include['local'], recursive=True)
+        else:
+            raise ValueError(
+                f"Invalid include: {include}. We only support strings and dicts with a 'local' key for now."
+            )
 
 
 def read_content(ctx, file_path, git_ref: str | None = None):
