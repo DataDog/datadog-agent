@@ -5,7 +5,11 @@
 
 package log
 
-import "go.uber.org/atomic"
+import (
+	"strings"
+
+	"go.uber.org/atomic"
+)
 
 // LogObserver is an optional hook that receives agent-internal logs (already formatted and scrubbed)
 // after level filtering but before they are written to the underlying logger.
@@ -36,7 +40,7 @@ func SetLogObserver(h LogObserver) {
 // SetLoggerName records the current logger name (e.g. CORE, DOGSTATSD) for low-cardinality tagging.
 // This is optional; if unset, GetLoggerName returns "".
 func SetLoggerName(name string) {
-	loggerName.Store(name)
+	loggerName.Store(strings.ToLower(name))
 }
 
 // GetLoggerName returns the recorded logger name (if any).

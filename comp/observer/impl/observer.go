@@ -114,9 +114,6 @@ func NewComponent(deps Requires) Provides {
 
 		handle := obs.GetHandle("agent-internal-logs")
 		baseTags := []string{"source:datadog-agent"}
-		if name := pkglog.GetLoggerName(); name != "" {
-			baseTags = append(baseTags, "component:"+strings.ToLower(name))
-		}
 
 		var infoN, debugN, traceN uint64
 		shouldSample := func(level pkglog.LogLevel) bool {
@@ -147,7 +144,13 @@ func NewComponent(deps Requires) Provides {
 			if !shouldSample(level) {
 				return
 			}
-			tags := append(baseTags, "level:"+strings.ToLower(level.String()))
+			// Build tags per callback so component:<...> stays accurate if the logger name changes.
+			tags := make([]string, 0, 3)
+			tags = append(tags, baseTags...)
+			if name := pkglog.GetLoggerName(); name != "" {
+				tags = append(tags, "component:"+name)
+			}
+			tags = append(tags, "level:"+strings.ToLower(level.String()))
 			// Emit structured JSON so LogTimeSeriesAnalysis can extract fields consistently.
 			// Level is carried as a tag (separate timeseries per level).
 			payload, _ := json.Marshal(map[string]any{
