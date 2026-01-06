@@ -64,7 +64,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.142.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.142.0 // indirect
@@ -72,7 +72,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.177 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.178 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.11 // indirect

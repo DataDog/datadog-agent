@@ -1,6 +1,6 @@
 ---
-name: Generic Issue
-description: "Choose this only if you can reproduce the issue in a clean, generic environment, and it does not depend on customer-specific configuration. If the issue requires extensive logs, flares, or environment debugging, please open a Support ticket using the 'Support Request' option above."
+name: Generic Issue (Requires clean, generic reproduction)
+description: "Choose this only if the issue reproduces in a clean, generic environment. If it requires logs, flares, or environment debugging, open a Support ticket using the ‘Support Request’ option above"
 title: "[BUG] "
 labels: bug,pending
 body:
