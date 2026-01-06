@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
@@ -23,13 +24,14 @@ import (
 )
 
 type traceExporter struct {
-	params        exporter.Settings
-	cfg           *datadogconfig.Config
-	ctx           context.Context      // ctx triggers shutdown upon cancellation
-	traceagentcmp traceagent.Component // agent processes incoming traces
-	gatewayUsage  otel.GatewayUsage
-	usageMetric   telemetry.Gauge
-	reporter      *inframetadata.Reporter // reports host metadata from resource attributes and metrics
+	params            exporter.Settings
+	cfg               *datadogconfig.Config
+	ctx               context.Context      // ctx triggers shutdown upon cancellation
+	traceagentcmp     traceagent.Component // agent processes incoming traces
+	gatewayUsage      otel.GatewayUsage
+	coatTracesMetric  telemetry.Gauge
+	coatGWUsageMetric telemetry.Gauge
+	reporter          *inframetadata.Reporter // reports host metadata from resource attributes and metrics
 }
 
 func newTracesExporter(
@@ -38,17 +40,19 @@ func newTracesExporter(
 	cfg *datadogconfig.Config,
 	traceagentcmp traceagent.Component,
 	gatewayUsage otel.GatewayUsage,
-	usageMetric telemetry.Gauge,
+	coatTracesMetric telemetry.Gauge,
+	coatGWUsageMetric telemetry.Gauge,
 	reporter *inframetadata.Reporter,
 ) *traceExporter {
 	exp := &traceExporter{
-		params:        params,
-		cfg:           cfg,
-		ctx:           ctx,
-		traceagentcmp: traceagentcmp,
-		gatewayUsage:  gatewayUsage,
-		usageMetric:   usageMetric,
-		reporter:      reporter,
+		params:            params,
+		cfg:               cfg,
+		ctx:               ctx,
+		traceagentcmp:     traceagentcmp,
+		gatewayUsage:      gatewayUsage,
+		coatTracesMetric:  coatTracesMetric,
+		coatGWUsageMetric: coatGWUsageMetric,
+		reporter:          reporter,
 	}
 	return exp
 }
@@ -98,14 +102,19 @@ func (exp *traceExporter) consumeTraces(
 
 // exportUsageMetrics exports usage tracking metrics on traces in DDOT
 func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateArns map[string]struct{}) {
-	if exp.usageMetric == nil {
-		return
-	}
 	buildInfo := exp.params.BuildInfo
-	for host := range hosts {
-		exp.usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
+
+	if exp.coatTracesMetric != nil {
+		for host := range hosts {
+			exp.coatTracesMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
+		}
+		for taskArn := range ecsFargateArns {
+			exp.coatTracesMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
+		}
 	}
-	for taskArn := range ecsFargateArns {
-		exp.usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
+
+	if exp.coatGWUsageMetric != nil {
+		value, _ := exp.gatewayUsage.Gauge()
+		exp.coatGWUsageMetric.Set(value, buildInfo.Version, buildInfo.Command)
 	}
 }

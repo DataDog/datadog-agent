@@ -379,7 +379,10 @@ var defaultProfiles = `
           aggregate_tags:
             - version
             - command
-            - host
+        - name: runtime.datadog_agent_ddot_gateway_configured
+          aggregate_tags:
+            - version
+            - command
         - name: runtime.datadog_agent_otlp_logs_requests
         - name: runtime.datadog_agent_otlp_logs_events
         - name: runtime.datadog_agent_otlp_metrics_requests

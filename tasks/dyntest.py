@@ -29,6 +29,7 @@ def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder:
     run_all_paths = [
         "test/new-e2e/pkg/**/*",  # Modification to the framework should trigger all tests
         "test/new-e2e/go.mod",
+        "go.mod",  # incident-47421
         "flakes.yaml",
         "release.json",
         ".gitlab/e2e/e2e.yml",

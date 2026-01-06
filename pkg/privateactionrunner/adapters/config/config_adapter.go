@@ -102,3 +102,7 @@ func (c *Config) IsURLInAllowlist(urlStr string) bool {
 
 	return false
 }
+
+func (c *Config) IdentityIsIncomplete() bool {
+	return c.Urn == "" || c.PrivateKey == nil
+}

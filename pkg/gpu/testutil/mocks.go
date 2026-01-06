@@ -206,8 +206,13 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 		d.GetNameFunc = func() (string, nvml.Return) {
 			return "MIG " + DefaultGPUName, nvml.SUCCESS
 		}
+
+		// MIG-Specific functions
 		d.IsMigDeviceHandleFunc = func() (bool, nvml.Return) {
 			return true, nvml.SUCCESS
+		}
+		d.GetGpuInstanceIdFunc = func() (int, nvml.Return) {
+			return migDeviceIdx, nvml.SUCCESS
 		}
 
 		// Override GetAttributesFunc for this specific MIG child to correctly distribute parent's resources.

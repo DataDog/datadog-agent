@@ -63,8 +63,6 @@ type TelemetryStore struct {
 	DDOTTraces telemetry.Gauge
 	// DDOTGWUsage tracks hosts running DDOT in GW mode
 	DDOTGWUsage telemetry.Gauge
-	// DDOTGWEnvValue tracks the value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator
-	DDOTGWEnvValue telemetry.Gauge
 }
 
 type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
