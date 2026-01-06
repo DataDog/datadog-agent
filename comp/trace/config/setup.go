@@ -675,7 +675,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
 		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
 	}
-	if k := "apm_config.mode"; core.IsSet(k) {
+	if k := "apm_config.mode"; core.IsConfigured(k) {
 		c.APMMode = normalizeAPMMode(core.GetString(k))
 	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
