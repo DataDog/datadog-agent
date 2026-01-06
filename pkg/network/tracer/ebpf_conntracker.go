@@ -87,6 +87,10 @@ var ebpfConntrackerCORECreator func(cfg *config.Config) (*manager.Manager, error
 var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) = getRCConntracker
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
 
+// verifyKernelFuncs is a mockable wrapper for ddebpf.VerifyKernelFuncs
+// used to check if kernel functions are available
+var verifyKernelFuncs = ddebpf.VerifyKernelFuncs
+
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
 	allowRC := cfg.EnableRuntimeCompiler
@@ -452,7 +456,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 	useNFConntrackHashInsert := true
 	if mode != buildmode.Prebuilt {
-		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert")
+		missing, err := verifyKernelFuncs("__nf_conntrack_hash_insert")
 		if err != nil {
 			return nil, fmt.Errorf("error verifying kernel function for conntracker: %s", err)
 		}

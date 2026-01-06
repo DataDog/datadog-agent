@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
-// JMWTEST how to test old probe vs new probes on different kernels?
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
 	t.Run("netlink", func(t *testing.T) {
@@ -49,6 +49,48 @@ func TestConntrackers(t *testing.T) {
 		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
+	})
+}
+
+// JMWREVIEW
+// TestConntrackerAlternateProbes tests the conntracker with the alternate probes
+// (__nf_conntrack_confirm + nf_conntrack_hash_check_insert) by mocking verifyKernelFuncs
+// to report that __nf_conntrack_hash_insert is not available.
+// This forces the CO-RE and RuntimeCompiled modes to use the fallback probes.
+// Note: Prebuilt mode is not tested here as it doesn't support the alternate probes.
+func TestConntrackerAlternateProbes(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
+	// JMWRM before checking in
+	ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+		return strings.Contains(ev.Raw, "conntrack")
+	})
+
+	// Save original verifyKernelFuncs and restore after test
+	origVerifyKernelFuncs := verifyKernelFuncs
+	t.Cleanup(func() {
+		verifyKernelFuncs = origVerifyKernelFuncs
+	})
+
+	// Mock verifyKernelFuncs to report __nf_conntrack_hash_insert as missing
+	// This forces the use of alternate probes (__nf_conntrack_confirm + nf_conntrack_hash_check_insert)
+	verifyKernelFuncs = func(requiredKernelFuncs ...string) (map[string]struct{}, error) {
+		missing := make(map[string]struct{})
+		for _, fn := range requiredKernelFuncs {
+			if fn == "__nf_conntrack_hash_insert" {
+				missing[fn] = struct{}{}
+			}
+		}
+		return missing, nil
+	}
+
+	// Only test CO-RE and RuntimeCompiled modes since Prebuilt doesn't support alternate probes
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		runConntrackerTest(t, "eBPF-alternate-probes", setupEBPFConntracker)
 	})
 }
 

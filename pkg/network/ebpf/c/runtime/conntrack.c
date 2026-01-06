@@ -88,6 +88,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
         log_debug("kretprobe/__nf_conntrack_confirm: ct pointer missing for pid_tgid=%llu", pid_tgid); // JMWRM?
         return 0;
     }
+    log_debug("JMW kretprobe/__nf_conntrack_confirm: netns: %u pid_tgid: %llu ct=%p", get_netns(ct), pid_tgid, ct);
 
     // Only process if returned NF_ACCEPT (1)
     int retval = PT_REGS_RC(ctx);
@@ -150,6 +151,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
         log_debug("kretprobe/nf_conntrack_hash_check_insert: ct pointer missing for pid_tgid=%llu", pid_tgid);
         return 0;
     }
+
+    log_debug("JMW kretprobe/nf_conntrack_hash_check_insert: netns: %u pid_tgid: %llu ct=%p", get_netns(ct), pid_tgid, ct);
 
     // Only process if returned 0 (success)
     int retval = PT_REGS_RC(ctx);
