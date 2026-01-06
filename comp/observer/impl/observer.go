@@ -7,6 +7,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -87,8 +88,13 @@ func NewComponent(deps Requires) Provides {
 		baseTags := []string{"source:datadog-agent"}
 		pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
 			tags := append(baseTags, "level:"+strings.ToLower(level.String()))
+			// Emit structured JSON so LogTimeSeriesAnalysis can extract fields consistently.
+			// Level is carried as a tag (separate timeseries per level).
+			payload, _ := json.Marshal(map[string]any{
+				"msg": message,
+			})
 			handle.ObserveLog(&agentLogView{
-				content:  []byte(message),
+				content:  payload,
 				status:   strings.ToLower(level.String()),
 				tags:     tags,
 				hostname: "",

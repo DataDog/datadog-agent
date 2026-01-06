@@ -40,8 +40,7 @@ func (a *LogTimeSeriesAnalysis) Analyze(log observer.LogView) observer.LogAnalys
 
 	// Structured (JSON) path
 	if isJSONObject(content) {
-		metrics := a.extractJSONNumericFields(content, tags)
-		return observer.LogAnalysisResult{Metrics: metrics}
+		return observer.LogAnalysisResult{Metrics: a.extractJSONMetrics(content, tags)}
 	}
 
 	// Unstructured path: pattern frequency
@@ -65,7 +64,7 @@ func isJSONObject(b []byte) bool {
 	return len(trimmed) > 1 && trimmed[0] == '{' && json.Valid(trimmed)
 }
 
-func (a *LogTimeSeriesAnalysis) extractJSONNumericFields(content []byte, tags []string) []observer.MetricOutput {
+func (a *LogTimeSeriesAnalysis) extractJSONMetrics(content []byte, tags []string) []observer.MetricOutput {
 	dec := json.NewDecoder(bytes.NewReader(content))
 	dec.UseNumber()
 
@@ -75,6 +74,19 @@ func (a *LogTimeSeriesAnalysis) extractJSONNumericFields(content []byte, tags []
 	}
 
 	var out []observer.MetricOutput
+
+	// Pattern frequency for structured logs:
+	// Always derive a signature from the rendered JSON payload so ALL structured logs emit a metric,
+	// regardless of whether numeric fields are present.
+	if sig := pattern.Signature(content, a.MaxEvalBytes); sig != "" {
+		out = append(out, observer.MetricOutput{
+			Name:        patternCountMetricName(sig),
+			Value:       1,
+			Tags:        tags,
+			Aggregation: observer.AggregationSum,
+		})
+	}
+
 	for k, v := range obj {
 		if a.ExcludeFields != nil {
 			if _, ok := a.ExcludeFields[k]; ok {

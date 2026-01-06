@@ -30,12 +30,23 @@ func TestLogTimeSeriesAnalysis_JSONNumericExtraction(t *testing.T) {
 	}
 
 	res := a.Analyze(log)
-	assert.Len(t, res.Metrics, 2)
+	assert.Len(t, res.Metrics, 3) // 2 numeric fields + pattern count
 
 	// Order is map iteration dependent; just assert set membership.
 	got := map[string]observer.MetricOutput{}
 	for _, m := range res.Metrics {
 		got[m.Name] = m
+	}
+
+	// Pattern count is based on the full JSON payload (no msg/message field present).
+	sig := pattern.Signature([]byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`), 0)
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(sig))
+	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	if m, ok := got[expectedCountName]; assert.True(t, ok) {
+		assert.Equal(t, float64(1), m.Value)
+		assert.Equal(t, []string{"service:api"}, m.Tags)
+		assert.Equal(t, observer.AggregationSum, m.Aggregation)
 	}
 
 	if m, ok := got["log.field.duration_ms"]; assert.True(t, ok) {
@@ -84,10 +95,26 @@ func TestLogTimeSeriesAnalysis_JSONIncludeFields(t *testing.T) {
 	}
 
 	res := a.Analyze(log)
-	require.Len(t, res.Metrics, 1)
-	assert.Equal(t, "log.field.duration_ms", res.Metrics[0].Name)
-	assert.Equal(t, float64(45), res.Metrics[0].Value)
-	assert.Equal(t, observer.AggregationAvg, res.Metrics[0].Aggregation)
+	require.Len(t, res.Metrics, 2) // selected numeric field + pattern count
+
+	got := map[string]observer.MetricOutput{}
+	for _, m := range res.Metrics {
+		got[m.Name] = m
+	}
+
+	if m, ok := got["log.field.duration_ms"]; assert.True(t, ok) {
+		assert.Equal(t, float64(45), m.Value)
+		assert.Equal(t, observer.AggregationAvg, m.Aggregation)
+	}
+
+	sig := pattern.Signature([]byte(`{"duration_ms":45,"status":200}`), 0)
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(sig))
+	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	if m, ok := got[expectedCountName]; assert.True(t, ok) {
+		assert.Equal(t, float64(1), m.Value)
+		assert.Equal(t, observer.AggregationSum, m.Aggregation)
+	}
 }
 
 func TestLogTimeSeriesAnalysis_InvalidJSONFallsBackToUnstructured(t *testing.T) {
