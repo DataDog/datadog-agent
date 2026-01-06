@@ -8,14 +8,14 @@ package backend
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestErrorBackend(t *testing.T) {
-	backend := NewErrorBackend(fmt.Errorf("test error"))
+	backend := NewErrorBackend(errors.New("test error"))
 
 	output := backend.GetSecretOutput(context.Background(), "test")
 	assert.NotNil(t, output.Error)

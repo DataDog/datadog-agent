@@ -8,7 +8,7 @@
 package kubernetes
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-secret-backend/backend/file"
 )
@@ -16,7 +16,7 @@ import (
 // NewK8sFileBackend returns a new Kubernetes file-based secrets backend
 func NewK8sFileBackend(bc map[string]interface{}) (*file.TextFileBackend, error) {
 	if _, exists := bc["secrets_path"]; !exists {
-		return nil, fmt.Errorf("secrets_path is required for k8s.file backend")
+		return nil, errors.New("secrets_path is required for k8s.file backend")
 	}
 
 	return file.NewTextFileBackend(bc)
