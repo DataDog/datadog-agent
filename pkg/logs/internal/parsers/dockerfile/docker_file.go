@@ -90,6 +90,10 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = partial
 	msg.ParsingExtra.Timestamp = log.Time
+	// Tag the stream (stdout/stderr) for container logs parsed from docker JSON files
+	if log.Stream == "stdout" || log.Stream == "stderr" {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(log.Stream))
+	}
 	return msg, nil
 }
 
