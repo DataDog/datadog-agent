@@ -178,24 +178,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveCapabilitiesAttempted(ev, &ev.CapabilitiesUsage)
 		_ = ev.FieldHandlers.ResolveCapabilitiesUsed(ev, &ev.CapabilitiesUsage)
 	case "capset":
-	case "cgroup_write":
-		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
-		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
-		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageRelease(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
-		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
-		if !forADs {
-			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
-		}
 	case "chdir":
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)

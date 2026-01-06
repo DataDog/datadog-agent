@@ -235,8 +235,6 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "load_module.file":
 		return nil
-	case "cgroup_write.file":
-		return nil
 	default:
 		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
@@ -403,8 +401,6 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return &e.MMap.File, nil
 	case "load_module.file":
 		return &e.LoadModule.File, nil
-	case "cgroup_write.file":
-		return &e.CgroupWrite.File, nil
 	default:
 		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
