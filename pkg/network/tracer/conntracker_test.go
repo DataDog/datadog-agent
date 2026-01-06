@@ -35,6 +35,12 @@ import (
 
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
+	// JMWRM before checking in
+	ebpftest.LogTracePipe(t)
+	// JMWRM before checking in
+	//ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+	//	return strings.Contains(ev.Raw, "conntrack")
+	//})
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
@@ -53,6 +59,7 @@ func TestConntrackers(t *testing.T) {
 }
 
 // JMWREVIEW
+// JMW combine with previous test?
 // TestConntrackerAlternateProbes tests the conntracker with the alternate probes
 // (__nf_conntrack_confirm + nf_conntrack_hash_check_insert) by mocking verifyKernelFuncs
 // to report that __nf_conntrack_hash_insert is not available.
@@ -61,9 +68,11 @@ func TestConntrackers(t *testing.T) {
 func TestConntrackerAlternateProbes(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
 	// JMWRM before checking in
-	ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
-		return strings.Contains(ev.Raw, "conntrack")
-	})
+	ebpftest.LogTracePipe(t)
+	// JMWRM before checking in
+	//ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+	//	return strings.Contains(ev.Raw, "conntrack")
+	//})
 
 	// Save original verifyKernelFuncs and restore after test
 	origVerifyKernelFuncs := verifyKernelFuncs

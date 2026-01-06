@@ -29,7 +29,7 @@
 
 static __always_inline int kprobe_conntrack_common(struct nf_conn *ct) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("JMW kprobe_conntrack_common: pid_tgid: %llu ct=%p", pid_tgid, ct);
+    log_debug("JMW kprobe_conntrack_common: pid(thread_id)=%u tgid(user PID)=%u ct=%p", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid), ct);
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
@@ -38,7 +38,7 @@ static __always_inline int kprobe_conntrack_common(struct nf_conn *ct) {
     RETURN_IF_NOT_NAT(&orig, &reply);
 
     bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
-    log_debug("JMW kprobe_conntrack_common: added to map pid_tgid=%llu ct=%p", pid_tgid, ct);
+    log_debug("JMW kprobe_conntrack_common: added to map pid(thread_id)=%u tgid(user PID)=%u ct=%p", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid), ct);
 
     return 0;
 }
@@ -88,7 +88,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
         log_debug("kretprobe/__nf_conntrack_confirm: ct pointer missing for pid_tgid=%llu", pid_tgid); // JMWRM?
         return 0;
     }
-    log_debug("JMW kretprobe/__nf_conntrack_confirm: netns: %u pid_tgid: %llu ct=%p", get_netns(ct), pid_tgid, ct);
+    log_debug("JMW kretprobe/__nf_conntrack_confirm: netns=%u ct=%p", get_netns(ct), ct);
+    log_debug("JMW kretprobe/__nf_conntrack_confirm: pid(thread_id)=%u tgid(user PID)=%u", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid));
 
     // Only process if returned NF_ACCEPT (1)
     int retval = PT_REGS_RC(ctx);
@@ -117,6 +118,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count(); // JMW what is this, do we need separate counters for new probes?
+
+    log_debug("JMW kretprobe/__nf_conntrack_confirm: added to conntrack map ct=%p", ct);
 
     return 0;
 }
@@ -152,7 +155,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
         return 0;
     }
 
-    log_debug("JMW kretprobe/nf_conntrack_hash_check_insert: netns: %u pid_tgid: %llu ct=%p", get_netns(ct), pid_tgid, ct);
+    log_debug("JMW kretprobe/nf_conntrack_hash_check_insert: netns=%u ct=%p", get_netns(ct), ct);
+    log_debug("JMW kretprobe/nf_conntrack_hash_check_insert: pid(thread_id)=%u tgid(user PIDess_id)=%u", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid));
 
     // Only process if returned 0 (success)
     int retval = PT_REGS_RC(ctx);
@@ -173,7 +177,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count(); // JMW same one ok?
 
-    log_debug("kretprobe/nf_conntrack_hash_check_insert: added to conntrack map ct=%p", ct);
+    log_debug("JMW kretprobe/nf_conntrack_hash_check_insert: added to conntrack map ct=%p", ct);
 
     return 0;
 }
