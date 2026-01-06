@@ -46,6 +46,7 @@ type Tokenizer struct {
 }
 
 // NewTokenizer creates a new tokenizer for the given input
+// Every new message will create a new tokenizer instance.
 func NewTokenizer(input string) *Tokenizer {
 	return &Tokenizer{
 		input:  input,
@@ -67,6 +68,7 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 
 	t.handleLastToken()
 	t.classifyTokens()
+	t.protectFirstWord()
 
 	return token.NewTokenListWithTokens(t.tokens)
 }
@@ -104,13 +106,27 @@ func (t *Tokenizer) classifyTokens() {
 }
 
 // shouldClassify determines if a token is eligible for pattern-based classification.
-// Returns true only for generic Word/Numeric tokens that are PotentialWildcard.
-// Excludes: whitespace, punctuation (NotWildcard)
+// Returns true only for generic Word/Numeric tokens.
 func (t *Tokenizer) shouldClassify(tok *token.Token) bool {
-	isGenericType := tok.Type == token.TokenWord || tok.Type == token.TokenNumeric
-	canVary := tok.Wildcard != token.NotWildcard
+	return tok.Type == token.TokenWord || tok.Type == token.TokenNumeric
+}
 
-	return isGenericType && canVary
+// protectFirstWord marks the first TokenWord as NotWildcard to preserve semantic meaning.
+// This runs AFTER classification, so structured types (SeverityLevel, HTTPMethod, etc.)
+// are skipped, and only the first actual word token is protected.
+//
+// Examples:
+//   - "ERROR connection failed" → "connection" is protected (ERROR is SeverityLevel)
+//   - "2024-01-15 Failed to connect" → "Failed" is protected
+//   - "[INFO] database timeout" → "database" is protected (brackets are special, INFO is SeverityLevel)
+func (t *Tokenizer) protectFirstWord() {
+	for i := range t.tokens {
+		// Only protect generic Word tokens that are PotentialWildcard
+		if t.tokens[i].Type == token.TokenWord && t.tokens[i].Wildcard == token.PotentialWildcard {
+			t.tokens[i].Wildcard = token.NotWildcard
+			return
+		}
+	}
 }
 
 // processNextToken advances the automaton by one token
@@ -279,7 +295,7 @@ func (t *Tokenizer) handleLastToken() {
 
 func (t *Tokenizer) createWordToken() {
 	value := t.bufferToString()
-	// Create as basic Word type - classification happens later in classifyTokens()
+	// Create as basic Word type - classification and protection happen later
 	tok := token.NewToken(token.TokenWord, value, token.PotentialWildcard)
 	t.tokens = append(t.tokens, tok)
 	t.clearBuffer()
