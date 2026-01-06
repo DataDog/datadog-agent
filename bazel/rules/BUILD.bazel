@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 sh_binary(
@@ -14,4 +15,16 @@ sh_binary(
         "@platforms//os:linux": ["@patchelf"],
         "//conditions:default": [],
     }),
+)
+
+bzl_library(
+    name = "golden_file_test_bzl",
+    srcs = ["golden_file_test.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "so_symlink_bzl",
+    srcs = ["so_symlink.bzl"],
+    visibility = ["//visibility:public"],
 )
