@@ -54,7 +54,7 @@ var conntrackerTelemetry = struct {
 	getsDuration        telemetry.Histogram
 	unregistersDuration telemetry.Histogram
 	getsTotal           telemetry.Counter
-	unregistersTotal    telemetry.Counter
+	unregistersTotal    telemetry.Counter // JMW unregistersTotal counts successful unregisters
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
@@ -64,18 +64,16 @@ var conntrackerTelemetry = struct {
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	//JMWORIG telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	//JMWNEWWHY
-	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
-	// JMW what is NewDesc?  why not NewCounter?  why prometheus here instead of telemetry?
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"), // JMW successful unregisters
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
 
 type ebpfConntracker struct {
-	m                *manager.Manager
-	ctMap            *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	conntrackArgsMap *maps.GenericMap[uint64, uint64] // JMW type of second arg?
-	telemetryMap     *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
-	rootNS           uint32
+	m            *manager.Manager
+	ctMap        *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
+	telemetryMap *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
+	rootNS       uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 
@@ -154,11 +152,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
-
-	// conntrackArgsMap is only used when the fallback probes (__nf_conntrack_confirm and
-	// nf_conntrack_hash_check_insert) are used instead of __nf_conntrack_hash_insert.
-	// The map may not exist if __nf_conntrack_hash_insert was available.
-	conntrackArgsMap, _ := maps.GetMap[uint64, uint64](m, probes.ConntrackArgsMap)
 
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
 	if err != nil {
@@ -326,7 +319,7 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 			}
 		}
 	} else {
-		conntrackerTelemetry.unregistersTotal.Inc()
+		conntrackerTelemetry.unregistersTotal.Inc() // JMW successful unregister
 	}
 }
 
@@ -455,19 +448,18 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	}
 
 	// Determine which conntrack probe(s) to use based on build mode and availability
-	// - Prebuilt: use __nf_conntrack_hash_insert (no fallback)
+	// - Prebuilt: use __nf_conntrack_hash_insert
 	// - CO-RE/Runtime: use __nf_conntrack_hash_insert if available, otherwise fall back to
 	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 	useNFConntrackHashInsert := true
 	if mode != buildmode.Prebuilt {
-		// CO-RE and RuntimeCompiled: check if __nf_conntrack_hash_insert is available
-		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert") // JMWCONST
+		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert")
 		if err != nil {
 			return nil, fmt.Errorf("error verifying kernel function for conntracker: %s", err)
 		}
 		if len(missing) > 0 {
 			useNFConntrackHashInsert = false
-			log.Info("JMW __nf_conntrack_hash_insert not available, using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes")
+			log.Info("JMW __nf_conntrack_hash_insert not available")
 		}
 	}
 
