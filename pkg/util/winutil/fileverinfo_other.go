@@ -21,4 +21,3 @@ type FileVersionInfo struct {
 func GetFileVersionInfoStrings(_ string) (FileVersionInfo, error) {
 	return FileVersionInfo{}, nil
 }
- 

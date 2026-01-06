@@ -18,25 +18,25 @@ import (
 
 // LoadedModulesReport is the JSON structure written to the flare as agent_loaded_modules.json.
 type LoadedModulesReport struct {
-	GeneratedAt string          `json:"generated_at"`
-	Modules     []LoadedModule  `json:"modules"`
+	GeneratedAt string         `json:"generated_at"`
+	Modules     []LoadedModule `json:"modules"`
 }
 
 // LoadedModule describes a single loaded module (DLL).
 type LoadedModule struct {
-	ProcessName    string `json:"process_name"`
-	ProcessPID     int    `json:"process_pid"`
-	DLLName        string `json:"dll_name"`
-	DLLPath        string `json:"dll_path"`
-	FileTimestamp  string `json:"file_timestamp,omitempty"`
-	CompanyName    string `json:"company_name,omitempty"`
-	ProductName    string `json:"product_name,omitempty"`
-	FileVersion    string `json:"file_version,omitempty"`
-	ProductVersion string `json:"product_version,omitempty"`
+	ProcessName      string `json:"process_name"`
+	ProcessPID       int    `json:"process_pid"`
+	DLLName          string `json:"dll_name"`
+	DLLPath          string `json:"dll_path"`
+	FileTimestamp    string `json:"file_timestamp,omitempty"`
+	CompanyName      string `json:"company_name,omitempty"`
+	ProductName      string `json:"product_name,omitempty"`
+	FileVersion      string `json:"file_version,omitempty"`
+	ProductVersion   string `json:"product_version,omitempty"`
 	OriginalFilename string `json:"original_filename,omitempty"`
-	InternalName   string `json:"internal_name,omitempty"`
-	Size           int64  `json:"size_bytes,omitempty"`
-	Perms          string `json:"perms,omitempty"`
+	InternalName     string `json:"internal_name,omitempty"`
+	Size             int64  `json:"size_bytes,omitempty"`
+	Perms            string `json:"perms,omitempty"`
 }
 
 // ListLoadedModulesReportJSON returns a JSON payload describing DLLs loaded by the current agent process.
@@ -70,23 +70,21 @@ func ListLoadedModulesReportJSON() ([]byte, error) {
 		verInfo, _ := winutil.GetFileVersionInfoStrings(modPath)
 
 		report.Modules = append(report.Modules, LoadedModule{
-			ProcessName:     procName,
-			ProcessPID:      pid,
-			DLLName:         modName,
-			DLLPath:         modPath,
-			FileTimestamp:   ts,
-			CompanyName:     verInfo.CompanyName,
-			ProductName:     verInfo.ProductName,
-			FileVersion:     verInfo.FileVersion,
-			ProductVersion:  verInfo.ProductVersion,
+			ProcessName:      procName,
+			ProcessPID:       pid,
+			DLLName:          modName,
+			DLLPath:          modPath,
+			FileTimestamp:    ts,
+			CompanyName:      verInfo.CompanyName,
+			ProductName:      verInfo.ProductName,
+			FileVersion:      verInfo.FileVersion,
+			ProductVersion:   verInfo.ProductVersion,
 			OriginalFilename: verInfo.OriginalFilename,
-			InternalName:    verInfo.InternalName,
-			Size:            size,
-			Perms:           perms,
+			InternalName:     verInfo.InternalName,
+			Size:             size,
+			Perms:            perms,
 		})
 	}
 
 	return json.MarshalIndent(report, "", "  ")
 }
-
-
