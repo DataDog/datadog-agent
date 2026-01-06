@@ -156,6 +156,64 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 	assert.Len(t, ns2Series, 1)
 }
 
+func TestTimeSeriesStorage_MaxSeriesLRUEviction(t *testing.T) {
+	s := newTimeSeriesStorageWithLimits(2, 0)
+
+	// Create 2 series (A, B)
+	s.Add("test", "a", 1, 1000, []string{"k:a"})
+	s.Add("test", "b", 1, 1000, []string{"k:b"})
+
+	// Touch A so B becomes LRU.
+	s.Add("test", "a", 1, 1001, []string{"k:a"})
+
+	// Add C, should evict B.
+	s.Add("test", "c", 1, 1000, []string{"k:c"})
+
+	assert.NotNil(t, s.GetSeries("test", "a", []string{"k:a"}, AggregateSum))
+	assert.Nil(t, s.GetSeries("test", "b", []string{"k:b"}, AggregateSum))
+	assert.NotNil(t, s.GetSeries("test", "c", []string{"k:c"}, AggregateSum))
+}
+
+func TestTimeSeriesStorage_MaxPointsPerSeriesDropsOldest(t *testing.T) {
+	s := newTimeSeriesStorageWithLimits(0, 2)
+
+	s.Add("test", "my.metric", 1, 1000, nil)
+	s.Add("test", "my.metric", 1, 1001, nil)
+	s.Add("test", "my.metric", 1, 1002, nil)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateSum)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 2)
+	assert.Equal(t, int64(1001), series.Points[0].Timestamp)
+	assert.Equal(t, int64(1002), series.Points[1].Timestamp)
+}
+
+func TestTimeSeriesStorage_GapFillingZeros(t *testing.T) {
+	s := newTimeSeriesStorageWithLimits(0, 10)
+
+	s.Add("test", "my.metric", 1, 1000, nil)
+	s.Add("test", "my.metric", 1, 1002, nil)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateSum)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 3)
+	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
+	assert.Equal(t, float64(1), series.Points[0].Value)
+	assert.Equal(t, int64(1001), series.Points[1].Timestamp)
+	assert.Equal(t, float64(0), series.Points[1].Value)
+	assert.Equal(t, int64(1002), series.Points[2].Timestamp)
+	assert.Equal(t, float64(1), series.Points[2].Value)
+
+	avgSeries := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, avgSeries)
+	// No gap filling for averages: missing buckets imply "no samples", not 0.
+	require.Len(t, avgSeries.Points, 2)
+	assert.Equal(t, int64(1000), avgSeries.Points[0].Timestamp)
+	assert.Equal(t, float64(1), avgSeries.Points[0].Value)
+	assert.Equal(t, int64(1002), avgSeries.Points[1].Timestamp)
+	assert.Equal(t, float64(1), avgSeries.Points[1].Value)
+}
+
 func TestStatPoint_aggregate(t *testing.T) {
 	p := &statPoint{
 		Sum:   100.0,
