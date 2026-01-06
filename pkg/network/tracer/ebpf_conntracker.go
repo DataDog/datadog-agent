@@ -73,7 +73,7 @@ var conntrackerTelemetry = struct {
 type ebpfConntracker struct {
 	m                *manager.Manager
 	ctMap            *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	conntrackArgsMap *maps.GenericMap[uint64, uint64]
+	conntrackArgsMap *maps.GenericMap[uint64, uint64] // JMW type of second arg?
 	telemetryMap     *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
 	rootNS           uint32
 	// only kept around for stats purposes from initial dump
@@ -155,16 +155,10 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	// conntrackArgsMap is only used by CO-RE/Runtime conntracker (not prebuilt) // JMWREVIEW
-	// JMWNEXT but it's only used if the fallback probes are used, so how should this be handled?
-	var conntrackArgsMap *maps.GenericMap[uint64, uint64]
-	if !isPrebuilt {
-		conntrackArgsMap, err = maps.GetMap[uint64, uint64](m, probes.ConntrackArgsMap)
-		if err != nil {
-			_ = m.Stop(manager.CleanAll)
-			return nil, fmt.Errorf("unable to get conntrackArgsMap: %w", err)
-		}
-	}
+	// conntrackArgsMap is only used when the fallback probes (__nf_conntrack_confirm and
+	// nf_conntrack_hash_check_insert) are used instead of __nf_conntrack_hash_insert.
+	// The map may not exist if __nf_conntrack_hash_insert was available.
+	conntrackArgsMap, _ := maps.GetMap[uint64, uint64](m, probes.ConntrackArgsMap)
 
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
 	if err != nil {
