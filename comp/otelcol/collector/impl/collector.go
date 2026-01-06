@@ -171,16 +171,16 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 			"Usage metric for GW deployments with DDOT",
 		)
 
-		DDOTGWEnvValue := reqs.Telemetry.NewGauge(
+		store.DDOTGWEnvValue = reqs.Telemetry.NewGauge(
 			"runtime",
 			"datadog_agent_ddot_gateway_configured",
 			[]string{"version", "command"},
 			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
 		)
 
-		if DDOTGWEnvValue != nil {
+		if store.DDOTGWEnvValue != nil {
 			gateWayEnvVar := gatewayUsage.EnvVarValue()
-			DDOTGWEnvValue.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command)
+			store.DDOTGWEnvValue.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command)
 
 			if gateWayEnvVar == float64(1) {
 				store.DDOTGWUsage.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command)
