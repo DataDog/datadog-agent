@@ -332,12 +332,12 @@ func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb f
 	failNow := make(chan bool, 1)
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+		tb.Helper()
 		// Filter out events that don't match the expected type and rule
 		if r.ID != ruleID {
 			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
 			return
 		}
-		tb.Helper()
 		select {
 		case <-ctx.Done():
 			return
