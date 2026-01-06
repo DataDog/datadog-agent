@@ -7,9 +7,12 @@
 package observerimpl
 
 import (
+	"strings"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func mapAggregation(agg observerdef.Aggregation) Aggregate {
@@ -77,6 +80,22 @@ func NewComponent(deps Requires) Provides {
 		obsCh:   make(chan observation, 1000),
 	}
 	go obs.run()
+
+	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
+	if pkgconfigsetup.Datadog().GetBool("observer.capture_agent_internal_logs") {
+		handle := obs.GetHandle("agent-internal-logs")
+		baseTags := []string{"source:datadog-agent"}
+		pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
+			tags := append(baseTags, "level:"+strings.ToLower(level.String()))
+			handle.ObserveLog(&agentLogView{
+				content:  []byte(message),
+				status:   strings.ToLower(level.String()),
+				tags:     tags,
+				hostname: "",
+			})
+		})
+	}
+
 	return Provides{Comp: obs}
 }
 
@@ -230,6 +249,20 @@ func (v *logView) GetContent() []byte  { return v.obs.content }
 func (v *logView) GetStatus() string   { return v.obs.status }
 func (v *logView) GetTags() []string   { return v.obs.tags }
 func (v *logView) GetHostname() string { return v.obs.hostname }
+
+// agentLogView is a minimal LogView implementation for agent-internal logs.
+// It is immediately copied by the observer handle, so it must not be retained.
+type agentLogView struct {
+	content  []byte
+	status   string
+	tags     []string
+	hostname string
+}
+
+func (v *agentLogView) GetContent() []byte  { return v.content }
+func (v *agentLogView) GetStatus() string   { return v.status }
+func (v *agentLogView) GetTags() []string   { return v.tags }
+func (v *agentLogView) GetHostname() string { return v.hostname }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {

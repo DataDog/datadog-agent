@@ -289,6 +289,11 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
+	// Observer
+	// Capture agent-internal logs via pkg/util/log hook and route them through the observer.
+	// Default enabled; can be disabled if needed.
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs", true)
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
