@@ -146,6 +146,14 @@ cc_library(
         "@openssl//:openssl",
         ":libxmlsec1"
     ],
+    defines = [
+        "XMLSEC_NO_FTP=1",
+        "XMLSEC_NO_HTTP=1",
+        "XMLSEC_NO_MD5=1",
+        "XMLSEC_NO_RIPEMD160=1",
+        "XMLSEC_NO_GOST=1",
+        "XMLSEC_NO_GOST2012=1",
+    ],
     strip_include_prefix = "include",
     local_defines = [
         'PACKAGE=\\"xmlsec1\\"',
