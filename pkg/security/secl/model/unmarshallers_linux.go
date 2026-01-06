@@ -1008,7 +1008,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.File)
+	read, err := UnmarshalBinary(data, &e.File.PathKey)
 	if err != nil {
 		return 0, err
 	}
