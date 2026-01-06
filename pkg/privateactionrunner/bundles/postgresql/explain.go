@@ -8,7 +8,6 @@ package com_datadoghq_postgresql
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -105,5 +104,5 @@ func buildExplainQueryString(ctx context.Context, statement string) (string, err
 		return "", err
 	}
 
-	return fmt.Sprintf("EXPLAIN %s", statement), nil
+	return "EXPLAIN " + statement, nil
 }

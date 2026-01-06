@@ -7,6 +7,7 @@ package com_datadoghq_jenkins
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -29,7 +30,7 @@ func getHeadersAndDomain(credentials *privateconnection.PrivateCredentials) (Dom
 	domain := credentialTokens["domain"]
 	// Check if essential fields are populated
 	if userName == "" || apiToken == "" || domain == "" {
-		return DomainAndHeaders{}, fmt.Errorf("missing required credentials: username, token, or domain")
+		return DomainAndHeaders{}, errors.New("missing required credentials: username, token, or domain")
 	}
 
 	return DomainAndHeaders{
@@ -44,7 +45,7 @@ func createHeaders(userName, apiToken string) http.Header {
 	headers := http.Header{}
 	headers.Set("Accept", "application/json")
 	headers.Set("Content-Type", "application/json")
-	headers.Set("Authorization", fmt.Sprintf("Basic %s", encodedCreds))
+	headers.Set("Authorization", "Basic "+encodedCreds)
 
 	return headers
 }
