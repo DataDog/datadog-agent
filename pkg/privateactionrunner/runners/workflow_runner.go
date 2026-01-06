@@ -44,7 +44,7 @@ func NewWorkflowRunner(
 	return &WorkflowRunner{
 		registry:     privatebundles.NewRegistry(configuration),
 		opmsClient:   opmsClient,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(configuration),
 		config:       configuration,
 		keysManager:  keysManager,
 		taskVerifier: verifier,

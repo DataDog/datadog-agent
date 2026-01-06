@@ -17,7 +17,7 @@ import (
 
 var agentNames = map[string]struct{}{
 	"agent": {}, "trace-agent": {}, "trace-loader": {}, "process-agent": {},
-	"system-probe": {}, "security-agent": {},
+	"system-probe": {}, "security-agent": {}, "privateactionrunner": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
