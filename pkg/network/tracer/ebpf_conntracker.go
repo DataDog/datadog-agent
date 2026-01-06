@@ -460,35 +460,31 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		},
 	}
 
-	// Determine which conntrack probes to use based on build mode and kernel support
-	// - Prebuilt: Always use __nf_conntrack_hash_insert (no fallback)
-	// - CO-RE/Runtime: Try __nf_conntrack_hash_insert first, fall back to __nf_conntrack_confirm
-	//   and nf_conntrack_hash_check_insert if not available
+	// Determine which conntrack probe(s) to use based on build mode and availability
+	// - Prebuilt: use __nf_conntrack_hash_insert (no fallback)
+	// - CO-RE/Runtime: use __nf_conntrack_hash_insert if available, otherwise fall back to
+	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 	// JMWIMPROVELOGIC:
 	// 1) isPrebuilt --> useNFConntrackHashInsert = true
 	// 2) !isPrebuilt check if __nf_conntrack_hash_insert is available
 	//    Yes --> useNFConntrackHashInsert = true
 	//    No --> useNFConntrackHashInsert = false (use new kprobe/kretprobe pairs)
-	useNFConntrackHashInsert := false // JMWNAME --> useConntrackFallbackProbes?
-	if isPrebuilt {                   // JMWREVIEW
-		// JMW Prebuilt always uses __nf_conntrack_hash_insert, no fallback
-		useNFConntrackHashInsert = true
-	} else {
+	useNFConntrackHashInsert := true
+	if !isPrebuilt {
 		// JMW CO-RE and Runtime: check if __nf_conntrack_hash_insert is available
-		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert")
+		missing, err := ddebpf.VerifyKernelFuncs("__nf_conntrack_hash_insert") // JMWconst
 		if err != nil {
-			log.Debugf("error checking for __nf_conntrack_hash_insert: %v, falling back to alternate probes", err)
-		} else if len(missing) == 0 {
-			// __nf_conntrack_hash_insert is available
+			return nil, fmt.Errorf("error verifying kernel function for conntracker: %s", err)
+		}
+		if len(missing) == 0 {
 			useNFConntrackHashInsert = true
 			// JMW use info level log?
-			log.Debug("using __nf_conntrack_hash_insert probe for conntracker")
+			log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker")
 		} else {
-			log.Debug("__nf_conntrack_hash_insert not available, using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes")
+			log.Info("JMW __nf_conntrack_hash_insert not available, using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes")
 		}
 	}
 
-	// JMWIMPROVELOGIC
 	if useNFConntrackHashInsert {
 		probesList = append(probesList, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -551,9 +547,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, isPre
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	if !useNFConntrackHashInsert {
-		opts.MapSpecEditors[probes.ConntrackArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number - it there a config option w/ default?  what do other arg maps do?
-	}
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
