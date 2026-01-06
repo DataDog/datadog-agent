@@ -225,7 +225,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/dd-trace-go/v2 v2.4.1
 	github.com/DataDog/orchestrion v1.4.0
-	github.com/avast/retry-go/v4 v4.6.1
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/goccy/go-yaml v1.19.0
