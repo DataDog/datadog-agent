@@ -54,9 +54,10 @@ func (m *MyLogAnalysis) Analyze(log observer.LogView) observer.LogAnalysisResult
     // Return metrics and/or anomalies
     return observer.LogAnalysisResult{
         Metrics: []observer.MetricOutput{{
-            Name:  "my.metric",
-            Value: 1,
-            Tags:  log.GetTags(),
+            Name:        "my.metric",
+            Value:       1,
+            Tags:        log.GetTags(),
+            Aggregation: observer.AggregationSum,
         }},
     }
 }

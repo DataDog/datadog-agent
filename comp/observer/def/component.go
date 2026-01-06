@@ -70,11 +70,23 @@ type LogAnalysisResult struct {
 	Anomalies []AnomalyOutput
 }
 
+// Aggregation specifies how values should be aggregated within a time bucket.
+type Aggregation int
+
+const (
+	// AggregationAvg indicates values within a bucket should be averaged.
+	// This is the default/zero value for backward compatibility.
+	AggregationAvg Aggregation = iota
+	// AggregationSum indicates values within a bucket should be summed.
+	AggregationSum
+)
+
 // MetricOutput is a timeseries value derived from log analysis.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Tags  []string
+	Name        string
+	Value       float64
+	Tags        []string
+	Aggregation Aggregation
 }
 
 // AnomalyOutput is a detected anomaly event.

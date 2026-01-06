@@ -12,6 +12,17 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+func mapAggregation(agg observerdef.Aggregation) Aggregate {
+	switch agg {
+	case observerdef.AggregationSum:
+		return AggregateSum
+	case observerdef.AggregationAvg:
+		fallthrough
+	default:
+		return AggregateAverage
+	}
+}
+
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
 	// No dependencies yet - can add Lifecycle, Config, Log as needed
@@ -50,6 +61,10 @@ type logObs struct {
 func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
 		logAnalyses: []observerdef.LogAnalysis{
+			&LogTimeSeriesAnalysis{
+				// Keep defaults minimal; future steps add filtering + caps.
+				MaxEvalBytes: 4096,
+			},
 			&BadDetector{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -110,7 +125,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		// Add metrics from log analysis to storage, then run TS analyses
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
-			if series := o.storage.GetSeries(source, m.Name, m.Tags, AggregateAverage); series != nil {
+			if series := o.storage.GetSeries(source, m.Name, m.Tags, mapAggregation(m.Aggregation)); series != nil {
 				o.runTSAnalyses(*series)
 			}
 		}
