@@ -31,9 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/safchain/ethtool"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -101,10 +103,18 @@ type networkStats interface {
 	NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error)
 	GetProcPath() string
 	GetNetProcBasePath() string
+	GetConnectionTelemetry() telemetry.Gauge
+	GetRecvQTelemetry() telemetry.Gauge
+	GetSendQTelemetry() telemetry.Gauge
+	GetConntrackTelemetry() telemetry.Gauge
 }
 
 type defaultNetworkStats struct {
-	procPath string
+	procPath          string
+	tlmConnectionDiff telemetry.Gauge
+	tlmRecvQDiff      telemetry.Gauge
+	tlmSendQDiff      telemetry.Gauge
+	tlmConntrackDiff  telemetry.Gauge
 }
 
 type connectionStateEntry struct {
@@ -140,6 +150,22 @@ func (n defaultNetworkStats) GetNetProcBasePath() string {
 		netProcfsPath = netProcfsPath + "/1"
 	}
 	return netProcfsPath
+}
+
+func (n defaultNetworkStats) GetConnectionTelemetry() string {
+	return n.tlmConnectionDiff
+}
+
+func (n defaultNetworkStats) GetRecvQTelemetry() string {
+	return n.tlmRecvQDiff
+}
+
+func (n defaultNetworkStats) GetSendQTelemetry() string {
+	return n.tlmSendQDiff
+}
+
+func (n defaultNetworkStats) GetConntrackTelemetry() string {
+	return n.tlmConntrackDiff
 }
 
 // Run executes the check
@@ -195,12 +221,12 @@ func (c *NetworkCheck) Run() error {
 	if c.config.instance.CollectConnectionState {
 		netProcfsBasePath := c.net.GetNetProcBasePath()
 		for _, protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
-			submitConnectionStateMetrics(sender, protocol, c.config.instance.CollectConnectionQueues, netProcfsBasePath)
+			submitConnectionStateMetrics(sender, protocol, c.config.instance.CollectConnectionQueues, netProcfsBasePath, c.net.GetConnectionTelemetry(), c.net.GetRecvQTelemetry(), c.net.GetSendQTelemetry())
 		}
 	}
 
 	setProcPath := c.net.GetProcPath()
-	collectConntrackMetrics(sender, c.config.instance.ConntrackPath, c.config.instance.UseSudoConntrack, setProcPath, c.config.instance.BlacklistConntrackMetrics, c.config.instance.WhitelistConntrackMetrics)
+	collectConntrackMetrics(sender, c.config.instance.ConntrackPath, c.config.instance.UseSudoConntrack, setProcPath, c.config.instance.BlacklistConntrackMetrics, c.config.instance.WhitelistConntrackMetrics, c.net.GetConntrackTelemetry())
 
 	sender.Commit()
 	return nil
@@ -523,6 +549,91 @@ func checkSSExecutable() bool {
 	return true
 }
 
+func getStateMetricsFromNetlink(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
+	results := make(map[string]*connectionStateEntry)
+
+	suffixMapping := netlinkStateMetricsMapping
+	if protocol[:3] == "udp" {
+		results["connections"] = &connectionStateEntry{
+			count: 0,
+			recvQ: []uint64{},
+			sendQ: []uint64{},
+		}
+	} else {
+		for _, state := range suffixMapping {
+			if state == "connections" {
+				continue
+			}
+			if _, exists := results[state]; !exists {
+				results[state] = &connectionStateEntry{
+					count: 0,
+					recvQ: []uint64{},
+					sendQ: []uint64{},
+				}
+			}
+		}
+	}
+
+	switch protocol {
+	case "tcp4", "tcp6":
+		var family uint8
+		if strings.HasSuffix(protocol, "6") {
+			family = unix.AF_INET6
+		} else {
+			family = unix.AF_INET
+		}
+
+		conns, err := netlink.SocketDiagTCPInfo(family)
+		for _, conn := range conns {
+			diagMsg := conn.InetDiagMsg
+
+			if diagMsg == nil {
+				continue
+			}
+
+			state, ok := suffixMapping[diagMsg.State]
+			if !ok {
+				continue
+			}
+
+			recvQ := parseQueue(fields[1])
+			sendQ := parseQueue(fields[2])
+			if entry, exists := results[state]; exists {
+				entry.count = entry.count + 1
+				entry.recvQ = append(entry.recvQ, diagMsg.RQueue)
+				entry.sendQ = append(entry.sendQ, diagMsg.WQueue)
+			}
+		}
+	case "udp4", "udp6":
+		var family uint8
+		if strings.HasSuffix(protocol, "6") {
+			family = unix.AF_INET6
+		} else {
+			family = unix.AF_INET
+		}
+
+		conns, err := netlink.SocketDiagUDPInfo(family)
+		for _, conn := range conns {
+			diagMsg := conn.InetDiagMsg
+
+			if diagMsg == nil {
+				continue
+			}
+
+			state = "connections"
+			if entry, exists := results[state]; exists {
+				entry.count = entry.count + 1
+				entry.recvQ = append(entry.recvQ, diagMsg.RQueue)
+				entry.sendQ = append(entry.sendQ, diagMsg.WQueue)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
+	}
+
+	return results, nil
+}
+
 func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
 	env := []string{"PROC_ROOT=" + procfsPath}
 	// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
@@ -719,6 +830,9 @@ func submitConnectionStateMetrics(
 	protocolName string,
 	collectConnectionQueues bool,
 	procfsPath string,
+	tlmConnectionDiff telemetry.Gauge,
+	tlmRecvQDiff telemetry.Gauge,
+	tlmSendQDiff telemetry.Gauge,
 ) {
 	var getStateMetrics func(ipVersion string, procfsPath string) (map[string]*connectionStateEntry, error)
 	if ssAvailableFunction() {
@@ -734,15 +848,45 @@ func submitConnectionStateMetrics(
 		log.Debug("Error getting connection state metrics:", err)
 		return
 	}
+	netlinkRes, err = getStateMetricsFromNetlink(protocolName)
+	if err != nil {
+		log.Debug("Error getting connection states from netlink:", err)
+	}
 
 	for suffix, metrics := range results {
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), float64(metrics.count), "", nil)
+		if netlinkRes != nil {
+			diff := float64(metrics.count - netlinkRes.count)
+			tlmConnectionDiff.Set(diff, protocolName, suffix)
+		}
 		if collectConnectionQueues && protocolName[:3] == "tcp" {
+			recvQSum := 0
+			sendQSum := 0
 			for _, point := range metrics.recvQ {
+				recvQSum += point
 				sender.Histogram("system.net.tcp.recv_q", float64(point), "", []string{"state:" + suffix})
 			}
+
 			for _, point := range metrics.sendQ {
+				sendQSum += point
 				sender.Histogram("system.net.tcp.send_q", float64(point), "", []string{"state:" + suffix})
+			}
+
+			if netlinkRes != nil {
+				netlinkRecvQSum := 0
+				netlinkSendQSum := 0
+
+				for _, netlinkPoint := range netlinkRes.recvQ {
+					netlinkRecvQSum += netlinkPoint
+				}
+				for _, netlinkPoint := range netlinkRes.recvQ {
+					netlinkSendQSum += netlinkPoint
+				}
+
+				diff := float64(recvQSum - netlinkRecvQSum)
+				tlmRecvQDiff.Set(diff, protocolName, suffix)
+				diff := float64(sendQSum - netlinkSendQSum)
+				tlmSendQDiff.Set(diff, protocolName, suffix)
 			}
 		}
 	}
@@ -820,7 +964,91 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 	return value, nil
 }
 
-func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+type conntrackStat struct {
+	cpuID         string
+	Found         float64
+	Invalid       float64
+	Ignore        float64
+	Insert        float64
+	InsertFailed  float64
+	Drop          float64
+	EarlyDrop     float64
+	Error         float64
+	SearchRestart float64
+	ClashResolve  float64
+	ChainTooLong  float64
+}
+
+func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) {
+	statFilePath := filepath.Join(procfsPath, "net", "stat", "nf_conntrack")
+
+	f, err := fs.Open(statFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	lineNum := 0
+	headers := []string{}
+	stats := []*conntrackStat{}
+
+	// entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+	// 00000002  000000cd 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if lineNum == 0 {
+			headers = strings.Split(line, " ")
+		} else {
+			// each line is a cpu stat, top line is headers
+			stat := &conntrackStat{cpuID: lineNum - 1}
+			for i, hexVal := range strings.Split(line, " ") {
+				val, err := strconv.ParseInt(hexVal, 16, 64)
+				if err != nil {
+					return nil, err
+				}
+
+				switch headers[i] {
+				case "found":
+					stat.Found = float64(val)
+				case "invalid":
+					stat.Found = float64(val)
+				case "ignore":
+					stat.Ignore = float64(val)
+				case "insert":
+					stat.Insert = float64(val)
+				case "insert_failed":
+					stat.InsertFailed = float64(val)
+				case "drop":
+					stat.Drop = float64(val)
+				case "early_drop":
+					stat.EarlyDrop = float64(val)
+				// procfile header string is different depending on version
+				case "error", "icmp_error":
+					stat.Error = float64(val)
+				case "search_restart":
+					stat.SearchRestart = float64(val)
+				case "clash_resolve":
+					stat.ChainTooLong = float64(val)
+				case "chaintoolong":
+					stat.ChainTooLong = float64(val)
+				default:
+					continue
+				}
+
+			}
+			stats = append(stats, stat)
+		}
+
+		lineNum += 1
+	}
+
+	return stats, nil
+}
+
+func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) []*conntrackStat {
 	if conntrackPath == "" {
 		return
 	}
@@ -843,14 +1071,16 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
 	lines := strings.Split(output, "\n")
+	stats := make([]*conntrackStat, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
 		cols := strings.Fields(line)
 		cpuNum := strings.Split(cols[0], "=")[1]
-		cpuTag := []string{"cpu:" + cpuNum}
 		cols = cols[1:]
+
+		stat := &conntrackStat{cpuID: cpuNum}
 
 		for _, cell := range cols {
 			parts := strings.Split(cell, "=")
@@ -863,9 +1093,37 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
 				continue
 			}
-			sender.MonotonicCount("system.net.conntrack."+metric, valueFloat, "", cpuTag)
+
+			switch metric {
+			case "found":
+				stat.Found = valueFloat
+			case "invalid":
+				stat.Found = valueFloat
+			case "ignore":
+				stat.Ignore = valueFloat
+			case "insert":
+				stat.Insert = valueFloat
+			case "insert_failed":
+				stat.InsertFailed = valueFloat
+			case "drop":
+				stat.Drop = valueFloat
+			case "early_drop":
+				stat.EarlyDrop = valueFloat
+			case "error":
+				stat.Error = valueFloat
+			case "search_restart":
+				stat.SearchRestart = valueFloat
+			case "clash_resolve":
+				stat.ClashResolve = valueFloat
+			case "chaintoolong":
+				stat.ChainTooLong = valueFloat
+			default:
+				continue
+			}
+			stats = append(stats, stat)
 		}
 	}
+	return stats
 }
 
 func runCommand(cmd []string, env []string) (string, error) {
@@ -882,8 +1140,51 @@ func runCommand(cmd []string, env []string) (string, error) {
 	return out.String(), nil
 }
 
-func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string, tlmConntrackDiff telemetry.Gauge) {
+	stats := addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+	procStats, err := addConntrackStatsFromProcFile(procfsPath)
+	if err != nil {
+		log.Debugf("Unable to acquire conntrack stats from procfile: %v", err)
+	}
+
+	for i, stat := range stats {
+		cpuTag := []string{"cpu:" + stat.cpuID}
+		sender.MonotonicCount("system.net.conntrack.found", stat.Found, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.invalid", stat.Invalid, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.ignore", stat.Ignore, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert", stat.Insert, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert_failed", stat.InsertFailed, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.drop", stat.Drop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.early_drop", stat.EarlyDrop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.error", stat.Error, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.search_restart", stat.SearchRestart, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.clash_resolve", stat.ClashResolve, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.chaintoolong", stat.ChainTooLong, "", cpuTag)
+
+		if procStats != nil {
+			procStat := procStats[i]
+			diff := float64(stat.Found - procStat.Found)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "found")
+			diff := float64(stat.Invalid - procStat.Invalid)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "invalid")
+			diff := float64(stat.Ignore - procStat.Ignore)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "ignore")
+			diff := float64(stat.InsertFailed - procStat.InsertFailed)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "insert_failed")
+			diff := float64(stat.Drop - procStat.Drop)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "drop")
+			diff := float64(stat.EarlyDrop - procStat.EarlyDrop)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "early_drop")
+			diff := float64(stat.Error - procStat.Error)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "error")
+			diff := float64(stat.SearchRestart - procStat.SearchRestart)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "search_restart")
+			diff := float64(stat.ClashResolve - procStat.ClashResolve)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "clash_resolve")
+			diff := float64(stat.ChainTooLong - procStat.ChainTooLong)
+			tlmConntrackDiff.Set(diff, stat.cpuID, "chaintoolong")
+		}
+	}
 
 	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
 	var availableFiles []string
@@ -976,7 +1277,13 @@ func newCheck(cfg config.Component) check.Check {
 
 	return &NetworkCheck{
 		CheckBase: core.NewCheckBase(CheckName),
-		net:       defaultNetworkStats{procPath: procfsPath},
+		net: defaultNetworkStats{
+			procPath:          procfsPath,
+			tlmConnectionDiff: telemetry.NewGauge("net", "connections_diff", []string{"protocol", "state"}, "Gauge the difference of connection counts by state and protocol from non-shell command"),
+			tlmRecvqDiff:      telemetry.NewGauge("net", "recv_q_diff", []string{"protocol", "state"}, "Gauge the difference of connection recvq counts by state and protocol from non-shell command"),
+			tlmSendqDiff:      telemetry.NewGauge("net", "send_q_diff", []string{"protocol", "state"}, "Gauge the difference of connection sendq counts by state and protocol from non-shell command"),
+			tlmConntrackDiff:  telemetry.NewGauge("net", "conntrack_diff", []string{"cpu", "field"}, "Guage the difference of conntrack stats from procfile instead of shell command"),
+		},
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
