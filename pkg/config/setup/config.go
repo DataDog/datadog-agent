@@ -2806,10 +2806,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 
 	// Apply legacy alias: copy values from legacy key to mode-specific key
 	// Legacy `allowed_additional_checks` -> `integration.<mode>.additional`
-	modeAdditionalKey := "integration." + infraMode + ".additional"
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
-		currentAdditional := config.GetStringSlice(modeAdditionalKey)
-		combined := append(currentAdditional, legacyAdditional...)
+		modeAdditionalKey := "integration." + infraMode + ".additional"
+		combined := append(config.GetStringSlice(modeAdditionalKey), legacyAdditional...)
 		config.Set(modeAdditionalKey, combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
