@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 )
+
 // const maxUDPFrameLen = 9216
 // Try to read the OS UDP max datagram size; fall back to a sane default if unavailable.
 func darwinMaxUDPFrameLen() int {
