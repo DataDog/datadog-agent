@@ -250,7 +250,7 @@ func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules
 func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
 	tb.Helper()
 
-	if err := tm.getSignal(tb, action, cb); err != nil {
+	if err := tm.getSignalFromRule(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -260,69 +260,15 @@ func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*mo
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
-	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	return tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		cb(event, rule)
 		return nil
 	})
 }
 
-func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
-	tb.Helper()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-	failNow := make(chan bool, 1)
-
-	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-		tb.Helper()
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if err := cb(e, r); err != nil {
-					if errors.Is(err, errSkipEvent) {
-						message <- Continue
-						return
-					}
-					tb.Error(err)
-				}
-				if tb.Skipped() || tb.Failed() {
-					failNow <- true
-				}
-			case Skip:
-			}
-		}
-		cancel()
-	})
-
-	defer func() {
-		tm.RegisterRuleEventHandler(nil)
-	}()
-
-	if err := action(); err != nil {
-		message <- Skip
-		return err
-	}
-	message <- Continue
-
-	select {
-	case <-failNow:
-		tb.FailNow()
-		return nil
-	case <-time.After(getEventTimeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
 // getSignalForRule is like getSignal but filters events by ruleID
 // to prevent stale events from previous tests from being processed.
-func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID string) error {
+func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID ...string) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -333,8 +279,8 @@ func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb f
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
-		// Filter out events that don't match the expected type and rule
-		if r.ID != ruleID {
+		// Filter out events that don't match the expected type and rule if ruleID is provided (only when WaitSignalFromRule is called)
+		if len(ruleID) > 0 && r.ID != ruleID[0] {
 			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
 			return
 		}
@@ -612,21 +558,10 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	return ErrTimeout{msg.String()}
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
-	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event)
-		cb(event, rule)
-		return nil
-	})
-}
-
 // WaitSignalFromRule is like WaitSignal but filters events by ruleID
 // to prevent stale events from previous sub-tests from being processed.
 func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
 	tb.Helper()
-	// If ruleID is provided, use filtering
 	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		validateProcessContext(tb, event)
 		cb(event, rule)
