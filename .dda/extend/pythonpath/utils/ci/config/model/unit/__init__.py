@@ -36,10 +36,10 @@ class CIUnitTrigger(Struct, **default_settings):
             patterns_to_indices.setdefault(pattern, []).append(i)
 
         errors = []
-        # for pattern, indices in patterns_to_indices.items():
-        #     if len(indices) > 1:
-        #         msg = f"Duplicate pattern `{pattern}` at indices {', '.join(str(i) for i in indices)}"
-        #         errors.append(msg)
+        for pattern, indices in patterns_to_indices.items():
+            if len(indices) > 1:
+                msg = f"Duplicate pattern `{pattern}` at indices {', '.join(str(i) for i in indices)}"
+                errors.append(msg)
 
         if errors:
             raise ValueError("\n".join(errors))
