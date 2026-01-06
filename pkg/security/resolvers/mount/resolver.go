@@ -210,6 +210,16 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 		}
 	}
 
+	for e := range mr.redemption.ValuesIter() {
+		if e.mount.ParentPathKey.MountID == mount.MountID && time.Since(e.insertedAt) <= redemptionTime {
+			if slices.Contains(mount.Children, e.mount.MountID) {
+				continue
+			}
+			mount.Children = append(mount.Children, e.mount.MountID)
+		}
+	}
+
+	// Update the mount path for all the children
 	mr.walkMountSubtree(mount, true, func(child *model.Mount) {
 		child.Path = ""
 		_, _, _, _ = mr.getMountPath(child.MountID, 0)
@@ -257,30 +267,30 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
+	toDelete := make([]*model.Mount, 0, 1)
 
-	mr.walkMountSubtree(mount, true, func(child *model.Mount) {
-		mr.deleteOne(child, now)
-	})
-}
-
-func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
-	parent, exists := mr.mounts.Get(curr.ParentPathKey.MountID)
+	parent, exists := mr.mounts.Get(mount.ParentPathKey.MountID)
 	if exists {
 		for i := 0; i != len(parent.Children); i++ {
-			if parent.Children[i] == curr.MountID {
+			if parent.Children[i] == mount.MountID {
 				parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
 				break
 			}
 		}
 	}
 
-	mr.mounts.Remove(curr.MountID)
+	mr.walkMountSubtree(mount, false, func(child *model.Mount) {
+		toDelete = append(toDelete, child)
+	})
 
-	entry := redemptionEntry{
-		mount:      curr,
-		insertedAt: now,
+	for _, e := range toDelete {
+		entry := redemptionEntry{
+			mount:      e,
+			insertedAt: now,
+		}
+		mr.redemption.Add(e.MountID, &entry)
+		mr.mounts.Remove(e.MountID)
 	}
-	mr.redemption.Add(curr.MountID, &entry)
 }
 
 func (mr *Resolver) finalize(mount *model.Mount) {

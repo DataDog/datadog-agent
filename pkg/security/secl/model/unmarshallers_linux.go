@@ -485,13 +485,14 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	switch origin {
 	case MountEventSourceMountSyscall:
-		e.Origin = MountOriginEvent
+		e.Mount.Origin = MountOriginEvent
 	case MountEventSourceOpenTreeSyscall:
-		e.Origin = MountOriginOpenTree
+		e.Mount.Origin = MountOriginOpenTree
 	case MountEventSourceFsmountSyscall:
-		e.Origin = MountOriginFsmount
+		e.Mount.Origin = MountOriginFsmount
+	case MountEventSourceMoveMountSyscall:
+		e.Mount.Origin = MountOriginMoveMount
 	}
-
 	return n + 4, nil
 }
 
