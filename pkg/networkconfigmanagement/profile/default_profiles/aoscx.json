@@ -1,0 +1,44 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ],
+      "processing_rules": {
+        "redaction": [
+          {
+            "regex": "^(snmp-server community) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(snmp-server host \\S+) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server key).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server key).*",
+            "replacement": "$1 <secret hidden>"
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}
