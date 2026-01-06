@@ -76,6 +76,7 @@ cc_library(
     ] + glob(["src/*.h"]),
     hdrs = PUBLIC_HEADERS,
     strip_include_prefix = "include",
+    copts = ["-O2"],
     local_defines = [
         'PACKAGE=\\"xmlsec1\\"',
         'XMLSEC_DEFAULT_CRYPTO=\\"openssl\\"',
@@ -135,6 +136,7 @@ cc_library(
     implementation_deps = [
         ":config_h",
     ],
+    copts = ["-O2"],
     deps = [
         "@libxslt//:libxslt",
         "@libxml2//:libxml2",
