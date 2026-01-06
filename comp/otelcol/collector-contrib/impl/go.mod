@@ -57,6 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.142.0 // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20250914183048-a974e0d45e0a // indirect
@@ -350,7 +351,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect

@@ -58,6 +58,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.50.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.26.0 // indirect
 	github.com/onsi/gomega v1.38.2 // indirect
@@ -355,7 +356,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
