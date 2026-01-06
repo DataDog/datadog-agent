@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func NewSecretManagerBackend(bc map[string]interface{}) (*SecretManagerBackend, 
 	}
 
 	if backendConfig.Session.ProjectID == "" {
-		return nil, fmt.Errorf("project_id is required in gcp_session configuration")
+		return nil, errors.New("project_id is required in gcp_session configuration")
 	}
 
 	// use application default credentials (ADC) to authenticate

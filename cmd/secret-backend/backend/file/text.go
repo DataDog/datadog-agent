@@ -9,6 +9,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ func NewTextFileBackend(bc map[string]interface{}) (*TextFileBackend, error) {
 	}
 
 	if backendConfig.SecretsPath == "" {
-		return nil, fmt.Errorf("secrets_path is required")
+		return nil, errors.New("secrets_path is required")
 	}
 
 	info, err := os.Stat(backendConfig.SecretsPath)
