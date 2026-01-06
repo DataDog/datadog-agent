@@ -77,6 +77,9 @@ cc_library(
     hdrs = PUBLIC_HEADERS,
     strip_include_prefix = "include",
     copts = ["-O2"],
+    defines = [
+        "XMLSEC_CRYPTO_OPENSSL=1",
+    ],
     local_defines = [
         'PACKAGE=\\"xmlsec1\\"',
         'XMLSEC_DEFAULT_CRYPTO=\\"openssl\\"',
