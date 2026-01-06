@@ -28,10 +28,8 @@ type Provides struct {
 }
 
 // New creates a new mock delegatedauth component for testing
-func New(_ *testing.T) Provides {
-	return Provides{
-		Comp: &Mock{},
-	}
+func New(_ testing.TB) *Mock {
+	return &Mock{}
 }
 
 // Configure calls the mock function if set, otherwise does nothing
