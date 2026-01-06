@@ -41,55 +41,48 @@ type ListenerConfig struct {
 	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
 	Namespace               string                     `mapstructure:"namespace"`
 	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
-	Configs                 []Config                   `mapstructure:"configs"`
 	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
 	Deduplicate             bool                       `mapstructure:"use_deduplication"`
 	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
+
+	Configs []Config
+
+	// DON'T USE. This is only used to read the raw array from datadog.yaml
+	UnmarshalledConfigs []UnmarshalledConfig `mapstructure:"configs"`
 }
 
-// Config holds configuration for a particular subnet
-type Config struct {
-	Network                     string           `mapstructure:"network_address"`
-	Port                        uint16           `mapstructure:"port"`
-	Version                     string           `mapstructure:"snmp_version"`
-	Timeout                     int              `mapstructure:"timeout"`
-	Retries                     int              `mapstructure:"retries"`
-	OidBatchSize                int              `mapstructure:"oid_batch_size"`
-	Community                   string           `mapstructure:"community_string"`
-	User                        string           `mapstructure:"user"`
-	AuthKey                     string           `mapstructure:"authKey"`
-	AuthProtocol                string           `mapstructure:"authProtocol"`
-	PrivKey                     string           `mapstructure:"privKey"`
-	PrivProtocol                string           `mapstructure:"privProtocol"`
-	ContextEngineID             string           `mapstructure:"context_engine_id"`
-	ContextName                 string           `mapstructure:"context_name"`
-	Authentications             []Authentication `mapstructure:"authentications"`
-	IgnoredIPAddresses          map[string]bool
-	ADIdentifier                string `mapstructure:"ad_identifier"`
-	Loader                      string `mapstructure:"loader"`
-	CollectDeviceMetadataConfig *bool  `mapstructure:"collect_device_metadata"`
-	CollectDeviceMetadata       bool
-	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
-	CollectTopology             bool
-	CollectVPNConfig            *bool `mapstructure:"collect_vpn"`
-	CollectVPN                  bool
-	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
-	UseDeviceIDAsHostname       bool
-	Namespace                   string   `mapstructure:"namespace"`
-	Tags                        []string `mapstructure:"tags"`
-	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
-
-	// DON'T USE. We read this as a list from the config file and then free memory after converting it to a map
-	ListOfIgnoredIPAddresses []string `mapstructure:"ignored_ip_addresses"`
-
-	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
-	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
-
-	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
-	UseRemoteConfigProfiles bool
+// UnmarshalledConfig is used to read each item of the array in datadog.yaml
+type UnmarshalledConfig struct {
+	ADIdentifier          string                                       `mapstructure:"ad_identifier"`
+	AuthKey               string                                       `mapstructure:"authKey"`
+	AuthProtocol          string                                       `mapstructure:"authProtocol"`
+	Authentications       []Authentication                             `mapstructure:"authentications"`
+	CollectDeviceMetadata *bool                                        `mapstructure:"collect_device_metadata"`
+	CollectTopology       *bool                                        `mapstructure:"collect_topology"`
+	CollectVPN            *bool                                        `mapstructure:"collect_vpn"`
+	Community             string                                       `mapstructure:"community_string"`
+	ContextEngineID       string                                       `mapstructure:"context_engine_id"`
+	ContextName           string                                       `mapstructure:"context_name"`
+	IgnoredIPAddresses    []string                                     `mapstructure:"ignored_ip_addresses"`
+	InterfaceConfigs      map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
+	Loader                string                                       `mapstructure:"loader"`
+	MinCollectionInterval uint                                         `mapstructure:"min_collection_interval"`
+	Namespace             string                                       `mapstructure:"namespace"`
+	Network               string                                       `mapstructure:"network_address"`
+	OidBatchSize          int                                          `mapstructure:"oid_batch_size"`
+	PingConfig            snmpintegration.PingConfig                   `mapstructure:"ping"`
+	Port                  uint16                                       `mapstructure:"port"`
+	PrivKey               string                                       `mapstructure:"privKey"`
+	PrivProtocol          string                                       `mapstructure:"privProtocol"`
+	Retries               int                                          `mapstructure:"retries"`
+	Tags                  []string                                     `mapstructure:"tags"`
+	Timeout               int                                          `mapstructure:"timeout"`
+	UseDeviceIDAsHostname *bool                                        `mapstructure:"use_device_id_as_hostname"`
+	User                  string                                       `mapstructure:"user"`
+	Version               string                                       `mapstructure:"snmp_version"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -99,6 +92,40 @@ type Config struct {
 	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
 	PrivKeyLegacy      string `mapstructure:"privacy_key"`
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
+}
+
+// Config holds configuration for a particular subnet
+type Config struct {
+	ADIdentifier            string
+	AuthKey                 string
+	AuthProtocol            string
+	Authentications         []Authentication
+	Community               string
+	ContextEngineID         string
+	ContextName             string
+	Loader                  string
+	MinCollectionInterval   uint
+	Namespace               string
+	Network                 string
+	OidBatchSize            int
+	Port                    uint16
+	PrivKey                 string
+	PrivProtocol            string
+	Retries                 int
+	Tags                    []string
+	Timeout                 int
+	User                    string
+	Version                 string
+	CollectDeviceMetadata   bool
+	CollectTopology         bool
+	CollectVPN              bool
+	IgnoredIPAddresses      map[string]bool
+	UseDeviceIDAsHostname   bool
+	UseRemoteConfigProfiles bool
+	PingConfig              snmpintegration.PingConfig
+
+	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
+	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig
 }
 
 // Authentication holds SNMP authentication data
@@ -159,37 +186,69 @@ func NewListenerConfig() (ListenerConfig, error) {
 		snmpConfig.Namespace = ddcfg.GetString("network_devices.namespace")
 	}
 
-	// Set the default values, we can't otherwise on an array
-	for i := range snmpConfig.Configs {
-		// We need to modify the struct in place
+	snmpConfig.Configs = make([]Config, len(snmpConfig.UnmarshalledConfigs))
+
+	// Set the default values and resolve 'computed' fields from raw and legacy
+	for i, unmarshalledConfig := range snmpConfig.UnmarshalledConfigs {
+		snmpConfig.Configs[i] = Config{
+			ADIdentifier:          unmarshalledConfig.ADIdentifier,
+			AuthKey:               unmarshalledConfig.AuthKey,
+			AuthProtocol:          unmarshalledConfig.AuthProtocol,
+			Authentications:       unmarshalledConfig.Authentications,
+			Community:             unmarshalledConfig.Community,
+			ContextEngineID:       unmarshalledConfig.ContextEngineID,
+			ContextName:           unmarshalledConfig.ContextName,
+			InterfaceConfigs:      unmarshalledConfig.InterfaceConfigs,
+			Loader:                unmarshalledConfig.Loader,
+			MinCollectionInterval: unmarshalledConfig.MinCollectionInterval,
+			Namespace:             unmarshalledConfig.Namespace,
+			Network:               unmarshalledConfig.Network,
+			OidBatchSize:          unmarshalledConfig.OidBatchSize,
+			PingConfig:            unmarshalledConfig.PingConfig,
+			Port:                  unmarshalledConfig.Port,
+			PrivKey:               unmarshalledConfig.PrivKey,
+			PrivProtocol:          unmarshalledConfig.PrivProtocol,
+			Retries:               unmarshalledConfig.Retries,
+			Tags:                  unmarshalledConfig.Tags,
+			Timeout:               unmarshalledConfig.Timeout,
+			User:                  unmarshalledConfig.User,
+			Version:               unmarshalledConfig.Version,
+		}
+
 		config := &snmpConfig.Configs[i]
+
 		if config.Port == 0 {
 			config.Port = defaultPort
 		}
+
 		if config.Timeout == 0 {
 			config.Timeout = defaultTimeout
 		}
+
 		if config.Retries == 0 {
 			config.Retries = defaultRetries
 		}
-		if config.CollectDeviceMetadataConfig != nil {
-			config.CollectDeviceMetadata = *config.CollectDeviceMetadataConfig
+
+		if unmarshalledConfig.CollectDeviceMetadata != nil {
+			config.CollectDeviceMetadata = *unmarshalledConfig.CollectDeviceMetadata
 		} else {
 			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
 		}
-		if config.CollectTopologyConfig != nil {
-			config.CollectTopology = *config.CollectTopologyConfig
+
+		if unmarshalledConfig.CollectTopology != nil {
+			config.CollectTopology = *unmarshalledConfig.CollectTopology
 		} else {
 			config.CollectTopology = snmpConfig.CollectTopology
 		}
-		if config.CollectVPNConfig != nil {
-			config.CollectVPN = *config.CollectVPNConfig
+
+		if unmarshalledConfig.CollectVPN != nil {
+			config.CollectVPN = *unmarshalledConfig.CollectVPN
 		} else {
 			config.CollectVPN = snmpConfig.CollectVPN
 		}
 
-		if config.UseDeviceIDAsHostnameConfig != nil {
-			config.UseDeviceIDAsHostname = *config.UseDeviceIDAsHostnameConfig
+		if unmarshalledConfig.UseDeviceIDAsHostname != nil {
+			config.UseDeviceIDAsHostname = *unmarshalledConfig.UseDeviceIDAsHostname
 		} else {
 			config.UseDeviceIDAsHostname = snmpConfig.UseDeviceISAsHostname
 		}
@@ -209,13 +268,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
 
 		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace)
-		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
-		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
-		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
-		config.PrivKey = firstNonEmpty(config.PrivKey, config.PrivKeyLegacy)
-		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, config.PrivProtocolLegacy)
-		config.Network = firstNonEmpty(config.Network, config.NetworkLegacy)
-		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
+		config.Community = firstNonEmpty(config.Community, unmarshalledConfig.CommunityLegacy)
+		config.AuthKey = firstNonEmpty(config.AuthKey, unmarshalledConfig.AuthKeyLegacy)
+		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, unmarshalledConfig.AuthProtocolLegacy)
+		config.PrivKey = firstNonEmpty(config.PrivKey, unmarshalledConfig.PrivKeyLegacy)
+		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, unmarshalledConfig.PrivProtocolLegacy)
+		config.Network = firstNonEmpty(config.Network, unmarshalledConfig.NetworkLegacy)
+		config.Version = firstNonEmpty(config.Version, unmarshalledConfig.VersionLegacy)
 
 		if config.Community != "" || config.User != "" {
 			config.Authentications = append([]Authentication{
@@ -243,14 +302,16 @@ func NewListenerConfig() (ListenerConfig, error) {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
 		}
+
 		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 
-		config.IgnoredIPAddresses = make(map[string]bool, len(config.ListOfIgnoredIPAddresses))
-		for _, ip := range config.ListOfIgnoredIPAddresses {
+		config.IgnoredIPAddresses = make(map[string]bool, len(unmarshalledConfig.IgnoredIPAddresses))
+		for _, ip := range unmarshalledConfig.IgnoredIPAddresses {
 			config.IgnoredIPAddresses[ip] = true
 		}
-		config.ListOfIgnoredIPAddresses = nil // free memory
 	}
+
+	snmpConfig.UnmarshalledConfigs = nil
 
 	return snmpConfig, nil
 }
