@@ -67,9 +67,11 @@
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
+/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 /.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
+
 
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
@@ -115,7 +117,7 @@
 /.gitlab/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
 /.gitlab/internal_kubernetes_deploy/include.yml                     @DataDog/agent-devx
 /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
-/.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
+/.gitlab/internal_kubernetes_deploy/k8s_staging_deployment_pr.yml  @DataDog/agent-delivery
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/source_test/*                               @DataDog/agent-devx
