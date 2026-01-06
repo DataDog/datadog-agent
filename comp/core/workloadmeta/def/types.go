@@ -647,6 +647,10 @@ type Container struct {
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
+	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
+	// Source: ECS task metadata gpuIds, NVIDIA_VISIBLE_DEVICES env var, or container runtime spec
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -740,6 +744,11 @@ func (c Container) String(verbose bool) string {
 				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
 			}
 		}
+	}
+
+	if len(c.GPUDeviceIDs) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
+		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
 	}
 
 	if c.ECSContainer != nil {

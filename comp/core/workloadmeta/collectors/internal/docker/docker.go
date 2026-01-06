@@ -45,6 +45,13 @@ import (
 const (
 	collectorID   = "docker"
 	componentName = "workloadmeta-docker"
+
+	// nvidiaVisibleDevicesEnvVar is the environment variable set by NVIDIA container runtime
+	// to specify which GPUs are visible to the container. Values can be:
+	// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2" (ECS, some K8s setups)
+	// - Device indices: "0", "1", "0,1" (local Docker)
+	// - Special values: "all", "none", "void"
+	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
 )
 
 // imageEventActionSbom is an event that we set to create a fake docker event.
@@ -329,6 +336,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			PID:          container.State.Pid,
 			RestartCount: container.RestartCount,
 			Resources:    extractResources(container),
+			GPUDeviceIDs: extractGPUDeviceIDs(container.Config.Env),
 		}
 
 	case events.ActionDie, docker.ActionDied:
@@ -737,6 +745,26 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 	}
 
 	return layers
+}
+
+// extractGPUDeviceIDs extracts GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable.
+// ECS and other container runtimes set this env var with GPU assignments.
+// Format can be:
+// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2" (ECS, some K8s setups)
+// - Device indices: "0", "1", "0,1" (local Docker)
+// Special values "all", "none", "void" are ignored (return nil).
+func extractGPUDeviceIDs(envVars []string) []string {
+	prefix := nvidiaVisibleDevicesEnvVar + "="
+	for _, env := range envVars {
+		if strings.HasPrefix(env, prefix) {
+			value := strings.TrimPrefix(env, prefix)
+			if value == "" || value == "all" || value == "none" || value == "void" {
+				return nil
+			}
+			return strings.Split(value, ",")
+		}
+	}
+	return nil
 }
 
 func extractResources(container container.InspectResponse) workloadmeta.ContainerResources {
