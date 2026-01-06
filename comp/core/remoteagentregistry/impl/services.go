@@ -187,12 +187,26 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				}
 				ch <- metric
 
-			// It's not currently possible to merge two bucket-based metrics when they don't share the same amount of buckets
 			case dto.MetricType_SUMMARY:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
 
 			case dto.MetricType_HISTOGRAM:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented histogram aggregation logic", mf.GetName(), remoteAgentName)
+				buckets := make(map[float64]uint64)
+				for _, bucket := range metric.Histogram.GetBucket() {
+					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+				}
+				metric, err := prometheus.NewConstHistogram(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					metric.Histogram.GetSampleCount(),
+					metric.Histogram.GetSampleSum(),
+					buckets,
+					labelValues...,
+				)
+				if err != nil {
+					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
+				}
+				ch <- metric
 
 			default:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())

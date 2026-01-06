@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -73,6 +74,13 @@ func TestGetTelemetry(t *testing.T) {
 		# HELP baz bazhelp
 		# TYPE baz gauge
 		baz{tag_one="1",tag_two="two"} 3
+		# HELP qux quxhelp
+		# TYPE qux histogram
+		qux_bucket{le="0.5"} 1
+		qux_bucket{le="1"} 2
+		qux_bucket{le="+Inf"} 3
+		qux_sum 2.5
+		qux_count 3
 		`
 
 	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
@@ -133,6 +141,42 @@ func TestGetTelemetry(t *testing.T) {
 				},
 				Gauge: &io_prometheus_client.Gauge{
 					Value: proto.Float64(3),
+				},
+			},
+		},
+	}, protocmp.Transform()))
+
+	// compare the qux histogram metric
+	require.Contains(t, metricsMap, "qux")
+	assert.Empty(t, cmp.Diff(metricsMap["qux"], &io_prometheus_client.MetricFamily{
+		Name: proto.String("qux"),
+		Type: io_prometheus_client.MetricType_HISTOGRAM.Enum(),
+		Help: proto.String("quxhelp"),
+		Metric: []*io_prometheus_client.Metric{
+			{
+				Label: []*io_prometheus_client.LabelPair{
+					{
+						Name:  proto.String(remoteAgentMetricTagName),
+						Value: proto.String("test-agent"),
+					},
+				},
+				Histogram: &io_prometheus_client.Histogram{
+					SampleCount: proto.Uint64(3),
+					SampleSum:   proto.Float64(2.5),
+					Bucket: []*io_prometheus_client.Bucket{
+						{
+							CumulativeCount: proto.Uint64(1),
+							UpperBound:      proto.Float64(0.5),
+						},
+						{
+							CumulativeCount: proto.Uint64(2),
+							UpperBound:      proto.Float64(1),
+						},
+						{
+							CumulativeCount: proto.Uint64(3),
+							UpperBound:      proto.Float64(math.Inf(1)),
+						},
+					},
 				},
 			},
 		},
