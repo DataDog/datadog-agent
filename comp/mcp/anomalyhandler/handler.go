@@ -49,6 +49,8 @@ type anomalyHandler struct {
 	demultiplexer demultiplexer.Component
 	mu            sync.Mutex
 	wg            sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // newAnomalyHandler creates a new anomaly handler
@@ -111,6 +113,9 @@ func (h *anomalyHandler) Start() error {
 
 	h.logger.Info("MCP anomaly handler Starting...")
 
+	// Create a cancellable context for this component's lifetime
+	h.ctx, h.cancel = context.WithCancel(context.Background())
+
 	// Get the anomaly detector from the demultiplexer
 	detector := h.demultiplexer.GetAnomalyDetector()
 	if detector == nil {
@@ -133,6 +138,11 @@ func (h *anomalyHandler) Stop() error {
 
 	h.logger.Info("Stopping MCP anomaly handler")
 
+	// Cancel the context to stop any ongoing AI investigations
+	if h.cancel != nil {
+		h.cancel()
+	}
+
 	// Unsubscribe from anomaly detector
 	detector := h.demultiplexer.GetAnomalyDetector()
 	if detector != nil {
@@ -140,6 +150,7 @@ func (h *anomalyHandler) Stop() error {
 		h.logger.Info("MCP anomaly handler unsubscribed from anomaly detector")
 	}
 
+	// Wait for all ongoing investigations to complete
 	h.wg.Wait()
 
 	return nil
@@ -262,9 +273,10 @@ func (h *anomalyHandler) solveAnomaly(
 		issue.Description,
 	)
 
-	// Create a context with timeout
+	// Create a context with timeout, using the handler's context as parent
+	// This ensures the investigation stops when the agent shuts down
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		h.ctx,
 		30*time.Minute,
 	)
 	defer cancel()
