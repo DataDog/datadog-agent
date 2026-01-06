@@ -129,9 +129,8 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		m, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
-		} else {
-			log.Debug("JMW successfully loaded prebuilt ebpf conntracker")
 		}
+		log.Debug("JMW successfully loaded prebuilt ebpf conntracker")
 
 		isPrebuilt = true
 	}

@@ -27,9 +27,25 @@
 #include "ipv6.h"
 #endif
 
+static __always_inline int kprobe_conntrack_common(struct nf_conn *ct) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("JMW kprobe_conntrack_common: pid_tgid: %llu ct=%p", pid_tgid, ct);
+
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+    RETURN_IF_NOT_NAT(&orig, &reply);
+
+    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
+    log_debug("JMW kprobe_conntrack_common: added to map pid_tgid=%llu ct=%p", pid_tgid, ct);
+
+    return 0;
+}
+
 SEC("kprobe/__nf_conntrack_hash_insert")
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
@@ -46,32 +62,16 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
 
 SEC("kprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_confirm, struct sk_buff *skb) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/__nf_conntrack_confirm: pid_tgid: %llu", pid_tgid);
-
     struct nf_conn *ct = get_nfct(skb);
     if (!ct) {
         return 0;
     }
+    log_debug("kprobe/__nf_conntrack_confirm: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
 
-    // Check if this is a NAT connection using tuple comparison
-    conntrack_tuple_t orig = {}, reply = {};
-    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        return 0;
-    }
-    RETURN_IF_NOT_NAT(&orig, &reply);
-
-    // Store ct pointer using pid_tgid for correlation with kretprobe
-    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
-    log_debug("kprobe/__nf_conntrack_confirm: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
-
+    kprobe_conntrack_common(ct);
     return 0;
 }
 
-//JMWRM
-// JMWCOMMENt
-// Track conntrack confirmations (return) - correlation approach
-// Return probe: Process successful confirmations and populate conntrack map
 SEC("kretprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -80,8 +80,9 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
         return 0;
     }
 
-    struct nf_conn *ct = *ctpp;
     bpf_map_delete_elem(&conntrack_args, &pid_tgid);
+
+    struct nf_conn *ct = *ctpp;
     if (!ct) {
         log_debug("kretprobe/__nf_conntrack_confirm: ct pointer missing for pid_tgid=%llu", pid_tgid); // JMWRM?
         return 0;
@@ -94,7 +95,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
         return 0;
     }
 
-    // Check IPS_CONFIRMED flag before adding to conntrack map
+    // Check IPS_CONFIRMED flag before adding to conntrack map // JMWNEXT
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status & IPS_CONFIRMED)) {
@@ -118,29 +119,14 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
     return 0;
 }
 
-//JMWRM
-// Track nf_conntrack_hash_check_insert - used for early conntrack insertion
-// This function takes struct nf_conn *ct directly and returns 0 on success
 SEC("kprobe/nf_conntrack_hash_check_insert")
 int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn *ct) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/nf_conntrack_hash_check_insert: pid_tgid: %llu ct=%p", pid_tgid, ct);
-
     if (!ct) {
         return 0;
     }
+    log_debug("kprobe/nf_conntrack_hash_check_insert: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
 
-    // Check if this is a NAT connection before storing
-    conntrack_tuple_t orig = {}, reply = {};
-    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        return 0;
-    }
-    RETURN_IF_NOT_NAT(&orig, &reply);
-
-    // Store ct pointer using pid_tgid for correlation with kretprobe
-    bpf_map_update_with_telemetry(conntrack_args, &pid_tgid, &ct, BPF_ANY);
-    log_debug("kprobe/nf_conntrack_hash_check_insert: added to map ct=%p pid_tgid=%llu", ct, pid_tgid);
-
+    kprobe_conntrack_common(ct);
     return 0;
 }
 
@@ -155,8 +141,9 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert) {
         return 0;
     }
 
-    struct nf_conn *ct = *ctpp;
     bpf_map_delete_elem(&conntrack_args, &pid_tgid);
+
+    struct nf_conn *ct = *ctpp;
     if (!ct) {
         log_debug("kretprobe/nf_conntrack_hash_check_insert: ct pointer missing for pid_tgid=%llu", pid_tgid);
         return 0;
