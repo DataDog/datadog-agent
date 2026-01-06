@@ -88,6 +88,12 @@ func TestAccumulateTagsFor(t *testing.T) {
 	err := fakeTagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
+
+	nonExistentEntityID := types.NewEntityID(types.ContainerID, "non_existent_entity")
+	tb = tagset.NewHashlessTagsAccumulator()
+	err = fakeTagger.AccumulateTagsFor(nonExistentEntityID, types.HighCardinality, tb)
+	assert.Error(t, err)
+	assert.Empty(t, tb.Get())
 }
 
 func TestTag(t *testing.T) {

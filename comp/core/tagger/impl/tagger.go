@@ -204,13 +204,17 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 		return tagset.HashedTags{}, errors.New("empty entity ID")
 	}
 
-	cachedTags := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
+	cachedTags, err := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
+	if err != nil {
+		return tagset.HashedTags{}, err
+	}
 
 	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
 }
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
+// Returns an error if the entity is not found in the tagger, even if the entityID is valid.
 func (t *localTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entityID, cardinality)
 	tb.AppendHashed(tags)
@@ -467,7 +471,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		// 2. ContainerID from Unix Domain Socket (process ID-based)
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, containerID), cardinality, tb); err != nil {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, containerID), cardinality, tb); err != nil && err != tagstore.ErrNotFound {
 				t.log.Errorf("%s", err.Error())
 			} else {
 				return
@@ -511,7 +515,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 	}
 
-	if err := t.globalTagBuilder(cardinality, tb); err != nil {
+	if err := t.globalTagBuilder(cardinality, tb); err != nil && err != tagstore.ErrNotFound {
 		t.log.Error(err.Error())
 	}
 }
