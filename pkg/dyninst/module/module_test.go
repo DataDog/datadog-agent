@@ -10,6 +10,7 @@ package module_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -1360,4 +1361,79 @@ func TestDiagnosticRetentionSingleProbeRemoval(t *testing.T) {
 	)
 
 	require.NoError(t, loaded2.Close())
+}
+
+// TestLoadReturnsErrorWhenProcessRemovedDuringLoad verifies that when a process
+// is removed during program loading, perhaps because the process has died,
+// the runtime returns a non-nil error.
+//
+// Previously, we would return nil, nil from runtimeImpl.Load() which was
+// problematic for the actuator.
+func TestLoadReturnsErrorWhenProcessRemovedDuringLoad(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	processUpdate := createTestProcessConfig()
+	deps.irGenerator.program = createTestProgram()
+
+	// Create a wrapper actuator that intercepts SetRuntime to inject our
+	// intercepting runtime.
+	wrapper := &interceptingActuator{
+		Actuator: deps.actuator,
+	}
+
+	td := deps.toDeps()
+	td.Actuator = wrapper
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
+
+	pid := processUpdate.ProcessID
+	deps.sendUpdates(processUpdate)
+
+	// Configure the intercepting runtime to remove the process during Load.
+	wrapper.interceptingRT.onLoad = func() {
+		deps.sendRemovals(processUpdate.ProcessID)
+	}
+
+	// Now try to load - the wrapper will remove the process during load.
+	loaded, err := wrapper.interceptingRT.Load(
+		ir.ProgramID(42),
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdate.Probes,
+	)
+
+	// Expect an error because the process has been removed.
+	require.Nil(t, loaded)
+	require.Regexp(t, fmt.Sprintf("process %v not found", pid), err)
+}
+
+// interceptingActuator wraps an actuator to intercept SetRuntime and inject
+// an intercepting runtime.
+type interceptingActuator struct {
+	module.Actuator
+	interceptingRT *interceptingRuntime
+}
+
+func (a *interceptingActuator) SetRuntime(runtime actuator.Runtime) {
+	// Wrap the runtime to intercept Load calls.
+	wrapped := &interceptingRuntime{inner: runtime}
+	a.interceptingRT = wrapped
+	a.Actuator.SetRuntime(wrapped)
+}
+
+// interceptingRuntime wraps a runtime to intercept Load calls.
+type interceptingRuntime struct {
+	inner  actuator.Runtime
+	onLoad func()
+}
+
+func (r *interceptingRuntime) Load(
+	programID ir.ProgramID,
+	executable process.Executable,
+	processID process.ID,
+	probes []ir.ProbeDefinition,
+) (actuator.LoadedProgram, error) {
+	if r.onLoad != nil {
+		r.onLoad()
+	}
+	return r.inner.Load(programID, executable, processID, probes)
 }
