@@ -150,7 +150,7 @@ func (m *IISManager) EnsureIISInstalled() {
 func (m *IISManager) SetupIISSite(siteName string, port int, indexContent string) error {
 	m.t.Helper()
 
-	siteDir := fmt.Sprintf("C:\\inetpub\\wwwroot\\%s", siteName)
+	siteDir := "C:\\inetpub\\wwwroot\\" + siteName
 
 	script := fmt.Sprintf(`
 $SiteName = "%s"
@@ -191,7 +191,7 @@ Write-Output "Site created successfully"
 func (m *IISManager) CleanupIISSite(siteName string) error {
 	m.t.Helper()
 
-	siteDir := fmt.Sprintf("C:\\inetpub\\wwwroot\\%s", siteName)
+	siteDir := "C:\\inetpub\\wwwroot\\" + siteName
 
 	script := fmt.Sprintf(`
 $SiteName = "%s"
