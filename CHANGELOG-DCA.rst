@@ -2,6 +2,63 @@
 Release Notes
 =============
 
+.. _Release Notes_7.74.0:
+
+7.74.0
+======
+
+.. _Release Notes_7.74.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-07
+Pinned to datadog-agent v7.74.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7740>`_.
+
+.. _Release Notes_7.74.0_New Features:
+
+New Features
+------------
+
+- Add KSM Resource Type Sharding for improved performance in large Kubernetes clusters.
+  This feature automatically splits the ``kubernetes_state_core`` check into multiple
+  shards based on resource type groups (pods, nodes, others), enabling parallel execution
+  across multiple Cluster Check Runners.
+
+
+.. _Release Notes_7.74.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- In the Helm check, the "helm_status" tag is now always set to "uninstalled"
+  in delete events.
+
+
+.. _Release Notes_7.74.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a deadlock in the Cluster Agent language detection handler that could cause
+  event drops with the error "collector language-detection-follower dropped event(s)
+  after 10s timeout". The fix releases the mutex before pushing events to workloadmeta
+  to prevent blocking while holding the lock.
+
+
+.. _Release Notes_7.73.3:
+
+7.73.3
+======
+
+.. _Release Notes_7.73.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-31
+Pinned to datadog-agent v7.73.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7733>`_.
+
 .. _Release Notes_7.73.2:
 
 7.73.2
