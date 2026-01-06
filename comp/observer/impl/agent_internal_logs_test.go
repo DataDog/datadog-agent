@@ -16,10 +16,22 @@ import (
 )
 
 func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
+	// Disable sampling for this test so the log is guaranteed to be forwarded.
+	one := 1.0
+	enabled := true
+
 	// Ensure util/log is initialized so log calls actually emit (otherwise they buffer pre-init).
 	pkglog.SetupLogger(pkglog.Disabled(), "info")
+	pkglog.SetLoggerName("CORE")
 
-	provides := NewComponent(Requires{})
+	provides := NewComponent(Requires{
+		AgentInternalLogTap: AgentInternalLogTapConfig{
+			Enabled:         &enabled,
+			SampleRateInfo:  &one,
+			SampleRateDebug: &one,
+			SampleRateTrace: &one,
+		},
+	})
 	obs, ok := provides.Comp.(*observerImpl)
 	require.True(t, ok)
 	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
@@ -33,7 +45,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"
-	tags := []string{"source:datadog-agent", "level:info"}
+	tags := []string{"source:datadog-agent", "component:core", "level:info"}
 
 	// Poll briefly since observer processes asynchronously.
 	deadline := time.Now().Add(2 * time.Second)

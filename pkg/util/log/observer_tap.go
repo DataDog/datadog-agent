@@ -17,6 +17,8 @@ var (
 	logObserverHook atomic.Pointer[LogObserver]
 	// observing guards against accidental recursion if an observer emits logs.
 	observing atomic.Bool
+
+	loggerName atomic.String
 )
 
 // SetLogObserver registers a process-wide log observer hook.
@@ -26,7 +28,20 @@ func SetLogObserver(h LogObserver) {
 		logObserverHook.Store(nil)
 		return
 	}
-	logObserverHook.Store(&h)
+	hp := new(LogObserver)
+	*hp = h
+	logObserverHook.Store(hp)
+}
+
+// SetLoggerName records the current logger name (e.g. CORE, DOGSTATSD) for low-cardinality tagging.
+// This is optional; if unset, GetLoggerName returns "".
+func SetLoggerName(name string) {
+	loggerName.Store(name)
+}
+
+// GetLoggerName returns the recorded logger name (if any).
+func GetLoggerName() string {
+	return loggerName.Load()
 }
 
 func maybeObserve(level LogLevel, message string) {

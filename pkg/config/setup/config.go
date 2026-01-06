@@ -293,6 +293,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Capture agent-internal logs via pkg/util/log hook and route them through the observer.
 	// Default enabled; can be disabled if needed.
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs", true)
+	// Sampling for agent-internal logs forwarded to the observer.
+	// Warn+ and above are never sampled; these apply to info/debug/trace only.
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_trace", 0.0)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

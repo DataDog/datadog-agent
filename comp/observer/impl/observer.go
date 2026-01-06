@@ -9,6 +9,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -29,7 +30,16 @@ func mapAggregation(agg observerdef.Aggregation) Aggregate {
 
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
-	// No dependencies yet - can add Lifecycle, Config, Log as needed
+	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
+	// When fields are nil, values are read from configuration defaults.
+	AgentInternalLogTap AgentInternalLogTapConfig
+}
+
+type AgentInternalLogTapConfig struct {
+	Enabled         *bool
+	SampleRateInfo  *float64
+	SampleRateDebug *float64
+	SampleRateTrace *float64
 }
 
 // Provides defines the output of the observer component.
@@ -83,10 +93,60 @@ func NewComponent(deps Requires) Provides {
 	go obs.run()
 
 	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
-	if pkgconfigsetup.Datadog().GetBool("observer.capture_agent_internal_logs") {
+	cfg := pkgconfigsetup.Datadog()
+	enabled := cfg.GetBool("observer.capture_agent_internal_logs")
+	if deps.AgentInternalLogTap.Enabled != nil {
+		enabled = *deps.AgentInternalLogTap.Enabled
+	}
+	if enabled {
+		sampleInfo := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
+		if deps.AgentInternalLogTap.SampleRateInfo != nil {
+			sampleInfo = *deps.AgentInternalLogTap.SampleRateInfo
+		}
+		if deps.AgentInternalLogTap.SampleRateDebug != nil {
+			sampleDebug = *deps.AgentInternalLogTap.SampleRateDebug
+		}
+		if deps.AgentInternalLogTap.SampleRateTrace != nil {
+			sampleTrace = *deps.AgentInternalLogTap.SampleRateTrace
+		}
+
 		handle := obs.GetHandle("agent-internal-logs")
 		baseTags := []string{"source:datadog-agent"}
+		if name := pkglog.GetLoggerName(); name != "" {
+			baseTags = append(baseTags, "component:"+strings.ToLower(name))
+		}
+
+		var infoN, debugN, traceN uint64
+		shouldSample := func(level pkglog.LogLevel) bool {
+			var rate float64
+			switch level {
+			case pkglog.WarnLvl, pkglog.ErrorLvl, pkglog.CriticalLvl:
+				return true
+			case pkglog.InfoLvl:
+				rate = sampleInfo
+				n := atomic.AddUint64(&infoN, 1)
+				return samplePass(rate, n)
+			case pkglog.DebugLvl:
+				rate = sampleDebug
+				n := atomic.AddUint64(&debugN, 1)
+				return samplePass(rate, n)
+			case pkglog.TraceLvl:
+				rate = sampleTrace
+				n := atomic.AddUint64(&traceN, 1)
+				return samplePass(rate, n)
+			default:
+				// Unknown level: treat as info.
+				n := atomic.AddUint64(&infoN, 1)
+				return samplePass(sampleInfo, n)
+			}
+		}
+
 		pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
+			if !shouldSample(level) {
+				return
+			}
 			tags := append(baseTags, "level:"+strings.ToLower(level.String()))
 			// Emit structured JSON so LogTimeSeriesAnalysis can extract fields consistently.
 			// Level is carried as a tag (separate timeseries per level).
@@ -103,6 +163,22 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	return Provides{Comp: obs}
+}
+
+func samplePass(rate float64, n uint64) bool {
+	if rate <= 0 {
+		return false
+	}
+	if rate >= 1 {
+		return true
+	}
+	const denom = 1000
+	threshold := uint64(rate * denom)
+	// Ensure very small non-zero rates still occasionally pass.
+	if threshold == 0 {
+		threshold = 1
+	}
+	return (n % denom) < threshold
 }
 
 // observerImpl is the implementation of the observer component.
