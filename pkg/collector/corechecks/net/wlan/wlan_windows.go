@@ -9,7 +9,6 @@
 package wlan
 
 import (
-	"errors"
 	"fmt"
 	"unsafe"
 

@@ -507,22 +507,24 @@ function cleanup_all_per_user_installations() {
 }
 
 # Function: cleanup_stale_sockets
-# Description: Removes stale GUI socket files from the run directory
+# Description: Removes stale GUI socket files from the IPC directory
 # This prevents "Address already in use" errors during reinstallation
 # Should be called after GUI processes are confirmed stopped
 # Arguments: None
 # Returns: 0 on success
 function cleanup_stale_sockets() {
-    if [ ! -d "$run_dir" ]; then
-        # Run directory doesn't exist, nothing to clean
+    local ipc_dir="$run_dir/ipc"
+
+    if [ ! -d "$ipc_dir" ]; then
+        # IPC directory doesn't exist, nothing to clean
         return 0
     fi
 
     # Check if any socket files exist
-    local socket_files=("$run_dir"/gui-*.sock)
+    local socket_files=("$ipc_dir"/gui-*.sock)
     if [ -e "${socket_files[0]}" ]; then
         printf "${BLUE}    - Cleaning up stale socket files...\n${NC}"
-        $sudo_cmd rm -f "$run_dir"/gui-*.sock
+        $sudo_cmd rm -f "$ipc_dir"/gui-*.sock
         printf "${GREEN}      ✓ Stale sockets removed\n${NC}"
     fi
 
