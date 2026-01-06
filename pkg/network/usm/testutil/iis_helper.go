@@ -29,6 +29,51 @@ if ($result.RestartNeeded) {
 Write-Output "IIS installed successfully"
 exit 0
 `
+
+	// IIS site setup script template
+	// Parameters: siteName, siteDir, port, indexContent
+	setupIISSiteScript = `
+$SiteName = "%s"
+$SitePath = "%s"
+$Port = %d
+
+# Create directory
+New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
+
+# Create index.html
+Set-Content -Path "$SitePath\index.html" -Value @'
+%s
+'@
+
+# Create the IIS site
+New-WebSite -Name $SiteName -PhysicalPath $SitePath -Port $Port -Force | Out-Null
+
+# Start the site
+Start-WebSite -Name $SiteName
+
+# Wait for site to be ready
+Start-Sleep -Seconds 2
+
+Write-Output "Site created successfully"
+`
+
+	// IIS site cleanup script template
+	// Parameters: siteName, siteDir
+	cleanupIISSiteScript = `
+$SiteName = "%s"
+$SitePath = "%s"
+
+# Stop and remove the site
+if (Get-WebSite -Name $SiteName -ErrorAction SilentlyContinue) {
+    Stop-WebSite -Name $SiteName -ErrorAction SilentlyContinue
+    Remove-WebSite -Name $SiteName -ErrorAction SilentlyContinue
+}
+
+# Remove the directory
+if (Test-Path $SitePath) {
+    Remove-Item -Path $SitePath -Recurse -Force -ErrorAction SilentlyContinue
+}
+`
 )
 
 // IISManager provides IIS management functionality for unit tests
@@ -184,31 +229,7 @@ func (m *IISManager) SetupIISSite(siteName string, port int, indexContent string
 	m.t.Helper()
 
 	siteDir := m.getSiteDir(siteName)
-
-	script := fmt.Sprintf(`
-$SiteName = "%s"
-$SitePath = "%s"
-$Port = %d
-
-# Create directory
-New-Item -ItemType Directory -Force -Path $SitePath | Out-Null
-
-# Create index.html
-Set-Content -Path "$SitePath\index.html" -Value @'
-%s
-'@
-
-# Create the IIS site
-New-WebSite -Name $SiteName -PhysicalPath $SitePath -Port $Port -Force | Out-Null
-
-# Start the site
-Start-WebSite -Name $SiteName
-
-# Wait for site to be ready
-Start-Sleep -Seconds 2
-
-Write-Output "Site created successfully"
-`, siteName, siteDir, port, indexContent)
+	script := fmt.Sprintf(setupIISSiteScript, siteName, siteDir, port, indexContent)
 
 	output, err := m.runPowerShell(script)
 	if err != nil {
@@ -224,22 +245,7 @@ func (m *IISManager) CleanupIISSite(siteName string) error {
 	m.t.Helper()
 
 	siteDir := m.getSiteDir(siteName)
-
-	script := fmt.Sprintf(`
-$SiteName = "%s"
-$SitePath = "%s"
-
-# Stop and remove the site
-if (Get-WebSite -Name $SiteName -ErrorAction SilentlyContinue) {
-    Stop-WebSite -Name $SiteName -ErrorAction SilentlyContinue
-    Remove-WebSite -Name $SiteName -ErrorAction SilentlyContinue
-}
-
-# Remove the directory
-if (Test-Path $SitePath) {
-    Remove-Item -Path $SitePath -Recurse -Force -ErrorAction SilentlyContinue
-}
-`, siteName, siteDir)
+	script := fmt.Sprintf(cleanupIISSiteScript, siteName, siteDir)
 
 	output, err := m.runPowerShell(script)
 	if err != nil {
