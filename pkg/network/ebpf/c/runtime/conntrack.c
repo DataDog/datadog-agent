@@ -98,14 +98,6 @@ int BPF_BYPASSABLE_KPROBE(kretprobe___nf_conntrack_confirm) {
         return 0;
     }
 
-    // Check IPS_CONFIRMED flag before adding to conntrack map // JMWNEXT
-    u32 status = 0;
-    BPF_CORE_READ_INTO(&status, ct, status);
-    if (!(status & IPS_CONFIRMED)) {
-        log_debug("kretprobe/__nf_conntrack_confirm: not IPS_CONFIRMED ct=%p status=%x", ct, status); // JMWRM?
-        return 0;
-    }
-
     // JMW from here down - common code for two new probes - handle_conntrack_map_update()?
     // Successfully confirmed NAT connection - add to conntrack map
     conntrack_tuple_t orig = {}, reply = {};
