@@ -19,8 +19,6 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 )
 
 type traceExporter struct {
