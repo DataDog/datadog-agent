@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"sync"
 	"time"
 
@@ -172,9 +173,15 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 	if !isEnabled {
 		i.log.Infof("OTel Metadata unavailable as OTel collector is disabled")
 		i.data = nil
-
 		return
 	}
+
+	if !i.isDdflareExtensionEnabled() {
+		i.log.Infof("OTel Metadata unavailable as ddflare extension is not enabled in converter features")
+		i.data = nil
+		return
+	}
+
 	data, err := i.f.getConfig()
 	if err != nil {
 		i.log.Error("Unable to fetch fresh inventory metadata: ", err)
@@ -188,6 +195,16 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 	}
 
 	i.data["enabled"] = isEnabled
+}
+
+// isDdflareExtensionEnabled checks if the ddflare extension is enabled.
+func (i *inventoryotel) isDdflareExtensionEnabled() bool {
+	if !i.conf.GetBool("otelcollector.converter.enabled") {
+		return false
+	}
+
+	enabledFeatures := i.conf.GetStringSlice("otelcollector.converter.features")
+	return slices.Contains(enabledFeatures, "ddflare")
 }
 
 func (i *inventoryotel) refreshMetadata() {

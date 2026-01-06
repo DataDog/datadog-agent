@@ -83,3 +83,83 @@ func TestConfigRefresh(t *testing.T) {
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, io.RefreshTriggered())
 }
+
+func TestIsDdflareExtensionEnabled(t *testing.T) {
+	tests := []struct {
+		name      string
+		overrides map[string]any
+		expected  bool
+	}{
+		{
+			name:      "enabled by default",
+			overrides: map[string]any{},
+			expected:  true,
+		},
+		{
+			name: "disabled when converter is disabled",
+			overrides: map[string]any{
+				"otelcollector.converter.enabled": false,
+			},
+			expected: false,
+		},
+		{
+			name: "disabled when ddflare not in features",
+			overrides: map[string]any{
+				"otelcollector.converter.enabled":  true,
+				"otelcollector.converter.features": []string{"infraattributes", "prometheus"},
+			},
+			expected: false,
+		},
+		{
+			name: "enabled when ddflare in features",
+			overrides: map[string]any{
+				"otelcollector.converter.enabled":  true,
+				"otelcollector.converter.features": []string{"ddflare"},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			io := getTestInventoryPayload(t, tt.overrides)
+			assert.Equal(t, tt.expected, io.isDdflareExtensionEnabled())
+		})
+	}
+}
+
+func TestGetPayloadWithDdflareDisabled(t *testing.T) {
+	tests := []struct {
+		name      string
+		overrides map[string]any
+	}{
+		{
+			name: "ddflare not in features",
+			overrides: map[string]any{
+				"otelcollector.enabled":            true,
+				"otelcollector.converter.enabled":  true,
+				"otelcollector.converter.features": []string{"infraattributes"},
+			},
+		},
+		{
+			name: "converter disabled",
+			overrides: map[string]any{
+				"otelcollector.enabled":           true,
+				"otelcollector.converter.enabled": false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			io := getTestInventoryPayload(t, tt.overrides)
+			io.hostname = "hostname-for-test"
+
+			p := io.getPayload()
+			payload := p.(*Payload)
+
+			// When ddflare is disabled, i.data is nil, but copyAndScrub returns empty map
+			assert.Empty(t, payload.Metadata)
+		})
+	}
+}
