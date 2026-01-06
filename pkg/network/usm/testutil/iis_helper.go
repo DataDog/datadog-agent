@@ -60,16 +60,16 @@ func NewIISManager(t *testing.T) *IISManager {
 func (m *IISManager) IsIISInstalled() bool {
 	m.t.Helper()
 
-	// Try Windows Server method first
-	cmd := exec.Command("powershell", "-Command", "(Get-WindowsFeature -Name Web-Server -ErrorAction SilentlyContinue).InstallState -eq 'Installed'")
-	output, err := cmd.CombinedOutput()
-	if err == nil && strings.TrimSpace(string(output)) == "True" {
-		return true
+	var cmd *exec.Cmd
+	if m.IsWindowsServer() {
+		// Windows Server method
+		cmd = exec.Command("powershell", "-Command", "(Get-WindowsFeature -Name Web-Server -ErrorAction SilentlyContinue).InstallState -eq 'Installed'")
+	} else {
+		// Windows Client method (Windows 10/11)
+		cmd = exec.Command("powershell", "-Command", "(Get-WindowsOptionalFeature -Online -FeatureName IIS-WebServer -ErrorAction SilentlyContinue).State -eq 'Enabled'")
 	}
 
-	// Try Windows Client method (Windows 10/11)
-	cmd = exec.Command("powershell", "-Command", "(Get-WindowsOptionalFeature -Online -FeatureName IIS-WebServer -ErrorAction SilentlyContinue).State -eq 'Enabled'")
-	output, err = cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		m.t.Logf("Failed to check IIS installation status: %v", err)
 		return false
@@ -143,6 +143,8 @@ func (m *IISManager) EnsureIISInstalled() {
 			m.t.Fatal("IIS installation completed but IIS is still not available")
 		}
 		m.t.Log("IIS installation verified")
+	} else {
+		m.t.Log("IIS is already installed")
 	}
 }
 
