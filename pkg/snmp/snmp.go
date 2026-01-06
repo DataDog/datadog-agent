@@ -67,10 +67,10 @@ type Config struct {
 	ContextEngineID             string           `mapstructure:"context_engine_id"`
 	ContextName                 string           `mapstructure:"context_name"`
 	Authentications             []Authentication `mapstructure:"authentications"`
-	IgnoredIPAddresses          map[string]bool  `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier                string           `mapstructure:"ad_identifier"`
-	Loader                      string           `mapstructure:"loader"`
-	CollectDeviceMetadataConfig *bool            `mapstructure:"collect_device_metadata"`
+	IgnoredIPAddresses          map[string]bool
+	ADIdentifier                string `mapstructure:"ad_identifier"`
+	Loader                      string `mapstructure:"loader"`
+	CollectDeviceMetadataConfig *bool  `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
 	CollectTopology             bool
@@ -81,6 +81,9 @@ type Config struct {
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
+
+	// DON'T USE. We read this as a list from the config file and then free memory after converting it to a map
+	ListOfIgnoredIPAddresses []string `mapstructure:"ignored_ip_addresses"`
 
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
@@ -241,6 +244,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			}
 		}
 		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
+
+		config.IgnoredIPAddresses = make(map[string]bool, len(config.ListOfIgnoredIPAddresses))
+		for _, ip := range config.ListOfIgnoredIPAddresses {
+			config.IgnoredIPAddresses[ip] = true
+		}
+		config.ListOfIgnoredIPAddresses = nil // free memory
 	}
 
 	return snmpConfig, nil
