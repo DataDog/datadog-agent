@@ -8,6 +8,7 @@
 package testutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -108,7 +109,7 @@ func (m *IISManager) findRepoRoot() (string, error) {
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("repository root not found")
+			return "", errors.New("repository root not found")
 		}
 		dir = parent
 	}
