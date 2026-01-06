@@ -7,8 +7,14 @@ This module contains tasks that automatically update the Kubernetes versions use
 The automation runs twice daily (6am and 6pm UTC) via GitHub Actions and:
 1. Fetches the latest Kubernetes version from Docker Hub's `kindest/node` repository
 2. Extracts the index digest for the version
-3. Updates `.gitlab/test/e2e/e2e.yml` if a new version is available
+3. Updates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml` if a new version is available
 4. Creates a pull request with the change
+
+**Note:** This automation maintains two separate test configurations:
+- **`new-e2e-containers` job**: Uses a parallel matrix with 4 oldest K8s versions (manually maintained)
+- **`new-e2e-containers-k8s-latest` job**: Tests the latest stable K8s release (automatically updated)
+
+The matrix is never modified by this automation and should be manually rotated when needed.
 
 ## Tasks
 
@@ -20,7 +26,7 @@ Fetches and parses the latest Kubernetes version from Docker Hub.
 - Filters for valid Kubernetes version tags (e.g., `v1.34.0`)
 - Sorts by version and finds the single latest version
 - Extracts the index digest (manifest list digest) for that version
-- Stores version in `k8s_versions.json` for comparison on next run
+- Adds the version to `k8s_versions.json`
 - Outputs whether a new version was found since last run
 
 **Usage:**
@@ -38,8 +44,8 @@ Updates the e2e.yml file with the new Kubernetes version.
 **What it does:**
 - Reads the stored versions from `k8s_versions.json`
 - Compares with current version in `new-e2e-containers-k8s-latest` job
-- If different, moves current k8s-latest version to the matrix
-- Updates `new-e2e-containers-k8s-latest` job with the new version
+- If different, updates `new-e2e-containers-k8s-latest` job with the new version
+- **Does NOT modify** the `new-e2e-containers` matrix (manually maintained)
 
 **Usage:**
 ```bash
@@ -108,20 +114,22 @@ The task extracts the **index digest** (not the image digest) for the latest ver
 
 ### YAML Update Strategy
 The task:
-1. Locates the `new-e2e-containers` matrix and `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml`
-2. Compares the desired latest version with current version in k8s-latest job
-3. If different, moves current k8s-latest version to the matrix (if not already present)
-4. Updates the k8s-latest job with the new version
-5. Maintains proper YAML indentation (6 spaces)
+1. Locates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml`
+2. Compares the desired latest version with current version in the k8s-latest job
+3. If different, updates the k8s-latest job with the new version
+4. **Never modifies** the `new-e2e-containers` matrix
+
+The `new-e2e-containers` job maintains a parallel matrix with the 4 oldest K8s versions. This matrix is manually maintained and should be rotated when needed to drop older versions and include newer ones.
 
 ### PR Creation
 When a new version is found:
 - A new branch is created: `update-k8s-versions-{run_id}-{attempt}`
 - Changes are committed with a descriptive message
 - A PR is created with:
-  - Title: "[automated] Add new Kubernetes version to e2e tests"
+  - Title: "[automated] Update Kubernetes latest version in e2e tests"
   - Labels: `team/container-integrations`, `qa/done`, `changelog/no-changelog`, `ask-review`
   - Team reviewers: `container-integrations`
+- The PR updates only the `new-e2e-containers-k8s-latest` job to test the latest stable release
 
 ## Maintenance
 
@@ -156,8 +164,8 @@ version_tags = [
 - Check if the Docker Hub API response format has changed
 
 **YAML formatting issues:**
-- Verify the indentation detection in `_find_matrix_section()`
-- Check that the `new-e2e-containers` job structure hasn't changed
+- Check that the `new-e2e-containers-k8s-latest` job structure hasn't changed
+- Verify the version replacement pattern in `_update_e2e_yaml_file()`
 
 ## Dependencies
 
