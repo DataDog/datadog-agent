@@ -211,7 +211,6 @@ def display_pr_comment(
         final_error_body = ""
 
     body_info += "\n</details>\n"
-
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)

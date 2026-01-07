@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -784,9 +786,27 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
+		var cmd *exec.Cmd
+		var ptmx *os.File
+		defer func() {
+			if ptmx != nil {
+				_ = ptmx.Close()
+			}
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		}()
+
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
-			return cmd.Run()
+			// Use pty.Start to allocate a pseudo-terminal for the command
+			cmd = exec.Command(syscallTester, "slow-cat", "4", testFile)
+			var err error
+			ptmx, err = pty.Start(cmd)
+			if err != nil {
+				return err
+			}
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_tty")
 			assertFieldEqual(t, event, "process.file.path", syscallTester)

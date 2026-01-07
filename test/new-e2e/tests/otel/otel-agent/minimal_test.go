@@ -123,6 +123,10 @@ func (s *minimalTestSuite) TestOTelAgentStatus() {
 	utils.TestOTelAgentStatusCmd(s)
 }
 
+func (s *minimalTestSuite) TestOTelAgentFlare() {
+	utils.TestOTelAgentFlareCmd(s)
+}
+
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
 	const expectedCfg = `service:
   extensions:

@@ -17,12 +17,13 @@ void noop_run(char *check_id, char *init_config, char *instance_config, const ag
 
 const char *noop_version(const char **error) {
 	// do nothing
-	return "";
+	return NULL;
 }
 
-library_t get_noop_library(void) {
-	library_t library = { NULL, noop_run, noop_version };
-	return library;
+const library_t noop_library = { NULL, noop_run, noop_version };
+
+const library_t *get_noop_library(void) {
+	return &noop_library;
 }
 */
 import "C"
@@ -30,33 +31,32 @@ import "C"
 // NoopSharedLibraryLoader is the noop version of sharedLibraryLoader
 type NoopSharedLibraryLoader struct{}
 
-// Load does nothing
-func (ml *NoopSharedLibraryLoader) Open(_ string) (Library, error) {
-	return Library{}, nil
+// Load returns the noop library
+func (*NoopSharedLibraryLoader) Open(_ string) (*Library, error) {
+	return GetNoopLibrary(), nil
 }
 
 // Close does nothing
-func (ml *NoopSharedLibraryLoader) Close(_ Library) error {
+func (*NoopSharedLibraryLoader) Close(_ *Library) error {
 	return nil
 }
 
 // Run does nothing
-func (ml *NoopSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, _ string) error {
+func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string) error {
 	return nil
 }
 
 // Version returns "noop_version"
-func (ml *NoopSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
+func (*NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
 	return "noop_version", nil
 }
 
-// GetNoopLibrary returns a library with functions that do nothing
-func GetNoopLibrary() Library {
+// GetNoopLibrary returns a library with pointers to noop functions
+func GetNoopLibrary() *Library {
 	cLib := C.get_noop_library()
+	return (*Library)(cLib)
+}
 
-	return Library{
-		Handle:  cLib.handle,
-		Run:     cLib.run,
-		Version: cLib.version,
-	}
+func NewLibraryWithNullSymbols() *Library {
+	return &Library{}
 }

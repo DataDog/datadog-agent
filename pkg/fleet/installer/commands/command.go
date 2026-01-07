@@ -31,6 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// AnnotationHumanReadableErrors is the annotation key for commands that should
+	// display errors in human-readable format instead of JSON.
+	//
+	// For example, `setup` is run by humans and its output should be human readable.
+	AnnotationHumanReadableErrors = "human-readable-errors"
+)
+
 type cmd struct {
 	t              *telemetry.Telemetry
 	span           *telemetry.Span
@@ -215,6 +223,9 @@ func setupCommand() *cobra.Command {
 		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
+		Annotations: map[string]string{
+			AnnotationHumanReadableErrors: "true",
+		},
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.stop(err) }()

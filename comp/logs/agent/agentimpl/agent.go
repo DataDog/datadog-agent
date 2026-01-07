@@ -134,6 +134,11 @@ type logAgent struct {
 
 	// make restart thread safe
 	restartMutex sync.Mutex
+
+	// HTTP retry state for TCP fallback recovery
+	httpRetryCtx    context.Context
+	httpRetryCancel context.CancelFunc
+	httpRetryMutex  sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -212,6 +217,11 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+
+	// If we're currently sending over TCP, attempt restart over HTTP
+	if !endpoints.UseHTTP {
+		a.smartHTTPRestart()
+	}
 	return nil
 }
 
@@ -301,6 +311,9 @@ func (a *logAgent) stop(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Stopping logs-agent")
+
+	// Stop HTTP retry loop if running
+	a.stopHTTPRetry()
 
 	status.Clear()
 

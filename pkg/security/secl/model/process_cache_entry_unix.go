@@ -152,9 +152,11 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 		if pc.ContainerContext.ContainerID == "" {
 			break
 		}
-		pids = append(pids, pc.Pid)
-		paths = append(paths, pc.FileEvent.PathnameStr)
-
+		if !slices.Contains(pids, pc.Pid) {
+			// add only LAST exec of an unique pid
+			pids = append(pids, pc.Pid)
+			paths = append(paths, pc.FileEvent.PathnameStr)
+		}
 		pc = pc.Ancestor
 	}
 

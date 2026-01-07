@@ -70,7 +70,7 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.F
 	// Resolve symbolic links for the path and file name checks.
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve path: %v", err)
+		return nil, fmt.Errorf("failed to resolve path %s: %w", path, err)
 	}
 
 	// Callback for tests to change the filesystem after we called EvalSymlinks,
@@ -80,32 +80,34 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.F
 	}
 
 	var file *os.File
-	if isAllowed(resolvedPath, allowedPrefix) {
-		// We use openPathWithoutSymlinks on the resolved path to verify each
-		// component with O_NOFOLLOW to ensure that none of the path components
-		// were replaced with symlinks after we called EvalSymlinks.
-		file, err = openPathWithoutSymlinks(resolvedPath)
-	} else {
-		err = errors.New("non-log file not allowed")
+
+	if !isAllowed(resolvedPath, allowedPrefix) {
+		return nil, fmt.Errorf("non-log file not allowed: %s", resolvedPath)
 	}
+
+	// We use openPathWithoutSymlinks on the resolved path to verify each
+	// component with O_NOFOLLOW to ensure that none of the path components
+	// were replaced with symlinks after we called EvalSymlinks.
+	file, err = openPathWithoutSymlinks(resolvedPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", path, err)
+		return nil, fmt.Errorf("failed to open path %s: %w", resolvedPath, err)
 	}
 
 	fi, err := file.Stat()
 	if err != nil {
 		file.Close()
-		return nil, fmt.Errorf("failed to stat file %s: %w", path, err)
+		// err already contains the path
+		return nil, err
 	}
 
 	if !fi.Mode().IsRegular() {
 		file.Close()
-		return nil, fmt.Errorf("file %s is not a regular file", path)
+		return nil, fmt.Errorf("not a regular file: %s", resolvedPath)
 	}
 
 	if !isTextFile(file) {
 		file.Close()
-		return nil, errors.New("not a text file")
+		return nil, fmt.Errorf("not a text file: %s", resolvedPath)
 	}
 
 	return file, nil
