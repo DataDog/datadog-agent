@@ -382,6 +382,13 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	}
 
 	c.listeners[product] = append(c.listeners[product], listener)
+
+	// If we already have cached configs for this product, immediately notify the new subscriber
+	// This ensures subscribers don't miss updates that arrived before they subscribed
+	existingConfigs := c.state.GetConfigs(product)
+	if len(existingConfigs) > 0 {
+		go listener.OnUpdate(existingConfigs, c.state.UpdateApplyStatus)
+	}
 }
 
 // Subscribe subscribes to config updates of a product.

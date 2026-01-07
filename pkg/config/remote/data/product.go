@@ -44,6 +44,8 @@ const (
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
 	// ProductRemoteFlags is to receive remote feature flags
 	ProductRemoteFlags = "REMOTE_FLAGS"
+	// TODO(remy): remove me
+	ProductDebug = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list
