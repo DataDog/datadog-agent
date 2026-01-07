@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.45.0-1"
-	databricksJavaTracerVersion = "1.55.0-1"
-	databricksAgentVersion      = "7.72.3-1"
+	databricksInjectorVersion   = "0.53.0-1"
+	databricksJavaTracerVersion = "1.58.0-1"
+	databricksAgentVersion      = "7.74.0-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
