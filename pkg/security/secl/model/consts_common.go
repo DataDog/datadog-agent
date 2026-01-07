@@ -486,9 +486,9 @@ var (
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
 	// UserSessionTypeStrings are the supported user session types
-	UserSessionTypeStrings = map[usersession.Type]string{}
+	userSessionTypeStrings = map[usersession.Type]string{}
 	// SSHAuthMethodStrings are the supported SSH authentication methods
-	SSHAuthMethodStrings = map[usersession.AuthType]string{}
+	sshAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -641,14 +641,14 @@ func initLinkageTypeConstants() {
 func initUserSessionTypes() {
 	for k, v := range UserSessionTypes {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		UserSessionTypeStrings[v] = k
+		userSessionTypeStrings[v] = k
 	}
 }
 
 func initSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		SSHAuthMethodStrings[v] = k
+		sshAuthMethodStrings[v] = k
 	}
 }
 
@@ -1184,4 +1184,25 @@ func (l LinkageType) String() string {
 		initLinkageTypeConstants()
 	}
 	return linkageTypeStrings[l]
+}
+
+// UserSessionTypeToString converts a usersession.Type to its string representation
+func UserSessionTypeToString(t usersession.Type) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := userSessionTypeStrings[t]; ok {
+		return val
+	}
+	return ""
+}
+
+func SSHAuthMethodToString(t usersession.AuthType) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := sshAuthMethodStrings[t]; ok {
+		return val
+	}
+	return ""
 }
