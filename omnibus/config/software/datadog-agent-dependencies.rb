@@ -8,6 +8,24 @@ if linux_target?
 end
 if fips_mode?
   dependency 'openssl-fips-provider'
+else
+  if !heroku_target?
+    build do
+      command_on_repo_root "dda inv -- -e secret-backend.build --output-bin=bin/secret-backend/secret-generic-connector#{windows_target? ? '.exe' : ''}", :env => with_standard_compiler_flags({})
+
+      if windows_target?
+        mkdir "#{install_dir}/bin/agent"
+        copy "bin/secret-backend/secret-generic-connector.exe", "#{install_dir}/bin/agent/"
+      else
+        mkdir "#{install_dir}/embedded/bin"
+        copy "bin/secret-backend/secret-generic-connector", "#{install_dir}/embedded/bin/"
+        command "chmod 0500 #{install_dir}/embedded/bin/secret-generic-connector"
+      end
+
+      mkdir "#{install_dir}/LICENSES"
+      copy "cmd/secret-backend/LICENSE", "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
+  end
 end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
