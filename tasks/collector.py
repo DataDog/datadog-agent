@@ -54,7 +54,9 @@ COMPONENTS_TO_STRIP = {
 }
 
 # TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
-BASE_URL = "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
+BASE_URL = (
+    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
+)
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
