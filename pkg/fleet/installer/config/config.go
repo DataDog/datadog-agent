@@ -491,7 +491,10 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 	case map[any]any:
 		m := map[string]any{}
 		for k, v := range x {
-			m[k.(string)] = convertYAML2UnmarshalToJSONMarshallable(v)
+			if strKey, ok := k.(string); ok {
+				m[strKey] = convertYAML2UnmarshalToJSONMarshallable(v)
+			}
+			// Skip non-string keys as they cannot be represented in JSON
 		}
 		return m
 	case map[string]any:
@@ -501,9 +504,11 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 		}
 		return m
 	case []any:
+		m := make([]any, len(x))
 		for i, v := range x {
-			x[i] = convertYAML2UnmarshalToJSONMarshallable(v)
+			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
 		}
+		return m
 	}
 	return i
 }
