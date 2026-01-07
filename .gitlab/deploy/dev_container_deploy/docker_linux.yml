@@ -1,6 +1,6 @@
 ---
 include:
-  - .gitlab/common/container_publish_job_templates.yml
+  - .gitlab/.pre/common/container_publish_job_templates.yml
 
 dev_branch-dogstatsd:
   extends: .docker_publish_job_definition

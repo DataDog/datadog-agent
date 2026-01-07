@@ -9,8 +9,8 @@
      - trigger_release
    
    include:
-     - .gitlab/common/shared.yml
-     - .gitlab/common/container_publish_job_templates.yml
-     - local: .gitlab/deploy/**/*.yml
-     - local: .gitlab/trigger_release/**/*.yml
-     - .gitlab/trigger_distribution/conditions.yml
+     - .gitlab/.pre/common/shared.yml
+     - .gitlab/.pre/common/container_publish_job_templates.yml
+     - .gitlab/deploy/trigger/conditions.yml
+     - local: .gitlab/deploy/trigger_release/**/*.yml
+     - local: .gitlab/distribute/**/*.yml

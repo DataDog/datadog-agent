@@ -1,6 +1,6 @@
 ---
 include:
-  - .gitlab/common/macos.yml
+  - .gitlab/.pre/common/macos.yml
 
 .tests_macos_gitlab:
   stage: source_test

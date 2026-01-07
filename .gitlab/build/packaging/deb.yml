@@ -1,6 +1,6 @@
 ---
 include:
-  - .gitlab/packaging/common.yml
+  - .gitlab/build/packaging/common.yml
 
 .package_deb_common:
   extends: .bazel:defs:cache:omnibus-transition

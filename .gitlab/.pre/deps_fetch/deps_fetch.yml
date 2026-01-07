@@ -119,14 +119,14 @@ go_e2e_deps:
     - key:
         files:
           - ./test/new-e2e/go.mod
-          - .gitlab/deps_fetch/deps_fetch.yml
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
         prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz
     - key:
         files:
           - ./test/new-e2e/go.mod
-          - .gitlab/deps_fetch/deps_fetch.yml
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
         prefix: "pulumi_plugins"
       paths:
         - pulumi_plugins.tar.xz

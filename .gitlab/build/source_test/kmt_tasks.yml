@@ -1,5 +1,5 @@
 # This file contain jobs that tests the KMT tasks code. This doesn't launch any KMT tests themselves,
-# that's done in .gitlab/kernel_matrix_testing
+# that's done in .gitlab/test/kernel_matrix_testing
 
 .test_kmt_local_setup:
   stage: source_test
@@ -9,7 +9,7 @@
     - !reference [.except_mergequeue]
     - changes:
         paths:
-          - .gitlab/source_test/kmt_tasks.yml
+          - .gitlab/build/source_test/kmt_tasks.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
     - token="$(dda inv -- auth.gitlab --repo test-infra-definitions)"

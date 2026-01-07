@@ -7,7 +7,7 @@ trigger_distribution:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
   trigger:
     include:
-      - local: .gitlab/trigger_distribution/include.yml
+      - local: .gitlab/distribution.yml
     forward:
       pipeline_variables: true
 
@@ -19,6 +19,6 @@ trigger_distribution_on_failure:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
   trigger:
     include:
-      - local: .gitlab/trigger_distribution/include.yml
+      - local: .gitlab/distribution.yml
     forward:
       pipeline_variables: true

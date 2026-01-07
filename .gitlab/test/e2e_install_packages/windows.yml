@@ -1,4 +1,4 @@
-# NOTE: If a new job is added, be sure to upate .gitlab/e2e_test_junit_upload.yml
+# NOTE: If a new job is added, be sure to upate .gitlab/test/e2e_test_junit_upload.yml
 
 .new-e2e_with_version:
   variables:
