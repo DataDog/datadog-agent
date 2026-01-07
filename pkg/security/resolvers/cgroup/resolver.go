@@ -223,6 +223,10 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 }
 
 func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
+	if cgroupContext.IsNull() {
+		return nil
+	}
+
 	if !cgroupContext.IsResolved() {
 		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
 		if err != nil {
