@@ -87,9 +87,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 	reqs.Log.Info("Private action runner starting")
-	reqs.Log.Info(fmt.Sprintf("==> Version : %s", parversion.RunnerVersion))
-	reqs.Log.Info(fmt.Sprintf("==> Site : %s", cfg.DatadogSite))
-	reqs.Log.Info(fmt.Sprintf("==> URN : %s", cfg.Urn))
+	reqs.Log.Info("==> Version : " + parversion.RunnerVersion)
+	reqs.Log.Info("==> Site : " + cfg.DatadogSite)
+	reqs.Log.Info("==> URN : " + cfg.Urn)
 
 	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
