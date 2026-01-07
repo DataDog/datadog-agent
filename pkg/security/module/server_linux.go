@@ -281,7 +281,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 		// Access the EBPFProbe to get the UserSessionsResolver
 		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
 			if model.UserSessionTypeStrings == nil {
-				model.InitUserSessionTypes()
+				model.SECLConstants()
 			}
 			// Create the user session context serializer
 			userSessionCtx := &serializers.SSHSessionContextSerializer{

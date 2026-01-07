@@ -638,16 +638,14 @@ func initLinkageTypeConstants() {
 	}
 }
 
-// InitUserSessionTypes initialize the constants for user session types
-func InitUserSessionTypes() {
+func initUserSessionTypes() {
 	for k, v := range UserSessionTypes {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		UserSessionTypeStrings[v] = k
 	}
 }
 
-// InitSSHAuthMethodConstants initialize the constants for SSH auth methods
-func InitSSHAuthMethodConstants() {
+func initSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		SSHAuthMethodStrings[v] = k
@@ -701,8 +699,8 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
-	InitUserSessionTypes()
-	InitSSHAuthMethodConstants()
+	initUserSessionTypes()
+	initSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
