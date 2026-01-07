@@ -441,6 +441,13 @@ fn consolidate_files(
     // REQ-CON-003: Close writer to finalize footer
     arrow_writer.close().context("Failed to close ArrowWriter")?;
 
+    // Fsync to ensure data is physically written to disk before rename
+    // This prevents corruption from system crashes, sleep/resume, or I/O errors
+    let sync_file = File::open(&tmp_path).context("Failed to reopen temp file for sync")?;
+    sync_file
+        .sync_all()
+        .context("Failed to sync temp file to disk")?;
+
     // REQ-CON-003: Atomic rename
     std::fs::rename(&tmp_path, output_path).context("Failed to rename temp file to final")?;
 
