@@ -62,15 +62,15 @@ func CommonRootOrPath(root, path string) string {
 		return path
 	}
 
-	if strings.Contains("log", path) {
+	if strings.Contains(path, "/var/log/datadog") {
 		rest := strings.TrimPrefix(path, "/var/log/datadog/")
 		return filepath.Join(root, "logs", rest)
 	}
-	if strings.Contains("etc", path) {
+	if strings.Contains(path, "/etc/datadog-agent") {
 		rest := strings.TrimPrefix(path, "/etc/datadog-agent/")
 		return filepath.Join(root, "etc", rest)
 	}
-	if strings.Contains("run", path) {
+	if strings.Contains(path, "/var/run/datadog") {
 		rest := strings.TrimPrefix(path, "/var/run/datadog/")
 		return filepath.Join(root, "run", rest)
 	}
