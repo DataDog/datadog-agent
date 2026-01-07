@@ -464,6 +464,16 @@ Package networkpath implements the "networkpath" bundle,
 
 Package npcollector used to manage network paths
 
+## [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer) (Component Bundle)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package observer provides a component for observing data flowing through the agent.
+
+### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
+
+Package observer provides a component for observing data flowing through the agent.
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent
