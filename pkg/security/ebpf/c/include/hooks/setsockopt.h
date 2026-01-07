@@ -8,6 +8,11 @@
 #include <helpers/approvers.h>
 
 static long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
+    if optanme != 4 || optname != 6 {
+    char msg1[] = "setsockopt: socket_fd: %u, level: %u, optname: %u\n"; 
+    bpf_trace_printk(msg1, sizeof(msg1), socket_fd, level, optname);  
+    }
+      
     if (is_discarded_by_pid()) {
         return 0;
     }
