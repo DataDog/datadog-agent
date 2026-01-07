@@ -27,6 +27,7 @@ from tasks.quality_gates import (
     display_pr_comment,
     generate_new_quality_gate_config,
     get_change_metrics,
+    get_wire_change_metrics,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -790,9 +791,27 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch("tasks.quality_gates.pr_commenter")
-    def test_no_error(self, pr_commenter_mock):
+    def test_no_error_with_significant_changes(self, pr_commenter_mock):
+        """Test PR comment with successful gates that have significant changes (>= 2 KiB)."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add metrics with significant changes
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB (significant)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 10 * 1024 * 1024,  # +10 MiB (significant)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 5 * 1024 * 1024,
+        }
         display_pr_comment(
             c,
             True,
@@ -804,16 +823,118 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "value",
         )
         pr_commenter_mock.assert_called_once()
-        # Check that the new table format is present
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
+        # Check that the table format is present
         self.assertIn('Change', body)
         self.assertIn('Limit Bounds', body)
         self.assertIn('Successful checks', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_neutral_changes_collapsed(self, pr_commenter_mock):
+        """Test that gates with neutral changes (< 2 KiB) are collapsed."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add metrics with neutral changes (below threshold)
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 500,  # 500 bytes (neutral)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 200,
+        }
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 1000,  # 1KB (neutral)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 500,
+        }
+        display_pr_comment(
+            c,
+            True,
+            [
+                {'name': 'gateA', 'error_type': None, 'message': None},
+                {'name': 'gateB', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check that collapsed section is present
+        self.assertIn('successful checks with minimal change', body)
+        self.assertIn('2 KiB', body)
+        # Check that gates are in the collapsed section
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_mixed_significant_and_neutral(self, pr_commenter_mock):
+        """Test PR comment with both significant and neutral changes."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        # Gate A with significant change
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB (significant)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        # Gate B with neutral change
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 500,  # 500 bytes (neutral)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 200,
+        }
+        display_pr_comment(
+            c,
+            True,
+            [
+                {'name': 'gateA', 'error_type': None, 'message': None},
+                {'name': 'gateB', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check both sections are present
+        self.assertIn('Successful checks', body)
+        self.assertIn('successful checks with minimal change', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
 
     @patch.dict(
         'os.environ',
@@ -847,6 +968,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('gateB', body)
         self.assertIn('Gate failure full details', body)
         self.assertIn('Static quality gates prevent the PR to merge!', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
 
@@ -861,6 +984,15 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     def test_one_of_each(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add significant change to gateB so it appears in expanded section
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
         display_pr_comment(
             c,
             False,
@@ -882,6 +1014,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         # Check new columns are present
         self.assertIn('Change', body)
         self.assertIn('Limit Bounds', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
 
     @patch.dict(
         'os.environ',
@@ -908,6 +1042,45 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
         self.assertIn('N/A', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_wire_table_separate(self, pr_commenter_mock):
+        """Test that on-wire sizes appear in a separate collapsed section."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        display_pr_comment(
+            c,
+            True,
+            [
+                {'name': 'gateA', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check on-wire section is present and collapsed
+        self.assertIn('On-wire sizes (compressed)', body)
+        self.assertIn('<details>', body)
+        # Check gateA appears in wire section
+        wire_section_start = body.find('On-wire sizes (compressed)')
+        self.assertIn('gateA', body[wire_section_start:])
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
@@ -1208,15 +1381,16 @@ class TestGetChangeMetrics(unittest.TestCase):
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
             "relative_on_disk_size": 15 * 1024 * 1024,  # +15 MiB delta
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
         # Baseline = 165 - 15 = 150 MiB
         # Change shows delta with percentage increase
         self.assertIn("+15.0 MiB", change_str)
         self.assertIn("increase", change_str)
-        # Limit bounds: baseline → current → limit
+        self.assertFalse(is_neutral)
+        # Limit bounds: baseline → current (bold) → limit
         self.assertIn("150.000", limit_bounds)
-        self.assertIn("165.000", limit_bounds)
+        self.assertIn("**165.000**", limit_bounds)
         self.assertIn("200.000", limit_bounds)
 
     def test_negative_delta_reduction(self):
@@ -1227,13 +1401,14 @@ class TestGetChangeMetrics(unittest.TestCase):
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
             "relative_on_disk_size": -5 * 1024 * 1024,  # -5 MiB delta (reduction)
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
         self.assertIn("reduction", change_str)
         self.assertIn("-5.0 MiB", change_str)
+        self.assertFalse(is_neutral)
         # Baseline = 145 - (-5) = 150 MiB
         self.assertIn("150.000", limit_bounds)
-        self.assertIn("145.000", limit_bounds)
+        self.assertIn("**145.000**", limit_bounds)
 
     def test_zero_delta_neutral(self):
         """Should show neutral when delta is zero."""
@@ -1243,22 +1418,46 @@ class TestGetChangeMetrics(unittest.TestCase):
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
             "relative_on_disk_size": 0,  # No change
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
-        self.assertEqual("0B (neutral)", change_str)
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        # Neutral shows only current size (bolded), no arrows
+        self.assertEqual("**150.000** MiB", limit_bounds)
 
-    def test_small_delta_kib(self):
-        """Should show delta in KiB for small changes."""
+    def test_small_delta_below_threshold_neutral(self):
+        """Should show neutral when delta is below 2 KiB threshold."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 150 * 1024 * 1024,  # 150 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 1 * 1024,  # +1 KiB delta (below 2 KiB threshold)
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        # Neutral shows only current size (bolded), no arrows
+        self.assertIn("**", limit_bounds)
+        self.assertIn("MiB", limit_bounds)
+        self.assertNotIn("→", limit_bounds)
+
+    def test_small_delta_kib_above_threshold(self):
+        """Should show delta in KiB for changes above threshold."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
             "current_on_disk_size": 707163 * 1024,  # ~707 MiB
             "max_on_disk_size": 708000 * 1024,  # ~708 MiB
-            "relative_on_disk_size": 98 * 1024,  # +98 KiB delta
+            "relative_on_disk_size": 98 * 1024,  # +98 KiB delta (above 2 KiB threshold)
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
         self.assertIn("+98.0 KiB", change_str)
         self.assertIn("increase", change_str)
+        self.assertFalse(is_neutral)
+        # Should have arrows for non-neutral changes
+        self.assertIn("→", limit_bounds)
+        self.assertIn("**", limit_bounds)
 
     def test_missing_current_size(self):
         """Should return N/A when current size is missing."""
@@ -1266,10 +1465,11 @@ class TestGetChangeMetrics(unittest.TestCase):
         handler.metrics["test_gate"] = {
             "max_on_disk_size": 200 * 1024 * 1024,
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
         self.assertEqual("N/A", change_str)
         self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
 
     def test_missing_relative_size(self):
         """Should handle missing relative size (no ancestor data)."""
@@ -1279,12 +1479,13 @@ class TestGetChangeMetrics(unittest.TestCase):
             "max_on_disk_size": 200 * 1024 * 1024,
             # No relative_on_disk_size
         }
-        change_str, limit_bounds = get_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
 
         self.assertEqual("N/A", change_str)
-        # Limit bounds should show N/A for baseline but current and limit should be present
+        self.assertFalse(is_neutral)
+        # Limit bounds should show N/A for baseline but current (bold) and limit should be present
         self.assertIn("N/A", limit_bounds)
-        self.assertIn("165.000", limit_bounds)
+        self.assertIn("**165.000**", limit_bounds)
         self.assertIn("200.000", limit_bounds)
 
     def test_missing_gate(self):
@@ -1292,10 +1493,59 @@ class TestGetChangeMetrics(unittest.TestCase):
         handler = GateMetricHandler("main", "dev")
         handler.metrics = {}
 
-        change_str, limit_bounds = get_change_metrics("nonexistent_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("nonexistent_gate", handler)
 
         self.assertEqual("N/A", change_str)
         self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
+
+
+class TestGetWireChangeMetrics(unittest.TestCase):
+    """Test the get_wire_change_metrics function for on-wire size calculations."""
+
+    def test_normal_positive_delta(self):
+        """Should calculate change for a positive delta (size increased)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_wire_size": 100 * 1024 * 1024,  # 100 MiB
+            "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
+            "relative_on_wire_size": 10 * 1024 * 1024,  # +10 MiB delta
+        }
+        change_str, limit_bounds, is_neutral = get_wire_change_metrics("test_gate", handler)
+
+        self.assertIn("+10.0 MiB", change_str)
+        self.assertIn("increase", change_str)
+        self.assertFalse(is_neutral)
+        # Limit bounds: baseline → current (bold) → limit
+        self.assertIn("90.000", limit_bounds)
+        self.assertIn("**100.000**", limit_bounds)
+        self.assertIn("150.000", limit_bounds)
+
+    def test_neutral_change(self):
+        """Should show neutral when delta is below threshold."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_wire_size": 100 * 1024 * 1024,  # 100 MiB
+            "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
+            "relative_on_wire_size": 500,  # 500 bytes (below 2 KiB threshold)
+        }
+        change_str, limit_bounds, is_neutral = get_wire_change_metrics("test_gate", handler)
+
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        self.assertIn("**", limit_bounds)
+        self.assertNotIn("→", limit_bounds)
+
+    def test_missing_gate(self):
+        """Should return N/A when gate is not found."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+
+        change_str, limit_bounds, is_neutral = get_wire_change_metrics("nonexistent_gate", handler)
+
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
 
 
 if __name__ == '__main__':

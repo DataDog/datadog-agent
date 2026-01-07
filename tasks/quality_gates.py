@@ -44,6 +44,22 @@ body_pattern = """### {}
 |--|--|--|--|
 """
 
+# Collapsed table pattern for successful checks with minimal changes
+body_collapsed_pattern = """<details>
+<summary>{} successful checks with minimal change (&lt; 2 KiB)</summary>
+
+||Quality gate|Current Size|
+|--|--|--|
+"""
+
+# Collapsed table pattern for on-wire sizes
+body_wire_pattern = """<details>
+<summary>On-wire sizes (compressed)</summary>
+
+||Quality gate|Change|Limit Bounds|
+|--|--|--|--|
+"""
+
 body_error_footer_pattern = """<details>
 <summary>Gate failure full details</summary>
 
@@ -52,14 +68,20 @@ body_error_footer_pattern = """<details>
 """
 
 
-def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str]:
+# Threshold for considering a size change as "neutral" (not meaningful)
+# Changes below this threshold are collapsed and shown with simplified display
+NEUTRAL_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
+
+
+def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str, bool]:
     """
-    Calculate change metrics for a gate.
+    Calculate change metrics for a gate (on-disk sizes).
 
     Returns:
-        Tuple of (change_str, limit_bounds_str) for display in PR comment.
-        - change_str: e.g., "0B (neutral)", "-58.7 KiB (0.29% reduction)", "+98.3 KiB (1.35% increase)"
-        - limit_bounds_str: e.g., "707.163 → 707.163 → 707.240"
+        Tuple of (change_str, limit_bounds_str, is_neutral) for display in PR comment.
+        - change_str: e.g., "neutral", "-58.7 KiB (0.29% reduction)", "+98.3 KiB (1.35% increase)"
+        - limit_bounds_str: e.g., "**707.163** MiB" for neutral, "707.000 → **707.163** → 707.240" for changes
+        - is_neutral: True if the change is below the threshold (< 2 KiB)
     """
     gate_metrics = metric_handler.metrics.get(gate_name, {})
 
@@ -69,7 +91,7 @@ def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tup
 
     # If we don't have the required metrics, return N/A
     if current_disk is None or max_disk is None:
-        return "N/A", "N/A"
+        return "N/A", "N/A", False
 
     # Calculate baseline (ancestor size) from current - relative
     if relative_disk is not None:
@@ -82,22 +104,29 @@ def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tup
     max_mib = max_disk / (1024 * 1024)
     baseline_mib = baseline_disk / (1024 * 1024) if baseline_disk is not None else None
 
-    # Build limit bounds string: baseline → current → limit
-    if baseline_mib is not None:
-        limit_bounds_str = f"{baseline_mib:.3f} → {current_mib:.3f} → {max_mib:.3f}"
+    # Determine if change is neutral (below threshold)
+    is_neutral = relative_disk is not None and abs(relative_disk) < NEUTRAL_THRESHOLD_BYTES
+
+    # Build limit bounds string based on whether change is neutral
+    if is_neutral:
+        # For neutral changes, just show the current size (bolded)
+        limit_bounds_str = f"**{current_mib:.3f}** MiB"
+    elif baseline_mib is not None:
+        # For meaningful changes, show: baseline → current (bold) → limit
+        limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
     else:
-        limit_bounds_str = f"N/A → {current_mib:.3f} → {max_mib:.3f}"
+        limit_bounds_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
 
     # Build change string with delta and percentage
     if baseline_disk is None or relative_disk is None:
         change_str = "N/A"
+    elif is_neutral:
+        change_str = "neutral"
     else:
         # Format the delta in human-readable units
         delta_str = byte_to_string(relative_disk)
 
-        if relative_disk == 0:
-            change_str = "0B (neutral)"
-        elif baseline_disk > 0:
+        if baseline_disk > 0:
             # Calculate percentage change relative to baseline
             pct_change = abs(relative_disk / baseline_disk) * 100
 
@@ -112,7 +141,78 @@ def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tup
             else:
                 change_str = f"{delta_str} (reduction)"
 
-    return change_str, limit_bounds_str
+    return change_str, limit_bounds_str, is_neutral
+
+
+def get_wire_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str, bool]:
+    """
+    Calculate change metrics for a gate (on-wire/compressed sizes).
+
+    Returns:
+        Tuple of (change_str, limit_bounds_str, is_neutral) for display in PR comment.
+        - change_str: e.g., "neutral", "-58.7 KiB (0.29% reduction)", "+98.3 KiB (1.35% increase)"
+        - limit_bounds_str: e.g., "**707.163** MiB" for neutral, "707.000 → **707.163** → 707.240" for changes
+        - is_neutral: True if the change is below the threshold (< 2 KiB)
+    """
+    gate_metrics = metric_handler.metrics.get(gate_name, {})
+
+    current_wire = gate_metrics.get("current_on_wire_size")
+    max_wire = gate_metrics.get("max_on_wire_size")
+    relative_wire = gate_metrics.get("relative_on_wire_size")
+
+    # If we don't have the required metrics, return N/A
+    if current_wire is None or max_wire is None:
+        return "N/A", "N/A", False
+
+    # Calculate baseline (ancestor size) from current - relative
+    if relative_wire is not None:
+        baseline_wire = current_wire - relative_wire
+    else:
+        baseline_wire = None
+
+    # Convert to MiB for display
+    current_mib = current_wire / (1024 * 1024)
+    max_mib = max_wire / (1024 * 1024)
+    baseline_mib = baseline_wire / (1024 * 1024) if baseline_wire is not None else None
+
+    # Determine if change is neutral (below threshold)
+    is_neutral = relative_wire is not None and abs(relative_wire) < NEUTRAL_THRESHOLD_BYTES
+
+    # Build limit bounds string based on whether change is neutral
+    if is_neutral:
+        # For neutral changes, just show the current size (bolded)
+        limit_bounds_str = f"**{current_mib:.3f}** MiB"
+    elif baseline_mib is not None:
+        # For meaningful changes, show: baseline → current (bold) → limit
+        limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
+    else:
+        limit_bounds_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
+
+    # Build change string with delta and percentage
+    if baseline_wire is None or relative_wire is None:
+        change_str = "N/A"
+    elif is_neutral:
+        change_str = "neutral"
+    else:
+        # Format the delta in human-readable units
+        delta_str = byte_to_string(relative_wire)
+
+        if baseline_wire > 0:
+            # Calculate percentage change relative to baseline
+            pct_change = abs(relative_wire / baseline_wire) * 100
+
+            if relative_wire > 0:
+                change_str = f"+{delta_str} ({pct_change:.2f}% increase)"
+            else:
+                change_str = f"{delta_str} ({pct_change:.2f}% reduction)"
+        else:
+            # Baseline is 0, can't calculate percentage
+            if relative_wire > 0:
+                change_str = f"+{delta_str} (new)"
+            else:
+                change_str = f"{delta_str} (reduction)"
+
+    return change_str, limit_bounds_str, is_neutral
 
 
 def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
@@ -167,30 +267,59 @@ def display_pr_comment(
     )
 
     # Main tables for on-disk metrics
-    body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
+    body_info = ""
+    body_info_collapsed = ""
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
+    # On-wire sizes table (separate collapsed section)
+    body_wire = ""
+
     with_blocking_error = False
     with_non_blocking_error = False
-    with_info = False
+    significant_success_count = 0
+    collapsed_success_count = 0
 
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
         gate_name = gate['name'].replace("static_quality_gate_", "")
 
-        # Get change metrics (delta with percentage and limit bounds)
-        change_str, limit_bounds = get_change_metrics(gate['name'], metric_handler)
+        # Get change metrics for on-disk (delta with percentage and limit bounds)
+        change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler)
+
+        # Get change metrics for on-wire
+        wire_change_str, wire_limit_bounds, _ = get_wire_change_metrics(gate['name'], metric_handler)
 
         if gate["error_type"] is None:
-            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{change_str}|{limit_bounds}|\n"
-            with_info = True
+            if is_neutral:
+                # Neutral changes go to collapsed section (just show current size)
+                gate_metrics = metric_handler.metrics.get(gate['name'], {})
+                current_disk = gate_metrics.get("current_on_disk_size")
+                if current_disk is not None:
+                    current_mib = current_disk / (1024 * 1024)
+                    current_size_str = f"**{current_mib:.3f}** MiB"
+                else:
+                    current_size_str = "N/A"
+                body_info_collapsed += f"|{SUCCESS_CHAR}|{gate_name}|{current_size_str}|\n"
+                collapsed_success_count += 1
+            else:
+                # Significant changes shown in main section
+                if significant_success_count == 0:
+                    body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
+                body_info += f"|{SUCCESS_CHAR}|{gate_name}|{change_str}|{limit_bounds}|\n"
+                significant_success_count += 1
+
+            # All successful gates go to wire table
+            body_wire += f"|{SUCCESS_CHAR}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
         else:
             # Check if this is a blocking or non-blocking failure
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
             body_error += f"|{status_char}|{gate_name}|{change_str}|{limit_bounds}|\n"
+
+            # Add to wire table for errors too
+            body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
 
             error_message = gate['message'].replace('\n', '<br>')
             blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
@@ -210,8 +339,25 @@ def display_pr_comment(
     else:
         final_error_body = ""
 
-    body_info += "\n</details>\n"
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{body_info if with_info else ''}"
+    # Build successful checks section
+    success_section = ""
+    if significant_success_count > 0:
+        body_info += "\n</details>\n"
+        success_section += body_info
+
+    if collapsed_success_count > 0:
+        success_section += body_collapsed_pattern.format(collapsed_success_count)
+        success_section += body_info_collapsed
+        success_section += "\n</details>\n"
+
+    # Build on-wire sizes section (collapsed)
+    wire_section = ""
+    if body_wire:
+        wire_section = body_wire_pattern
+        wire_section += body_wire
+        wire_section += "\n</details>\n"
+
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body)
 
