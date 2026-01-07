@@ -350,7 +350,7 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
 
     # Feature flag for short lived tokens. When enabled we use short lived tokens to create the pipeline. As a consequence we need to use the "create" pipeline API instead of the "trigger" pipeline API.
     # When disabled we use the CI_JOB_TOKEN to create the pipeline.
-    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in:
+    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in: CIP-896
     if is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
         token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
         repo = get_gitlab_repo(project_name, token=token)
