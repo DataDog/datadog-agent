@@ -1148,7 +1148,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// some events don't need to be dispatched and return early after unmarshaling
-	if !p.handleEarlyReturnEvents(event, offset, dataLen, data, newEntryCb) {
+	if !p.handleEarlyReturnEvents(event, offset, dataLen, data) {
 		return
 	}
 	// unmarshall contexts
@@ -1651,7 +1651,7 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 
 // handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
 // It returns false if an error occurs or if the event should not be dispatched further, true otherwise
-func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte) bool {
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
