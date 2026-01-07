@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -38,11 +36,6 @@ type Resolver struct {
 	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
 
-	// stats
-	cacheSize *atomic.Int64
-
-	processCacheEntryPool *Pool
-
 	exitedQueue []uint32
 }
 
@@ -52,23 +45,14 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 		processes:    make(map[Pid]*model.ProcessCacheEntry),
 		opts:         opts,
 		scrubber:     scrubber,
-		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
 	return p, nil
 }
 
 func (p *Resolver) insertEntry(entry *model.ProcessCacheEntry) {
-	// PID collision
-	if prev := p.processes[entry.Pid]; prev != nil {
-		prev.Release()
-	}
-
 	p.processes[entry.Pid] = entry
-	entry.Retain()
 
 	parent := p.processes[entry.PPid]
 	if parent != nil {
@@ -86,7 +70,6 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.processes, entry.Pid)
-	entry.Release()
 }
 
 // AddToExitedQueue adds the exited processes to a queue
@@ -132,7 +115,7 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // AddNewEntry add a new process entry to the cache
 func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, envs []string, commandLine string, OwnerSidString string) (*model.ProcessCacheEntry, error) {
-	e := p.processCacheEntryPool.Get()
+	e := model.NewProcessCacheEntry()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 	e.Process.CmdLine = pathutils.NormalizePath(commandLine)
@@ -240,7 +223,7 @@ func (p *Resolver) Snapshot() {
 	entries := make([]*model.ProcessCacheEntry, 0, len(pmap))
 
 	for pid, proc := range pmap {
-		e := p.processCacheEntryPool.Get()
+		e := model.NewProcessCacheEntry()
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 

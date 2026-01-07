@@ -48,7 +48,7 @@ func (o *WindowsOpenRegistryKeyTest) GenerateEvent(ctx context.Context) error {
 		o.keyPath,
 	)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error opening registry key: %w", err)
+		return fmt.Errorf("error opening registry key %s: %w", o.keyPath, err)
 	}
 
 	return nil

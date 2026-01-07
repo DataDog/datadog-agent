@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestAll(t *testing.T) {
-	// Set environment variables to prevent go commands from accessing
-	// the module cache concurrently, which can cause timeouts on macOS.
-	t.Setenv("GOPRIVATE", "*")
-	t.Setenv("GOPROXY", "off")
+	for key, value := range testutil.IsolatedGoBuildEnv(t.TempDir()) {
+		t.Setenv(key, value)
+	}
 
 	wd, err := os.Getwd()
 	if err != nil {

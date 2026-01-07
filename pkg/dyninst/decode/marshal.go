@@ -298,7 +298,12 @@ func (ce *captureEvent) init(
 			continue
 		}
 		key := typeAndAddr{irType: item.Type(), addr: item.Header().Address}
-		ce.dataItems[key] = item
+		// We may capture dynamically sized objects multiple times with different lengths.
+		// Here we just pick the most data we have, decoder will look at relevant prefix.
+		prev, exists := ce.dataItems[key]
+		if !exists || prev.Header().Length < item.Header().Length {
+			ce.dataItems[key] = item
+		}
 	}
 	if rootType == nil {
 		return errors.New("no root type found")

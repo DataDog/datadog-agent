@@ -46,7 +46,7 @@ func TestOnDemandOpen(t *testing.T) {
 	}
 	defer os.Remove(testFile)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		openHow := unix.OpenHow{
 			Flags: unix.O_RDONLY,
 			Mode:  expectedMode,
@@ -64,7 +64,7 @@ func TestOnDemandOpen(t *testing.T) {
 
 		value, _ := event.GetFieldValue("ondemand.arg2.str")
 		assert.Equal(t, testFile, value.(string))
-	})
+	}, "test_rule_open")
 }
 
 func TestOnDemandChdir(t *testing.T) {
@@ -93,14 +93,14 @@ func TestOnDemandChdir(t *testing.T) {
 	}
 	defer os.RemoveAll(testFolder)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		return os.Chdir(testFolder)
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 
 		value, _ := event.GetFieldValue("ondemand.arg1.str")
 		assert.Equal(t, testFolder, value.(string))
-	})
+	}, "test_rule_chdir")
 }
 
 func TestOnDemandMprotect(t *testing.T) {
@@ -119,7 +119,7 @@ func TestOnDemandMprotect(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		var data []byte
 		data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
@@ -137,7 +137,7 @@ func TestOnDemandMprotect(t *testing.T) {
 		return nil
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
-	})
+	}, "test_rule_mprotect")
 }
 
 func TestOnDemandCopyFileRange(t *testing.T) {
@@ -162,7 +162,7 @@ func TestOnDemandCopyFileRange(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		_, err := unix.CopyFileRange(int(f.Fd()), nil, int(f.Fd()), nil, 42, 0)
 		if errors.Is(err, unix.ENOSYS) {
 			return ErrSkipTest{"openat2 is not supported"}
@@ -170,5 +170,5 @@ func TestOnDemandCopyFileRange(t *testing.T) {
 		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
-	})
+	}, "test_rule_copy_file_range")
 }

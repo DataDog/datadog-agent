@@ -19,6 +19,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -42,7 +43,7 @@ func newDefaultConfig() component.Config {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueBatchConfig: exporterhelper.NewDefaultQueueConfig(),
+		QueueBatchConfig: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,
@@ -74,7 +75,7 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type Exporter struct {
-	tr                *metrics.Translator
+	tr                metrics.Provider
 	s                 serializer.MetricSerializer
 	hostGetter        SourceProviderFunc
 	extraTags         []string
@@ -96,7 +97,7 @@ func translatorFromConfig(
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
-) (*metrics.Translator, error) {
+) (metrics.Provider, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -139,7 +140,7 @@ func translatorFromConfig(
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewTranslator(set, attributesTranslator, options...)
+	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
@@ -148,7 +149,7 @@ func NewExporter(
 	cfg *ExporterConfig,
 	hostGetter SourceProviderFunc,
 	createConsumer createConsumerFunc,
-	tr *metrics.Translator,
+	tr metrics.Provider,
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
 	gatewayUsage otel.GatewayUsage,

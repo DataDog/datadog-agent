@@ -28,6 +28,7 @@ data:
         - deployments
         - replicasets
         - statefulsets
+        - controllerrevisions
         - cronjobs
         - jobs
         - horizontalpodautoscalers
@@ -42,5 +43,6 @@ data:
   kubernetes_apiserver.yaml: |-
     init_config:
     instances:
-      - filtering_enabled: false
+      -
+        filtering_enabled: false
         unbundle_events: false

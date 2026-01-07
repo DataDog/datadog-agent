@@ -456,13 +456,17 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: cloud-network-monitoring
+*Datadog Team*: cloud-network-monitoring network-path
 
 Package networkpath implements the "networkpath" bundle,
 
 ### [comp/networkpath/npcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npcollector)
 
 Package npcollector used to manage network paths
+
+### [comp/networkpath/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/traceroute)
+
+Package traceroute provides the traceroute component
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 

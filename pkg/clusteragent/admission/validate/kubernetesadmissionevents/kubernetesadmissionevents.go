@@ -194,10 +194,10 @@ func generateDatadogEvent(request *admission.Request, webhookName string) (event
 
 	// Add labels to the tags.
 	for key, value := range newResource.GetLabels() {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value))
+		tags = append(tags, key+":"+value)
 	}
 	for key, value := range oldResource.GetLabels() {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value))
+		tags = append(tags, key+":"+value)
 	}
 
 	return event.Event{

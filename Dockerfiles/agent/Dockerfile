@@ -136,8 +136,6 @@ ARG TARGETARCH
 ARG WITH_JMX
 
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Configuration:
@@ -156,8 +154,7 @@ COPY install_info etc/datadog-agent/
 #   - jmxfetch on nojmx build
 
 RUN --mount=from=artifacts,target=/artifacts \
- find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+ find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/embedded/bin/installer \
@@ -197,9 +194,9 @@ COPY --from=extract /output/ /
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
+  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh

@@ -117,7 +117,7 @@ func getECSInstanceMetadata(ctx context.Context) (string, string, string, string
 
 	region, awsAccountID := ParseRegionAndAWSAccountID(ecsInstance.ContainerInstanceARN)
 
-	return awsAccountID, region, ecsInstance.Cluster, ecsInstance.Version, err
+	return awsAccountID, region, ParseClusterName(ecsInstance.Cluster), ecsInstance.Version, err
 }
 
 func getECSTaskMetadata(ctx context.Context) (string, string, string, string, error) {
@@ -153,7 +153,9 @@ func ParseRegionAndAWSAccountID(arn string) (string, string) {
 	if len(arnParts) < 5 {
 		return "", ""
 	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
+	// Accept all valid AWS partitions: aws (commercial), aws-us-gov (GovCloud), aws-cn (China)
+	partition := arnParts[1]
+	if arnParts[0] != "arn" || (partition != "aws" && partition != "aws-us-gov" && partition != "aws-cn") {
 		return "", ""
 	}
 	region := arnParts[3]

@@ -10,6 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -17,9 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type myKindSuite struct {
@@ -27,14 +28,18 @@ type myKindSuite struct {
 }
 
 func TestMyKindSuite(t *testing.T) {
-	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(
-		awskindvm.Provisioner(
-			awskindvm.WithRunOptions(
-				scenariokindvm.WithoutFakeIntake(),
-				scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-					return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
-				}),
-			))))
+	e2e.Run(t, &myKindSuite{},
+		e2e.WithProvisioner(
+			awskindvm.Provisioner(
+				awskindvm.WithRunOptions(
+					scenariokindvm.WithoutFakeIntake(),
+					scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
+						return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
+					}),
+				)),
+		),
+		e2e.WithSkipCoverage(),
+	)
 }
 
 func (v *myKindSuite) TestClusterAgentInstalled() {

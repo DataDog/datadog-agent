@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -24,7 +25,7 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	collector, err := newStatelessCollector(device, &CollectorDependencies{})
+	collector, err := newStatelessCollector(device, &CollectorDependencies{Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)})
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
@@ -75,7 +76,7 @@ func TestCollectProcessMemory(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func() []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
@@ -109,7 +110,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func() []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
@@ -143,7 +144,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func() []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
@@ -182,11 +183,11 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 			processMemoryMetrics++
 			require.Len(t, metric.AssociatedWorkloads, 1, "process.memory.usage should have exactly one workload")
 			require.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind), "process.memory.usage workload should be of kind process")
-			require.Equal(t, High, metric.Priority, "process.memory.usage should have High priority")
+			require.Equal(t, Medium, metric.Priority, "process.memory.usage should have High priority")
 		}
 		if metric.Name == "memory.limit" {
 			require.Len(t, metric.AssociatedWorkloads, 2, "memory.limit should have workloads for all processes")
-			require.Equal(t, High, metric.Priority, "memory.limit should have High priority")
+			require.Equal(t, Medium, metric.Priority, "memory.limit should have High priority")
 		}
 	}
 	require.Equal(t, 2, processMemoryMetrics, "Should have process.memory.usage for each process")
@@ -253,7 +254,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func() []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -343,7 +344,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func() []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",

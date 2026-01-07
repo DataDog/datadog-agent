@@ -264,7 +264,6 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
-    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
@@ -294,7 +293,6 @@ def test(
         build="unit-tests",
         build_include=build_include,
         build_exclude=build_exclude,
-        include_sds=include_sds,
     )
 
     ldflags, gcflags, env = get_build_flags(
@@ -311,6 +309,7 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
+    trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -337,9 +336,7 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = (
-        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
-    )
+    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args} {trimpath_opt}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -358,6 +355,7 @@ def test(
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
         "extra_args": extra_args or "",
+        "trimpath_opt": trimpath_opt,
     }
 
     # Test
@@ -906,7 +904,6 @@ def lint_go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
 ):
     raise Exit("This task is deprecated, please use `dda inv linter.go`", 1)

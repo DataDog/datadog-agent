@@ -432,15 +432,12 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 			}
 
 			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
 				ctx := preparator.get(func(event *model.Event) {
 					event.ProcessCacheEntry = entry
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
