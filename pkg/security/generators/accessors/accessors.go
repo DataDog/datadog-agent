@@ -614,7 +614,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, fieldEvent, restrictedTo, fieldIterator, dejavu)
 					} else {
-						log.Printf("1. failed to resolve symbol for type %+v in %s", fieldType, pkgname)
+						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
 				}
 

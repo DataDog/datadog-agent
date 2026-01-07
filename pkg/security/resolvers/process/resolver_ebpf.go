@@ -438,31 +438,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.EnvsEntry.Truncated = truncated
 	}
 
-	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
-	/*containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
-	if err != nil {
-		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
-			// If the process is not found, it may have exited, so we log a warning
-			seclog.Warnf("%s", errMsg)
-		} else {
-			seclog.Errorf("%s", errMsg)
-		}
-	} else if cgroup.CGroupPathKey.Inode != 0 && cgroup.CGroupPathKey.MountID == 0 { // the mount id is unavailable through statx
-		// TODO REMOVE THIS PART
-		// Get the file fields of the sysfs cgroup file
-		info, err := p.RetrieveFileFieldsFromProcfs(cgroupPath)
-		if err != nil {
-			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
-		} else {
-			cgroup.CGroupPathKey.MountID = info.MountID
-		}
-	}
-
-	entry.Process.ContainerContext.ContainerID = containerID
-	entry.Process.ContainerContext.CreatedAt = uint64(entry.ExecTime.UnixNano())
-
-	entry.Process.CGroup = cgroup*/
+	// group & container context will be set in the insertEntry function
 
 	// Heuristic to detect likely interpreter event
 	// Cannot detect when a script if as follows:
