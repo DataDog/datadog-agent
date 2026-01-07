@@ -181,22 +181,17 @@ const (
 	// SocketDNSFilter is the socket probe for dns
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
-	// JMWREVIEW
-	// JMW this is the default probe for CO-RE and runtime conntrackers if it exists, and is the only probe for prebuilt
-	// ConntrackHashInsert is the kprobe for __nf_conntrack_hash_insert
-	// JMWRM This probe directly receives struct nf_conn*, avoiding the need to extract it from sk_buff
+	// ConntrackHashInsert is the default probe for new conntrack entries
 	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
 
-	// JMW these are the alternate probes for CO-RE and runtime conntrackers if ConntrackHashInsert is not available
-	// JMW but not for prebuilt because offset guessing of struct nf_conn in struct sk_buff is problematic
-	// ConntrackConfirm is the kprobe for __nf_conntrack_confirm
+	// ConntrackConfirm is a probe for new conntrack entries if the default probe is not available
 	ConntrackConfirm ProbeFuncName = "kprobe___nf_conntrack_confirm"
-	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm
+	// ConntrackConfirmReturn is a kretprobe for new conntrack entries if the default probe is not available
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe___nf_conntrack_confirm"
 
-	// ConntrackHashCheckInsert is the kprobe for nf_conntrack_hash_check_insert
+	// ConntrackHashCheckInsert is a probe for new conntrack entries if the default probe is not available
 	ConntrackHashCheckInsert ProbeFuncName = "kprobe_nf_conntrack_hash_check_insert"
-	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert
+	// ConntrackHashCheckInsertReturn is a kretprobe for new conntrack entries if the default probe is not available
 	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries

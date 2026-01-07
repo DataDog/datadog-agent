@@ -59,7 +59,6 @@ var conntrackerTelemetry = struct {
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
-	// JMW look at these histograms
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
@@ -104,7 +103,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
 		} else {
-			log.Debug("JMW successfully loaded CO-RE ebpf conntracker")
+			log.Debug("JMW1 successfully loaded CO-RE ebpf conntracker")
 		}
 	}
 
@@ -118,7 +117,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		} else {
-			log.Debug("JMW successfully loaded runtime compiled ebpf conntracker")
+			log.Debug("JMW2 successfully loaded runtime compiled ebpf conntracker")
 		}
 	}
 
@@ -129,7 +128,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
-		log.Debug("JMW successfully loaded prebuilt ebpf conntracker")
+		log.Debug("JMW3 successfully loaded prebuilt ebpf conntracker")
 
 		isPrebuilt = true
 	}
@@ -421,26 +420,13 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// JMWREVIEW changes from cursor
-// from prompt: change the probe attaching strategy?  If prebuilt attach the ConntrackHashInsert probe, do not fallback to the new probes if that fails.  If runtime or CO-RE, first attempt to attach the   ConntrackHashInsert probe, if that is not available or fails then fall back to the ConntrackConfirm and ConntrackHashCheckInsert kprobes/kretprobes.  It was also suggested that You can use ebpf.VerifyKernelFuncs to see if a particular function is available if that helps
-//
-// getManager creates a manager for the conntracker.
-// buildMode determines which probes and maps to configure:
-//   - Prebuilt: Always uses __nf_conntrack_hash_insert which directly receives struct nf_conn*,
-//     avoiding the need to extract it from sk_buff->_nfct (which would require offset guessing).
-//     No fallback is attempted if this probe is not available.
-//   - CO-RE and Runtime: First attempts to use __nf_conntrack_hash_insert. If that kernel function
-//     is not available, falls back to using __nf_conntrack_confirm and nf_conntrack_hash_check_insert
-//     kprobes/kretprobes, which can handle the _nfct field access using CO-RE relocations or kernel headers.
-func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode buildmode.Type) (*manager.Manager, error) {
-	// Common maps for all modes
-	maps := []*manager.Map{
+func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, buildMode buildmode.Type) (*manager.Manager, error) {
+	conntrackMaps := []*manager.Map{
 		{Name: probes.ConntrackMap},
 		{Name: probes.ConntrackTelemetryMap},
 	}
 
-	// Common probe for all modes
-	probesList := []*manager.Probe{
+	conntrackProbes := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackFillInfo,
@@ -450,12 +436,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 		},
 	}
 
-	// Determine which conntrack probe(s) to use based on build mode and availability
+	// Determine which probe(s) to use based on buildMode and availability
 	// - Prebuilt: use __nf_conntrack_hash_insert
 	// - CO-RE/Runtime: use __nf_conntrack_hash_insert if available, otherwise fall back to
 	//   __nf_conntrack_confirm and nf_conntrack_hash_check_insert
 	useNFConntrackHashInsert := true
-	if mode != buildmode.Prebuilt {
+	if buildMode != buildmode.Prebuilt {
 		missing, err := verifyKernelFuncs("__nf_conntrack_hash_insert")
 		if err != nil {
 			return nil, fmt.Errorf("error verifying kernel function for conntracker: %s", err)
@@ -467,17 +453,17 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	}
 
 	if useNFConntrackHashInsert {
-		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker for build mode ", mode)
-		probesList = append(probesList, &manager.Probe{
+		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker (buildMode %s)", buildMode)
+		conntrackProbes = append(conntrackProbes, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
 				UID:          "conntracker",
 			},
 		})
 	} else {
-		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker for build mode ", mode)
-		maps = append(maps, &manager.Map{Name: probes.ConntrackArgsMap})
-		probesList = append(probesList,
+		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker (buildMode %s)", buildMode)
+		conntrackMaps = append(conntrackMaps, &manager.Map{Name: probes.ConntrackArgsMap})
+		conntrackProbes = append(conntrackProbes,
 			&manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackConfirmReturn,
@@ -506,9 +492,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, mode 
 	}
 
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Maps:     maps,
+		Maps:     conntrackMaps,
 		PerfMaps: []*manager.PerfMap{},
-		Probes:   probesList,
+		Probes:   conntrackProbes,
 	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
