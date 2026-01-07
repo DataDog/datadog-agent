@@ -28,6 +28,8 @@ Prerequisites:
 """
 
 import argparse
+import base64
+import hashlib
 import importlib.util
 import json
 import os
@@ -97,6 +99,98 @@ def cluster_exists() -> bool:
 def ensure_dev_dir():
     """Create .dev directory if needed."""
     DEV_DIR.mkdir(exist_ok=True)
+
+
+def calculate_port() -> int:
+    """Calculate unique viewer port based on checkout path for worktree support."""
+    path_hash = hashlib.md5(str(PROJECT_ROOT).encode()).hexdigest()
+    offset = int(path_hash[:8], 16) % 1000
+    return 8050 + offset
+
+
+# Problem ID prefix -> Kubernetes namespace mapping
+# Based on AIOpsLab service/metadata/*.json files
+PROBLEM_NAMESPACE_MAP = {
+    "astronomy_shop": "astronomy-shop",
+    "hotel_res": "test-hotel-reservation",
+    "social_net": "test-social-network",
+    "flower": "docker",
+    "train_ticket": "train-ticket",
+    "flight_ticket": "openwhisk",
+    "tidb": "tidb-cluster",
+    # Chaos mesh problems (hotel reservation based)
+    "container_kill": "test-hotel-reservation",
+    "pod_failure": "test-hotel-reservation",
+    "pod_kill": "test-hotel-reservation",
+    "network_loss": "test-hotel-reservation",
+    "network_delay": "test-hotel-reservation",
+    "noop_detection_hotel": "test-hotel-reservation",
+    "noop_detection_social": "test-social-network",
+    "noop_detection_astronomy": "astronomy-shop",
+    # K8s problems (social network based)
+    "k8s_target_port": "test-social-network",
+    "auth_miss_mongodb": "test-social-network",
+    "revoke_auth_mongodb": "test-social-network",
+    "user_unregistered_mongodb": "test-social-network",
+    "misconfig_app": "test-hotel-reservation",
+    "scale_pod": "test-social-network",
+    "assign_to_non_existent_node": "test-social-network",
+    "redeploy_without_PV": "test-hotel-reservation",
+    "wrong_bin_usage": "test-hotel-reservation",
+}
+
+
+def get_namespace_for_problem(problem_id: str) -> str | None:
+    """Get the Kubernetes namespace for a given problem ID.
+
+    Returns None if the namespace cannot be determined.
+    """
+    # Check each prefix in order of specificity (longer prefixes first)
+    for prefix in sorted(PROBLEM_NAMESPACE_MAP.keys(), key=len, reverse=True):
+        if problem_id.startswith(prefix):
+            return PROBLEM_NAMESPACE_MAP[prefix]
+    return None
+
+
+def generate_dashboard_config(problem_id: str, namespace: str) -> dict:
+    """Generate a dashboard configuration for viewing the scenario."""
+    # Extract a readable name from problem_id
+    # e.g., "astronomy_shop_ad_service_failure-detection-1" -> "Ad Service Failure"
+    name_part = problem_id.split("-")[0]  # Get part before task type
+    name_part = name_part.replace("astronomy_shop_", "").replace("_", " ").title()
+
+    return {
+        "schema_version": 1,
+        "name": f"AIOpsLab: {name_part}",
+        "description": f"AIOpsLab scenario {problem_id}",
+        "containers": {
+            "namespace": namespace,
+        },
+        "time_range": {
+            "mode": "from_containers",
+            "padding_seconds": 60,
+        },
+        "panels": [
+            {"metric": "cpu_percentage", "title": "CPU Usage %"},
+            {"metric": "cgroup.v2.memory.current", "title": "Memory"},
+            {"metric": "cgroup.v2.pids.current", "title": "PIDs"},
+            {"metric": "cgroup.v2.io.stat.rbytes", "title": "Disk Read"},
+            {"metric": "cgroup.v2.io.stat.wbytes", "title": "Disk Write"},
+        ],
+    }
+
+
+def get_viewer_url(problem_id: str, namespace: str) -> str | None:
+    """Generate viewer URL with inline dashboard config for the scenario."""
+    if not namespace:
+        return None
+
+    dashboard = generate_dashboard_config(problem_id, namespace)
+    dashboard_json = json.dumps(dashboard)
+    dashboard_b64 = base64.b64encode(dashboard_json.encode()).decode()
+
+    port = calculate_port()
+    return f"http://localhost:{port}/?dashboard_inline={dashboard_b64}"
 
 
 # --- AIOps helper functions ---
@@ -278,13 +372,22 @@ def cmd_aiops_info(problem_id: str):
         else "unknown"
     )
 
+    namespace = get_namespace_for_problem(problem_id)
+
     print(f"Problem: {problem_id}")
     print(f"Task type: {task_type}")
     print(f"Deployment: {registry.get_problem_deployment(problem_id)}")
+    print(f"Namespace: {namespace or 'unknown'}")
     print()
 
     print("Note: Use './scenario-aiopslab.py start <problem_id>' to deploy and run")
     print("      The application will be deployed to the cluster at start time.")
+
+    # Show viewer URL preview
+    viewer_url = get_viewer_url(problem_id, namespace)
+    if viewer_url:
+        print("\nViewer URL (after deployment):")
+        print(f"  {viewer_url}")
 
     return 0
 
@@ -314,12 +417,16 @@ def cmd_aiops_start(problem_id: str, max_steps: int):
     run_dir = get_aiops_run_dir(guid)
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    # Get namespace for this problem
+    namespace = get_namespace_for_problem(problem_id)
+
     # Save run metadata
     metadata = {
         "guid": guid,
         "problem_id": problem_id,
         "max_steps": max_steps,
         "cluster": get_cluster_name(),
+        "namespace": namespace,
         "started_at": datetime.now().isoformat(),
         "status": "starting",
     }
@@ -353,12 +460,21 @@ def cmd_aiops_start(problem_id: str, max_steps: int):
     (run_dir / "aiops.pid").write_text(str(proc.pid))
 
     print(f"Starting AIOpsLab scenario {guid}")
-    print(f"  Problem:  {problem_id}")
-    print(f"  Cluster:  {get_cluster_name()}")
+    print(f"  Problem:   {problem_id}")
+    print(f"  Cluster:   {get_cluster_name()}")
+    print(f"  Namespace: {namespace or 'unknown'}")
     print(f"  Max steps: {max_steps}")
-    print(f"  Logs:     {run_dir}/logs.{{stdout,stderr}}")
-    print(f"  Wait:     ./scenario-aiopslab.py wait {guid}")
+    print(f"  Logs:      {run_dir}/logs.{{stdout,stderr}}")
+    print(f"  Wait:      ./scenario-aiopslab.py wait {guid}")
     print(f"  Results available for {AIOPS_RETENTION_DAYS} days")
+
+    # Print viewer URL if namespace is known
+    viewer_url = get_viewer_url(problem_id, namespace)
+    if viewer_url:
+        print("\nViewer (after scenario deploys):")
+        print(f"  {viewer_url}")
+    else:
+        print("\nNote: Could not determine namespace for dashboard filtering")
 
     return 0
 
