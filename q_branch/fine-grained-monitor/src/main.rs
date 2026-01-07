@@ -472,6 +472,9 @@ async fn run_rotation_loop(
 /// Kubernetes metadata refresh interval (30 seconds per design.md)
 const K8S_REFRESH_INTERVAL_SECS: u64 = 30;
 
+/// Minimum time between eager K8s refreshes (to avoid hammering the API)
+const K8S_EAGER_REFRESH_COOLDOWN_SECS: u64 = 5;
+
 /// Main observer loop: discovers containers and samples metrics at the configured interval
 async fn observer_loop(
     interval_ms: u64,
@@ -487,6 +490,11 @@ async fn observer_loop(
     // REQ-MV-015: Track last Kubernetes metadata refresh
     let mut last_k8s_refresh = std::time::Instant::now()
         .checked_sub(Duration::from_secs(K8S_REFRESH_INTERVAL_SECS))
+        .unwrap_or_else(std::time::Instant::now);
+
+    // Track last eager refresh to enforce cooldown
+    let mut last_eager_refresh = std::time::Instant::now()
+        .checked_sub(Duration::from_secs(K8S_EAGER_REFRESH_COOLDOWN_SECS))
         .unwrap_or_else(std::time::Instant::now);
 
     loop {
@@ -520,6 +528,53 @@ async fn observer_loop(
                             container.container_name = Some(metadata.container_name.clone());
                             container.namespace = Some(metadata.namespace.clone());
                             container.labels = Some(metadata.labels.clone());
+                        }
+                    }
+
+                    // Check for unenriched containers (new containers not yet in K8s cache)
+                    let unenriched_count = containers
+                        .iter()
+                        .filter(|c| c.pod_name.is_none())
+                        .count();
+
+                    // Eager refresh: if we have unenriched containers and cooldown has passed,
+                    // immediately query K8s API to get their metadata
+                    if unenriched_count > 0 {
+                        let now = std::time::Instant::now();
+                        if now.duration_since(last_eager_refresh)
+                            >= Duration::from_secs(K8S_EAGER_REFRESH_COOLDOWN_SECS)
+                        {
+                            tracing::debug!(
+                                unenriched = unenriched_count,
+                                "Triggering eager K8s refresh for new containers"
+                            );
+                            if let Err(e) = client.refresh().await {
+                                tracing::warn!(error = %e, "Failed eager K8s refresh");
+                            } else {
+                                last_eager_refresh = now;
+                                last_k8s_refresh = now;
+
+                                // Re-enrich containers with fresh metadata
+                                let fresh_cache = client.get_cache().await;
+                                let mut enriched = 0;
+                                for container in &mut containers {
+                                    if container.pod_name.is_none() {
+                                        if let Some(metadata) = fresh_cache.get(&container.id) {
+                                            container.pod_name = Some(metadata.pod_name.clone());
+                                            container.container_name =
+                                                Some(metadata.container_name.clone());
+                                            container.namespace = Some(metadata.namespace.clone());
+                                            container.labels = Some(metadata.labels.clone());
+                                            enriched += 1;
+                                        }
+                                    }
+                                }
+                                tracing::debug!(
+                                    enriched = enriched,
+                                    remaining = unenriched_count - enriched,
+                                    "Eager refresh completed"
+                                );
+                            }
                         }
                     }
                 }
