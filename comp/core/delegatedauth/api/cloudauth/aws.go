@@ -19,11 +19,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/delegatedauth"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -63,7 +64,7 @@ type AWSAuth struct {
 }
 
 // GetAPIKey fetches the API key based on the cloud auth exchange
-func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *delegatedauth.AuthConfig) (*string, error) {
+func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *common.AuthConfig) (*string, error) {
 	// Get local AWS Credentials
 	creds := a.getCredentials(cfg)
 
@@ -80,7 +81,7 @@ func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *delegatedauth.Aut
 	// Generate the auth string passed to the token endpoint
 	authString := data.BodyEncoded + "|" + data.HeadersEncoded + "|" + data.Method + "|" + data.URLEncoded
 
-	authResponse, err := delegatedauth.GetAPIKey(cfg, config.OrgUUID, authString)
+	authResponse, err := api.GetAPIKey(cfg, config.OrgUUID, authString)
 	return authResponse, err
 }
 

@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	delegatedauthpkg "github.com/DataDog/datadog-agent/pkg/delegatedauth"
-	"github.com/DataDog/datadog-agent/pkg/delegatedauth/cloudauth"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,8 +42,8 @@ type delegatedAuthComponent struct {
 	// Mutable fields (protected by mu)
 	mu              sync.RWMutex
 	apiKey          *string
-	provider        delegatedauthpkg.Provider
-	authConfig      *delegatedauthpkg.AuthConfig
+	provider        common.Provider
+	authConfig      *common.AuthConfig
 	refreshInterval time.Duration
 
 	// Exponential backoff tracking (protected by mu)
@@ -93,7 +93,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 		return
 	}
 
-	var tokenProvider delegatedauthpkg.Provider
+	var tokenProvider common.Provider
 	switch params.Provider {
 	case cloudauth.ProviderAWS:
 		tokenProvider = &cloudauth.AWSAuth{
@@ -104,7 +104,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 		return
 	}
 
-	authConfig := &delegatedauthpkg.AuthConfig{
+	authConfig := &common.AuthConfig{
 		OrgUUID:      params.OrgUUID,
 		Provider:     params.Provider,
 		ProviderAuth: tokenProvider,

@@ -13,6 +13,9 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
+	comp/core/delegatedauth/api
+	comp/core/delegatedauth/api/cloudauth
+	comp/core/delegatedauth/common
 	comp/core/delegatedauth/def
 	comp/core/delegatedauth/fx
 	comp/core/delegatedauth/impl
@@ -101,7 +104,6 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
-	pkg/delegatedauth
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer

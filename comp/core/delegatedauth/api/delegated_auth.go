@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package delegatedauth provides the configuration and implementation for exchanging an delegated auth proof for an API key
-package delegatedauth
+// Package api provides the configuration and implementation for exchanging a delegated auth proof for an API key
+package api
 
 import (
 	"bytes"

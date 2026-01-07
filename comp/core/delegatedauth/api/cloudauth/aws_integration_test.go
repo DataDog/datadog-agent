@@ -26,7 +26,7 @@ import (
 // TestGenerateAwsAuthDataIntegration is an integration test that uses real AWS credentials
 // to verify that our signing implementation works with the actual AWS STS service.
 //
-// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./pkg/delegatedauth/cloudauth/... -run TestGenerateAwsAuthDataIntegration
+// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./comp/core/delegatedauth/api/cloudauth/... -run TestGenerateAwsAuthDataIntegration
 func TestGenerateAwsAuthDataIntegration(t *testing.T) {
 	// Check that AWS credentials are available
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -135,7 +135,7 @@ func TestGenerateAwsAuthDataIntegration(t *testing.T) {
 // TestGenerateAwsAuthDataIntegrationDebug is a more verbose version that prints detailed signing information
 // This helps debug signature mismatches.
 //
-// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./pkg/delegatedauth/cloudauth/... -run TestGenerateAwsAuthDataIntegrationDebug
+// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./comp/core/delegatedauth/api/cloudauth/... -run TestGenerateAwsAuthDataIntegrationDebug
 func TestGenerateAwsAuthDataIntegrationDebug(t *testing.T) {
 	// Check that AWS credentials are available
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -238,7 +238,7 @@ func TestGenerateAwsAuthDataIntegrationDebug(t *testing.T) {
 // TestGenerateAwsAuthDataWithoutOrgHeader tests if the request works WITHOUT the custom org header
 // This helps isolate whether the custom header is causing the signature issue
 //
-// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./pkg/delegatedauth/cloudauth/... -run TestGenerateAwsAuthDataWithoutOrgHeader
+// Run with: aws-vault exec sso-build-stable-developer -- go test -v -tags=integration ./comp/core/delegatedauth/api/cloudauth/... -run TestGenerateAwsAuthDataWithoutOrgHeader
 func TestGenerateAwsAuthDataWithoutOrgHeader(t *testing.T) {
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")

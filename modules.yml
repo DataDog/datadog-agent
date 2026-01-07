@@ -23,6 +23,15 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/delegatedauth/api:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/api/cloudauth:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/common:
+    independent: false
+    used_by_otel: true
   comp/core/delegatedauth/def:
     independent: false
     used_by_otel: true
@@ -207,8 +216,6 @@ modules:
   pkg/config/utils:
     used_by_otel: true
   pkg/config/viperconfig:
-    used_by_otel: true
-  pkg/delegatedauth:
     used_by_otel: true
   pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
