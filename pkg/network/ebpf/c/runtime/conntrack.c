@@ -83,7 +83,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
     return 0;
 }
 
-static __always_inline int kretprobe_conntrack_common(void *ctx, int expected_retval) {
+static __always_inline int kretprobe_conntrack_common(struct pt_regs *ctx, int expected_retval) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {
