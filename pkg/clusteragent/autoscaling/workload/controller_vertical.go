@@ -36,6 +36,11 @@ import (
 
 const (
 	rolloutCheckRequeueDelay = 2 * time.Minute
+
+	// controllerRevisionHashLabel is the label used by Kubernetes to track pod template revisions
+	// for StatefulSets and DaemonSets. This is managed by Kubernetes itself and changes whenever
+	// any part of the pod template changes.
+	controllerRevisionHashLabel = "controller-revision-hash"
 )
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
@@ -113,40 +118,58 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
 	case k8sutil.RolloutKind:
 		return u.syncRolloutKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+	case k8sutil.StatefulSetKind:
+		return u.syncStatefulSetKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID)
 	default:
 		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("automic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
 		return autoscaling.NoRequeue, nil
 	}
 }
 
-func (u *verticalController) syncDeploymentKind(
+// isRolloutComplete checks if all pods of a workload have completed a rollout
+// Returns true if the rollout is complete (all pods updated).
+func isRolloutComplete(recommendationID string, pods []*workloadmeta.KubernetesPod, podsPerRecomendationID map[string]int32) bool {
+	// currently basic check with 100% match expected.
+	// TODO: Refine the logic and add backoff for stuck PODs.
+	return podsPerRecomendationID[recommendationID] == int32(len(pods))
+}
+
+// isStatefulSetRolloutInProgress checks if a StatefulSet rollout is currently in progress
+// by examining the controller-revision-hash labels on pods. If pods have different revision
+// hashes, it indicates that Kubernetes is in the process of rolling out a new pod template.
+// This detects ANY ongoing rollout, not just ones triggered by us.
+func isStatefulSetRolloutInProgress(pods []*workloadmeta.KubernetesPod) bool {
+	if len(pods) <= 1 {
+		return false
+	}
+
+	var firstRevision string
+	for _, pod := range pods {
+		revision := pod.Labels[controllerRevisionHashLabel]
+		if revision == "" {
+			// Pod doesn't have the label yet, might be initializing
+			continue
+		}
+		if firstRevision == "" {
+			firstRevision = revision
+		} else if revision != firstRevision {
+			// Pods have different revisions - rollout in progress
+			return true
+		}
+	}
+	return false
+}
+
+// triggerRollout patches the target workload's pod template to trigger a rollout.
+// This is shared logic used by all workload types that support vertical scaling.
+func (u *verticalController) triggerRollout(
 	ctx context.Context,
 	podAutoscaler *datadoghq.DatadogPodAutoscaler,
 	autoscalerInternal *model.PodAutoscalerInternal,
-	_ datadoghqcommon.DatadogPodAutoscalerUpdateStrategy,
 	target NamespacedPodOwner,
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
-	pods []*workloadmeta.KubernetesPod,
-	podsPerRecomendationID map[string]int32,
-	podsPerDirectOwner map[string]int32,
 ) (autoscaling.ProcessResult, error) {
-	// Check if we need to rollout, currently basic check with 100% match expected.
-	// TODO: Refine the logic and add backoff for stuck PODs.
-	if podsPerRecomendationID[recommendationID] == int32(len(pods)) {
-		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
-		return autoscaling.NoRequeue, nil
-	}
-
-	// Check if a rollout is already ongoing
-	// TODO: Refine the logic and add backoff for stuck PODs.
-	if len(podsPerDirectOwner) > 1 {
-		log.Debugf("Rollout already ongoing for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
-	}
-
-	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
-
 	// Generate the patch request which adds the scaling hash annotation to the pod template
 	gvr := targetGVK.GroupVersion().WithResource(strings.ToLower(targetGVK.Kind) + "s")
 	patchTime := u.clock.Now()
@@ -192,6 +215,36 @@ func (u *verticalController) syncDeploymentKind(
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
 }
 
+func (u *verticalController) syncDeploymentKind(
+	ctx context.Context,
+	podAutoscaler *datadoghq.DatadogPodAutoscaler,
+	autoscalerInternal *model.PodAutoscalerInternal,
+	_ datadoghqcommon.DatadogPodAutoscalerUpdateStrategy,
+	target NamespacedPodOwner,
+	targetGVK schema.GroupVersionKind,
+	recommendationID string,
+	pods []*workloadmeta.KubernetesPod,
+	podsPerRecomendationID map[string]int32,
+	podsPerDirectOwner map[string]int32,
+) (autoscaling.ProcessResult, error) {
+	// Check if we need to rollout
+	if isRolloutComplete(recommendationID, pods, podsPerRecomendationID) {
+		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
+		return autoscaling.NoRequeue, nil
+	}
+
+	// Check if a rollout is already ongoing.
+	// For Deployments/Rollouts, multiple direct owners (ReplicaSets) indicate an ongoing rollout.
+	// TODO: Refine the logic and add backoff for stuck PODs.
+	if len(podsPerDirectOwner) > 1 {
+		log.Debugf("Rollout already ongoing for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
+	return u.triggerRollout(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID)
+}
+
 func (u *verticalController) syncRolloutKind(
 	ctx context.Context,
 	podAutoscaler *datadoghq.DatadogPodAutoscaler,
@@ -207,6 +260,34 @@ func (u *verticalController) syncRolloutKind(
 	// Argo Rollouts use the same pod template structure as Deployments,
 	// so we can reuse the same rollout logic
 	return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+}
+
+func (u *verticalController) syncStatefulSetKind(
+	ctx context.Context,
+	podAutoscaler *datadoghq.DatadogPodAutoscaler,
+	autoscalerInternal *model.PodAutoscalerInternal,
+	_ datadoghqcommon.DatadogPodAutoscalerUpdateStrategy,
+	target NamespacedPodOwner,
+	targetGVK schema.GroupVersionKind,
+	recommendationID string,
+	pods []*workloadmeta.KubernetesPod,
+	podsPerRecommendationID map[string]int32,
+) (autoscaling.ProcessResult, error) {
+	// Check if we need to rollout
+	if isRolloutComplete(recommendationID, pods, podsPerRecommendationID) {
+		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
+		return autoscaling.NoRequeue, nil
+	}
+
+	// Detect ongoing rollouts
+	if isStatefulSetRolloutInProgress(pods) {
+		log.Debugf("StatefulSet rollout in progress for autoscaler: %s, gvk: %s, name: %s (pods have different controller-revision-hash)",
+			autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
+	return u.triggerRollout(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID)
 }
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.
