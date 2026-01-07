@@ -62,7 +62,7 @@ spec:
       labels:
         app: mcp-metrics-viewer
     spec:
-      serviceAccountName: mcp-metrics-viewer
+      serviceAccountName: fgm-mcp-server
       containers:
       - name: mcp-server
         image: fine-grained-monitor:latest

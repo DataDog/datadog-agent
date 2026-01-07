@@ -31,6 +31,26 @@ use router::{NodeRouter, RouterError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// Key metrics for container health summary.
+/// These are fetched automatically by summarize_container.
+const KEY_METRICS: &[&str] = &[
+    // CPU
+    "cpu_percentage",
+    "cgroup.v2.cpu.stat.throttled_usec",
+    "cgroup.v2.cpu.pressure.some.avg10",
+    // Memory
+    "cgroup.v2.memory.current",
+    "cgroup.v2.memory.max",
+    "cgroup.v2.memory.pressure.some.avg10",
+    "cgroup.v2.memory.events.oom_kill",
+    // I/O
+    "cgroup.v2.io.stat.rbytes",
+    "cgroup.v2.io.stat.wbytes",
+    "cgroup.v2.io.pressure.some.avg10",
+    // PIDs
+    "cgroup.v2.pids.current",
+];
+
 /// MCP server for metrics viewer with node-aware routing.
 #[derive(Clone)]
 pub struct McpMetricsViewer {
@@ -101,6 +121,19 @@ pub struct AnalyzeContainerParams {
     /// Metric prefix to analyze all matching metrics (e.g., "cgroup.v2.cpu").
     #[serde(default)]
     pub metric_prefix: Option<String>,
+}
+
+/// Parameters for summarize_container tool.
+/// REQ-MCP-009: Quick container health summary.
+/// REQ-MCP-008: Requires node parameter.
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SummarizeContainerParams {
+    /// Node name to query (required).
+    pub node: Option<String>,
+
+    /// Container ID (short 12-char ID or full ID).
+    pub container: String,
 }
 
 // --- Tool Response Types ---
@@ -201,6 +234,66 @@ struct Finding {
     metrics: std::collections::HashMap<String, f64>,
 }
 
+/// Response from summarize_container tool.
+#[derive(Debug, Serialize)]
+struct SummarizeContainerResponse {
+    node: String,
+    container: ContainerSummary,
+    summary: ResourceSummary,
+    highlights: Vec<Highlight>,
+    time_range: Option<TimeRange>,
+}
+
+#[derive(Debug, Serialize)]
+struct ResourceSummary {
+    cpu: CpuSummary,
+    memory: MemorySummary,
+    io: IoSummary,
+    pids: PidsSummary,
+}
+
+#[derive(Debug, Serialize)]
+struct CpuSummary {
+    usage_percent: Option<MetricSummary>,
+    throttled_usec: Option<MetricSummary>,
+    pressure_avg10: Option<MetricSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct MemorySummary {
+    current_bytes: Option<MetricSummary>,
+    limit_bytes: Option<f64>,
+    percent_of_limit: Option<f64>,
+    pressure_avg10: Option<MetricSummary>,
+    oom_kills: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+struct IoSummary {
+    read_bytes: Option<MetricSummary>,
+    write_bytes: Option<MetricSummary>,
+    pressure_avg10: Option<MetricSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct PidsSummary {
+    current: Option<MetricSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct MetricSummary {
+    avg: f64,
+    max: f64,
+    min: f64,
+    trend: String,
+}
+
+#[derive(Debug, Serialize)]
+struct Highlight {
+    level: String, // "critical", "warning", "info"
+    message: String,
+}
+
 // --- API Response Types (from viewer HTTP API) ---
 // These structs mirror the viewer's API responses. Some fields are deserialized
 // but not used in the MCP response transformations.
@@ -284,7 +377,7 @@ struct ViewerTimeseriesResponse {
     data: Vec<ViewerTimeseriesPoint>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ViewerTimeseriesPoint {
     time_ms: i64,
     value: f64,
@@ -620,6 +713,266 @@ impl McpMetricsViewer {
 
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
+
+    /// REQ-MCP-009: Quick container health summary without running studies.
+    /// REQ-MCP-008: Requires node parameter.
+    #[tool(
+        name = "summarize_container",
+        description = "Get a quick health summary of a container's CPU, memory, I/O, and process metrics. Faster than analyze_container - no pattern detection, just stats and highlights for unusual conditions."
+    )]
+    async fn summarize_container(
+        &self,
+        Parameters(params): Parameters<SummarizeContainerParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let node = params
+            .node
+            .ok_or_else(|| McpError::invalid_params("node parameter is required", None))?;
+
+        // Fetch timeseries for all key metrics in parallel
+        let mut metric_data: std::collections::HashMap<String, Option<Vec<ViewerTimeseriesPoint>>> =
+            std::collections::HashMap::new();
+
+        for metric in KEY_METRICS {
+            let ts_path = format!(
+                "/api/timeseries?metric={}&containers={}",
+                urlencoding::encode(metric),
+                urlencoding::encode(&params.container)
+            );
+
+            let ts_result = self
+                .router
+                .get(&node, &ts_path, NodeRouter::timeout_analyze())
+                .await;
+
+            let data = match ts_result {
+                Ok(body) => {
+                    let ts_resp: Vec<ViewerTimeseriesResponse> =
+                        serde_json::from_str(&body).unwrap_or_default();
+                    ts_resp.first().map(|t| t.data.clone())
+                }
+                Err(_) => None,
+            };
+
+            metric_data.insert((*metric).to_string(), data);
+        }
+
+        // Build summaries from collected data
+        let cpu_usage = metric_data
+            .get("cpu_percentage")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let cpu_throttled = metric_data
+            .get("cgroup.v2.cpu.stat.throttled_usec")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let cpu_pressure = metric_data
+            .get("cgroup.v2.cpu.pressure.some.avg10")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let memory_current = metric_data
+            .get("cgroup.v2.memory.current")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let memory_max = metric_data
+            .get("cgroup.v2.memory.max")
+            .and_then(|d| d.as_ref())
+            .and_then(|data| data.last().map(|p| p.value));
+
+        let memory_pressure = metric_data
+            .get("cgroup.v2.memory.pressure.some.avg10")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let oom_kills = metric_data
+            .get("cgroup.v2.memory.events.oom_kill")
+            .and_then(|d| d.as_ref())
+            .and_then(|data| data.last().map(|p| p.value));
+
+        let io_read = metric_data
+            .get("cgroup.v2.io.stat.rbytes")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let io_write = metric_data
+            .get("cgroup.v2.io.stat.wbytes")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let io_pressure = metric_data
+            .get("cgroup.v2.io.pressure.some.avg10")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        let pids_current = metric_data
+            .get("cgroup.v2.pids.current")
+            .and_then(|d| d.as_ref())
+            .map(|data| build_metric_summary(data));
+
+        // Calculate memory percent of limit
+        let percent_of_limit = match (&memory_current, memory_max) {
+            (Some(current), Some(max)) if max > 0.0 => Some((current.avg / max) * 100.0),
+            _ => None,
+        };
+
+        // Build highlights based on thresholds
+        let mut highlights = Vec::new();
+
+        // Check for OOM kills (critical)
+        if let Some(oom) = oom_kills {
+            if oom > 0.0 {
+                highlights.push(Highlight {
+                    level: "critical".into(),
+                    message: format!("Container has experienced {} OOM kill(s)", oom as u64),
+                });
+            }
+        }
+
+        // Check memory usage (warning if > 80%)
+        if let Some(pct) = percent_of_limit {
+            if pct > 90.0 {
+                highlights.push(Highlight {
+                    level: "critical".into(),
+                    message: format!("Memory usage critical: {:.1}% of limit", pct),
+                });
+            } else if pct > 80.0 {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: format!("Memory usage high: {:.1}% of limit", pct),
+                });
+            }
+        }
+
+        // Check memory trend
+        if let Some(ref mem) = memory_current {
+            if mem.trend == "increasing" {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: "Memory usage trending upward".into(),
+                });
+            }
+        }
+
+        // Check CPU throttling
+        if let Some(ref throttle) = cpu_throttled {
+            if throttle.max > 0.0 {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: format!(
+                        "CPU throttling detected (max: {:.0} usec)",
+                        throttle.max
+                    ),
+                });
+            }
+        }
+
+        // Check pressure metrics (warning if > 10%)
+        if let Some(ref pressure) = cpu_pressure {
+            if pressure.avg > 10.0 {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: format!("CPU pressure elevated: {:.1}%", pressure.avg),
+                });
+            }
+        }
+
+        if let Some(ref pressure) = memory_pressure {
+            if pressure.avg > 10.0 {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: format!("Memory pressure elevated: {:.1}%", pressure.avg),
+                });
+            }
+        }
+
+        if let Some(ref pressure) = io_pressure {
+            if pressure.avg > 10.0 {
+                highlights.push(Highlight {
+                    level: "warning".into(),
+                    message: format!("I/O pressure elevated: {:.1}%", pressure.avg),
+                });
+            }
+        }
+
+        // Add info highlights if nothing concerning
+        if highlights.is_empty() {
+            highlights.push(Highlight {
+                level: "info".into(),
+                message: "No concerning conditions detected".into(),
+            });
+        }
+
+        // Get container metadata
+        let containers_path = format!(
+            "/api/containers?metric=cpu_percentage&search={}",
+            urlencoding::encode(&params.container)
+        );
+
+        let container_info = self
+            .router
+            .get(&node, &containers_path, NodeRouter::timeout_list_containers())
+            .await
+            .ok()
+            .and_then(|body| serde_json::from_str::<ViewerContainersResponse>(&body).ok())
+            .and_then(|resp| resp.containers.into_iter().next());
+
+        // Compute overall time range from any available data
+        let time_range = metric_data
+            .values()
+            .filter_map(|d| d.as_ref())
+            .find(|data| !data.is_empty())
+            .and_then(|data| {
+                if let (Some(first), Some(last)) = (data.first(), data.last()) {
+                    Some(TimeRange {
+                        start_ms: first.time_ms,
+                        end_ms: last.time_ms,
+                    })
+                } else {
+                    None
+                }
+            });
+
+        let response = SummarizeContainerResponse {
+            node: node.clone(),
+            container: ContainerSummary {
+                id: params.container,
+                pod_name: container_info.as_ref().and_then(|c| c.pod_name.clone()),
+                namespace: container_info.as_ref().and_then(|c| c.namespace.clone()),
+            },
+            summary: ResourceSummary {
+                cpu: CpuSummary {
+                    usage_percent: cpu_usage,
+                    throttled_usec: cpu_throttled,
+                    pressure_avg10: cpu_pressure,
+                },
+                memory: MemorySummary {
+                    current_bytes: memory_current,
+                    limit_bytes: memory_max,
+                    percent_of_limit,
+                    pressure_avg10: memory_pressure,
+                    oom_kills,
+                },
+                io: IoSummary {
+                    read_bytes: io_read,
+                    write_bytes: io_write,
+                    pressure_avg10: io_pressure,
+                },
+                pids: PidsSummary {
+                    current: pids_current,
+                },
+            },
+            highlights,
+            time_range,
+        };
+
+        let json = serde_json::to_string_pretty(&response)
+            .map_err(|e| McpError::internal_error(format!("JSON error: {}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
 }
 
 #[tool_handler]
@@ -707,6 +1060,18 @@ fn compute_stats(data: Option<&Vec<ViewerTimeseriesPoint>>) -> Stats {
         stddev,
         count: points.len(),
         time_range,
+    }
+}
+
+/// Build a MetricSummary from timeseries data.
+fn build_metric_summary(data: &[ViewerTimeseriesPoint]) -> MetricSummary {
+    let stats = compute_stats(Some(&data.to_vec()));
+    let trend = detect_trend(Some(&data.to_vec()));
+    MetricSummary {
+        avg: stats.avg,
+        max: stats.max,
+        min: stats.min,
+        trend,
     }
 }
 
