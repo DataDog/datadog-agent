@@ -459,16 +459,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 		// Enrich tags prioritzing most reliable origin detection methods first.
 
-		// 1. ContainerID from LocalData (includes inode resolution)
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
-			if pkglog.ShouldLog(pkglog.TraceLvl) {
-				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
-			}
-		} else {
-			return
-		}
-
-		// 2. ContainerID from Unix Domain Socket (process ID-based)
+		// 1. ContainerID from Unix Domain Socket (process ID-based)
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
 			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, containerID), cardinality, tb); err != nil && err != tagstore.ErrNotFound {
@@ -476,6 +467,15 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			} else {
 				return
 			}
+		}
+
+		// 2. ContainerID from LocalData (includes inode resolution)
+		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
+			if pkglog.ShouldLog(pkglog.TraceLvl) {
+				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
+			}
+		} else {
+			return
 		}
 
 		// 3. ContainerID generated from ExternalData
