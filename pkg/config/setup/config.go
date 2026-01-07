@@ -298,6 +298,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.2)
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.05)
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_trace", 0.0)
+	// Debug: dump all observer metrics to a file periodically
+	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
+	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

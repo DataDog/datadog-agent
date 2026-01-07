@@ -17,6 +17,9 @@ type Component interface {
 	// GetHandle returns a lightweight handle for a named source.
 	// The source name is used to identify where observations originate.
 	GetHandle(name string) Handle
+
+	// DumpMetrics writes all stored metrics to the specified file (for debugging).
+	DumpMetrics(path string) error
 }
 
 // Handle is the lightweight observation interface passed to other components.
