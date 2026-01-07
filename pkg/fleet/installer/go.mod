@@ -29,7 +29,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
+	github.com/cihub/seelog v2.0.0-20151216151435-d2c6e5aa9fbf+incompatible // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v27.5.0+incompatible // indirect
