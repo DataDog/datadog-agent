@@ -254,3 +254,7 @@ CLAUDE_PERSONAL.md
 
 # MCP server config (worktree-specific)
 .mcp.json
+
+# Accidentally committed files
+uv.lock
+agent-version.cache
