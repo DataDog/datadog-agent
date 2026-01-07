@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -55,6 +56,35 @@ const (
 // The amount of time the forwarder will wait to receive process-like response payloads before giving up
 // This is a var so that it can be changed for testing
 var defaultResponseTimeout = 30 * time.Second
+
+// getCallerSkippingFX walks up the call stack and returns the first few callers,
+// filtering out FX framework and runtime internal frames
+func getCallerSkippingFX() string {
+	var callers []string
+	for i := 1; i < 20; i++ { // Check up to 20 frames
+		pc, file, line, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		funcName := runtime.FuncForPC(pc).Name()
+
+		// Skip FX and internal frames
+		if strings.Contains(funcName, "go.uber.org/fx") ||
+			strings.Contains(funcName, "runtime.") ||
+			strings.Contains(funcName, "reflect.") {
+			continue
+		}
+
+		callers = append(callers, fmt.Sprintf("%s (%s:%d)", funcName, file, line))
+		if len(callers) >= 3 { // Get first 3 non-FX callers
+			break
+		}
+	}
+	if len(callers) == 0 {
+		return "unknown"
+	}
+	return strings.Join(callers, " <- ")
+}
 
 // Response contains the response details of a successfully posted transaction
 type Response struct {
@@ -349,6 +379,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
+	caller := getCallerSkippingFX()
+	log.Infof("Called from: %s", caller)
 
 	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}

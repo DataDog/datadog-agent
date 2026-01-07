@@ -391,6 +391,7 @@ func run(log log.Component,
 }
 
 func getSharedFxOption() fx.Option {
+	defaultForwarderParams := defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
@@ -411,7 +412,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
-		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
+		forwarder.Bundle(defaultForwarderParams),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(defaults.DefaultParams()),
@@ -492,7 +493,7 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams(defaultForwarderParams)),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 

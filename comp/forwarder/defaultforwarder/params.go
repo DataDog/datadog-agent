@@ -53,3 +53,8 @@ func WithFeatures(features ...Features) optionParams {
 		p.features = features
 	}
 }
+
+// Features returns the features configured for the forwarder
+func (p Params) Features() []Features {
+	return p.features
+}

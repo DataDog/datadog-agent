@@ -37,6 +37,7 @@ func Module(params Params) fxutil.Module {
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func newOrchestratorForwarder(log log.Component, config config.Component, secrets secrets.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
+	log.Infof("Got the orchestrator following params:\n%s", params.String())
 	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
@@ -62,6 +63,8 @@ func newOrchestratorForwarder(log log.Component, config config.Component, secret
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 		orchestratorForwarderOpts.Secrets = secrets
 
+		// Apply features from defaultForwarderParams
+		orchestratorForwarderOpts.SetEnabledFeatures(params.defaultForwarderParams.Features())
 		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
