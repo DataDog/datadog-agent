@@ -661,8 +661,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
         "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
         new=MagicMock(),
     )
-    @patch("tasks.quality_gates.is_a_release_branch", return_value=True)
-    @patch("tasks.quality_gates.get_pr_for_branch", return_value=None)
+    @patch("tasks.quality_gates.is_a_release_branch", new=MagicMock(return_value=True))
+    @patch("tasks.quality_gates.get_pr_for_branch", new=MagicMock(return_value=None))
     def test_parse_and_trigger_gates_infra_error(self):
         ctx = MockContext(
             run={
