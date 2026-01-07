@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
- 
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
