@@ -23,6 +23,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -43,7 +44,6 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var mockCoreBundleParams = core.BundleParams{
@@ -125,9 +125,7 @@ func TestBundleOneShot(t *testing.T) {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
-		fx.Provide(func() delegatedauth.Component {
-			return delegatedauthimpl.NewComponent().Comp
-		}),
+		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 		Bundle(),
 	)
 	require.NoError(t, err)
