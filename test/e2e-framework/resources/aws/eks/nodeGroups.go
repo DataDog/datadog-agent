@@ -33,7 +33,8 @@ func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *
 	if err != nil {
 		return nil, err
 	}
-	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023AMD64AmiType, e.DefaultInstanceType(), lt, opts...)
+	nodeVersion, err := GetNodesVersion(amazonLinux2023AMD64AmiType, e.KubernetesVersion())
+	return newManagedNodeGroup(e, name, cluster, nodeRole, nodeVersion, amazonLinux2023AMD64AmiType, e.DefaultInstanceType(), lt, opts...)
 
 }
 
@@ -45,15 +46,27 @@ func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRol
 		return nil, err
 	}
 
-	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023ARM64AmiType, e.DefaultARMInstanceType(), lt, opts...)
+	nodeVersion, err := GetNodesVersion(amazonLinux2023ARM64AmiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, name, cluster, nodeRole, nodeVersion, amazonLinux2023ARM64AmiType, e.DefaultARMInstanceType(), lt, opts...)
 }
 
 func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, bottlerocketAmiType, e.DefaultInstanceType(), nil, opts...)
+	nodeVersion, err := GetNodesVersion(bottlerocketAmiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, nodeVersion, bottlerocketAmiType, e.DefaultInstanceType(), nil, opts...)
 }
 
 func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
+	nodeVersion, err := GetNodesVersion(windowsAmiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "windows", cluster, nodeRole, nodeVersion, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
 }
 
 func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
@@ -117,7 +130,7 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 	}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
 }
 
-func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, releaseVersion, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	taints := awsEks.NodeGroupTaintArray{}
 	if strings.Contains(amiType, "WINDOWS") {
 		taints = append(taints,
@@ -131,6 +144,7 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 
 	// common args
 	args := &eks.ManagedNodeGroupArgs{
+		ReleaseVersion:      pulumi.String(releaseVersion),
 		AmiType:             pulumi.StringPtr(amiType),
 		Cluster:             cluster.Core,
 		InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),
