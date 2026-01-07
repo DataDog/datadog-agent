@@ -10,11 +10,12 @@ import (
 	_ "embed"
 	"path"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	osVM "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -54,7 +55,7 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-func (v *sharedLibrarySuite) copyToRemote(filename string) {
+func (v *sharedLibrarySuite) copySharedLibraryToRemote(filename string) {
 	// copy the lib with the right permissions
 	sourceLibPath := path.Join(".", "files", filename)
 	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, filename))

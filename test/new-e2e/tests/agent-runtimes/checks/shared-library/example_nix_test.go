@@ -18,7 +18,7 @@ type linuxSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
 
-func TestLinuxCheckImplementationSuite(t *testing.T) {
+func TestLinuxSharedLibraryCheckImplementationSuite(t *testing.T) {
 	t.Parallel()
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
@@ -30,12 +30,12 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
-	v.copyToRemote("libdatadog-agent-example.so")
+func (v *linuxSharedLibrarySuite) TestLinuxSharedLibraryCheckExample() {
+	v.copySharedLibraryToRemote("libdatadog-agent-example.so")
 	v.testExampleCheckExecutionAndMetrics()
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheckNoRunSymbolError() {
-	v.copyToRemote("libdatadog-agent-no-run-symbol.so")
+func (v *linuxSharedLibrarySuite) TestLinuxSharedLibraryCheckNoRunSymbolError() {
+	v.copySharedLibraryToRemote("libdatadog-agent-no-run-symbol.so")
 	v.testNoRunSymbolCheckExecutionError()
 }
