@@ -31,7 +31,7 @@ import (
 
 const (
 	mspmEngComm = "Antimalware Service Executable"
-	diskspdComm = "DiskSpd Storage Performance Tool - Chocolatey Shim"
+	diskspdComm = "DiskSpd Storage Performance Tool"
 )
 
 type windowsTestSuite struct {
