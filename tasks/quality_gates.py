@@ -37,6 +37,30 @@ SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
+
+def get_pr_for_branch(branch: str):
+    """
+    Get PR info for a branch. Returns the PR object or None.
+
+    This function is used to cache PR lookup results for reuse across:
+    - Adding PR number as a metric tag
+    - Displaying PR comments
+
+    Args:
+        branch: The branch name to look up
+
+    Returns:
+        The PR object if found, None otherwise
+    """
+    try:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch))
+        return prs[0] if prs else None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to get PR for branch {branch}: {e}", "orange"))
+        return None
+
+
 # Main table pattern for on-disk metrics (primary view)
 body_pattern = """### {}
 
@@ -406,6 +430,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
+    # Early PR lookup - cache for later use in metrics and PR comment
+    # Skip for release branches since they don't have associated PRs
+    pr = None
+    if not is_a_release_branch(ctx, branch):
+        pr = get_pr_for_branch(branch)
+        if pr:
+            print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
+
     for gate in gate_list:
         result = None
         try:
@@ -458,15 +490,19 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 }
             )
         finally:
-            metric_handler.register_gate_tags(
-                gate.config.gate_name,
-                gate_name=gate.config.gate_name,
-                arch=gate.config.arch,
-                os=gate.config.os,
-                pipeline_id=os.environ["CI_PIPELINE_ID"],
-                ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
-                ci_commit_sha=os.environ["CI_COMMIT_SHA"],
-            )
+            # Build tags dict - only include pr_number if we have a PR
+            gate_tags = {
+                "gate_name": gate.config.gate_name,
+                "arch": gate.config.arch,
+                "os": gate.config.os,
+                "pipeline_id": os.environ["CI_PIPELINE_ID"],
+                "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
+                "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
+            }
+            if pr:
+                gate_tags["pr_number"] = str(pr.number)
+
+            metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
             metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
 
@@ -518,8 +554,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         # Determine if there are blocking failures (non-blocking failures have delta=0)
         has_blocking_failures = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
 
-        github = GithubAPI()
-        if github.get_pr_for_branch(branch).totalCount > 0:
+        # Reuse cached PR lookup from earlier
+        if pr:
             # Pass True for final_state if there are no blocking failures
             display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor)
 

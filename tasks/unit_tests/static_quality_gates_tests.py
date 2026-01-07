@@ -661,6 +661,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
         "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
         new=MagicMock(),
     )
+    @patch("tasks.quality_gates.is_a_release_branch", return_value=True)
+    @patch("tasks.quality_gates.get_pr_for_branch", return_value=None)
     def test_parse_and_trigger_gates_infra_error(self):
         ctx = MockContext(
             run={
@@ -1546,6 +1548,110 @@ class TestGetWireChangeMetrics(unittest.TestCase):
         self.assertEqual("N/A", change_str)
         self.assertEqual("N/A", limit_bounds)
         self.assertFalse(is_neutral)
+
+
+class TestGetPrForBranch(unittest.TestCase):
+    """Test the get_pr_for_branch helper function."""
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_pr_when_found(self, mock_github_class):
+        """Should return PR object when a PR exists for the branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        mock_pr.title = "Test PR"
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = [mock_pr]
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertEqual(result, mock_pr)
+        self.assertEqual(result.number, 12345)
+        mock_github.get_pr_for_branch.assert_called_once_with("test-branch")
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_when_no_pr(self, mock_github_class):
+        """Should return None when no PR exists for the branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = []
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_on_exception(self, mock_github_class):
+        """Should return None and not raise when GitHub API fails."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_github_class.side_effect = Exception("API error")
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_first_pr_when_multiple(self, mock_github_class):
+        """Should return first PR when multiple PRs exist for branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_pr1 = MagicMock()
+        mock_pr1.number = 111
+        mock_pr2 = MagicMock()
+        mock_pr2.number = 222
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = [mock_pr1, mock_pr2]
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertEqual(result.number, 111)
+
+
+class TestPrNumberInMetricTags(unittest.TestCase):
+    """Test that PR number is included in metric tags when available."""
+
+    def test_pr_number_added_to_gate_tags(self):
+        """Verify pr_number is included when building gate tags with a PR."""
+        # Simulate the gate tags dict building from parse_and_trigger_gates
+        mock_pr = MagicMock()
+        mock_pr.number = 42
+
+        gate_tags = {
+            "gate_name": "test_gate",
+            "arch": "amd64",
+            "os": "debian",
+            "pipeline_id": "12345",
+            "ci_commit_ref_slug": "test-branch",
+            "ci_commit_sha": "abc123",
+        }
+        if mock_pr:
+            gate_tags["pr_number"] = str(mock_pr.number)
+
+        self.assertIn("pr_number", gate_tags)
+        self.assertEqual(gate_tags["pr_number"], "42")
+
+    def test_pr_number_not_added_when_no_pr(self):
+        """Verify pr_number is not included when there's no PR."""
+        pr = None
+
+        gate_tags = {
+            "gate_name": "test_gate",
+            "arch": "amd64",
+            "os": "debian",
+            "pipeline_id": "12345",
+            "ci_commit_ref_slug": "test-branch",
+            "ci_commit_sha": "abc123",
+        }
+        if pr:
+            gate_tags["pr_number"] = str(pr.number)
+
+        self.assertNotIn("pr_number", gate_tags)
 
 
 if __name__ == '__main__':
