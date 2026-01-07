@@ -78,16 +78,16 @@ collector operate independently with shared volume access.
 | Requirement | Status | Notes |
 |-------------|--------|-------|
 | **REQ-MV-020:** View Multiple Metrics Simultaneously | ✅ Complete | Up to 5 panels stacked vertically |
-| **REQ-MV-021:** Global Series Sidebar | ✅ Complete | Panels section in sidebar with numbered chips |
-| **REQ-MV-022:** Add Panels via Metric Search | ✅ Complete | "+" button adds panel with dropdown selection |
-| **REQ-MV-023:** Edit Panel Metric via Sidebar | ✅ Complete | Dropdown in each panel header |
+| **REQ-MV-021:** Panel Cards in Sidebar | 🔄 In Progress | Panel cards with metric + study inline |
+| **REQ-MV-022:** Add Panels via Inline Autocomplete | 🔄 In Progress | Inline autocomplete for new panels |
+| **REQ-MV-023:** Edit Panel Metric Inline | 🔄 In Progress | Click metric name for autocomplete |
 | **REQ-MV-024:** Remove Panels via Sidebar | ✅ Complete | "×" button, min 1 panel enforced |
 | **REQ-MV-025:** Synchronized Time Axis Across Panels | ✅ Complete | uPlot sync instance shared across panels |
 | **REQ-MV-026:** Shared Container Selection Across Panels | ✅ Complete | Container list applies to all panels |
 | **REQ-MV-027:** Panel-Specific Y-Axis Scaling | ✅ Complete | Each panel auto-scales independently |
 | **REQ-MV-028:** Shared Range Overview in Multi-Panel Mode | ✅ Complete | Single overview below all panels |
-| **REQ-MV-029:** Add Study to Panel | ✅ Complete | Study icon button per container |
-| **REQ-MV-030:** Study Series in Sidebar | ✅ Complete | Studies section with active studies |
+| **REQ-MV-029:** Add Study to Panel | 🔄 In Progress | Per-panel study via inline autocomplete |
+| **REQ-MV-030:** Study Visualization on Chart | 🔄 In Progress | Chart annotations with tooltips |
 | **REQ-MV-031:** Studies Do Not Consume Panel Slots | ✅ Complete | Studies are overlays on existing panels |
 
 ### Dashboard System
@@ -100,7 +100,7 @@ collector operate independently with shared volume access.
 | **REQ-MV-035:** Automatic Time Range from Containers | ✅ Complete | Compute from first_seen/last_seen |
 | **REQ-MV-036:** Configure Panels from Dashboard | ✅ Complete | Create panels from JSON spec |
 
-**Progress:** 36 of 36 complete
+**Progress:** 31 of 36 complete (5 in progress for panel card UI redesign)
 
 ## Terminology Note
 

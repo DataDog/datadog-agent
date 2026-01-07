@@ -860,68 +860,92 @@ function renderPanels() {
 }
 ```
 
-### REQ-MV-021: Global Series Sidebar
+### REQ-MV-021: Panel Cards in Sidebar
 
-#### Sidebar Structure
+#### Panel Card Component
 
-The sidebar displays all series grouped by panel. Each panel section shows:
-- Panel header with metric name, edit button, and remove button
-- Series entries for each container on that panel
-- Add Study button
+Each panel displays as a card in the sidebar showing metric and study configuration.
+The card provides a compact view of panel state without listing individual container series.
+
+#### Card Structure
 
 ```html
-<div id="series-sidebar">
-  <div class="metric-search">
-    <input type="text" id="metric-search-input" placeholder="Search metrics...">
-    <div id="metric-search-results"></div>
+<div class="panel-card" data-panel-id="${panel.id}">
+  <div class="panel-card-header">
+    <span class="panel-number">${panelIndex + 1}</span>
+    <button class="panel-remove" data-remove-panel="${panel.id}">×</button>
   </div>
-
-  <div id="panel-groups">
-    <!-- Dynamically populated -->
+  <div class="panel-card-body">
+    <div class="panel-metric-row">
+      <label>Metric:</label>
+      <span class="panel-metric-value" data-edit-metric="${panel.id}">
+        ${panel.metric}
+      </span>
+    </div>
+    <div class="panel-study-row">
+      <label>Study:</label>
+      <span class="panel-study-value" data-edit-study="${panel.id}">
+        ${panel.study || 'none'}
+      </span>
+      ${panel.study ? '<button class="study-clear">×</button>' : ''}
+    </div>
   </div>
 </div>
 ```
 
-#### Series Entry Rendering
+#### Component Rendering
+
+Panel cards render via `Components.PanelCards(state)` which maps over `state.panels`.
+Each card shows current configuration without enumerating individual timeseries.
+
+#### Interaction Handlers
+
+- Click metric value → show inline autocomplete (REQ-MV-023)
+- Click study value → show inline autocomplete (REQ-MV-029)
+- Click X next to study → remove study
+- Click × in header → remove panel (REQ-MV-024)
+
+### REQ-MV-022: Add Panels via Inline Autocomplete
+
+#### Add Panel Button
+
+The "+ Add Panel" button appears at the bottom of the panel cards list when fewer than 5 panels exist.
+
+```html
+<div id="panel-cards">
+  <!-- Panel cards rendered here -->
+</div>
+<button id="add-panel-btn" style="display: ${canAddPanel ? 'block' : 'none'}">
+  + Add Panel
+</button>
+```
+
+#### Inline Autocomplete for New Panel
+
+Clicking "+ Add Panel" creates a temporary panel card with an autocomplete input:
 
 ```javascript
-function renderSeriesList() {
-  const container = document.getElementById('panel-groups');
-  container.innerHTML = '';
+function handleAddPanel() {
+  if (state.panels.length >= state.maxPanels) return;
 
-  panels.forEach(panel => {
-    const group = document.createElement('div');
-    group.className = 'panel-group';
-    group.innerHTML = `
-      <div class="panel-header">
-        <span class="panel-metric">${panel.metric}</span>
-        <button class="edit-btn" onclick="editPanel(${panel.id})">Edit</button>
-        <button class="remove-btn" onclick="removePanel(${panel.id})"
-                ${panels.length === 1 ? 'disabled' : ''}>✕</button>
-      </div>
-      <div class="series-list">
-        ${selectedContainers.map(c => `
-          <div class="series-entry">
-            <span class="container-name">${getContainerName(c)}</span>
-            <span class="metric-name">/ ${panel.metric}</span>
-            ${renderStudyBadges(panel, c)}
-          </div>
-        `).join('')}
-      </div>
-      <button class="add-study-btn" onclick="addStudy(${panel.id})">
-        + Add Study
-      </button>
-    `;
-    container.appendChild(group);
+  // Create temporary panel card with inline autocomplete
+  const tempCard = createTempPanelCard();
+  showInlineAutocomplete(tempCard, {
+    items: state.metrics.map(m => m.name),
+    fuzzyMatch: true,
+    onSelect: (metric) => {
+      dispatch({ type: Actions.ADD_PANEL, metric });
+    },
+    onCancel: () => {
+      removeTempPanelCard();
+    }
   });
 }
 ```
 
-### REQ-MV-022: Add Panels via Metric Search
+#### Fuzzy Matching
 
-#### Fuzzy Search Implementation
-
-Uses a lightweight fuzzy matching algorithm for metric filtering:
+Uses lightweight fuzzy matching for metric filtering (sequential character matching):
 
 ```javascript
 function fuzzyMatch(query, text) {
@@ -933,102 +957,49 @@ function fuzzyMatch(query, text) {
   }
   return qi === query.length;
 }
-
-function filterMetrics(query) {
-  return availableMetrics.filter(m => fuzzyMatch(query, m.name));
-}
 ```
 
-#### Search Input Behavior
+Autocomplete shows top 10 matches, updated on each keystroke with 150ms debounce.
+
+### REQ-MV-023: Edit Panel Metric Inline
+
+#### Inline Autocomplete Activation
+
+Clicking the metric name in a panel card replaces the text with an autocomplete input:
 
 ```javascript
-const searchInput = document.getElementById('metric-search-input');
-searchInput.addEventListener('input', debounce(async (e) => {
-  const query = e.target.value;
-  if (query.length < 1) {
-    hideSearchResults();
-    return;
-  }
-
-  const matches = filterMetrics(query);
-  showSearchResults(matches);
-}, 150));
-
-function showSearchResults(metrics) {
-  const results = document.getElementById('metric-search-results');
-  results.innerHTML = metrics.slice(0, 10).map(m => `
-    <div class="search-result" onclick="addPanelWithMetric('${m.name}')">
-      ${m.name}
-    </div>
-  `).join('');
-  results.style.display = 'block';
-}
-```
-
-#### Add Panel Action
-
-```javascript
-function addPanelWithMetric(metric) {
-  if (panels.length >= maxPanels) return;
-
-  const newPanel = {
-    id: Date.now(),
-    metric: metric,
-    uplot: null,
-    studies: []
-  };
-  panels.push(newPanel);
-
-  renderPanels();
-  renderSeriesList();
-  loadPanelData(newPanel);
-  hideSearchResults();
-  updateSearchInputState();
-}
-
-function updateSearchInputState() {
-  const input = document.getElementById('metric-search-input');
-  input.disabled = panels.length >= maxPanels;
-  input.placeholder = panels.length >= maxPanels
-    ? 'Maximum panels reached'
-    : 'Search metrics...';
-}
-```
-
-### REQ-MV-023: Edit Panel Metric via Sidebar
-
-#### Edit Modal
-
-Clicking "Edit" opens a modal to change the panel's metric:
-
-```javascript
-function editPanel(panelId) {
-  const panel = panels.find(p => p.id === panelId);
+function handleMetricClick(panelId) {
+  const panel = state.panels.find(p => p.id === panelId);
   if (!panel) return;
 
-  showModal({
-    title: 'Edit Panel Metric',
-    content: `
-      <select id="edit-metric-select">
-        ${availableMetrics.map(m => `
-          <option value="${m.name}" ${m.name === panel.metric ? 'selected' : ''}>
-            ${m.name}
-          </option>
-        `).join('')}
-      </select>
-    `,
-    onConfirm: () => {
-      const newMetric = document.getElementById('edit-metric-select').value;
+  const metricSpan = document.querySelector(`[data-edit-metric="${panelId}"]`);
+  showInlineAutocomplete(metricSpan, {
+    items: state.metrics.map(m => m.name),
+    currentValue: panel.metric,
+    fuzzyMatch: true,
+    placeholder: 'Type to search metrics...',
+    onSelect: (newMetric) => {
       if (newMetric !== panel.metric) {
-        panel.metric = newMetric;
-        panel.studies = [];  // Clear studies on metric change (REQ-MV-023)
-        loadPanelData(panel);
-        renderSeriesList();
+        dispatch({ type: Actions.SET_PANEL_METRIC, panelId, metric: newMetric });
       }
+    },
+    onCancel: () => {
+      // Revert to showing metric name
+      renderPanelCards();
     }
   });
 }
 ```
+
+#### Inline Autocomplete Component
+
+Shared autocomplete component used for both metric and study selection. Renders
+dropdown below the clicked element with keyboard navigation (arrow keys, enter, escape).
+
+Autocomplete closes on:
+- Selection (Enter key or click)
+- Cancel (Escape key or click outside)
+- Blur event
 
 ### REQ-MV-024: Remove Panels via Sidebar
 
@@ -1191,100 +1162,137 @@ function updateRangeOverview(min, max) {
 
 ### REQ-MV-029: Add Study to Panel
 
-#### Study Selection Flow
+#### Inline Study Selection
+
+Clicking "Study: none" in a panel card shows an inline autocomplete with study types:
 
 ```javascript
-function addStudy(panelId) {
-  const panel = panels.find(p => p.id === panelId);
-  if (!panel) return;
+function handleStudyClick(panelId) {
+  const panel = state.panels.find(p => p.id === panelId);
+  if (!panel || state.selectedContainerIds.length === 0) return;
 
-  showModal({
-    title: 'Add Study',
-    content: `
-      <div class="study-selector">
-        <label>Study Type:</label>
-        <select id="study-type-select">
-          <option value="periodicity">Periodicity</option>
-          <option value="changepoint">Changepoint</option>
-        </select>
-      </div>
-      <div class="container-selector">
-        <label>Target Container:</label>
-        <select id="study-container-select">
-          ${selectedContainers.map(c => `
-            <option value="${c}">${getContainerName(c)}</option>
-          `).join('')}
-        </select>
-      </div>
-    `,
-    onConfirm: async () => {
-      const studyType = document.getElementById('study-type-select').value;
-      const container = document.getElementById('study-container-select').value;
-
-      await runStudyOnPanel(panel, studyType, container);
+  const studySpan = document.querySelector(`[data-edit-study="${panelId}"]`);
+  showInlineAutocomplete(studySpan, {
+    items: ['periodicity', 'changepoint'],
+    currentValue: panel.study,
+    fuzzyMatch: false,  // Only 2 options, no fuzzy match needed
+    placeholder: 'Select study type...',
+    onSelect: (studyType) => {
+      dispatch({ type: Actions.ADD_STUDY, panelId, studyType });
+    },
+    onCancel: () => {
+      renderPanelCards();
     }
   });
 }
-
-async function runStudyOnPanel(panel, studyType, containerId) {
-  const response = await fetch(
-    `/api/study/${studyType}?metric=${panel.metric}&container=${containerId}`
-  );
-  const result = await response.json();
-
-  panel.studies.push({
-    type: studyType,
-    container: containerId,
-    result: result
-  });
-
-  renderStudyOverlay(panel);
-  renderSeriesList();
-}
 ```
 
-### REQ-MV-030: Study Series in Sidebar
+#### Study Execution for All Containers
 
-Studies appear as entries in the sidebar under their panel:
+When a study is added to a panel, the system runs analysis on ALL selected containers
+and aggregates results:
 
 ```javascript
-function renderStudyBadges(panel, containerId) {
-  const containerStudies = panel.studies.filter(s => s.container === containerId);
-  if (containerStudies.length === 0) return '';
+// In effects.js
+registerHandler(Effects.FETCH_STUDY, async (effect, context) => {
+  const { panelId, metric, studyType, containerIds } = effect;
 
-  return containerStudies.map(study => `
-    <span class="study-badge ${study.type}">
-      ${study.type}
-      <button class="remove-study" onclick="removeStudy(${panel.id}, '${study.type}', '${containerId}')">
-        ✕
-      </button>
-    </span>
-  `).join('');
-}
-
-function removeStudy(panelId, studyType, containerId) {
-  const panel = panels.find(p => p.id === panelId);
-  if (!panel) return;
-
-  panel.studies = panel.studies.filter(
-    s => !(s.type === studyType && s.container === containerId)
+  // Fetch study results for all containers
+  const results = await Promise.all(
+    containerIds.map(cid =>
+      Api.fetchStudy(studyType, metric, cid)
+    )
   );
 
-  renderStudyOverlay(panel);
-  renderSeriesList();
+  // Store aggregated results
+  const key = DataStore.studyKey(metric, studyType);
+  DataStore.setStudyResult(key, { results, containerIds });
+
+  dispatch({
+    type: Actions.SET_STUDY_LOADING,
+    panelId,
+    loading: false
+  });
+
+  context.renderPanel(panelId);
+});
+```
+
+### REQ-MV-030: Study Visualization on Chart
+
+#### Panel Card Display
+
+When a study is active, the panel card shows the study type:
+
+```javascript
+function renderPanelCard(panel) {
+  return `
+    <div class="panel-study-row">
+      <label>Study:</label>
+      <span class="panel-study-value" data-edit-study="${panel.id}">
+        ${panel.study || 'none'}
+      </span>
+      ${panel.study ? '<button class="study-clear" data-clear-study="${panel.id}">×</button>' : ''}
+    </div>
+  `;
 }
 ```
+
+#### Chart Annotation Rendering
+
+Visual markers overlay on the uPlot chart using plugins:
+
+```javascript
+function renderStudyMarkers(panel) {
+  if (!panel.study) return [];
+
+  const studyKey = DataStore.studyKey(panel.metric, panel.study);
+  const studyData = DataStore.getStudyResult(studyKey);
+  if (!studyData) return [];
+
+  if (panel.study === 'changepoint') {
+    // Vertical lines at each changepoint
+    return studyData.results.flatMap(r =>
+      r.changepoints.map(cp => ({
+        type: 'vertical-line',
+        time: cp.time_ms,
+        color: '#ff6b6b',
+        tooltip: `Changepoint: ${cp.magnitude.toFixed(2)} (${(cp.confidence * 100).toFixed(1)}%)`
+      }))
+    );
+  } else if (panel.study === 'periodicity') {
+    // Shaded regions for periodic windows
+    return studyData.results.flatMap(r =>
+      r.windows.map(w => ({
+        type: 'shaded-region',
+        startTime: w.start_ms,
+        endTime: w.end_ms,
+        color: 'rgba(100, 149, 237, 0.2)',
+        tooltip: `Period: ${w.period_seconds}s (${(w.confidence * 100).toFixed(1)}%)`
+      }))
+    );
+  }
+}
+```
+
+#### Tooltip Interaction
+
+Click or hover on a marker shows tooltip with study details. Click on tooltip
+can trigger zoom to that time range.
 
 ### REQ-MV-031: Studies Do Not Consume Panel Slots
 
-Studies are overlays on existing panels, tracked in `panel.studies[]`. The
+Studies are overlays on existing panels, tracked in `panel.study` field. The
 5-panel limit applies only to chart panels, not study overlays:
 
 ```javascript
-function canAddPanel() {
-  return panels.length < maxPanels;  // Studies don't count
+function canAddPanel(state) {
+  return state.panels.length < state.maxPanels;  // Studies don't count
 }
 ```
+
+Each panel can have one study active. The study overlays on the panel's chart
+without consuming an additional panel slot.
 
 ---
 

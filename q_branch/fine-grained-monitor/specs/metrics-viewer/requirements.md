@@ -392,59 +392,71 @@ power with screen real estate.
 
 ---
 
-### REQ-MV-021: Global Series Sidebar
+### REQ-MV-021: Panel Cards in Sidebar
 
-WHEN user views the series sidebar
-THE SYSTEM SHALL display all plotted series grouped by panel
+WHEN user views the panels section in sidebar
+THE SYSTEM SHALL display one card per panel
 
-WHEN displaying a series entry
-THE SYSTEM SHALL show: Container name, Metric name, and Study type (if applicable)
+WHEN displaying a panel card
+THE SYSTEM SHALL show: Panel number, current metric name, and current study type
 
-WHEN multiple containers are selected
-THE SYSTEM SHALL show one entry per container under each panel
+WHEN no study is active on a panel
+THE SYSTEM SHALL show "Study: none" in that panel's card
 
-**Rationale:** Engineers need to see exactly what data is plotted. The sidebar
-provides a clear inventory of all series across all panels, making it easy to
-understand complex multi-panel views at a glance. Grouping by panel reinforces
-which data belongs to which chart.
+WHEN a study is active on a panel
+THE SYSTEM SHALL show the study type name (periodicity or changepoint) in that panel's card
+
+**Rationale:** Engineers need to see which metrics and studies are plotted on each panel.
+Panel cards provide a consolidated view of panel configuration, making it easy to understand
+what analysis is active at a glance. Grouping metric and study together per panel clarifies
+which analytical overlays belong to which chart.
 
 ---
 
-### REQ-MV-022: Add Panels via Metric Search
+### REQ-MV-022: Add Panels via Inline Autocomplete
 
-WHEN user focuses the metric search input in the sidebar
-THE SYSTEM SHALL show a searchable list of available metrics
+WHEN user clicks "+ Add Panel" button in the sidebar
+THE SYSTEM SHALL create a new panel card with an inline metric selector focused
 
-WHEN user types in the metric search
-THE SYSTEM SHALL filter metrics using fuzzy matching
+WHEN user types in the inline metric selector
+THE SYSTEM SHALL show autocomplete suggestions filtered by fuzzy matching
 
-WHEN user selects a metric from search results
-THE SYSTEM SHALL add a new panel displaying that metric for all selected containers
+WHEN user selects a metric from autocomplete
+THE SYSTEM SHALL create a new panel displaying that metric for all selected containers
 
 WHEN 5 panels already exist
-THE SYSTEM SHALL disable the metric search input
+THE SYSTEM SHALL hide the "+ Add Panel" button
 
 **Rationale:** Fuzzy search enables rapid panel creation without navigating dropdown
 menus. Engineers can type "cpu" and quickly find cpu_user, cpu_system, cpu_throttled.
-Adding panels with all selected containers maintains consistency with the shared
-container selection model.
+Inline autocomplete provides immediate feedback and reduces UI clutter compared to
+a persistent search box. Adding panels with all selected containers maintains
+consistency with the shared container selection model.
 
 ---
 
-### REQ-MV-023: Edit Panel Metric via Sidebar
+### REQ-MV-023: Edit Panel Metric Inline
 
-WHEN user edits a panel entry in the sidebar
-THE SYSTEM SHALL allow changing that panel's metric
+WHEN user clicks on a panel's metric name in the sidebar panel card
+THE SYSTEM SHALL show an inline autocomplete input for metric selection
+
+WHEN user types in the inline metric input
+THE SYSTEM SHALL filter available metrics using fuzzy matching
+
+WHEN user selects a different metric from autocomplete
+THE SYSTEM SHALL update that panel to display the new metric
 
 WHEN user changes a panel's metric
 THE SYSTEM SHALL preserve the time range and container selection
 
 WHEN user changes a panel's metric
-THE SYSTEM SHALL remove any active studies on that panel
+THE SYSTEM SHALL remove any active study on that panel
 
 **Rationale:** Engineers often realize mid-investigation they want a different
-metric. Editing in-place is faster than removing and re-adding. Removing studies
-on metric change prevents confusion from stale analysis results.
+metric. Inline editing is faster than removing and re-adding panels. Autocomplete
+with fuzzy matching accelerates finding the right metric. Removing studies on
+metric change prevents confusion from stale analysis results that no longer match
+the displayed data.
 
 ---
 
@@ -535,40 +547,56 @@ user is examining.
 
 ### REQ-MV-029: Add Study to Panel
 
-WHEN user clicks "Add Study" under a panel section in the sidebar
-THE SYSTEM SHALL show available study types (periodicity, changepoint)
+WHEN user clicks on "Study: none" in a panel card
+THE SYSTEM SHALL show an inline autocomplete with available study types (periodicity, changepoint)
+
+WHEN user types in the study autocomplete
+THE SYSTEM SHALL filter study types by name
 
 WHEN user selects a study type
-THE SYSTEM SHALL prompt for target container selection (single container)
+THE SYSTEM SHALL apply that study to all selected containers on that panel
 
-WHEN user completes study selection
-THE SYSTEM SHALL add a study series entry under that panel in the sidebar
+WHEN study analysis completes
+THE SYSTEM SHALL display visual markers on the chart (vertical lines for changepoints, shaded regions for periodicity)
 
-WHEN study is added
-THE SYSTEM SHALL display study results as overlay (raw data with markers) on that panel
+WHEN no containers are selected
+THE SYSTEM SHALL disable study selection for that panel
 
-**Rationale:** Studies provide deep analytical insight into specific container
-behavior. The inline "Add Study" button in the sidebar makes it clear which panel
-receives the study. Single-container focus ensures meaningful statistical analysis
-without cross-container noise.
+**Rationale:** Studies reveal patterns across all monitored containers. Panel-level
+studies apply analysis to the complete dataset, helping engineers identify system-wide
+trends and correlations. Visual markers overlay directly on timeseries data, making
+detected patterns immediately visible in context.
 
 ---
 
-### REQ-MV-030: Study Series in Sidebar
+### REQ-MV-030: Study Visualization on Chart
 
 WHEN a study is active on a panel
-THE SYSTEM SHALL display the study as a series entry showing Container / Metric / Study Type
+THE SYSTEM SHALL display the study type in that panel's sidebar card
 
-WHEN user removes a study series from the sidebar
-THE SYSTEM SHALL remove the study overlay from that panel
+WHEN a study is active on a panel
+THE SYSTEM SHALL overlay visual markers on the chart for detected patterns
+
+WHEN displaying a changepoint study
+THE SYSTEM SHALL show vertical lines at each detected change location
+
+WHEN displaying a periodicity study
+THE SYSTEM SHALL show shaded regions for each detected periodic window
+
+WHEN user hovers over a study marker on the chart
+THE SYSTEM SHALL show a tooltip with time, confidence score, and magnitude
+
+WHEN user clicks the X button next to a study name in the panel card
+THE SYSTEM SHALL remove the study and its visual markers from the chart
 
 WHEN user changes the panel's base metric
-THE SYSTEM SHALL remove all studies on that panel
+THE SYSTEM SHALL remove the active study from that panel
 
-**Rationale:** Studies appear in the sidebar alongside regular series, making it
-clear what analytical overlays are active. Removing studies when the base metric
-changes prevents confusion from stale analysis that no longer matches the displayed
-data.
+**Rationale:** Chart annotations keep the focus on visual data patterns. Engineers
+can see detected periods and changepoints directly overlaid on timeseries data,
+making correlations immediately visible. Inline tooltips provide analytical details
+on demand without cluttering the sidebar. Removing studies when the metric changes
+prevents confusion from stale analysis that no longer matches the displayed data.
 
 ---
 
