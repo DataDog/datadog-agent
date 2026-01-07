@@ -185,11 +185,12 @@ export async function init() {
             panelMetrics = dashboard.panels.slice(0, 5).map(p => p.metric);
             console.log('[App] Dashboard panels:', panelMetrics);
         } else {
-            // Default: single panel with default metric
-            panelMetrics = [findDefaultMetric(metrics)];
+            // Default: 3 panels with cpu, memory, and io metrics
+            panelMetrics = findDefaultPanelMetrics(metrics);
+            console.log('[App] Default panels:', panelMetrics);
         }
 
-        // REQ-MV-036: Set up panels from dashboard config
+        // REQ-MV-036: Set up panels from dashboard config or default 3-panel view
         if (dashboard?.panels?.length > 0) {
             // Dashboard specifies panels - override default metric selection
             // Update first panel's metric
@@ -217,6 +218,32 @@ export async function init() {
                 }
             }
             console.log('[App] Created', state.panels.length, 'panels from dashboard');
+        } else {
+            // Default 3-panel view: update first panel and add 2 more
+            state = {
+                ...state,
+                panels: state.panels.map((p, i) =>
+                    i === 0 ? { ...p, metric: panelMetrics[0] } : p
+                ),
+            };
+
+            // Add panels for memory and io metrics
+            for (let i = 1; i < panelMetrics.length && i < 3; i++) {
+                if (state.panels.length < state.maxPanels) {
+                    const newPanel = {
+                        id: state.nextPanelId,
+                        metric: panelMetrics[i],
+                        loading: false,
+                        study: null,
+                    };
+                    state = {
+                        ...state,
+                        panels: [...state.panels, newPanel],
+                        nextPanelId: state.nextPanelId + 1,
+                    };
+                }
+            }
+            console.log('[App] Created default 3-panel view:', state.panels.map(p => p.metric));
         }
 
         // REQ-MV-034: Build container filter params from dashboard
@@ -239,6 +266,13 @@ export async function init() {
                 const containerIds = containers.map(c => c.short_id);
                 dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds });
                 console.log('[App] Auto-selected', containerIds.length, 'containers from dashboard filter');
+            } else if (!dashboard && containers.length > 0) {
+                // Default view: auto-select the most recently observed container
+                const mostRecent = findMostRecentContainer(containers);
+                if (mostRecent) {
+                    dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds: [mostRecent.short_id] });
+                    console.log('[App] Auto-selected most recent container:', mostRecent.short_id);
+                }
             }
 
             // REQ-MV-035: Compute time range from container bounds
@@ -285,6 +319,48 @@ function findDefaultMetric(metrics) {
 
     // Fallback to first metric
     return metrics[0]?.name || null;
+}
+
+/**
+ * Find default metrics for the 3-panel default view.
+ * Returns [cpuMetric, memoryMetric, ioMetric]
+ */
+function findDefaultPanelMetrics(metrics) {
+    const metricNames = metrics.map(m => m.name);
+
+    // CPU: prefer total_cpu_usage_millicores
+    const cpuMetric = metricNames.find(n => n === 'total_cpu_usage_millicores')
+        || metricNames.find(n => n.includes('cpu'))
+        || metricNames[0];
+
+    // Memory: prefer cgroup memory, then total_pss_bytes, then any memory (excluding RSS)
+    const memoryMetric = metricNames.find(n => n.includes('cgroup') && n.includes('memory'))
+        || metricNames.find(n => n === 'total_pss_bytes')
+        || metricNames.find(n => n.includes('pss'))
+        || metricNames.find(n => n.includes('memory') && !n.includes('rss'))
+        || metricNames[1] || cpuMetric;
+
+    // IO: prefer io_read_bytes or disk io
+    const ioMetric = metricNames.find(n => n === 'io_read_bytes')
+        || metricNames.find(n => n.includes('io') && n.includes('read'))
+        || metricNames.find(n => n.includes('io'))
+        || metricNames.find(n => n.includes('disk'))
+        || metricNames[2] || memoryMetric;
+
+    return [cpuMetric, memoryMetric, ioMetric];
+}
+
+/**
+ * Find the most recently observed container.
+ */
+function findMostRecentContainer(containers) {
+    if (containers.length === 0) return null;
+
+    return containers.reduce((most, current) => {
+        const mostTime = most.last_seen_ms || 0;
+        const currentTime = current.last_seen_ms || 0;
+        return currentTime > mostTime ? current : most;
+    }, containers[0]);
 }
 
 // ============================================================
