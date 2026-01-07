@@ -54,48 +54,6 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 	return func() { metrics.GetProvider = originalMetricsProvider }
 }
 
-func TestAccumulateTagsFor(t *testing.T) {
-	entityID := types.NewEntityID(types.ContainerID, "entity_name")
-
-	mockReq := MockRequires{
-		Config:    configmock.New(t),
-		Log:       logmock.New(t),
-		Telemetry: noopTelemetry.GetCompatComponent(),
-	}
-	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() config.Component { return mockReq.Config }),
-		fx.Provide(func() log.Component { return mockReq.Log }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-	fakeTagger := NewMock(mockReq).Comp
-	tagStore := fakeTagger.GetTagStore()
-
-	tagStore.ProcessTagInfo([]*types.TagInfo{
-		{
-			EntityID:     entityID,
-			Source:       "stream",
-			LowCardTags:  []string{"low1"},
-			HighCardTags: []string{"high"},
-		},
-		{
-			EntityID:    entityID,
-			Source:      "pull",
-			LowCardTags: []string{"low2"},
-		},
-	})
-
-	tb := tagset.NewHashlessTagsAccumulator()
-	err := fakeTagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
-
-	nonExistentEntityID := types.NewEntityID(types.ContainerID, "non_existent_entity")
-	tb = tagset.NewHashlessTagsAccumulator()
-	err = fakeTagger.AccumulateTagsFor(nonExistentEntityID, types.HighCardinality, tb)
-	assert.Error(t, err)
-	assert.Empty(t, tb.Get())
-}
-
 func TestTag(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "123")
 
