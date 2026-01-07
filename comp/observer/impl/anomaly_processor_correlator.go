@@ -47,11 +47,12 @@ type correlationPattern struct {
 }
 
 // knownPatterns contains all known correlation patterns.
+// Source names include aggregation suffixes (e.g., ":avg" for value elevation, ":count" for frequency elevation).
 var knownPatterns = []correlationPattern{
 	{
-		name:           "kernel_bottleneck",
-		requiredSources: []string{"network.retransmits", "ebpf.lock_contention_ns", "connection.errors"},
-		reportTitle:    "Correlated: Kernel network bottleneck",
+		name:            "kernel_bottleneck",
+		requiredSources: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		reportTitle:     "Correlated: Kernel network bottleneck",
 	},
 }
 

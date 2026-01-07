@@ -174,3 +174,15 @@ func TestStatPoint_aggregate(t *testing.T) {
 	p2 := &statPoint{Count: 0, Sum: 10.0}
 	assert.Equal(t, 0.0, p2.aggregate(AggregateAverage))
 }
+
+func TestAggSuffix(t *testing.T) {
+	// Test all aggregation types return correct suffixes
+	assert.Equal(t, "avg", aggSuffix(AggregateAverage))
+	assert.Equal(t, "sum", aggSuffix(AggregateSum))
+	assert.Equal(t, "count", aggSuffix(AggregateCount))
+	assert.Equal(t, "min", aggSuffix(AggregateMin))
+	assert.Equal(t, "max", aggSuffix(AggregateMax))
+
+	// Test unknown aggregation type
+	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
+}
