@@ -218,7 +218,7 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.5
-	github.com/containerd/containerd v1.7.29
+	github.com/containerd/containerd v1.7.30
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
@@ -777,7 +777,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.142.0 // indirect
-	github.com/opencontainers/selinux v1.13.0 // indirect
+	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -977,7 +977,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/aymerick/raymond v2.0.2+incompatible
+	github.com/creack/pty v1.1.23
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -996,6 +998,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect

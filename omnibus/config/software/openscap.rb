@@ -21,6 +21,15 @@ build do
     " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
     " #{install_dir}/embedded/lib/libacl.so"
 
+  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
+    " #{install_dir}/embedded/lib/libattr.so"
+
+  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
+
   command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libselinux.pc" \
@@ -36,19 +45,20 @@ build do
     "--prefix #{install_dir}/embedded " \
     "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
+
+  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
+    " #{install_dir}/embedded/lib/libblkid.so"
 end
 
-# Next step, fold the migrated steps into pkg_install ones in the build_block
-dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
-dependency 'dbus'
 dependency 'libgcrypt'
 dependency 'libxslt'
 dependency 'libyaml'
 dependency 'popt'
 dependency 'rpm'
-dependency 'util-linux'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"

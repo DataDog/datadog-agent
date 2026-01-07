@@ -60,9 +60,6 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	bundleId = strings.ToLower(bundleId)
-	actionName = strings.ToLower(actionName)
-
 	if _, ok := c.ActionsAllowlist[bundleId]; ok {
 		return c.ActionsAllowlist[bundleId].HasAny(actionName, "*")
 	}
