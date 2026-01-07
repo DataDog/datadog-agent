@@ -928,6 +928,17 @@
                 </div>
             </div>
             <div class="sidebar-content">
+                <!-- REQ-MV-037: Time range selector -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Time Range</div>
+                    <select id="timeRangeSelect" class="search-input" style="margin-bottom: 0;">
+                        <option value="1h" selected>Last 1 hour</option>
+                        <option value="1d">Last 1 day</option>
+                        <option value="1w">Last 1 week</option>
+                        <option value="all">All time</option>
+                    </select>
+                </div>
+
                 <!-- REQ-MV-021: Panel cards -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Panels</div>

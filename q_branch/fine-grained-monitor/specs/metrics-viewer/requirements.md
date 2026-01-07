@@ -211,14 +211,15 @@ WHEN user accesses the in-cluster viewer
 THE SYSTEM SHALL display metrics collected on that specific node
 
 WHEN multiple parquet files exist from rotation
-THE SYSTEM SHALL load all available files as a unified dataset
+THE SYSTEM SHALL load files within the active time range as a unified dataset
 
 WHEN new parquet files are written by the collector
-THE SYSTEM SHALL include them in subsequent data loads
+THE SYSTEM SHALL include them in subsequent queries that overlap their time range
 
 **Rationale:** Each node collects independent metrics. Users investigating
 node-specific issues (CPU throttling, memory pressure) need to see that node's
-data without cross-node confusion.
+data without cross-node confusion. Time range scoping ensures queries remain
+performant even with weeks of accumulated data.
 
 ---
 
@@ -676,18 +677,22 @@ enabling scenarios like "show all containers from this scenario run."
 ### REQ-MV-035: Automatic Time Range from Containers
 
 WHEN dashboard specifies `time_range.mode: "from_containers"`
-THE SYSTEM SHALL set the time range from earliest `first_seen` to latest `last_seen`
+THE SYSTEM SHALL compute the time range from earliest `first_seen` to latest `last_seen`
 of filtered containers
 
 WHEN dashboard specifies `time_range.padding_seconds`
 THE SYSTEM SHALL expand the computed time range by the specified padding on both ends
 
+WHEN dashboard computes a time range
+THE SYSTEM SHALL request data from the backend for that time range
+
 WHEN filtered containers have no valid time bounds
 THE SYSTEM SHALL fall back to showing the last hour
 
 **Rationale:** Incident investigations should automatically focus on when the
-relevant containers were active. Manual time range selection wastes time and risks
-missing critical data outside a guessed range.
+relevant containers were active. The computed time range must scope both the chart
+view and the backend data loading to ensure data from the incident period is
+actually retrieved.
 
 ---
 
@@ -708,5 +713,73 @@ THE SYSTEM SHALL create only the first 5 panels
 **Rationale:** Dashboard authors need to prescribe which metrics are relevant for
 a given investigation. Pre-configured panels with studies accelerate root cause
 analysis by surfacing analytical overlays automatically.
+
+---
+
+## Time Range Selection Requirements
+
+### REQ-MV-037: Select Investigation Time Window
+
+WHEN user views the metrics viewer without an active dashboard
+THE SYSTEM SHALL display a time range selector with options: 1 hour, 1 day, 1 week, all time
+
+WHEN user selects a time range
+THE SYSTEM SHALL load and display only containers and data within that range
+
+WHEN a dashboard is active
+THE SYSTEM SHALL disable the manual time range selector and indicate dashboard control
+
+**Rationale:** Ad-hoc investigations require flexible time windows. Engineers may
+need to see patterns over days or weeks, not just the default hour. Dashboard mode
+already controls time range via container lifetimes (REQ-MV-035), so manual selection
+is disabled to avoid conflicts.
+
+---
+
+### REQ-MV-038: Default to Recent Activity
+
+WHEN user opens the metrics viewer without specifying a time range
+THE SYSTEM SHALL default to showing the last 1 hour of data
+
+WHEN user opens the metrics viewer with an active dashboard
+THE SYSTEM SHALL use the dashboard's time range instead of the default
+
+**Rationale:** Most ad-hoc investigations focus on recent activity. A 1-hour default
+balances recency with startup performance while keeping initial data loads fast.
+
+---
+
+### REQ-MV-039: Preserve Selection Across Range Changes
+
+WHEN user changes the time range
+THE SYSTEM SHALL preserve selected containers that have data in the new range
+
+WHEN a selected container has no data in the new range
+THE SYSTEM SHALL automatically deselect that container
+
+WHEN all selected containers are deselected due to range change
+THE SYSTEM SHALL clear the chart and show guidance to select containers
+
+**Rationale:** Users shouldn't lose their work when exploring different time windows.
+Auto-deselecting unavailable containers prevents confusion from empty charts while
+preserving valid selections.
+
+---
+
+### REQ-MV-040: Efficient Time Range Queries
+
+WHEN user selects a time range
+THE SYSTEM SHALL display the container list within 2 seconds
+
+WHEN user queries overlapping time ranges
+THE SYSTEM SHALL reuse cached file metadata to respond faster
+
+WHEN a parquet file has been scanned for container metadata
+THE SYSTEM SHALL cache that result permanently for all future queries
+
+**Rationale:** Investigation workflows require rapid iteration. File-level caching
+ensures each parquet file is scanned at most once, enabling quick switching between
+time ranges without redundant work. This scales efficiently regardless of how many
+weeks of data are stored.
 
 ---

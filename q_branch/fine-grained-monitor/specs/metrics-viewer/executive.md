@@ -97,10 +97,19 @@ collector operate independently with shared volume access.
 | **REQ-MV-032:** Filter Containers by Labels | ✅ Complete | API: `labels=key:value` query param |
 | **REQ-MV-033:** Load Dashboard Configuration | ✅ Complete | `?dashboard=url` or `?dashboard_inline=base64` |
 | **REQ-MV-034:** Filter Containers via Dashboard | ✅ Complete | Apply label_selector, namespace from JSON |
-| **REQ-MV-035:** Automatic Time Range from Containers | ✅ Complete | Compute from first_seen/last_seen |
+| **REQ-MV-035:** Automatic Time Range from Containers | ✅ Complete | Compute from first_seen/last_seen; passes range to backend |
 | **REQ-MV-036:** Configure Panels from Dashboard | ✅ Complete | Create panels from JSON spec |
 
-**Progress:** 36 of 36 complete
+### Time Range Selection
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| **REQ-MV-037:** Select Investigation Time Window | ❌ Not Started | 1h/1d/1w/all selector; disabled when dashboard active |
+| **REQ-MV-038:** Default to Recent Activity | ❌ Not Started | Default 1h; dashboard overrides |
+| **REQ-MV-039:** Preserve Selection Across Range Changes | ❌ Not Started | Auto-deselect containers without data in new range |
+| **REQ-MV-040:** Efficient Time Range Queries | ❌ Not Started | FileIndex with file-level caching |
+
+**Progress:** 36 of 40 complete
 
 ## Terminology Note
 

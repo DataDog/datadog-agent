@@ -6,7 +6,7 @@
 //! REQ-MV-006: GET /api/studies - list available studies.
 //! REQ-MV-006: GET /api/study/:id - run study on selected containers.
 
-use crate::metrics_viewer::data::{ContainerInfo, MetricInfo, TimeseriesPoint};
+use crate::metrics_viewer::data::{ContainerInfo, MetricInfo, TimeRange, TimeseriesPoint};
 use crate::metrics_viewer::lazy_data::LazyDataStore;
 use crate::metrics_viewer::studies::{StudyInfo, StudyRegistry, StudyResult};
 use axum::{
@@ -276,6 +276,7 @@ struct FiltersResponse {
 /// REQ-MV-003: Search and select containers by name, qos_class, or namespace.
 /// REQ-MV-019: Containers sorted by last_seen (most recent first) - instant response.
 /// REQ-MV-032: Filter by labels (key:value pairs).
+/// REQ-MV-037: Filter by time range (1h, 1d, 1w, all).
 #[derive(Deserialize)]
 struct ContainersQuery {
     #[allow(dead_code)]
@@ -288,15 +289,20 @@ struct ContainersQuery {
     search: Option<String>,
     #[serde(default)]
     labels: Option<String>, // REQ-MV-032: comma-separated key:value pairs
+    #[serde(default)]
+    range: Option<TimeRange>, // REQ-MV-037: time range filter (defaults to 1h)
 }
 
 async fn containers_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ContainersQuery>,
 ) -> Json<ContainersResponse> {
+    // REQ-MV-037: Use specified time range or default to 1 hour
+    let time_range = query.range.unwrap_or_default();
+
     // REQ-MV-019: Get containers from index sorted by last_seen (instant!)
-    // This replaces the slow get_container_stats() which read all parquet files
-    let all_containers = state.data.get_containers_by_recency();
+    // REQ-MV-037: Filtered to containers with data in the specified time range
+    let all_containers = state.data.get_containers_by_recency(time_range);
 
     // REQ-MV-032: Parse label filters if provided
     let label_filters: Vec<(&str, &str)> = query
@@ -370,10 +376,13 @@ struct ContainersResponse {
 }
 
 /// GET /api/timeseries - get timeseries data for selected containers.
+/// REQ-MV-037: Supports time range filtering.
 #[derive(Deserialize)]
 struct TimeseriesQuery {
     metric: String,
     containers: String,
+    #[serde(default)]
+    range: Option<TimeRange>, // REQ-MV-037: time range filter (defaults to 1h)
 }
 
 #[derive(Serialize)]
@@ -386,13 +395,16 @@ async fn timeseries_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<TimeseriesQuery>,
 ) -> Json<Vec<TimeseriesResponse>> {
+    // REQ-MV-037: Use specified time range or default to 1 hour
+    let time_range = query.range.unwrap_or_default();
+
     let container_ids: Vec<&str> = query.containers.split(',').collect();
 
-    // Load timeseries on demand
-    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids) {
+    // Load timeseries on demand for the specified time range
+    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids, time_range) {
         Ok(ts) => ts,
         Err(e) => {
-            eprintln!("Error loading timeseries for metric={} containers={}: {}", query.metric, query.containers, e);
+            eprintln!("Error loading timeseries for metric={} containers={} range={}: {}", query.metric, query.containers, time_range, e);
             return Json(vec![]);
         }
     };
@@ -420,10 +432,13 @@ struct StudiesResponse {
 
 /// GET /api/study/:id - run a study on selected containers.
 /// REQ-MV-006: Analyze timeseries for patterns.
+/// REQ-MV-037: Supports time range filtering.
 #[derive(Deserialize)]
 struct StudyQuery {
     metric: String,
     containers: String,
+    #[serde(default)]
+    range: Option<TimeRange>, // REQ-MV-037: time range filter (defaults to 1h)
 }
 
 #[derive(Serialize)]
@@ -444,6 +459,9 @@ async fn study_handler(
     Path(study_id): Path<String>,
     Query(query): Query<StudyQuery>,
 ) -> impl IntoResponse {
+    // REQ-MV-037: Use specified time range or default to 1 hour
+    let time_range = query.range.unwrap_or_default();
+
     let study = match state.studies.get(&study_id) {
         Some(s) => s,
         None => {
@@ -456,8 +474,8 @@ async fn study_handler(
 
     let container_ids: Vec<&str> = query.containers.split(',').collect();
 
-    // Load timeseries on demand
-    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids) {
+    // Load timeseries on demand for the specified time range
+    let timeseries = match state.data.get_timeseries(&query.metric, &container_ids, time_range) {
         Ok(ts) => ts,
         Err(e) => {
             eprintln!("Error loading timeseries for study: {}", e);

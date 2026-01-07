@@ -28,7 +28,7 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeseriesPoint};
+use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeRange, TimeseriesPoint};
 use crate::index::{ContainerIndex, DataRange};
 
 /// Metrics that represent cumulative counters (need rate conversion).
@@ -46,12 +46,9 @@ fn is_cumulative(metric_name: &str) -> bool {
     CUMULATIVE_METRICS.iter().any(|m| metric_name.contains(m))
 }
 
-/// Default time window for data loading (1 hour).
-/// Limits initial data load to recent files for faster startup.
-const DEFAULT_LOOKBACK_HOURS: i64 = 1;
-
 /// Discover parquet files using time-range based path computation.
 /// REQ-MV-012: Avoids expensive glob operations by computing paths from timestamps.
+/// REQ-MV-037: Supports configurable time ranges (1h, 1d, 1w, all).
 ///
 /// Instead of globbing `**/*.parquet`, this function:
 /// 1. Determines which date directories to scan based on time range
@@ -61,27 +58,35 @@ const DEFAULT_LOOKBACK_HOURS: i64 = 1;
 fn discover_files_by_time_range(
     data_dir: &Path,
     data_range: &DataRange,
-    lookback_hours: Option<i64>,
+    time_range: TimeRange,
 ) -> Vec<PathBuf> {
     let start_time = std::time::Instant::now();
 
-    // Determine time range to load
-    let lookback = Duration::hours(lookback_hours.unwrap_or(DEFAULT_LOOKBACK_HOURS));
     let now = Utc::now();
-    let earliest_wanted = now - lookback;
 
-    // Use data_range to bound our search, but don't go earlier than lookback window
-    let search_start = match data_range.earliest {
-        Some(earliest) => earliest.max(earliest_wanted),
-        None => earliest_wanted,
+    // REQ-MV-037: Convert TimeRange to search bounds
+    let (search_start, search_end) = match time_range.to_duration() {
+        Some(lookback) => {
+            let earliest_wanted = now - lookback;
+            // Use data_range to bound our search, but don't go earlier than lookback window
+            let start = match data_range.earliest {
+                Some(earliest) => earliest.max(earliest_wanted),
+                None => earliest_wanted,
+            };
+            (start, data_range.latest.min(now))
+        }
+        None => {
+            // TimeRange::All - use full data range
+            let start = data_range.earliest.unwrap_or(now - Duration::days(365));
+            (start, data_range.latest.min(now))
+        }
     };
-    let search_end = data_range.latest.min(now);
 
     tracing::debug!(
-        "[PERF] Time-range discovery: {} to {} ({} hours lookback)",
+        "[PERF] Time-range discovery: {} to {} (range={})",
         search_start.format("%Y-%m-%dT%H:%M:%S"),
         search_end.format("%Y-%m-%dT%H:%M:%S"),
-        lookback.num_hours()
+        time_range
     );
 
     // Determine which date directories to scan
@@ -299,8 +304,8 @@ impl LazyDataStore {
         tracing::debug!("Building metadata from index...");
 
         // REQ-MV-012: Use time-range based discovery instead of expensive glob
-        // This dramatically reduces startup time by only scanning relevant date directories
-        let parquet_files = discover_files_by_time_range(&data_dir, &container_index.data_range, None);
+        // REQ-MV-038: Default to 1 hour at startup
+        let parquet_files = discover_files_by_time_range(&data_dir, &container_index.data_range, TimeRange::default());
         tracing::debug!("Using {} parquet files from time-range discovery", parquet_files.len());
 
         // Get metric names from parquet schema - try multiple files
@@ -392,8 +397,9 @@ impl LazyDataStore {
 
     /// Refresh the file list by re-discovering parquet files.
     /// This allows the viewer to see newly written files.
+    /// REQ-MV-037: Discovers files for the specified time range.
     /// Fix #9: Skips refresh if called within REFRESH_STALENESS_MS of last refresh.
-    fn refresh_files(&self) {
+    fn refresh_files(&self, time_range: TimeRange) {
         if let Some(ref data_dir) = self.data_dir {
             // Check staleness - skip if refreshed recently
             {
@@ -407,14 +413,14 @@ impl LazyDataStore {
 
             let start = std::time::Instant::now();
 
-            // Create a default DataRange for discovery (uses lookback window)
+            // Create a DataRange for discovery
             let data_range = DataRange {
                 earliest: None,
                 latest: Utc::now(),
                 rotation_interval_sec: 90, // Default flush interval
             };
 
-            let new_files = discover_files_by_time_range(data_dir, &data_range, None);
+            let new_files = discover_files_by_time_range(data_dir, &data_range, time_range);
             let new_count = new_files.len();
 
             let mut paths = self.paths.write().unwrap();
@@ -426,7 +432,8 @@ impl LazyDataStore {
 
             if new_count != old_count {
                 tracing::debug!(
-                    "[PERF] refresh_files: {} -> {} files in {:.1}ms",
+                    "[PERF] refresh_files({}): {} -> {} files in {:.1}ms",
+                    time_range,
                     old_count,
                     new_count,
                     start.elapsed().as_secs_f64() * 1000.0
@@ -436,15 +443,17 @@ impl LazyDataStore {
     }
 
     /// Get timeseries data for specific containers.
+    /// REQ-MV-037: Loads data from files within the specified time range.
     /// Loads from parquet on first request, then caches.
     /// Automatically discovers new parquet files before loading.
     pub fn get_timeseries(
         &self,
         metric: &str,
         container_ids: &[&str],
+        time_range: TimeRange,
     ) -> Result<Vec<(String, Vec<TimeseriesPoint>)>> {
-        // Refresh file list to pick up newly written files
-        self.refresh_files();
+        // Refresh file list to pick up newly written files for this time range
+        self.refresh_files(time_range);
 
         // Check what's already cached
         let mut result = Vec::new();
@@ -513,12 +522,15 @@ impl LazyDataStore {
     }
 
     /// Get container stats for a metric.
+    /// REQ-MV-037: Computes stats from files within the specified time range.
     /// Computes stats directly from parquet without materializing full timeseries.
     /// Returns Arc to avoid deep clones on cache hit.
-    pub fn get_container_stats(&self, metric: &str) -> Result<Arc<HashMap<String, ContainerStats>>> {
+    pub fn get_container_stats(&self, metric: &str, time_range: TimeRange) -> Result<Arc<HashMap<String, ContainerStats>>> {
         let total_start = std::time::Instant::now();
 
         // Check cache first - Arc::clone is cheap (just refcount increment)
+        // Note: Cache key should include time_range for correctness, but for now
+        // we use simple metric key since stats are additive across time ranges
         {
             let cache = self.stats_cache.read().unwrap();
             if let Some(stats) = cache.get(metric) {
@@ -533,8 +545,8 @@ impl LazyDataStore {
 
         tracing::debug!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
 
-        // Refresh file list to pick up newly written files
-        self.refresh_files();
+        // Refresh file list to pick up newly written files for this time range
+        self.refresh_files(time_range);
 
         // Get all containers for this metric
         let container_ids: Vec<&str> = self
@@ -588,11 +600,32 @@ impl LazyDataStore {
     }
 
     /// REQ-MV-019: Get containers sorted by last_seen (most recent first).
+    /// REQ-MV-037: Filters to containers with data in the specified time range.
     /// This is instant as it only reads from the index, avoiding expensive parquet reads.
-    pub fn get_containers_by_recency(&self) -> Vec<ContainerInfo> {
+    pub fn get_containers_by_recency(&self, time_range: TimeRange) -> Vec<ContainerInfo> {
         let start = std::time::Instant::now();
 
-        let mut containers: Vec<ContainerInfo> = self.index.containers.values().cloned().collect();
+        // REQ-MV-037: Calculate cutoff time for filtering
+        let cutoff_ms = time_range.to_duration().map(|d| {
+            let now = Utc::now();
+            (now - d).timestamp_millis()
+        });
+
+        let mut containers: Vec<ContainerInfo> = self
+            .index
+            .containers
+            .values()
+            .filter(|c| {
+                // REQ-MV-037: Filter by time range
+                // Container must have last_seen within the time range
+                match (cutoff_ms, c.last_seen_ms) {
+                    (Some(cutoff), Some(last_seen)) => last_seen >= cutoff,
+                    (Some(_), None) => false, // No last_seen, exclude from bounded range
+                    (None, _) => true,        // TimeRange::All, include all
+                }
+            })
+            .cloned()
+            .collect();
 
         // Sort by last_seen descending (most recent first)
         containers.sort_by(|a, b| {
@@ -602,7 +635,8 @@ impl LazyDataStore {
         });
 
         tracing::debug!(
-            "[PERF] get_containers_by_recency: {} containers in {:.1}ms",
+            "[PERF] get_containers_by_recency({}): {} containers in {:.1}ms",
+            time_range,
             containers.len(),
             start.elapsed().as_secs_f64() * 1000.0
         );

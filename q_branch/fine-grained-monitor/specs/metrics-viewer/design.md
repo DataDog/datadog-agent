@@ -516,15 +516,28 @@ Use `hostPath` volume pointing to `/var/lib/fine-grained-monitor`:
 - Node-local storage (no cross-node access)
 - Already configured in existing DaemonSet
 
+#### Time Range Scoped Loading
+
+Files are loaded based on the active time range (see REQ-MV-037). The viewer only
+reads parquet files whose timestamps fall within the selected range:
+
+- Default: last 1 hour
+- User-selected: 1h, 1d, 1w, or all
+- Dashboard: computed from container lifetimes
+
+This scoping ensures queries remain performant even with weeks of accumulated data.
+
 #### Directory Input Support
 
-The `fgm-viewer` binary accepts a directory path and globs for `*.parquet`:
+The `fgm-viewer` binary accepts a directory path. File discovery uses time-range
+based path computation rather than expensive globbing:
 
 ```rust
-// In fgm-viewer.rs
-if path.is_dir() {
-    let pattern = format!("{}/**/*.parquet", path.display());
-    let files: Vec<PathBuf> = glob(&pattern)?.filter_map(Result::ok).collect();
+// Time-range based discovery (efficient)
+fn discover_files_by_time_range(data_dir: &Path, range: TimeRange) -> Vec<PathBuf> {
+    // Compute date directories to scan based on range
+    // List files within those directories
+    // Filter by filename timestamps
 }
 ```
 
@@ -1519,6 +1532,33 @@ function computeTimeRange(containers, config) {
 }
 ```
 
+#### Backend Time Range Integration
+
+The computed time range must be passed to the backend API for data loading.
+Without this, the backend defaults to 1-hour lookback and dashboards for older
+events would show empty charts.
+
+```javascript
+// In Api.fetchTimeseries - pass computed time range
+async fetchTimeseries(metricName, containerIds, timeRange = null) {
+    const params = new URLSearchParams({
+        metric: metricName,
+        containers: containerIds.join(',')
+    });
+
+    // Pass time range to backend (required for dashboards with historical data)
+    if (timeRange) {
+        params.set('start', timeRange.min);
+        params.set('end', timeRange.max);
+    }
+
+    const res = await fetch(`/api/timeseries?${params.toString()}`);
+    return res.json();
+}
+```
+
+The backend uses this range to scope file discovery (see REQ-MV-040).
+
 ### REQ-MV-036: Configure Panels from Dashboard
 
 #### Panel Creation
@@ -1626,4 +1666,251 @@ async fn dashboard_file_handler(Path(name): Path<String>) -> Response {
         Err(_) => (StatusCode::NOT_FOUND, "Dashboard not found").into_response()
     }
 }
+```
+
+---
+
+## Time Range Selection Implementation
+
+### REQ-MV-037: Select Investigation Time Window
+
+#### TimeRange Enum
+
+```rust
+/// Time range for queries.
+/// Uses short format for API: 1h, 1d, 1w, all
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum TimeRange {
+    #[default]
+    Hour1,
+    Day1,
+    Week1,
+    All,
+}
+
+impl TimeRange {
+    pub fn to_duration(&self) -> Option<chrono::Duration> {
+        match self {
+            TimeRange::Hour1 => Some(chrono::Duration::hours(1)),
+            TimeRange::Day1 => Some(chrono::Duration::days(1)),
+            TimeRange::Week1 => Some(chrono::Duration::weeks(1)),
+            TimeRange::All => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TimeRange::Hour1 => "1h",
+            TimeRange::Day1 => "1d",
+            TimeRange::Week1 => "1w",
+            TimeRange::All => "all",
+        }
+    }
+}
+```
+
+#### Frontend: Time Range Selector
+
+Located in sidebar above the Containers section:
+
+```html
+<div class="time-range-section">
+    <h3>Time Range</h3>
+    <select id="time-range-select" :disabled="dashboardActive">
+        <option value="1h" selected>1 hour</option>
+        <option value="1d">1 day</option>
+        <option value="1w">1 week</option>
+        <option value="all">All time</option>
+    </select>
+    <span v-if="dashboardActive" class="dashboard-indicator">
+        Dashboard controlled
+    </span>
+</div>
+```
+
+When dashboard is active, the selector is disabled and shows "Dashboard controlled"
+to indicate time range is determined by REQ-MV-035.
+
+#### API Changes
+
+All data endpoints accept optional `range` parameter:
+
+```rust
+#[derive(Deserialize)]
+struct ContainersQuery {
+    metric: String,
+    #[serde(default)]
+    range: TimeRange,  // Defaults to Hour1
+    // ... other filters
+}
+
+#[derive(Deserialize)]
+struct TimeseriesQuery {
+    metric: String,
+    containers: String,
+    #[serde(default)]
+    range: TimeRange,
+    // Alternative: explicit start/end for dashboard computed ranges
+    #[serde(default)]
+    start: Option<i64>,
+    #[serde(default)]
+    end: Option<i64>,
+}
+```
+
+### REQ-MV-038: Default to Recent Activity
+
+#### Frontend State
+
+```javascript
+const AppState = {
+    timeRange: '1h',  // Default
+    dashboardActive: false,
+    // ...
+};
+```
+
+On initialization, if no dashboard is active, `timeRange` defaults to `'1h'`.
+
+### REQ-MV-039: Preserve Selection Across Range Changes
+
+#### Auto-Deselect Logic
+
+```javascript
+Actions.onTimeRangeChange = async function() {
+    // Re-fetch containers for new range
+    await Actions.loadContainers();
+
+    // Auto-deselect containers that no longer have data in this range
+    const availableIds = new Set(AppState.containers.map(c => c.short_id));
+    const validSelection = new Set(
+        [...AppState.selectedContainerIds].filter(id => availableIds.has(id))
+    );
+
+    if (validSelection.size !== AppState.selectedContainerIds.size) {
+        updateState({ selectedContainerIds: validSelection });
+    }
+
+    // Re-fetch timeseries if containers are still selected
+    if (validSelection.size > 0) {
+        await Actions.loadTimeseries();
+    } else {
+        // Clear chart if no containers selected
+        updateState({ timeseries: [] });
+    }
+};
+```
+
+### REQ-MV-040: Efficient Time Range Queries
+
+#### FileIndex Architecture
+
+Replace `MetadataIndex` with file-level caching structure:
+
+```rust
+/// File-level index for efficient time range queries.
+/// Files are the memoization unit - scanned once, cached forever.
+pub struct FileIndex {
+    /// File → time bounds (parsed from filename, O(1) per file)
+    file_times: HashMap<PathBuf, (DateTime<Utc>, DateTime<Utc>)>,
+
+    /// File → containers in that file
+    /// None = not yet scanned, Some = scanned and cached forever
+    file_containers: HashMap<PathBuf, Option<HashSet<String>>>,
+
+    /// Global container info (merged from all scanned files)
+    containers: HashMap<String, ContainerInfo>,
+
+    /// Available metrics (from schema, stable across files)
+    metrics: Vec<MetricInfo>,
+
+    /// Unique QoS classes found
+    qos_classes: HashSet<String>,
+
+    /// Unique namespaces found
+    namespaces: HashSet<String>,
+}
+```
+
+#### Query Flow
+
+```
+GET /api/containers?range=1d
+
+1. Filter files by time
+   ─────────────────────
+   files_in_range = file_times
+       .filter(|(_, (start, end))| end > now - 1d)
+       .keys()
+
+2. Ensure files are scanned (lazy, cached)
+   ────────────────────────────────────────
+   for file in files_in_range:
+       if file_containers[file].is_none():
+           scan_file(file)  // populates file_containers AND containers
+
+3. Aggregate containers from selected files
+   ────────────────────────────────────────
+   container_ids = files_in_range
+       .flat_map(|f| file_containers[f])
+       .collect::<HashSet>()
+
+4. Return container info for those IDs
+   ────────────────────────────────────
+   containers.filter(|id| container_ids.contains(id))
+```
+
+#### Caching Property
+
+Each parquet file is scanned at most once. Results are reused for any time range
+query that includes that file:
+
+| Action | Work Done | Cached For |
+|--------|-----------|------------|
+| First "1 week" query | Scan ~168 files | Forever |
+| First "1 day" query | 0 files (already scanned) | N/A |
+| First "1 hour" query | 0 files (already scanned) | N/A |
+| Query after new file arrives | Scan 1 file | Forever |
+
+Total work = O(number of unique files), not O(queries × files).
+
+#### LazyDataStore Updates
+
+```rust
+pub struct LazyDataStore {
+    data_dir: PathBuf,
+
+    /// File-level index (mutable for lazy scanning)
+    file_index: RwLock<FileIndex>,
+
+    /// Cached timeseries: metric → container → points
+    timeseries_cache: RwLock<HashMap<String, HashMap<String, Vec<TimeseriesPoint>>>>,
+
+    /// Last file discovery time
+    last_discovery: RwLock<Instant>,
+}
+
+impl LazyDataStore {
+    pub fn get_containers_for_range(&self, range: TimeRange) -> Vec<ContainerInfo> {
+        let mut index = self.file_index.write().unwrap();
+        index.get_containers_for_range(range)
+    }
+
+    pub fn get_timeseries(
+        &self,
+        metric: &str,
+        container_ids: &[&str],
+        range: TimeRange,
+    ) -> Result<Vec<(String, Vec<TimeseriesPoint>)>> {
+        // Get files for this range
+        let files = {
+            let index = self.file_index.read().unwrap();
+            index.files_in_range(range)
+        };
+
+        // Load data from those files only
+        load_metric_data(&files, metric, container_ids)
+    }
+}
+```
 

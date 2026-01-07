@@ -54,9 +54,11 @@ export const Api = {
         return data.metrics || [];
     },
 
-    async fetchContainers(metricName, dashboard = null) {
+    // REQ-MV-037: Include time range in container queries
+    async fetchContainers(metricName, dashboard = null, timeRange = '1h') {
         const params = new URLSearchParams();
         params.set('metric', metricName);
+        params.set('range', timeRange);
 
         // REQ-MV-034: Apply dashboard container filters
         if (dashboard?.containers) {
@@ -82,12 +84,16 @@ export const Api = {
         return data.containers || [];
     },
 
-    async fetchTimeseries(metricName, containerIds) {
+    // REQ-MV-037: Include time range in timeseries queries
+    async fetchTimeseries(metricName, containerIds, timeRange = '1h') {
         if (containerIds.length === 0) return {};
 
-        const res = await fetch(
-            `/api/timeseries?metric=${encodeURIComponent(metricName)}&containers=${containerIds.join(',')}`
-        );
+        const params = new URLSearchParams();
+        params.set('metric', metricName);
+        params.set('containers', containerIds.join(','));
+        params.set('range', timeRange);
+
+        const res = await fetch(`/api/timeseries?${params.toString()}`);
         const data = await res.json();
 
         // Transform array response to object keyed by container
@@ -98,10 +104,14 @@ export const Api = {
         return result;
     },
 
-    async fetchStudy(studyType, metricName, containerId) {
-        const res = await fetch(
-            `/api/study/${studyType}?metric=${encodeURIComponent(metricName)}&containers=${containerId}`
-        );
+    // REQ-MV-037: Include time range in study queries
+    async fetchStudy(studyType, metricName, containerId, timeRange = '1h') {
+        const params = new URLSearchParams();
+        params.set('metric', metricName);
+        params.set('containers', containerId);
+        params.set('range', timeRange);
+
+        const res = await fetch(`/api/study/${studyType}?${params.toString()}`);
         const data = await res.json();
         return data.results?.[0] || null;
     },
@@ -187,12 +197,17 @@ registerHandler(Effects.UPDATE_REFS, (effect, context) => {
 
 /**
  * Fetch timeseries data for a panel.
+ * REQ-MV-037: Uses dataTimeRange from state for API queries.
  */
 registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
     const { panelId, metric, containerIds } = effect;
-    const { dispatch, Actions } = context;
+    const { dispatch, Actions, getState } = context;
 
-    console.log('[FETCH_TIMESERIES] Starting:', { panelId, metric, containerCount: containerIds.length });
+    // REQ-MV-037: Get time range from state
+    const state = getState();
+    const timeRange = state.dataTimeRange || '1h';
+
+    console.log('[FETCH_TIMESERIES] Starting:', { panelId, metric, containerCount: containerIds.length, timeRange });
 
     if (!metric || containerIds.length === 0) {
         console.log('[FETCH_TIMESERIES] Early exit - no metric or containers');
@@ -206,7 +221,8 @@ registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
 
     if (missing.length > 0) {
         try {
-            const data = await Api.fetchTimeseries(metric, missing);
+            // REQ-MV-037: Pass time range to API
+            const data = await Api.fetchTimeseries(metric, missing, timeRange);
             console.log('[FETCH_TIMESERIES] API returned keys:', Object.keys(data));
             console.log('[FETCH_TIMESERIES] First container ID from API:', Object.keys(data)[0]);
             console.log('[FETCH_TIMESERIES] First container ID expected:', missing[0]);
@@ -236,10 +252,15 @@ registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
 
 /**
  * Fetch study results for all containers on a panel.
+ * REQ-MV-037: Uses dataTimeRange from state for API queries.
  */
 registerHandler(Effects.FETCH_STUDY, async (effect, context) => {
     const { panelId, metric, containerIds, studyType } = effect;
-    const { dispatch, Actions } = context;
+    const { dispatch, Actions, getState } = context;
+
+    // REQ-MV-037: Get time range from state
+    const state = getState();
+    const timeRange = state.dataTimeRange || '1h';
 
     console.log('[FETCH_STUDY] Starting:', { panelId, metric, studyType, containerCount: containerIds.length });
 
@@ -250,7 +271,8 @@ registerHandler(Effects.FETCH_STUDY, async (effect, context) => {
         // Check cache first
         if (!DataStore.hasStudyResult(key)) {
             try {
-                const result = await Api.fetchStudy(studyType, metric, containerId);
+                // REQ-MV-037: Pass time range to API
+                const result = await Api.fetchStudy(studyType, metric, containerId, timeRange);
                 if (result) {
                     DataStore.setStudyResult(key, result);
                     DataStore.addRef(key, panelId);
@@ -294,19 +316,54 @@ registerHandler(Effects.FETCH_METRICS, async (effect, context) => {
 
 /**
  * Fetch containers for current metric.
+ * REQ-MV-037: Uses dataTimeRange from state for API queries.
+ * REQ-MV-039: Auto-deselects containers that don't exist in new time range.
  */
 registerHandler(Effects.FETCH_CONTAINERS, async (effect, context) => {
     const { dispatch, Actions, getState } = context;
 
     const state = getState();
     const metric = effect.metric || state.panels[0]?.metric;
+    const timeRange = state.dataTimeRange || '1h';
 
     if (!metric) return;
 
     try {
-        // REQ-MV-034: Pass dashboard config for container filtering
-        const containers = await Api.fetchContainers(metric, state.dashboard);
+        // REQ-MV-034, REQ-MV-037: Pass dashboard config and time range for filtering
+        const containers = await Api.fetchContainers(metric, state.dashboard, timeRange);
         dispatch({ type: Actions.SET_CONTAINERS, containers });
+
+        // REQ-MV-039: Auto-deselect containers that no longer exist in the new range
+        const availableIds = new Set(containers.map(c => c.short_id));
+        const validSelection = state.selectedContainerIds.filter(id => availableIds.has(id));
+
+        if (validSelection.length !== state.selectedContainerIds.length) {
+            console.log('[FETCH_CONTAINERS] Auto-deselecting containers not in range:',
+                state.selectedContainerIds.length - validSelection.length, 'removed');
+            dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds: validSelection });
+        } else if (validSelection.length > 0) {
+            // Same containers, but we need to refetch timeseries for new range
+            // Trigger timeseries fetch for all panels
+            for (const panel of state.panels) {
+                dispatch({
+                    type: Actions.SET_PANEL_LOADING,
+                    panelId: panel.id,
+                    loading: true,
+                });
+            }
+            // The SET_SELECTED_CONTAINERS will trigger timeseries fetch via effects
+            // But since selection didn't change, we need to manually trigger
+            for (const panel of state.panels) {
+                // Clear cache for this metric to force refetch with new range
+                // This is a bit of a hack - ideally we'd have range-aware caching
+                for (const cid of validSelection) {
+                    const key = `${panel.metric}:${cid}`;
+                    // DataStore doesn't expose a clear method, so we'll let the fetch handler handle it
+                }
+            }
+            // Dispatch a "refresh" by re-setting the same containers
+            dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds: [...validSelection] });
+        }
     } catch (err) {
         console.error('Failed to fetch containers:', err);
     }

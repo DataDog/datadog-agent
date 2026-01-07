@@ -43,6 +43,9 @@ export const Actions = {
 
     // Initialization
     INIT_COMPLETE: 'INIT_COMPLETE',
+
+    // REQ-MV-037: Data time range selection
+    SET_DATA_TIME_RANGE: 'SET_DATA_TIME_RANGE',
 };
 
 // ============================================================
@@ -109,6 +112,13 @@ export const initialState = {
 
     // Display options
     groupByContainerName: true, // Group containers with same name in legend/charts
+
+    // REQ-MV-037: Data time range for API queries (1h, 1d, 1w, all)
+    // REQ-MV-038: Default to 1 hour
+    dataTimeRange: '1h',
+
+    // REQ-MV-033: Dashboard config (null when no dashboard active)
+    dashboard: null,
 
     // Constraints
     maxPanels: 5,
@@ -509,8 +519,35 @@ export function reduce(state, action) {
                 ...state,
                 initialized: true,
                 fullTimeRange: action.fullTimeRange || state.fullTimeRange,
+                dashboard: action.dashboard || state.dashboard,
             };
             return { state: newState, effects: [] };
+        }
+
+        // --------------------------------------------------------
+        // REQ-MV-037: DATA TIME RANGE
+        // --------------------------------------------------------
+
+        case Actions.SET_DATA_TIME_RANGE: {
+            if (state.dataTimeRange === action.range) {
+                return { state, effects: [] };
+            }
+
+            const newState = {
+                ...state,
+                dataTimeRange: action.range,
+                // Mark all panels as loading since we'll refetch data
+                panels: state.panels.map(p => ({ ...p, loading: true })),
+            };
+
+            return {
+                state: newState,
+                effects: [
+                    // Fetch containers for the new time range
+                    { type: Effects.FETCH_CONTAINERS, metric: state.panels[0]?.metric },
+                    { type: Effects.RENDER_SIDEBAR },
+                ],
+            };
         }
 
         default:

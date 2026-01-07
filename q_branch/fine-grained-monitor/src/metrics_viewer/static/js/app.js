@@ -222,6 +222,8 @@ export async function init() {
         // REQ-MV-034: Build container filter params from dashboard
         const filterParams = buildContainerFilterParams(dashboard);
         filterParams.set('metric', panelMetrics[0] || '');
+        // REQ-MV-038: Default to 1 hour time range
+        filterParams.set('range', state.dataTimeRange || '1h');
 
         // Fetch containers (with dashboard filters if specified)
         let containers = [];
@@ -263,7 +265,7 @@ export async function init() {
             }
         }
 
-        dispatch({ type: Actions.INIT_COMPLETE, fullTimeRange: state.fullTimeRange });
+        dispatch({ type: Actions.INIT_COMPLETE, fullTimeRange: state.fullTimeRange, dashboard });
         console.log('[App] Initialization complete');
 
         return { instanceInfo, dashboard };
@@ -335,6 +337,11 @@ export function setMetricSearch(query) {
 
 export function setContainerSearch(query) {
     dispatch({ type: Actions.SET_CONTAINER_SEARCH, query });
+}
+
+// REQ-MV-037: Set data time range for API queries
+export function setDataTimeRange(range) {
+    dispatch({ type: Actions.SET_DATA_TIME_RANGE, range });
 }
 
 // ============================================================

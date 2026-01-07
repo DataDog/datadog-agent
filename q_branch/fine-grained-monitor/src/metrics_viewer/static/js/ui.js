@@ -1027,6 +1027,18 @@ export const ChartRenderer = {
 // ============================================================
 
 export function render(state, prevState) {
+    // REQ-MV-037: Update time range selector
+    const timeRangeSelect = document.getElementById('timeRangeSelect');
+    if (timeRangeSelect) {
+        timeRangeSelect.value = state.dataTimeRange || '1h';
+        // Disable when dashboard controls time range
+        const dashboardControlled = state.dashboard?.time_range != null;
+        timeRangeSelect.disabled = dashboardControlled;
+        timeRangeSelect.title = dashboardControlled
+            ? 'Time range controlled by dashboard'
+            : 'Select time range for data';
+    }
+
     // Update panel cards (REQ-MV-021)
     const panelCardsContainer = document.getElementById('panelCards');
     if (panelCardsContainer) {
@@ -1045,6 +1057,18 @@ export function render(state, prevState) {
 // ============================================================
 
 export function setupEventListeners() {
+    // REQ-MV-037: Time range selector
+    document.getElementById('timeRangeSelect')?.addEventListener('change', (e) => {
+        const state = App.getState();
+        // REQ-MV-037: Ignore when dashboard controls time range
+        if (state.dashboard?.time_range) {
+            // Reset to dashboard value and ignore
+            e.target.value = state.dataTimeRange;
+            return;
+        }
+        App.setDataTimeRange(e.target.value);
+    });
+
     // Legacy metric list/search listeners removed - now using inline autocomplete (REQ-MV-022, REQ-MV-023)
 
     // Container search
