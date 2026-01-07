@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add a `kubernetes_kube_service_new_behavior` flag (default false) to alter kube_service tag behavior.
+    If flag is set to true kube_service tag is attached unconditionaly.
+    Old behavior was that tag only attached when k8s service has status Ready.
