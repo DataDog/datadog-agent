@@ -10,7 +10,6 @@ import (
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,6 +21,5 @@ func Bundle(params server.Params) fxutil.BundleOptions {
 		serverdebugimpl.Module(),
 		replayfx.Module(),
 		pidmapimpl.Module(),
-		server.Module(params),
-		statusimpl.Module())
+		server.Module(params))
 }

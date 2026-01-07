@@ -16,44 +16,33 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-//go:embed status_templates
-var templatesFS embed.FS
-
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
 
 type provides struct {
 	fx.Out
 
-	Status status.InformationProvider
+	StatusProvider status.InformationProvider
 }
 
-type statusProvider struct{}
-
+// Module defines the fx options for the status component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newStatusProvider))
+		fx.Provide(newStatus))
 }
 
-func newStatusProvider(deps dependencies) provides {
-	dsdConfig := dsdconfig.NewConfig(deps.Config)
+type statusProvider struct {
+	Config config.Component
+}
 
-	var provider status.Provider
-	if dsdConfig.EnabledInternal() {
-		provider = statusProvider{}
-	}
-
+func newStatus() provides {
 	return provides{
-		Status: status.NewInformationProvider(provider),
+		StatusProvider: status.NewInformationProvider(statusProvider{}),
 	}
 }
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 // Name returns the name
 func (s statusProvider) Name() string {
