@@ -54,7 +54,7 @@ func TestConntrackers(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
 	})
-	t.Run("eBPF - alternate probes", func(t *testing.T) {
+	t.Run("eBPFAlternateProbes", func(t *testing.T) {
 		// JMWNEXT this tests __nf_conntrack_confirm.  What can I do to test nf_conntrack_hash_check_insert?
 
 		origVerifyKernelFuncs := verifyKernelFuncs
@@ -79,7 +79,7 @@ func TestConntrackers(t *testing.T) {
 			modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
 		}
 		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-			runConntrackerTest(t, "eBPF - alternate probes", setupEBPFConntracker)
+			runConntrackerTest(t, "eBPFAlternateProbes", setupEBPFConntracker)
 		})
 	})
 }
