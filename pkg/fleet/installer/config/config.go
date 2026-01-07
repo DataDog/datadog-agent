@@ -109,7 +109,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 		if err != nil {
 			return err
 		}
-		previousJSONBytes, err := json.Marshal(previous)
+		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
 			return err
 		}
@@ -452,7 +452,7 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
 	}
-	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
+	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
 	}
@@ -481,4 +481,29 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	}
 
 	return op, nil
+}
+
+// convertYAML2UnmarshalToJSONMarshallable converts a YAML unmarshalable to a JSON marshallable:
+// yaml.v2 unmarshals nested maps to map[any]any, but json.Marshal expects map[string]any and
+// fails for map[any]any. This function converts the map[any]any to map[string]any.
+func convertYAML2UnmarshalToJSONMarshallable(i any) any {
+	switch x := i.(type) {
+	case map[any]any:
+		m := map[string]any{}
+		for k, v := range x {
+			m[k.(string)] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	case map[string]any:
+		m := map[string]any{}
+		for k, v := range x {
+			m[k] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	case []any:
+		for i, v := range x {
+			x[i] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+	}
+	return i
 }
