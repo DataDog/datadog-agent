@@ -54,7 +54,7 @@ walkdir = "2"
 parquet = { version = "54", features = ["arrow"] }
 arrow = "54"
 axum = "0.7"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
 rayon = "1.10"
 
 # Kubernetes API client (REQ-MV-015)

@@ -16,6 +16,7 @@ use axum::{
     routing::get,
     Router,
 };
+use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -49,6 +50,9 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         studies: StudyRegistry::new(),
     });
 
+    // Find the static files directory
+    let static_dir = find_static_dir();
+
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/dashboards/:name", get(dashboard_file_handler))
@@ -60,6 +64,7 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         .route("/api/timeseries", get(timeseries_handler))
         .route("/api/studies", get(studies_handler))
         .route("/api/study/:id", get(study_handler))
+        .nest_service("/static", ServeDir::new(&static_dir))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -83,6 +88,26 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+// --- Helpers ---
+
+/// Find the static files directory.
+/// Checks in-container path first, then local dev path.
+fn find_static_dir() -> String {
+    let candidates = [
+        "/static",                          // In-container path
+        "src/metrics_viewer/static",        // Local dev path (from crate root)
+    ];
+
+    for path in candidates {
+        if std::path::Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+
+    // Default to in-container path (ServeDir will handle missing gracefully)
+    "/static".to_string()
 }
 
 // --- Handlers ---

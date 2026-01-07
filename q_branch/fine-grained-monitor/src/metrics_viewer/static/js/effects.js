@@ -371,7 +371,9 @@ export async function loadDashboard(url, inlineBase64, templateVars = {}) {
             dashboardJson = JSON.parse(decoded);
         } else if (url) {
             // REQ-MV-033: Fetch dashboard from URL
-            const res = await fetch(url);
+            // For relative paths (not starting with / or http), prepend /dashboards/
+            const fetchUrl = (url.startsWith('/') || url.startsWith('http')) ? url : `/dashboards/${url}`;
+            const res = await fetch(fetchUrl);
             if (!res.ok) {
                 throw new Error(`Failed to fetch dashboard: ${res.status} ${res.statusText}`);
             }
