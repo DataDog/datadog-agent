@@ -15,13 +15,13 @@ env DD_LOG_TO_CONSOLE=false
 
 pre-start script
   # Do not run if security-agent.yaml does not exist
-  test -f <%= etc_dir %>/security-agent.yaml || { stop ; exit 0; }
+  test -f {etc_dir}/security-agent.yaml || { stop ; exit 0; }
 end script
 
 script
-  exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml --sysprobe-config <%= etc_dir %>/system-probe.yaml -p <%= install_dir %>/run/security-agent.pid
+  exec {install_dir}/embedded/bin/security-agent start -c {etc_dir}/datadog.yaml -c {etc_dir}/security-agent.yaml --sysprobe-config {etc_dir}/system-probe.yaml -p {install_dir}/run/security-agent.pid
 end script
 
 post-stop script
-  rm -f <%= install_dir %>/run/security-agent.pid
+  rm -f {install_dir}/run/security-agent.pid
 end script
