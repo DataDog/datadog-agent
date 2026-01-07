@@ -35,7 +35,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 5 * time.Second
+	redemptionTime                       = 2 * time.Second
 	// mounts LRU limit: 100000 mounts
 	mountsLimit = 100000
 )
@@ -207,15 +207,6 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 			}
 
 			mount.Children = append(mount.Children, mnt.MountID)
-		}
-	}
-
-	for e := range mr.redemption.ValuesIter() {
-		if e.mount.ParentPathKey.MountID == mount.MountID && time.Since(e.insertedAt) <= redemptionTime {
-			if slices.Contains(mount.Children, e.mount.MountID) {
-				continue
-			}
-			mount.Children = append(mount.Children, e.mount.MountID)
 		}
 	}
 
