@@ -19,6 +19,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
@@ -33,7 +34,6 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from tasks.libs.common.feature_flags import is_enabled
 
 BOT_NAME = "github-actions[bot]"
 
@@ -350,13 +350,13 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
 
     # Feature flag for short lived tokens. When enabled we use short lived tokens to create the pipeline. As a consequence we need to use the "create" pipeline API instead of the "trigger" pipeline API.
     # When disabled we use the CI_JOB_TOKEN to create the pipeline.
-    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in: 
+    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in:
     if is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
         token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
         repo = get_gitlab_repo(project_name, token=token)
         try:
-        # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
-        # Sending a dict will result in: `400: variables is invalid`.
+            # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
+            # Sending a dict will result in: `400: variables is invalid`.
             variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
             pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
         except GitlabError as e:
@@ -370,7 +370,6 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
             pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
         except GitlabError as e:
             raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
-    
 
     print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 
@@ -548,9 +547,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
-    assert match is not None, (
-        f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
-    )
+    assert (
+        match is not None
+    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
     owner, branch = match.group('owner'), match.group('branch_name')
@@ -560,9 +559,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
     branch_res = ctx.run('git branch', hide='stdout')
-    assert re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == [], (
-        f'{owner_branch_name} branch already exists'
-    )
+    assert (
+        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
+    ), f'{owner_branch_name} branch already exists'
     remote_res = ctx.run('git remote', hide='stdout')
     assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
