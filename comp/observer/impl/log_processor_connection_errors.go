@@ -30,7 +30,8 @@ func (c *ConnectionErrorExtractor) Name() string {
 	return "connection_error_extractor"
 }
 
-// Process checks if a log contains connection error patterns and returns a metric and anomaly if so.
+// Process checks if a log contains connection error patterns and returns a metric if so.
+// Anomaly detection is handled by TS analysis on the count aggregation of the emitted metric.
 func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogProcessorResult {
 	content := strings.ToLower(string(log.GetContent()))
 
@@ -42,12 +43,7 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogPro
 					Value: 1.0,
 					Tags:  log.GetTags(),
 				}},
-				Anomalies: []observer.AnomalyOutput{{
-					Source:      "connection.errors",
-					Title:       "Connection error detected",
-					Description: string(log.GetContent()),
-					Tags:        log.GetTags(),
-				}},
+				// No Anomalies - let TS analysis detect frequency changes via count aggregation
 			}
 		}
 	}

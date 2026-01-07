@@ -225,14 +225,20 @@ func (o *observerImpl) run() {
 	}
 }
 
+// analysisAggregations defines which aggregations to run TS analyses on.
+// This allows detecting both value elevation (average) and frequency elevation (count).
+var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
+
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
 
-	// Run time series analyses (using average aggregation)
-	if series := o.storage.GetSeries(source, m.name, m.tags, AggregateAverage); series != nil {
-		o.runTSAnalyses(*series)
+	// Run time series analyses on multiple aggregations
+	for _, agg := range analysisAggregations {
+		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
+			o.runTSAnalyses(*series, agg)
+		}
 	}
 
 	o.flushAndReport()
@@ -249,8 +255,11 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		// Add metrics from log processing to storage, then run TS analyses
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
-			if series := o.storage.GetSeries(source, m.Name, m.Tags, AggregateAverage); series != nil {
-				o.runTSAnalyses(*series)
+			// Run time series analyses on multiple aggregations
+			for _, agg := range analysisAggregations {
+				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
+					o.runTSAnalyses(*series, agg)
+				}
 			}
 		}
 
@@ -263,13 +272,36 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	o.flushAndReport()
 }
 
-// runTSAnalyses runs all time series analyses on a series.
-func (o *observerImpl) runTSAnalyses(series observerdef.Series) {
+// runTSAnalyses runs all time series analyses on a series with the given aggregation.
+// It appends an aggregation suffix to the series name for distinct Source tracking.
+func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
+	// Append aggregation suffix to series name for distinct Source tracking
+	seriesWithAgg := series
+	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+
 	for _, tsAnalysis := range o.tsAnalyses {
-		result := tsAnalysis.Analyze(series)
+		result := tsAnalysis.Analyze(seriesWithAgg)
 		for _, anomaly := range result.Anomalies {
 			o.processAnomaly(anomaly)
 		}
+	}
+}
+
+// aggSuffix returns a short suffix for the given aggregation type.
+func aggSuffix(agg Aggregate) string {
+	switch agg {
+	case AggregateAverage:
+		return "avg"
+	case AggregateSum:
+		return "sum"
+	case AggregateCount:
+		return "count"
+	case AggregateMin:
+		return "min"
+	case AggregateMax:
+		return "max"
+	default:
+		return "unknown"
 	}
 }
 
