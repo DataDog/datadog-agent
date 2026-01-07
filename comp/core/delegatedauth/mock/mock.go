@@ -7,7 +7,6 @@
 package mock
 
 import (
-	"context"
 	"testing"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -15,9 +14,7 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	ConfigureFunc     func(delegatedauth.ConfigParams)
-	GetAPIKeyFunc     func(ctx context.Context) (*string, error)
-	RefreshAPIKeyFunc func(ctx context.Context) error
+	ConfigureFunc func(delegatedauth.ConfigParams)
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)

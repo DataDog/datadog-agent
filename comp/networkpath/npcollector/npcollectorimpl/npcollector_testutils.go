@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -59,9 +59,7 @@ var testOptions = fx.Options(
 	logscompression.MockModule(),
 	telemetryimpl.MockModule(),
 	hostnameimpl.MockModule(),
-	fx.Provide(func() delegatedauth.Component {
-		return delegatedauthimpl.NewComponent().Comp
-	}),
+	delegatedauthmock.MockModule(),
 )
 
 func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface, tr traceroute.Component) (*fxtest.App, *npCollectorImpl) {

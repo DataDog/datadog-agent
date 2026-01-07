@@ -9,6 +9,7 @@ package run
 import (
 	"fmt"
 
+	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ func isPAREnabled(confFilePath string) bool {
 	cfg.SetConfigFile(confFilePath)
 
 	// Load config with minimal dependencies (no secrets, no custom loading)
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsnoopimpl.NewComponent().Comp, nil)
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsnoopimpl.NewComponent().Comp, delegatedauthnoop.NewComponent().Comp, nil)
 	if err != nil {
 		// If config loading fails, default to disabled
 		return false
