@@ -392,7 +392,7 @@ async fn timeseries_handler(
     let timeseries = match state.data.get_timeseries(&query.metric, &container_ids) {
         Ok(ts) => ts,
         Err(e) => {
-            eprintln!("Error loading timeseries: {}", e);
+            eprintln!("Error loading timeseries for metric={} containers={}: {}", query.metric, query.containers, e);
             return Json(vec![]);
         }
     };

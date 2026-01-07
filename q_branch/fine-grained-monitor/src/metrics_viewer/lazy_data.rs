@@ -955,10 +955,12 @@ fn load_metric_data(
 
     // Process files in parallel, each file returns its own HashMap
     let parallel_start = std::time::Instant::now();
-    let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
+    let file_results: Vec<(PathBuf, Result<HashMap<String, RawContainerData>>)> = paths
         .par_iter()
         .map(|path| {
-            load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric)
+            let result =
+                load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric);
+            (path.clone(), result)
         })
         .collect();
     let parallel_elapsed = parallel_start.elapsed();
@@ -970,8 +972,14 @@ fn load_metric_data(
     // Merge results from all files
     let merge_start = std::time::Instant::now();
     let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
-    for result in file_results {
-        let file_data = result?;
+    for (path, result) in file_results {
+        let file_data = match result {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Error loading parquet file {:?}: {}", path, e);
+                continue; // Skip bad files instead of failing entirely
+            }
+        };
         for (id, data) in file_data {
             raw_data
                 .entry(id)

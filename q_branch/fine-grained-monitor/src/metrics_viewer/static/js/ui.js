@@ -10,6 +10,7 @@
 
 import * as App from './app.js';
 import * as DataStore from './data-store.js';
+import { groupContainersByName, getContainerColorIndex } from './state-machine.js';
 
 // ============================================================
 // CONSTANTS
@@ -144,8 +145,8 @@ function getContainerDisplayName(containerInfo, fallbackId) {
     return containerInfo?.pod_name || fallbackId;
 }
 
-function getContainerColor(containerId, selectedIds) {
-    const index = selectedIds.indexOf(containerId);
+function getContainerColor(containerId, state) {
+    const index = getContainerColorIndex(state, containerId);
     if (index === -1) return '#ddd';
     return COLORS[index % COLORS.length];
 }
@@ -220,7 +221,7 @@ export const Components = {
             const containerId = c.short_id;
             const displayName = getContainerDisplayName(c, containerId);
             const isSelected = state.selectedContainerIds.includes(containerId);
-            const color = getContainerColor(containerId, state.selectedContainerIds);
+            const color = getContainerColor(containerId, state);
             const selectedClass = isSelected ? 'selected' : '';
 
             const lastSeenMs = c.last_seen_ms || 0;
@@ -242,7 +243,10 @@ export const Components = {
                            ${isSelected ? 'checked' : ''}
                            data-container-checkbox>
                     <span class="container-color" style="background: ${color}"></span>
-                    <span class="container-id" title="${escapeAttr(containerId)}">${escapeHtml(displayName)}</span>
+                    <span class="container-id" title="${escapeAttr(containerId)}">
+                        ${escapeHtml(displayName)}
+                        <span style="color: #888; font-size: 0.85em; margin-left: 4px;">(${containerId.substring(0, 8)})</span>
+                    </span>
                     <button class="study-btn"
                             style="${studyBtnStyle}"
                             data-study-btn="${escapeAttr(containerId)}"
@@ -450,6 +454,31 @@ export const Components = {
     Legend(state, panelId) {
         if (state.selectedContainerIds.length === 0) return '';
 
+        // When grouping is enabled, show one legend entry per unique name
+        if (state.groupByContainerName) {
+            const groups = groupContainersByName(state);
+            let groupIndex = 0;
+            const legendItems = [];
+
+            for (const [displayName, containerIds] of groups) {
+                const count = containerIds.length;
+                const firstContainer = state.containers.find(c => c.short_id === containerIds[0]);
+                const qos = firstContainer?.qos_class || '?';
+                const countLabel = count > 1 ? ` (${count})` : '';
+                const allIds = containerIds.join(', ');
+
+                legendItems.push(`
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: ${COLORS[groupIndex % COLORS.length]}"></div>
+                        <span title="${escapeAttr(allIds)}">${escapeHtml(displayName)}${countLabel}</span>
+                    </div>
+                `);
+                groupIndex++;
+            }
+            return legendItems.join('');
+        }
+
+        // Non-grouped: one entry per container
         return state.selectedContainerIds.map((id, i) => {
             const container = state.containers.find(c => c.short_id === id);
             const displayName = getContainerDisplayName(container, id);
@@ -546,6 +575,12 @@ export const ChartRenderer = {
         const containerIds = state.selectedContainerIds;
         const timeseries = App.getTimeseriesForPanel(panel);
 
+        console.log('[renderPanel] Panel:', panelId, 'Metric:', panel.metric);
+        console.log('[renderPanel] selectedContainerIds count:', containerIds.length);
+        console.log('[renderPanel] selectedContainerIds sample:', containerIds.slice(0, 3));
+        console.log('[renderPanel] timeseries keys:', Object.keys(timeseries));
+        console.log('[renderPanel] timeseries keys count:', Object.keys(timeseries).length);
+
         // Build uPlot data
         const allTimes = new Set();
         containerIds.forEach(id => {
@@ -554,7 +589,10 @@ export const ChartRenderer = {
         });
         const timestamps = Array.from(allTimes).sort((a, b) => a - b);
 
+        console.log('[renderPanel] timestamps count:', timestamps.length);
+
         if (timestamps.length === 0) {
+            console.log('[renderPanel] No timestamps - showing empty state');
             chartDiv.innerHTML = '<div class="empty-state">Select containers to display timeseries</div>';
             if (legendDiv) legendDiv.innerHTML = '';
             return;
@@ -584,15 +622,18 @@ export const ChartRenderer = {
         // Convert to uPlot format
         const uplotData = [timestamps.map(t => t / 1000), ...series];
 
-        // Build series config
+        // Build series config - use grouping-aware colors
         const uplotSeries = [
             { label: 'Time' },
-            ...containerIds.map((id, i) => ({
-                label: id,
-                stroke: COLORS[i % COLORS.length],
-                width: 1.5,
-                points: { show: false }
-            }))
+            ...containerIds.map((id) => {
+                const colorIdx = getContainerColorIndex(state, id);
+                return {
+                    label: id,
+                    stroke: COLORS[colorIdx >= 0 ? colorIdx % COLORS.length : 0],
+                    width: 1.5,
+                    points: { show: false }
+                };
+            })
         ];
 
         // Build legend
@@ -684,11 +725,14 @@ export const ChartRenderer = {
         const uplotData = [allTimestamps.map(t => t / 1000), ...series];
         const uplotSeries = [
             { label: 'Time' },
-            ...containerIds.map((id, i) => ({
-                label: id,
-                stroke: COLORS[i % COLORS.length],
-                width: 1
-            }))
+            ...containerIds.map((id) => {
+                const colorIdx = getContainerColorIndex(state, id);
+                return {
+                    label: id,
+                    stroke: COLORS[colorIdx >= 0 ? colorIdx % COLORS.length : 0],
+                    width: 1
+                };
+            })
         ];
 
         const overviewOpts = {

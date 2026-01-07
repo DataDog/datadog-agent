@@ -39,6 +39,7 @@ export const Actions = {
     // UI state
     SET_METRIC_SEARCH: 'SET_METRIC_SEARCH',
     SET_CONTAINER_SEARCH: 'SET_CONTAINER_SEARCH',
+    TOGGLE_GROUP_BY_NAME: 'TOGGLE_GROUP_BY_NAME',
 
     // Initialization
     INIT_COMPLETE: 'INIT_COMPLETE',
@@ -105,6 +106,9 @@ export const initialState = {
     // UI state
     metricSearchQuery: '',
     containerSearchQuery: '',
+
+    // Display options
+    groupByContainerName: true, // Group containers with same name in legend/charts
 
     // Constraints
     maxPanels: 5,
@@ -507,6 +511,20 @@ export function reduce(state, action) {
             return { state: newState, effects: [] };
         }
 
+        case Actions.TOGGLE_GROUP_BY_NAME: {
+            const newState = {
+                ...state,
+                groupByContainerName: !state.groupByContainerName,
+            };
+            return {
+                state: newState,
+                effects: [
+                    { type: Effects.RENDER_PANELS },
+                    { type: Effects.RENDER_SIDEBAR },
+                ],
+            };
+        }
+
         // --------------------------------------------------------
         // INITIALIZATION
         // --------------------------------------------------------
@@ -565,4 +583,48 @@ export function getAllStudies(state) {
     return state.panels.flatMap(p =>
         p.studies.map(s => ({ ...s, panelId: p.id, metric: p.metric }))
     );
+}
+
+/**
+ * Group containers by display name (pod_name/container_name).
+ * Returns Map<displayName, containerIds[]>
+ */
+export function groupContainersByName(state) {
+    const groups = new Map();
+
+    for (const id of state.selectedContainerIds) {
+        const container = state.containers.find(c => c.short_id === id);
+        const displayName = container?.pod_name && container?.container_name
+            ? `${container.pod_name}/${container.container_name}`
+            : container?.pod_name || id;
+
+        if (!groups.has(displayName)) {
+            groups.set(displayName, []);
+        }
+        groups.get(displayName).push(id);
+    }
+
+    return groups;
+}
+
+/**
+ * Get color index for a container, respecting grouping.
+ * When grouping is enabled, all containers with the same name get the same color.
+ */
+export function getContainerColorIndex(state, containerId) {
+    if (!state.groupByContainerName) {
+        // No grouping - color by position in selection
+        return state.selectedContainerIds.indexOf(containerId);
+    }
+
+    // Grouping enabled - color by group index
+    const groups = groupContainersByName(state);
+    let groupIndex = 0;
+    for (const [displayName, ids] of groups) {
+        if (ids.includes(containerId)) {
+            return groupIndex;
+        }
+        groupIndex++;
+    }
+    return -1;
 }
