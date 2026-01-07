@@ -1,0 +1,11 @@
+processors:
+  infraattributes: {}
+  infraattributes/custom: {}
+service:
+  pipelines:
+    profiles:
+      processors: [infraattributes, infraattributes/custom]
+      receivers: []
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

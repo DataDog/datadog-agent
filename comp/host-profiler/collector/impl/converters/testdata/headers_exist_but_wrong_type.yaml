@@ -1,0 +1,9 @@
+exporters:
+  otlphttp:
+    headers: not-a-map
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [otlphttp]

@@ -1,0 +1,13 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: true
+      symbol_endpoints: not-a-list
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: [hostprofiler]
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

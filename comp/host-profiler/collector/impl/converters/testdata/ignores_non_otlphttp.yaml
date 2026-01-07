@@ -1,0 +1,10 @@
+exporters:
+  logging: {}
+  debug: {}
+  otlphttp: {}
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [logging, debug, otlphttp]

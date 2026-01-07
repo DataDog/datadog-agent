@@ -1,0 +1,9 @@
+exporters:
+  logging: {}
+  debug: {}
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [logging, debug]

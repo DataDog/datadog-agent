@@ -1,0 +1,10 @@
+receivers:
+  hostprofiler: invalid-string-config
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: [hostprofiler]
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

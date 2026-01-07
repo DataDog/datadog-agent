@@ -1,0 +1,8 @@
+service:
+  pipelines:
+    profiles:
+      processors: ["", batch]
+      receivers: []
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

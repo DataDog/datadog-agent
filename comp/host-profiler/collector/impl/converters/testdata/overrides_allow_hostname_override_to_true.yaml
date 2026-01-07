@@ -1,0 +1,12 @@
+processors:
+  infraattributes:
+    allow_hostname_override: false
+    some_config: value
+service:
+  pipelines:
+    profiles:
+      processors: [infraattributes]
+      receivers: []
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

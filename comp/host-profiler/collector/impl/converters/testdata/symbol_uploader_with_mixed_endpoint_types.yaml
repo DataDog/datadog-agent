@@ -1,0 +1,18 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: true
+      symbol_endpoints:
+        - api_key: string-key
+          app_key: 12345
+        - api_key: 67890
+          app_key: string-app
+        - url: http://example.com
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: [hostprofiler]
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

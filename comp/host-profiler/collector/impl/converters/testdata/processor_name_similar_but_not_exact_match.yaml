@@ -1,0 +1,11 @@
+processors:
+  infraattributes_custom: {}
+  myresourcedetection: {}
+service:
+  pipelines:
+    profiles:
+      processors: [infraattributes_custom, myresourcedetection]
+      receivers: []
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

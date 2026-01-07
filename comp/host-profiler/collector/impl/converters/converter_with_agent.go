@@ -55,7 +55,6 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 	c.ensureGlobalExporters(confStringMap)
-	fmt.Printf("THEO: %+v\n", confStringMap)
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }

@@ -1,0 +1,11 @@
+processors:
+  batch:
+    timeout: 10s
+service:
+  pipelines:
+    profiles:
+      processors: [batch]
+      receivers: []
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

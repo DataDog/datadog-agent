@@ -1,0 +1,10 @@
+receivers:
+  otlp: {}
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: [otlp]
+      exporters: [otlphttp]
+exporters:
+  otlphttp: {}

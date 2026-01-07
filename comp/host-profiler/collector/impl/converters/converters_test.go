@@ -3,15 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && test
 
 package converters
 
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -114,30 +117,35 @@ func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
 	return conf.ToStringMap()
 }
 
+// loadTestData loads a confMap from a YAML file in the testdata directory
+func loadTestData(t *testing.T, filename string) confMap {
+	t.Helper()
+	path := filepath.Join("testdata", filename)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err, "failed to read test data file: %s", filename)
+
+	// Parse YAML using confmap's YAML parser
+	retrieved, err := confmap.NewRetrievedFromYAML(data)
+	require.NoError(t, err, "failed to parse YAML from: %s", filename)
+
+	conf, err := retrieved.AsConf()
+	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
+
+	return conf.ToStringMap()
+}
+
+// newTestConfig creates a mock config for testing
+func newTestConfig(t *testing.T) config.Component {
+	t.Helper()
+	return config.NewMock(t)
+}
+
 // Removed - duplicate of TestCheckProcessorsAddsDefaultWhenNoInfraattributes
 
 func TestCheckProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
-	cm := confMap{
-		"processors": confMap{
-			"batch": confMap{
-				"timeout": "10s",
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"batch"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "adds_default_when_no_infraattributes.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -161,27 +169,9 @@ func TestCheckProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
 }
 
 func TestCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
-	cm := confMap{
-		"processors": confMap{
-			"infraattributes": confMap{
-				"some_other_config": "value",
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"infraattributes"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "ensures_infraattributes_config.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -199,28 +189,9 @@ func TestCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
 }
 
 func TestCheckProcessorsRemovesResourcedetection(t *testing.T) {
-	cm := confMap{
-		"processors": confMap{
-			"resourcedetection": confMap{
-				"detectors": []string{"system"},
-			},
-			"batch": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"resourcedetection", "batch"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "removes_resourcedetection.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -242,26 +213,9 @@ func TestCheckProcessorsRemovesResourcedetection(t *testing.T) {
 }
 
 func TestCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
-	cm := confMap{
-		"processors": confMap{
-			"resourcedetection/custom": confMap{},
-			"infraattributes":          confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"resourcedetection/custom", "infraattributes"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "removes_resourcedetection_custom_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -284,25 +238,9 @@ func TestCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
 }
 
 func TestCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
-	cm := confMap{
-		"processors": confMap{
-			"infraattributes/custom": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"infraattributes/custom"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "handles_infraattributes_custom_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -325,25 +263,9 @@ func TestCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
 }
 
 func TestCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"otlp": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"otlp"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "adds_hostprofiler_when_missing.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -361,31 +283,9 @@ func TestCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
 }
 
 func TestCheckReceiversPreservesOtlpProtocols(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"otlp": confMap{
-				"protocols": confMap{
-					"grpc": confMap{
-						"endpoint": "0.0.0.0:4317",
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "preserves_otlp_protocols.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -398,22 +298,9 @@ func TestCheckReceiversPreservesOtlpProtocols(t *testing.T) {
 }
 
 func TestCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
-	cm := confMap{
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "creates_default_hostprofiler.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -426,29 +313,9 @@ func TestCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
 }
 
 func TestCheckReceiversSymbolUploaderDisabled(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": false,
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "symbol_uploader_disabled.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -461,35 +328,9 @@ func TestCheckReceiversSymbolUploaderDisabled(t *testing.T) {
 }
 
 func TestCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": true,
-					"symbol_endpoints": []any{
-						confMap{
-							"api_key": "test-key",
-							"app_key": "test-app-key",
-						},
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "symbol_uploader_with_string_keys.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -506,35 +347,9 @@ func TestCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
 }
 
 func TestCheckReceiversConvertsNonStringApiKey(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": true,
-					"symbol_endpoints": []any{
-						confMap{
-							"api_key": 12345,
-							"app_key": "test-app-key",
-						},
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "converts_non_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -548,35 +363,9 @@ func TestCheckReceiversConvertsNonStringApiKey(t *testing.T) {
 }
 
 func TestCheckReceiversConvertsNonStringAppKey(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": true,
-					"symbol_endpoints": []any{
-						confMap{
-							"api_key": "test-key",
-							"app_key": 67890,
-						},
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "converts_non_string_app_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -590,25 +379,9 @@ func TestCheckReceiversConvertsNonStringAppKey(t *testing.T) {
 }
 
 func TestCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"otlp": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"otlp"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "adds_hostprofiler_to_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -627,39 +400,9 @@ func TestCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
 }
 
 func TestCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": true,
-					"symbol_endpoints": []any{
-						confMap{
-							"api_key": "key1",
-							"app_key": "app1",
-						},
-						confMap{
-							"api_key": 123,
-							"app_key": 456,
-						},
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "multiple_symbol_endpoints.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -680,22 +423,9 @@ func TestCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
 }
 
 func TestCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "ensures_headers.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -707,26 +437,9 @@ func TestCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
 }
 
 func TestCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp": confMap{
-				"headers": confMap{
-					"dd-api-key": "test-api-key",
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "otlphttp_with_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -739,26 +452,9 @@ func TestCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
 }
 
 func TestCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp": confMap{
-				"headers": confMap{
-					"dd-api-key": 12345,
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "otlphttp_converts_non_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -771,32 +467,9 @@ func TestCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
 }
 
 func TestCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp/prod": confMap{
-				"headers": confMap{
-					"dd-api-key": 11111,
-				},
-			},
-			"otlphttp/staging": confMap{
-				"headers": confMap{
-					"dd-api-key": "staging-key",
-				},
-			},
-			"logging": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp/prod", "otlphttp/staging", "logging"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "multiple_otlphttp_exporters.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -818,24 +491,9 @@ func TestCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 }
 
 func TestCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"logging": confMap{},
-			"debug":   confMap{},
-			"otlphttp": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"logging", "debug", "otlphttp"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "ignores_non_otlphttp.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -850,23 +508,9 @@ func TestCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
 }
 
 func TestCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
-	cm := confMap{
-		"exporters": confMap{
-			"logging": confMap{},
-			"debug":   confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"logging", "debug"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "errors_when_no_otlphttp.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no otlphttp exporter configured")
@@ -878,28 +522,9 @@ func TestCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
 
 func TestProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 	// Test that even if allow_hostname_override is explicitly set to false, we override it to true
-	cm := confMap{
-		"processors": confMap{
-			"infraattributes": confMap{
-				"allow_hostname_override": false, // User set it to false
-				"some_config":             "value",
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"infraattributes"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "overrides_allow_hostname_override_to_true.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -918,26 +543,9 @@ func TestProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 
 func TestProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
 	// Edge case: both infraattributes and infraattributes/custom in pipeline
-	cm := confMap{
-		"processors": confMap{
-			"infraattributes":        confMap{},
-			"infraattributes/custom": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"infraattributes", "infraattributes/custom"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "both_default_and_custom_infraattributes.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -955,28 +563,9 @@ func TestProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
 
 func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 	// Multiple resourcedetection processors with different names - all should be removed
-	cm := confMap{
-		"processors": confMap{
-			"resourcedetection":        confMap{},
-			"resourcedetection/system": confMap{},
-			"resourcedetection/cloud":  confMap{},
-			"batch":                    confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"resourcedetection", "resourcedetection/system", "batch", "resourcedetection/cloud"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "multiple_resourcedetection_processors.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1006,22 +595,9 @@ func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 
 func TestReceiversHostprofilerInPipelineButNoConfig(t *testing.T) {
 	// Edge case: hostprofiler is in the pipeline but no receiver config exists
-	cm := confMap{
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler", "otlp"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "hostprofiler_in_pipeline_but_no_config.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1035,30 +611,9 @@ func TestReceiversHostprofilerInPipelineButNoConfig(t *testing.T) {
 
 func TestReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled":          true,
-					"symbol_endpoints": []any{}, // Empty!
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "symbol_uploader_enabled_with_empty_endpoints.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1072,43 +627,9 @@ func TestReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 
 func TestReceiversSymbolUploaderWithMixedEndpointTypes(t *testing.T) {
 	// Edge case: Some endpoints have string keys, some have numeric keys
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": true,
-					"symbol_endpoints": []any{
-						confMap{
-							"api_key": "string-key",
-							"app_key": 12345,
-						},
-						confMap{
-							"api_key": 67890,
-							"app_key": "string-app",
-						},
-						confMap{
-							// Missing keys - should not panic
-							"url": "http://example.com",
-						},
-					},
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "symbol_uploader_with_mixed_endpoint_types.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1128,44 +649,21 @@ func TestReceiversSymbolUploaderWithMixedEndpointTypes(t *testing.T) {
 	require.Equal(t, "67890", ep2["api_key"])
 	require.Equal(t, "string-app", ep2["app_key"])
 
-	// Third endpoint - missing keys should be untouched
+	// Third endpoint - missing keys get filled from config
 	ep3 := endpoints[2].(confMap)
 	require.Equal(t, "http://example.com", ep3["url"])
+	// The converter fills in api_key and app_key from config defaults
 	_, hasApiKey := ep3["api_key"]
-	require.False(t, hasApiKey)
+	require.True(t, hasApiKey) // Now filled from config
+	_, hasAppKey := ep3["app_key"]
+	require.True(t, hasAppKey) // Now filled from config
 }
 
 func TestExportersMultipleOtlpHttpWithMixedKeys(t *testing.T) {
 	// Multiple otlphttp exporters with various key types
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp/prod": confMap{
-				"headers": confMap{
-					"dd-api-key": 12345,
-					"custom":     "header",
-				},
-			},
-			"otlphttp/staging": confMap{
-				// No headers - should be created
-			},
-			"otlphttp/dev": confMap{
-				"headers": confMap{
-					"dd-api-key": "already-string",
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp/prod", "otlphttp/staging", "otlphttp/dev"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "multiple_otlphttp_with_mixed_keys.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1193,19 +691,9 @@ func TestExportersMultipleOtlpHttpWithMixedKeys(t *testing.T) {
 
 func TestEmptyPipeline(t *testing.T) {
 	// Edge case: Empty everything in pipeline
-	cm := confMap{
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "empty_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error - no otlphttp exporter
@@ -1215,13 +703,9 @@ func TestEmptyPipeline(t *testing.T) {
 
 func TestMissingServiceSection(t *testing.T) {
 	// Edge case: No service section at all
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "missing_service_section.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should fail because there are no exporters in the profiles pipeline
@@ -1231,25 +715,9 @@ func TestMissingServiceSection(t *testing.T) {
 
 func TestNonStringProcessorNameInPipeline(t *testing.T) {
 	// Edge case: Non-string value in processors list (should be handled gracefully)
-	cm := confMap{
-		"processors": confMap{
-			"batch": confMap{},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"batch", 123, nil, "infraattributes"}, // Invalid types!
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "non_string_processor_name_in_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error on the first non-string processor (123)
@@ -1259,25 +727,9 @@ func TestNonStringProcessorNameInPipeline(t *testing.T) {
 
 func TestReceiverConfigIsNotMap(t *testing.T) {
 	// Tricky: hostprofiler receiver exists but config is not a map
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": "invalid-string-config", // Should be a map!
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "receiver_config_is_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should return an error with proper type checking
@@ -1288,30 +740,9 @@ func TestReceiverConfigIsNotMap(t *testing.T) {
 func TestSymbolEndpointsExistsButWrongType(t *testing.T) {
 	// Tricky: symbol_uploader.enabled=true but endpoints is a string, not a list
 	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled":          true,
-					"symbol_endpoints": "not-a-list", // Should be []any!
-				},
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{"hostprofiler"},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "symbol_endpoints_exists_but_wrong_type.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Ensure[[]any] replaces the string with an empty list - no error
@@ -1328,24 +759,9 @@ func TestSymbolEndpointsExistsButWrongType(t *testing.T) {
 func TestHeadersExistButWrongType(t *testing.T) {
 	// Tricky: exporter headers exist but are a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := confMap{
-		"exporters": confMap{
-			"otlphttp": confMap{
-				"headers": "not-a-map", // Should be a map!
-			},
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-	}
+	cm := loadTestData(t, "headers_exist_but_wrong_type.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Ensure[confMap] replaces the string with an empty map - no error
@@ -1353,34 +769,23 @@ func TestHeadersExistButWrongType(t *testing.T) {
 
 	result := conf.ToStringMap()
 
-	// The invalid string should have been replaced with an empty map
+	// The invalid string should have been replaced with a map
 	headers, ok := Get[confMap](result, "exporters::otlphttp::headers")
 	require.True(t, ok)
 	require.NotNil(t, headers)
 
-	// ensureStringKey doesn't add keys that don't exist, only converts non-strings
-	// So the headers map should be empty after replacement
-	require.Empty(t, headers)
+	// ensureStringKey fills in dd-api-key from config when it doesn't exist
+	// So after replacement, the headers map will have the default api key from config
+	require.NotEmpty(t, headers) // Now contains dd-api-key from config
+	_, hasApiKey := headers["dd-api-key"]
+	require.True(t, hasApiKey) // Filled from config
 }
 
 func TestEmptyStringProcessorName(t *testing.T) {
 	// Tricky: processor name is an empty string
-	cm := confMap{
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"", "batch"}, // Empty string!
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "empty_string_processor_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -1394,64 +799,45 @@ func TestEmptyStringProcessorName(t *testing.T) {
 }
 
 func TestProcessorNameSimilarButNotExactMatch(t *testing.T) {
-	// Tricky: processor names contain the keywords but with underscores, not slashes
-	cm := confMap{
-		"processors": confMap{
-			"infraattributes_custom": confMap{}, // Underscore, not slash
-			"myresourcedetection":    confMap{}, // Prefix
-		},
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"infraattributes_custom", "myresourcedetection"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	// TODO: Should use proper OTEL type/id parsing (e.g., strings.HasPrefix with "/" check)
+	// In OTEL specs, components must use type/id format (e.g., infraattributes/custom)
+	cm := loadTestData(t, "processor_name_similar_but_not_exact_match.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
 	result := conf.ToStringMap()
 
-	// Both should be removed because strings.Contains matches them
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
-	require.NotContains(t, processorNames, "myresourcedetection") // Removed by resourcedetection check
 
-	// infraattributes_custom should be kept and treated as infraattributes
+	// Current behavior: myresourcedetection gets removed (contains "resourcedetection")
+	// TODO: This is wrong - should only match "resourcedetection" or "resourcedetection/*"
+	require.NotContains(t, processorNames, "myresourcedetection")
+
+	// Current behavior: infraattributes_custom is treated as infraattributes type (contains "infraattributes")
+	// TODO: This is wrong - should only match "infraattributes" or "infraattributes/*"
 	require.Contains(t, processorNames, "infraattributes_custom")
 
-	// Should NOT add default since we found one
+	// Verify it was incorrectly treated as infraattributes (allow_hostname_override was added)
+	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes_custom::allow_hostname_override")
+	require.True(t, ok)
+	require.Equal(t, true, allowHostnameOverride)
+
+	// batch should remain
+	require.Contains(t, processorNames, "batch")
+
+	// Since converter thinks it found infraattributes, default is NOT added
 	require.NotContains(t, processorNames, "infraattributes/default")
 }
 
 func TestGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Tricky: processors section exists but is a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := confMap{
-		"processors": "not-a-map", // Should be a map!
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"processors": []any{"batch"},
-					"receivers":  []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{},
-		},
-	}
+	cm := loadTestData(t, "global_processors_section_is_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
+	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
 	// Ensure[confMap] replaces the string with an empty map - no error

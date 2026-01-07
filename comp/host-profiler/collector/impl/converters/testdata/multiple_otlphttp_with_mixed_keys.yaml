@@ -1,0 +1,15 @@
+exporters:
+  otlphttp/prod:
+    headers:
+      dd-api-key: 12345
+      custom: header
+  otlphttp/staging: {}
+  otlphttp/dev:
+    headers:
+      dd-api-key: already-string
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [otlphttp/prod, otlphttp/staging, otlphttp/dev]
