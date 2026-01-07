@@ -54,8 +54,30 @@ export const Api = {
         return data.metrics || [];
     },
 
-    async fetchContainers(metricName) {
-        const res = await fetch(`/api/containers?metric=${encodeURIComponent(metricName)}`);
+    async fetchContainers(metricName, dashboard = null) {
+        const params = new URLSearchParams();
+        params.set('metric', metricName);
+
+        // REQ-MV-034: Apply dashboard container filters
+        if (dashboard?.containers) {
+            const { namespace, label_selector, name_pattern } = dashboard.containers;
+            if (namespace) {
+                params.set('namespace', namespace);
+            }
+            if (label_selector && typeof label_selector === 'object') {
+                const labels = Object.entries(label_selector)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(',');
+                if (labels) {
+                    params.set('labels', labels);
+                }
+            }
+            if (name_pattern) {
+                params.set('search', name_pattern);
+            }
+        }
+
+        const res = await fetch(`/api/containers?${params.toString()}`);
         const data = await res.json();
         return data.containers || [];
     },
@@ -158,21 +180,29 @@ registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
     const { panelId, metric, containerIds } = effect;
     const { dispatch, Actions } = context;
 
+    console.log('[FETCH_TIMESERIES] Starting:', { panelId, metric, containerCount: containerIds.length });
+
     if (!metric || containerIds.length === 0) {
+        console.log('[FETCH_TIMESERIES] Early exit - no metric or containers');
         dispatch({ type: Actions.SET_PANEL_LOADING, panelId, loading: false });
         return;
     }
 
     // Check what's missing from cache
     const missing = DataStore.getMissingContainerIds(metric, containerIds);
+    console.log('[FETCH_TIMESERIES] Missing from cache:', missing.length, 'of', containerIds.length);
 
     if (missing.length > 0) {
         try {
             const data = await Api.fetchTimeseries(metric, missing);
+            console.log('[FETCH_TIMESERIES] API returned keys:', Object.keys(data));
+            console.log('[FETCH_TIMESERIES] First container ID from API:', Object.keys(data)[0]);
+            console.log('[FETCH_TIMESERIES] First container ID expected:', missing[0]);
 
             // Store in cache
             for (const [cid, points] of Object.entries(data)) {
                 const key = DataStore.timeseriesKey(metric, cid);
+                console.log('[FETCH_TIMESERIES] Storing key:', key, 'points:', points.length);
                 DataStore.setTimeseries(key, points);
             }
         } catch (err) {
@@ -180,10 +210,14 @@ registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
         }
     }
 
+    console.log('[FETCH_TIMESERIES] DataStore stats after fetch:', DataStore.getStats());
+
     dispatch({ type: Actions.SET_PANEL_LOADING, panelId, loading: false });
 
     // Trigger panel render
     if (context.renderPanel) {
+        const chartDiv = document.getElementById(`mainChart-${panelId}`);
+        console.log('[FETCH_TIMESERIES] Calling renderPanel, chartDiv exists:', !!chartDiv);
         context.renderPanel(panelId);
     }
 });
@@ -253,7 +287,8 @@ registerHandler(Effects.FETCH_CONTAINERS, async (effect, context) => {
     if (!metric) return;
 
     try {
-        const containers = await Api.fetchContainers(metric);
+        // REQ-MV-034: Pass dashboard config for container filtering
+        const containers = await Api.fetchContainers(metric, state.dashboard);
         dispatch({ type: Actions.SET_CONTAINERS, containers });
     } catch (err) {
         console.error('Failed to fetch containers:', err);
@@ -372,7 +407,11 @@ export async function loadDashboard(url, inlineBase64, templateVars = {}) {
         } else if (url) {
             // REQ-MV-033: Fetch dashboard from URL
             // For relative paths (not starting with / or http), prepend /dashboards/
-            const fetchUrl = (url.startsWith('/') || url.startsWith('http')) ? url : `/dashboards/${url}`;
+            // But avoid double-prefixing if path already starts with dashboards/
+            let fetchUrl = url;
+            if (!url.startsWith('/') && !url.startsWith('http')) {
+                fetchUrl = url.startsWith('dashboards/') ? `/${url}` : `/dashboards/${url}`;
+            }
             const res = await fetch(fetchUrl);
             if (!res.ok) {
                 throw new Error(`Failed to fetch dashboard: ${res.status} ${res.statusText}`);

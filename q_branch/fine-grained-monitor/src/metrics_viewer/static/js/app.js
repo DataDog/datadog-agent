@@ -45,6 +45,7 @@ export function subscribe(listener) {
  * @param {Object} action
  */
 export function dispatch(action) {
+    console.log('[dispatch] Action:', action.type);
     const result = reduce(state, action);
     const prevState = state;
     state = result.state;
@@ -62,6 +63,7 @@ export function dispatch(action) {
 
     // Execute effects
     if (result.effects.length > 0) {
+        console.log('[dispatch] Effects to execute:', result.effects.map(e => e.type));
         executeEffects(result.effects, effectContext);
     }
 }
