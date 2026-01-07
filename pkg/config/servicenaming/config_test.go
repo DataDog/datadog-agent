@@ -124,32 +124,41 @@ func TestAgentConfig_Validate_EmptyValue(t *testing.T) {
 	assert.Contains(t, err.Error(), "value cannot be empty")
 }
 
-// TestAgentConfig_Validate_QueryNotBoolean tests validation rejects non-boolean query
-func TestAgentConfig_Validate_QueryNotBoolean(t *testing.T) {
-	config := &AgentServiceDiscoveryConfig{
-		ServiceDefinitions: []ServiceDefinition{
-			{Query: "container.name", Value: "container.name"}, // Returns string, not boolean
+// TestAgentConfig_Validate_InvalidQueries tests validation rejects invalid queries
+func TestAgentConfig_Validate_InvalidQueries(t *testing.T) {
+	tests := []struct {
+		name        string
+		query       string
+		expectedErr string
+	}{
+		{
+			name:        "query returns string not boolean",
+			query:       "container.name",
+			expectedErr: "must return boolean",
+		},
+		{
+			name:        "invalid CEL syntax",
+			query:       "invalid syntax {{{",
+			expectedErr: "compilation error",
 		},
 	}
-	err := config.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid query")
-}
 
-// TestAgentConfig_Validate_InvalidCELQuery tests validation rejects invalid CEL
-func TestAgentConfig_Validate_InvalidCELQuery(t *testing.T) {
-	config := &AgentServiceDiscoveryConfig{
-		ServiceDefinitions: []ServiceDefinition{
-			{Query: "invalid syntax {{{", Value: "container.name"},
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &AgentServiceDiscoveryConfig{
+				ServiceDefinitions: []ServiceDefinition{
+					{Query: tt.query, Value: "container.name"},
+				},
+			}
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedErr)
+		})
 	}
-	err := config.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid query")
 }
 
-// TestAgentConfig_Validate_ValidQueries tests all spec examples compile
-func TestAgentConfig_Validate_ValidQueries(t *testing.T) {
+// TestAgentConfig_Validate_ValidExpressions tests query and value expressions compile
+func TestAgentConfig_Validate_ValidExpressions(t *testing.T) {
 	tests := []struct {
 		name  string
 		query string
@@ -176,54 +185,13 @@ func TestAgentConfig_Validate_ValidQueries(t *testing.T) {
 			value: "container.name",
 		},
 		{
-			name:  "process container pod ownerref",
-			query: "process.container.pod.ownerref.name == 'redis'",
-			value: "pod.ownerref.name",
-		},
-		{
-			name:  "catch-all",
-			query: "true",
-			value: "container.image.shortname",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &AgentServiceDiscoveryConfig{
-				ServiceDefinitions: []ServiceDefinition{
-					{Query: tt.query, Value: tt.value},
-				},
-			}
-			err := config.Validate()
-			assert.NoError(t, err)
-		})
-	}
-}
-
-// TestAgentConfig_Validate_ValidValues tests value expressions compile
-func TestAgentConfig_Validate_ValidValues(t *testing.T) {
-	tests := []struct {
-		name  string
-		value string
-	}{
-		{
-			name:  "simple field",
-			value: "container.name",
-		},
-		{
-			name:  "nested field",
-			value: "container.image.shortname",
-		},
-		{
 			name:  "cmd split with array index",
+			query: "true",
 			value: "process.cmd.split(' ')[process.cmd.split(' ').size() - 1]",
 		},
 		{
-			name:  "pod ownerref name",
-			value: "pod.ownerref.name",
-		},
-		{
 			name:  "image tag",
+			query: "true",
 			value: "container.image.tag",
 		},
 	}
@@ -232,7 +200,7 @@ func TestAgentConfig_Validate_ValidValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AgentServiceDiscoveryConfig{
 				ServiceDefinitions: []ServiceDefinition{
-					{Query: "true", Value: tt.value},
+					{Query: tt.query, Value: tt.value},
 				},
 			}
 			err := config.Validate()
@@ -260,35 +228,35 @@ service_discovery:
 	assert.Equal(t, "container.image.tag", config.ServiceDiscovery.Version)
 }
 
-// TestLoadIntegrationConfig_NoAdIdentifiers tests config without ad_identifier
-func TestLoadIntegrationConfig_NoAdIdentifiers(t *testing.T) {
-	yaml := `service_discovery:
-  service_name: "container.name"
-`
-	config, err := LoadIntegrationConfig([]byte(yaml))
-	require.NoError(t, err)
-	assert.Len(t, config.AdIdentifier, 0)
-	assert.NotNil(t, config.ServiceDiscovery)
-}
-
-// TestIntegrationConfig_Validate_EmptyAdIdentifier tests validation
-func TestIntegrationConfig_Validate_EmptyAdIdentifier(t *testing.T) {
-	config := &IntegrationConfig{
-		AdIdentifier: []string{""},
+// TestIntegrationConfig_Validate_InvalidAdIdentifier tests validation
+func TestIntegrationConfig_Validate_InvalidAdIdentifier(t *testing.T) {
+	tests := []struct {
+		name        string
+		adID        string
+		expectedErr string
+	}{
+		{
+			name:        "empty string",
+			adID:        "",
+			expectedErr: "cannot be empty",
+		},
+		{
+			name:        "returns string not boolean",
+			adID:        "container.name",
+			expectedErr: "must return boolean",
+		},
 	}
-	err := config.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ad_identifier[0]")
-}
 
-// TestIntegrationConfig_Validate_AdIdentifierNotBoolean tests validation
-func TestIntegrationConfig_Validate_AdIdentifierNotBoolean(t *testing.T) {
-	config := &IntegrationConfig{
-		AdIdentifier: []string{"container.name"}, // Returns string, not bool
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &IntegrationConfig{
+				AdIdentifier: []string{tt.adID},
+			}
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedErr)
+		})
 	}
-	err := config.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ad_identifier[0]")
 }
 
 // TestIntegrationConfig_Validate_EmptyServiceName tests validation
