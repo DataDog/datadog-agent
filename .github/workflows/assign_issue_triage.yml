@@ -33,23 +33,7 @@ jobs:
         github-token: ${{ steps.octo-sts.outputs.token }}
         run-id: ${{ github.event.workflow_run.id }}
 
-    - name: Check for secrets mentions
-      id: check-secret
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-      with:
-        script: |
-          const fs = require('fs');
-          const issue = JSON.parse(fs.readFileSync('./issue_details.json', 'utf-8'));
-          const secretRegex = /(anthropic[_-]?api[_-]?key|github[_-]?token)/i;
-          const found = (
-            secretRegex.test(issue.title || '') ||
-            secretRegex.test(issue.body || '') ||
-            secretRegex.test(issue.author || '')
-          );
-          core.setOutput('found', found);
-
     - name: Intelligent Issue Triage
-      if: steps.check-secret.outputs.found == 'false'
       id: claude
       uses: anthropics/claude-code-action@ac1a3207f3f00b4a37e2f3a6f0935733c7c64651 # v1.0.0
       with:
@@ -157,7 +141,7 @@ jobs:
               # We validate the slack channel against the github_slack_map.yaml file
               echo "slack=$SLACK" >> $GITHUB_OUTPUT
             else
-              echo "slack=agent-devx" >> $GITHUB_OUTPUT
+              echo "slack=agent-devx-ops" >> $GITHUB_OUTPUT
             fi
             CONFIDENCE=$(grep CONFIDENCE claude.txt | cut -d ':' -f2)
             echo "confidence=$CONFIDENCE" >> $GITHUB_OUTPUT
@@ -272,7 +256,7 @@ jobs:
               const slack = new WebClient(process.env.SLACK_TOKEN);
               await slack.chat.postMessage({
                 channel: '#agent-devx-ops',
-                text: `⚠️ Failed to send triage notification for issue ${issue.html_url}. Team: ${teamName}. Error: ${error.message}`
+                text: `⚠️ Failed to send triage notification for issue ${issue.html_url}. Team: ${teamName}. Channel: ${channel}. Error: ${error.message}`
               });
             } catch (fallbackError) {
               console.error('Failed to send fallback notification:', fallbackError);

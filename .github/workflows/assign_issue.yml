@@ -86,11 +86,16 @@ jobs:
           );
           core.setOutput('found', found);
 
+    - name: Fail the workflow if secrets are found
+      if: steps.check-secret.outputs.found == 'true'
+      run: |
+        echo "❌ Secrets found in the issue. Workflow failed."
+        exit 1
+
     - name: Upload artifacts for the triage workflow
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
       with:
         name: triage-data
         path: |
           issue_details.json
-          secret_check.txt
         retention-days: 1
