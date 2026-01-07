@@ -453,7 +453,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 	}
 
 	if useNFConntrackHashInsert {
-		log.Info("JMW using __nf_conntrack_hash_insert probe for conntracker (buildMode %s)", buildMode)
+		log.Infof("JMW using __nf_conntrack_hash_insert probe for conntracker (buildMode %s)", buildMode)
 		conntrackProbes = append(conntrackProbes, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ConntrackHashInsert,
@@ -461,7 +461,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 			},
 		})
 	} else {
-		log.Info("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker (buildMode %s)", buildMode)
+		log.Infof("JMW using __nf_conntrack_confirm and nf_conntrack_hash_check_insert probes for conntracker (buildMode %s)", buildMode)
 		conntrackMaps = append(conntrackMaps, &manager.Map{Name: probes.ConntrackArgsMap})
 		conntrackProbes = append(conntrackProbes,
 			&manager.Probe{

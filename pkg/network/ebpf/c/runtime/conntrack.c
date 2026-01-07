@@ -64,9 +64,10 @@ SEC("kprobe/__nf_conntrack_confirm")
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_confirm, struct sk_buff *skb) {
     struct nf_conn *ct = get_nfct(skb);
     if (!ct) {
+        log_debug("JMW kprobe/__nf_conntrack_confirm: null ct pointer");
         return 0;
     }
-    log_debug("kprobe/__nf_conntrack_confirm: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
+    log_debug("JMW kprobe/__nf_conntrack_confirm: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
 
     kprobe_conntrack_common(ct);
     return 0;
@@ -77,7 +78,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
     if (!ct) {
         return 0;
     }
-    log_debug("kprobe/nf_conntrack_hash_check_insert: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
+    log_debug("JMW kprobe/nf_conntrack_hash_check_insert: netns: %u", get_netns(ct)); // JMW why do we log netns?  should anything else be logged?
 
     kprobe_conntrack_common(ct);
     return 0;
@@ -85,8 +86,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_hash_check_insert, struct nf_conn 
 
 static __always_inline int kretprobe_conntrack_common(struct pt_regs *ctx, int expected_retval) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("JMW kretprobe_conntrack_common: pid(thread_id)=%u tgid(user PID)=%u", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid));
     struct nf_conn **ctpp = (struct nf_conn **)bpf_map_lookup_elem(&conntrack_args, &pid_tgid);
     if (!ctpp) {
+        log_debug("JMW kretprobe_conntrack_common: null ctpp for pid(thread_id)=%u tgid(user PID)=%u", (u32)GET_KERNEL_THREAD_ID(pid_tgid), (u32)GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
