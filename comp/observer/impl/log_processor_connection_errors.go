@@ -30,7 +30,7 @@ func (c *ConnectionErrorExtractor) Name() string {
 	return "connection_error_extractor"
 }
 
-// Process checks if a log contains connection error patterns and returns a metric if so.
+// Process checks if a log contains connection error patterns and returns a metric and anomaly if so.
 func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogProcessorResult {
 	content := strings.ToLower(string(log.GetContent()))
 
@@ -41,6 +41,12 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogPro
 					Name:  "connection.errors",
 					Value: 1.0,
 					Tags:  log.GetTags(),
+				}},
+				Anomalies: []observer.AnomalyOutput{{
+					Source:      "connection.errors",
+					Title:       "Connection error detected",
+					Description: string(log.GetContent()),
+					Tags:        log.GetTags(),
 				}},
 			}
 		}
