@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -102,7 +104,7 @@ func TestConntrackerAlternateProbes(t *testing.T) {
 	}
 
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		runConntrackerTest(t, "eBPF-alternate-probes", setupEBPFConntracker)
+		runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 	})
 }
 
@@ -112,6 +114,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		netlinktestutil.SetupDNAT(t)
 
@@ -122,6 +125,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		netlinktestutil.SetupDNAT6(t)
 
@@ -140,6 +144,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		testConntrackerCrossNamespace(t, ct)
 	})
@@ -149,6 +154,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
+		defer dumpConntrackMap(t, ct)
 
 		testConntrackerCrossNamespaceNATonRoot(t, ct)
 	})
@@ -156,6 +162,34 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 
 func setupEBPFConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg, nil)
+}
+
+// JMWREVIEW JMWMOVE
+// dumpConntrackMap dumps the conntrack map if ct is an ebpfConntracker
+func dumpConntrackMap(t *testing.T, ct netlink.Conntracker) {
+	ebpfCt, ok := ct.(*ebpfConntracker)
+	if !ok {
+		return
+	}
+
+	ctMap, _, err := ebpfCt.m.GetMap(probes.ConntrackMap)
+	if err != nil {
+		t.Logf("Error getting conntrack map: %s", err)
+		return
+	}
+
+	t.Log("Dumping conntrack map:")
+	iter := ctMap.Iterate()
+	var key, value netebpf.ConntrackTuple
+	count := 0
+	for iter.Next(&key, &value) {
+		t.Logf("  [%d] key=%+v value=%+v", count, key, value)
+		count++
+	}
+	if err := iter.Err(); err != nil {
+		t.Logf("Error iterating conntrack map: %s", err)
+	}
+	t.Logf("Total conntrack entries: %d", count)
 }
 
 func setupNetlinkConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
