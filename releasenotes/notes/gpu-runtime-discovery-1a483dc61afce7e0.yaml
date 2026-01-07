@@ -10,17 +10,16 @@ features:
   - |
     Added GPU runtime discovery support for ECS EC2 environments. The Datadog Agent
     can now detect GPU device UUIDs assigned to containers by extracting the
-    ``NVIDIA_VISIBLE_DEVICES`` environment variable from the Docker container runtime.
+    ``NVIDIA_VISIBLE_DEVICES`` environment variable from the Docker container configuration.
     This enables GPU-to-container mapping for GPU metrics without requiring the
     Kubernetes PodResources API, which is not available in ECS environments.
 enhancements:
   - |
     Added ``GPUDeviceIDs`` field to the workloadmeta Container entity to store
-    GPU device identifiers. This field is populated by the Docker collector from
-    the ``NVIDIA_VISIBLE_DEVICES`` environment variable and supports both UUID format
-    (e.g., ``GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``) and device index format
-    (e.g., ``0``, ``1``).
+    GPU device UUIDs. This field is populated by the Docker collector in ECS
+    environments from the ``NVIDIA_VISIBLE_DEVICES`` environment variable
+    (e.g., ``GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``).
   - |
     The GPU collector now uses ``GPUDeviceIDs`` from workloadmeta as the primary
-    source for GPU-to-container mapping, with fallback to the Kubernetes PodResources
-    API and procfs for legacy Docker environments.
+    source for GPU-to-container mapping in ECS, with fallback to procfs for
+    regular Docker environments and PodResources API for Kubernetes.

@@ -35,16 +35,6 @@ func Test_extractGPUDeviceIDs(t *testing.T) {
 			expected: []string{"GPU-aec058b1-c18e-236e-c14d-49d2990fda0f", "GPU-bec058b1-d18e-336e-d14d-59d2990fda1f"},
 		},
 		{
-			name:     "single GPU index",
-			envVars:  []string{"PATH=/usr/bin", "NVIDIA_VISIBLE_DEVICES=0"},
-			expected: []string{"0"},
-		},
-		{
-			name:     "multiple GPU indices",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=0,2,1"},
-			expected: []string{"0", "2", "1"},
-		},
-		{
 			name:     "all GPUs",
 			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=all"},
 			expected: nil,

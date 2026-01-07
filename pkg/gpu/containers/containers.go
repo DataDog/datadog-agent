@@ -36,49 +36,46 @@ const (
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
-	// Primary: Check GPUDeviceIDs from workloadmeta (populated by collectors)
+	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
 	if len(container.GPUDeviceIDs) > 0 {
 		return true
 	}
 
-	// Fallback for Kubernetes: Check ResolvedAllocatedResources from PodResources API
-	for _, resource := range container.ResolvedAllocatedResources {
-		if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
-			return true
-		}
-	}
-
-	// Legacy fallback for Docker: Check via procfs
-	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
+	switch container.Runtime {
+	case workloadmeta.ContainerRuntimeDocker:
+		// If we have an error, we assume there are no GPUs for the container, so
+		// ignore it.
 		envVar, _ := getDockerVisibleDevicesEnv(container)
 		return envVar != ""
+	default:
+		// We have no specific support for other runtimes, so fall back to the Kubernetes device
+		// assignment if it's there
+		for _, resource := range container.ResolvedAllocatedResources {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
+				return true
+			}
+		}
+		return false
 	}
-
-	return false
 }
 
 // MatchContainerDevices matches the devices assigned to a container to the list of available devices
 // It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
-	// Primary: Use GPUDeviceIDs from workloadmeta (populated by collectors like Docker, containerd)
-	// This handles both UUID format (ECS, some K8s) and index format (local Docker)
+	// ECS: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
+	// This is checked first because ECS uses Docker runtime but needs UUID-based matching
 	if len(container.GPUDeviceIDs) > 0 {
 		return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
 	}
 
-	// Fallback for Kubernetes: Use ResolvedAllocatedResources from PodResources API
-	if len(container.ResolvedAllocatedResources) > 0 {
+	switch container.Runtime {
+	case workloadmeta.ContainerRuntimeDocker:
+		return matchDockerDevices(container, devices)
+	default:
+		// We have no specific support for other runtimes, so fall back to the Kubernetes device
+		// assignment if it's there
 		return matchKubernetesDevices(container, devices)
 	}
-
-	// Legacy fallback for Docker: Read from procfs directly
-	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
-		return matchDockerDevices(container, devices)
-	}
-
-	// No GPU information available - return empty list without error.
-	// This allows the caller to handle fallback cases (e.g., single-GPU systems).
-	return nil, nil
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
@@ -143,37 +140,23 @@ func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Devi
 }
 
 // matchByGPUDeviceIDs matches devices using GPUDeviceIDs from workloadmeta.
-// It handles both UUID format (e.g., "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f")
-// and index format (e.g., "0", "1").
+// This is used for ECS containers where GPU UUIDs are provided in the format
+// "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f".
+// The order of devices is preserved from the input gpuDeviceIDs, as this matches
+// the order CUDA will use when selecting devices.
 func matchByGPUDeviceIDs(gpuDeviceIDs []string, devices []ddnvml.Device) ([]ddnvml.Device, error) {
 	var filteredDevices []ddnvml.Device
 	var multiErr error
 
 	for _, id := range gpuDeviceIDs {
-		var matchingDevice ddnvml.Device
-		var err error
-
-		if strings.HasPrefix(id, "GPU-") {
-			// UUID format (ECS, some K8s setups with NVIDIA device plugin)
-			matchingDevice, err = findDeviceByUUID(devices, id)
-		} else {
-			// Index format (local Docker)
-			matchingDevice, err = findDeviceByIndex(devices, id)
-		}
-
+		// ECS provides GPU UUIDs in format "GPU-xxxx-xxxx-xxxx-xxxx"
+		matchingDevice, err := findDeviceByUUID(devices, id)
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue
 		}
 		filteredDevices = append(filteredDevices, matchingDevice)
 	}
-
-	// Sort by device index for consistent ordering
-	slices.SortFunc(filteredDevices, func(a, b ddnvml.Device) int {
-		aInfo := a.GetDeviceInfo()
-		bInfo := b.GetDeviceInfo()
-		return cmp.Compare(aInfo.Index, bInfo.Index)
-	})
 
 	return filteredDevices, multiErr
 }

@@ -336,7 +336,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			PID:          container.State.Pid,
 			RestartCount: container.RestartCount,
 			Resources:    extractResources(container),
-			GPUDeviceIDs: extractGPUDeviceIDs(container.Config.Env),
+			GPUDeviceIDs: extractGPUDeviceIDsForECS(container.Config.Env),
 		}
 
 	case events.ActionDie, docker.ActionDied:
@@ -747,17 +747,32 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 	return layers
 }
 
-// extractGPUDeviceIDs extracts GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable.
-// ECS and other container runtimes set this env var with GPU assignments.
+// extractGPUDeviceIDsForECS extracts GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable,
+// but ONLY when running in ECS. For regular Docker containers, the NVIDIA container toolkit adds
+// NVIDIA_VISIBLE_DEVICES in a way that's not visible in container.Config.Env (it's added by the
+// runtime, not the container config), so we must rely on reading from procfs at metric collection time.
+// In ECS, the env var IS visible in container.Config.Env because ECS sets it directly.
+// Format in ECS is GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2"
+func extractGPUDeviceIDsForECS(envVars []string) []string {
+	// Only extract from container config in ECS.
+	// For regular Docker, NVIDIA_VISIBLE_DEVICES is added by the container runtime
+	// and won't be visible here - the GPU probe will read it from procfs instead.
+	if !env.IsECS() {
+		return nil
+	}
+	return extractGPUDeviceIDs(envVars)
+}
+
+// extractGPUDeviceIDs parses GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable.
 // Format can be:
-// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2" (ECS, some K8s setups)
-// - Device indices: "0", "1", "0,1" (local Docker)
-// Special values "all", "none", "void" are ignored (return nil).
+// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2"
+// - Device indices: "0", "1", "0,1"
+// Special values "all", "none", "void" return nil (handled elsewhere).
 func extractGPUDeviceIDs(envVars []string) []string {
 	prefix := nvidiaVisibleDevicesEnvVar + "="
-	for _, env := range envVars {
-		if strings.HasPrefix(env, prefix) {
-			value := strings.TrimPrefix(env, prefix)
+	for _, e := range envVars {
+		if strings.HasPrefix(e, prefix) {
+			value := strings.TrimPrefix(e, prefix)
 			if value == "" || value == "all" || value == "none" || value == "void" {
 				return nil
 			}

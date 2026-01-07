@@ -496,39 +496,13 @@ func TestMatchByGPUDeviceIDs(t *testing.T) {
 		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 2)
-		// Should be sorted by device index
-		assert.Equal(t, devices[0], filteredDevices[0])
-		assert.Equal(t, devices[2], filteredDevices[1])
-	})
-
-	t.Run("SingleIndex", func(t *testing.T) {
-		gpuDeviceIDs := []string{"1"}
-		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
-		require.NoError(t, err)
-		require.Len(t, filteredDevices, 1)
-		assert.Equal(t, devices[1], filteredDevices[0])
-	})
-
-	t.Run("MultipleIndices", func(t *testing.T) {
-		gpuDeviceIDs := []string{"2", "0"}
-		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
-		require.NoError(t, err)
-		require.Len(t, filteredDevices, 2)
-		// Should be sorted by device index
-		assert.Equal(t, devices[0], filteredDevices[0])
-		assert.Equal(t, devices[2], filteredDevices[1])
+		// Order preserved from input (matches CUDA device selection order)
+		assert.Equal(t, devices[2], filteredDevices[0])
+		assert.Equal(t, devices[0], filteredDevices[1])
 	})
 
 	t.Run("InvalidUUID", func(t *testing.T) {
 		gpuDeviceIDs := []string{"GPU-invalid-uuid"}
-		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
-		require.Error(t, err)
-		require.Len(t, filteredDevices, 0)
-		require.ErrorIs(t, err, ErrCannotMatchDevice)
-	})
-
-	t.Run("InvalidIndex", func(t *testing.T) {
-		gpuDeviceIDs := []string{"999"}
 		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
 		require.Error(t, err)
 		require.Len(t, filteredDevices, 0)
@@ -540,9 +514,9 @@ func TestMatchByGPUDeviceIDs(t *testing.T) {
 		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
 		require.Error(t, err) // Error for invalid UUID
 		require.Len(t, filteredDevices, 2)
-		// Should be sorted by device index
-		assert.Equal(t, devices[0], filteredDevices[0])
-		assert.Equal(t, devices[1], filteredDevices[1])
+		// Order preserved from input (matches CUDA device selection order), invalid skipped
+		assert.Equal(t, devices[1], filteredDevices[0])
+		assert.Equal(t, devices[0], filteredDevices[1])
 	})
 
 	t.Run("EmptyList", func(t *testing.T) {
@@ -574,23 +548,6 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
 		assert.Equal(t, devices[1], filteredDevices[0])
-	})
-
-	t.Run("ContainerWithGPUDeviceIDsIndex", func(t *testing.T) {
-		// Simulates local Docker container with index in GPUDeviceIDs
-		container := &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "test-docker-container",
-			},
-			GPUDeviceIDs: []string{"0", "2"},
-		}
-
-		filteredDevices, err := MatchContainerDevices(container, devices)
-		require.NoError(t, err)
-		require.Len(t, filteredDevices, 2)
-		assert.Equal(t, devices[0], filteredDevices[0])
-		assert.Equal(t, devices[2], filteredDevices[1])
 	})
 
 	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
