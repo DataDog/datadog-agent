@@ -56,10 +56,12 @@ var knownPatterns = []correlationPattern{
 }
 
 // CrossSignalCorrelator clusters anomalies from different signals within a time window
-// and detects known patterns.
+// and detects known patterns. It implements CorrelationState to allow reporters to
+// read the current correlation state.
 type CrossSignalCorrelator struct {
-	config CorrelatorConfig
-	buffer []timestampedAnomaly
+	config             CorrelatorConfig
+	buffer             []timestampedAnomaly
+	activeCorrelations map[string]*observer.ActiveCorrelation
 }
 
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
@@ -72,8 +74,9 @@ func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
 		config.Now = time.Now
 	}
 	return &CrossSignalCorrelator{
-		config: config,
-		buffer: nil,
+		config:             config,
+		buffer:             nil,
+		activeCorrelations: make(map[string]*observer.ActiveCorrelation),
 	}
 }
 
@@ -109,15 +112,14 @@ func (c *CrossSignalCorrelator) evictOldEntries(now time.Time) {
 	c.buffer = newBuffer
 }
 
-// Flush checks for known patterns in the buffered anomalies and returns reports.
-// The buffer is NOT cleared after flush to allow patterns to persist across flushes.
+// Flush checks for known patterns in the buffered anomalies and updates activeCorrelations state.
+// It returns an empty slice since reporters now pull state via ActiveCorrelations() instead of
+// receiving pushed reports.
 func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
-	if len(c.buffer) == 0 {
-		return nil
-	}
+	now := c.config.Now()
 
 	// Evict old entries before checking patterns
-	c.evictOldEntries(c.config.Now())
+	c.evictOldEntries(now)
 
 	// Extract unique signal sources
 	sourceSet := make(map[string]struct{})
@@ -125,15 +127,40 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 		sourceSet[entry.anomaly.Source] = struct{}{}
 	}
 
-	// Check against known patterns
-	var reports []observer.ReportOutput
+	// Track which patterns are currently active
+	currentlyActive := make(map[string]bool)
+
+	// Check against known patterns and update state
 	for _, pattern := range knownPatterns {
 		if c.patternMatches(pattern, sourceSet) {
-			reports = append(reports, c.buildReport(pattern, sourceSet))
+			currentlyActive[pattern.name] = true
+
+			if existing, ok := c.activeCorrelations[pattern.name]; ok {
+				// Pattern already active - update LastUpdated
+				existing.LastUpdated = now
+				existing.Signals = c.getSortedSources(sourceSet)
+			} else {
+				// New pattern match - create ActiveCorrelation
+				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
+					Pattern:     pattern.name,
+					Title:       pattern.reportTitle,
+					Signals:     c.getSortedSources(sourceSet),
+					FirstSeen:   now,
+					LastUpdated: now,
+				}
+			}
 		}
 	}
 
-	return reports
+	// Remove patterns that are no longer active (signals expired)
+	for name := range c.activeCorrelations {
+		if !currentlyActive[name] {
+			delete(c.activeCorrelations, name)
+		}
+	}
+
+	// Return empty slice - reporters pull state via ActiveCorrelations()
+	return nil
 }
 
 // patternMatches checks if all required sources for a pattern are present.
@@ -168,4 +195,31 @@ func (c *CrossSignalCorrelator) buildReport(pattern correlationPattern, sources 
 // GetBuffer returns the current buffer (for testing).
 func (c *CrossSignalCorrelator) GetBuffer() []timestampedAnomaly {
 	return c.buffer
+}
+
+// getSortedSources returns a sorted slice of source names from a source set.
+func (c *CrossSignalCorrelator) getSortedSources(sources map[string]struct{}) []string {
+	sourceList := make([]string, 0, len(sources))
+	for source := range sources {
+		sourceList = append(sourceList, source)
+	}
+	sort.Strings(sourceList)
+	return sourceList
+}
+
+// ActiveCorrelations returns a copy of the currently active correlation patterns.
+// This implements the CorrelationState interface.
+func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
+	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))
+	for _, ac := range c.activeCorrelations {
+		// Return a copy to prevent external modification
+		result = append(result, observer.ActiveCorrelation{
+			Pattern:     ac.Pattern,
+			Title:       ac.Title,
+			Signals:     append([]string(nil), ac.Signals...),
+			FirstSeen:   ac.FirstSeen,
+			LastUpdated: ac.LastUpdated,
+		})
+	}
+	return result
 }

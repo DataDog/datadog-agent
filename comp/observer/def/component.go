@@ -10,6 +10,8 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
+import "time"
+
 // team: agent-metric-pipelines
 
 // Component is the central observer that receives data via handles.
@@ -155,4 +157,20 @@ type MetricStorageReader interface {
 	GetSeries(namespace, name string, tags []string) *Series
 	// AllSeries returns all series in a namespace.
 	AllSeries(namespace string) []Series
+}
+
+// CorrelationState provides read access to active correlations.
+// Reporters use this to display current correlation status.
+type CorrelationState interface {
+	// ActiveCorrelations returns currently detected correlation patterns.
+	ActiveCorrelations() []ActiveCorrelation
+}
+
+// ActiveCorrelation represents a detected correlation pattern.
+type ActiveCorrelation struct {
+	Pattern     string    // pattern name, e.g. "kernel_bottleneck"
+	Title       string    // display title, e.g. "Correlated: Kernel network bottleneck"
+	Signals     []string  // contributing signal sources
+	FirstSeen   time.Time // when pattern first matched
+	LastUpdated time.Time // most recent contributing signal
 }

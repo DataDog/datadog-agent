@@ -64,6 +64,12 @@ type logObs struct {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
+	correlator := NewCorrelator(CorrelatorConfig{})
+	reporter := &StdoutReporter{}
+
+	// Connect the reporter to the correlator's state
+	reporter.SetCorrelationState(correlator)
+
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
@@ -77,10 +83,10 @@ func NewComponent(deps Requires) Provides {
 			NewSustainedElevationDetector(),
 		},
 		anomalyProcessors: []observerdef.AnomalyProcessor{
-			NewCorrelator(CorrelatorConfig{}),
+			correlator,
 		},
 		reporters: []observerdef.Reporter{
-			&StdoutReporter{},
+			reporter,
 		},
 		storage: newTimeSeriesStorage(),
 		obsCh:   make(chan observation, 1000),
@@ -274,15 +280,15 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 	}
 }
 
-// flushAndReport flushes all anomaly processors and sends reports to all reporters.
+// flushAndReport flushes all anomaly processors and notifies all reporters.
+// Reporters are called with an empty report to trigger state-based reporting.
 func (o *observerImpl) flushAndReport() {
 	for _, processor := range o.anomalyProcessors {
-		reports := processor.Flush()
-		for _, report := range reports {
-			for _, reporter := range o.reporters {
-				reporter.Report(report)
-			}
-		}
+		processor.Flush()
+	}
+	// Always notify reporters so they can check correlation state
+	for _, reporter := range o.reporters {
+		reporter.Report(observerdef.ReportOutput{})
 	}
 }
 
