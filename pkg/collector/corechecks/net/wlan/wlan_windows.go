@@ -32,12 +32,8 @@ var (
 	wlanFreeMemory = wlanAPI.NewProc("WlanFreeMemory")
 
 	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
-	getAdaptersInfo            = iphlpapi.NewProc("GetAdaptersInfo")
 	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
 	convertInterfaceGuidToLuid = iphlpapi.NewProc("ConvertInterfaceGuidToLuid")
-
-	ole32           = windows.NewLazyDLL("ole32.dll")
-	clsidFromString = ole32.NewProc("CLSIDFromString")
 
 	// getWiFiInfo is a package-level function variable for testability
 	// Tests can reassign this to mock WiFi data retrieval
