@@ -71,12 +71,13 @@ func NewComponent(deps Requires) Provides {
 				MaxEvalBytes: 4096,
 			},
 			&BadDetector{},
+			&ConnectionErrorExtractor{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
-			&SpikeDetector{},
+			NewSustainedElevationDetector(),
 		},
 		anomalyProcessors: []observerdef.AnomalyProcessor{
-			&PassthroughProcessor{},
+			NewCorrelator(CorrelatorConfig{}),
 		},
 		reporters: []observerdef.Reporter{
 			&StdoutReporter{},
