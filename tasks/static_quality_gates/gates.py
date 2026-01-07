@@ -696,25 +696,6 @@ class GateMetricHandler:
         if filename is not None:
             self._load_metrics_report(filename)
 
-    def get_formatted_metric(self, gate_name, metric_name, with_unit=False):
-        value = self.metrics[gate_name][metric_name]
-        string_value = byte_to_string(value, with_unit=with_unit, unit_power=2)
-        if value > 0:
-            string_value = "+" + string_value
-        return string_value
-
-    def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
-        first_value = self.metrics[gate_name][first_metric]
-        second_value = self.metrics[gate_name][limit_metric]
-        first_value_string = byte_to_string(first_value, unit_power=2, with_unit=False)
-        limit_value_string = byte_to_string(second_value, unit_power=2, with_unit=False)
-        if first_value > second_value:
-            return f"{first_value_string} > {limit_value_string}"
-        elif first_value < second_value:
-            return f"{first_value_string} < {limit_value_string}"
-        else:
-            return f"{first_value_string} = {limit_value_string}"
-
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
             self.metrics[gate_name] = {}

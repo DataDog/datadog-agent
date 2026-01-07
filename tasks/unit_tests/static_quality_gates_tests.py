@@ -26,7 +26,7 @@ from tasks.libs.package.size import InfraError
 from tasks.quality_gates import (
     display_pr_comment,
     generate_new_quality_gate_config,
-    get_budget_impact_metrics,
+    get_change_metrics,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -789,10 +789,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_error(self, pr_commenter_mock):
         c = MockContext()
@@ -811,14 +807,11 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         # Check that the new table format is present
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
-        self.assertIn('Budget Impact', body)
-        self.assertIn('Position (MiB)', body)
-        self.assertIn('On disk (MiB)', body)
+        self.assertIn('Change', body)
+        self.assertIn('Limit Bounds', body)
         self.assertIn('Successful checks', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
-        # Check that wire details are in a collapsible section
-        self.assertIn('On wire (compressed) size details', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
 
@@ -828,10 +821,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
         },
-    )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
@@ -852,14 +841,12 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
         self.assertIn('### Error', body)
-        self.assertIn('Budget Impact', body)
-        self.assertIn('Position (MiB)', body)
+        self.assertIn('Change', body)
+        self.assertIn('Limit Bounds', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
         self.assertIn('Gate failure full details', body)
         self.assertIn('Static quality gates prevent the PR to merge!', body)
-        # Check that wire details are in a collapsible section
-        self.assertIn('On wire (compressed) size details', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
 
@@ -869,10 +856,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
         },
-    )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_one_of_each(self, pr_commenter_mock):
@@ -897,8 +880,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
         # Check new columns are present
-        self.assertIn('Budget Impact', body)
-        self.assertIn('Position (MiB)', body)
+        self.assertIn('Change', body)
+        self.assertIn('Limit Bounds', body)
 
     @patch.dict(
         'os.environ',
@@ -906,10 +889,6 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
         },
-    )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB", side_effect=KeyError),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
@@ -925,10 +904,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "value",
         )
         pr_commenter_mock.assert_called_once()
-        # Check that DataNotFound appears when metrics are missing
+        # Check that N/A appears when metrics are missing
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
-        self.assertIn('DataNotFound', body)
+        self.assertIn('N/A', body)
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
@@ -1064,10 +1043,6 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
         """Non-blocking failures should show warning indicator, not error."""
@@ -1104,10 +1079,6 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_blocking_failure_shows_error_indicator(self, pr_commenter_mock):
         """Blocking failures should show error indicator and blocking message."""
@@ -1141,10 +1112,6 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
         },
-    )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_mixed_blocking_and_non_blocking(self, pr_commenter_mock):
@@ -1230,83 +1197,68 @@ class TestBlockingFailureDetection(unittest.TestCase):
         self.assertFalse(has_blocking)
 
 
-class TestGetBudgetImpactMetrics(unittest.TestCase):
-    """Test the get_budget_impact_metrics function for budget impact calculations."""
+class TestGetChangeMetrics(unittest.TestCase):
+    """Test the get_change_metrics function for change calculations."""
 
     def test_normal_positive_delta(self):
-        """Should calculate budget impact for a positive delta (size increased)."""
+        """Should calculate change for a positive delta (size increased)."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
             "current_on_disk_size": 165 * 1024 * 1024,  # 165 MiB
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
             "relative_on_disk_size": 15 * 1024 * 1024,  # +15 MiB delta
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
         # Baseline = 165 - 15 = 150 MiB
-        # Total budget = 200 - 150 = 50 MiB
-        # Budget consumed = 15 / 50 = 30%
-        self.assertIn("+30%", budget_impact)
-        self.assertIn("of remaining", budget_impact)
-        self.assertIn("150.000", position)
-        self.assertIn("**165.000**", position)  # Current is bold
-        self.assertIn("200.000", position)
+        # Change shows delta with percentage increase
+        self.assertIn("+15.0 MiB", change_str)
+        self.assertIn("increase", change_str)
+        # Limit bounds: baseline → current → limit
+        self.assertIn("150.000", limit_bounds)
+        self.assertIn("165.000", limit_bounds)
+        self.assertIn("200.000", limit_bounds)
 
-    def test_negative_delta_savings(self):
-        """Should show savings when size decreased (negative delta)."""
+    def test_negative_delta_reduction(self):
+        """Should show reduction when size decreased (negative delta)."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
             "current_on_disk_size": 145 * 1024 * 1024,  # 145 MiB
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
-            "relative_on_disk_size": -5 * 1024 * 1024,  # -5 MiB delta (savings)
+            "relative_on_disk_size": -5 * 1024 * 1024,  # -5 MiB delta (reduction)
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
-        self.assertIn("savings", budget_impact)
+        self.assertIn("reduction", change_str)
+        self.assertIn("-5.0 MiB", change_str)
         # Baseline = 145 - (-5) = 150 MiB
-        self.assertIn("150.000", position)
-        self.assertIn("**145.000**", position)  # Current is bold
+        self.assertIn("150.000", limit_bounds)
+        self.assertIn("145.000", limit_bounds)
 
-    def test_zero_delta_no_change(self):
-        """Should show no change when delta is zero."""
+    def test_zero_delta_neutral(self):
+        """Should show neutral when delta is zero."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
             "current_on_disk_size": 150 * 1024 * 1024,  # 150 MiB
             "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
             "relative_on_disk_size": 0,  # No change
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
-        self.assertEqual("No change", budget_impact)
+        self.assertEqual("0B (neutral)", change_str)
 
-    def test_no_budget_remaining(self):
-        """Should handle when baseline is at or above the limit."""
+    def test_small_delta_kib(self):
+        """Should show delta in KiB for small changes."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics["test_gate"] = {
-            "current_on_disk_size": 205 * 1024 * 1024,  # 205 MiB
-            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB limit
-            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB delta
+            "current_on_disk_size": 707163 * 1024,  # ~707 MiB
+            "max_on_disk_size": 708000 * 1024,  # ~708 MiB
+            "relative_on_disk_size": 98 * 1024,  # +98 KiB delta
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
-        # Baseline = 205 - 5 = 200 MiB (at limit, no budget)
-        self.assertIn("No budget", budget_impact)
-
-    def test_exceeds_budget(self):
-        """Should show warning when delta exceeds remaining budget."""
-        handler = GateMetricHandler("main", "dev")
-        handler.metrics["test_gate"] = {
-            "current_on_disk_size": 210 * 1024 * 1024,  # 210 MiB
-            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB limit
-            "relative_on_disk_size": 20 * 1024 * 1024,  # +20 MiB delta
-        }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
-
-        # Baseline = 210 - 20 = 190 MiB
-        # Total budget = 200 - 190 = 10 MiB
-        # Budget consumed = 20 / 10 = 200%
-        self.assertIn("200%", budget_impact)
-        self.assertIn("⚠️", budget_impact)
+        self.assertIn("+98.0 KiB", change_str)
+        self.assertIn("increase", change_str)
 
     def test_missing_current_size(self):
         """Should return N/A when current size is missing."""
@@ -1314,10 +1266,10 @@ class TestGetBudgetImpactMetrics(unittest.TestCase):
         handler.metrics["test_gate"] = {
             "max_on_disk_size": 200 * 1024 * 1024,
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
-        self.assertEqual("N/A", budget_impact)
-        self.assertEqual("N/A", position)
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
 
     def test_missing_relative_size(self):
         """Should handle missing relative size (no ancestor data)."""
@@ -1327,23 +1279,23 @@ class TestGetBudgetImpactMetrics(unittest.TestCase):
             "max_on_disk_size": 200 * 1024 * 1024,
             # No relative_on_disk_size
         }
-        budget_impact, position = get_budget_impact_metrics("test_gate", handler)
+        change_str, limit_bounds = get_change_metrics("test_gate", handler)
 
-        self.assertEqual("N/A", budget_impact)
-        # Position should show N/A for baseline but current and limit should be present
-        self.assertIn("N/A", position)
-        self.assertIn("**165.000**", position)  # Current is bold
-        self.assertIn("200.000", position)
+        self.assertEqual("N/A", change_str)
+        # Limit bounds should show N/A for baseline but current and limit should be present
+        self.assertIn("N/A", limit_bounds)
+        self.assertIn("165.000", limit_bounds)
+        self.assertIn("200.000", limit_bounds)
 
     def test_missing_gate(self):
         """Should return N/A when gate is not found."""
         handler = GateMetricHandler("main", "dev")
         handler.metrics = {}
 
-        budget_impact, position = get_budget_impact_metrics("nonexistent_gate", handler)
+        change_str, limit_bounds = get_change_metrics("nonexistent_gate", handler)
 
-        self.assertEqual("N/A", budget_impact)
-        self.assertEqual("N/A", position)
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
 
 
 if __name__ == '__main__':
