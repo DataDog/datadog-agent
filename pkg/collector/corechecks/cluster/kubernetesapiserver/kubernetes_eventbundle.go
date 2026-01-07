@@ -27,6 +27,14 @@ const (
 	// The Events API limits event text to 4000 characters, so we conservatively limit the estimated text to 3750 characters.
 	// https://docs.datadoghq.com/api/latest/events/#post-an-event-v1
 	maxEstimatedEventTextLength = 3750
+
+	// bundleFixedOverhead is the formatting overhead for each bundle including:
+	// - Header: "%%% \n" (5 chars)
+	// - Footer: " \n\n %%%" (7 chars)
+	// - Middle: " \n _Events emitted by the <component> seen at <timestamp> since <timestamp>_ \n"
+	//   (timestamps: ~60 chars, static text: ~50 chars)
+	// Conservative estimate: 250 chars
+	bundleFixedOverhead = 250
 )
 
 type kubernetesEventBundle struct {
@@ -38,6 +46,7 @@ type kubernetesEventBundle struct {
 	countByAction       map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
 	alertType           event.AlertType    // The Datadog event type
 	hostInfo            eventHostInfo      // Host information extracted from the event, where applicable
+	estimatedSize       int                // Track cumulative estimated bundle size to prevent exceeding API limit
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
@@ -48,6 +57,7 @@ func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesE
 		countByAction:       make(map[string]int),
 		alertType:           getDDAlertType(event.Type),
 		hostInfo:            getEventHostInfo(clusterName, event),
+		estimatedSize:       bundleFixedOverhead + len(event.Source.Component),
 	}
 }
 
@@ -73,6 +83,12 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.EventTime.Unix()))
 	} else {
 		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+	}
+
+	// If we haven't seen this action before, add the overhead for the new action
+	previousCount := b.countByAction[eventText]
+	if previousCount == 0 {
+		b.estimatedSize += estimateEventOverhead(eventText)
 	}
 
 	b.countByAction[eventText] += int(event.Count)
@@ -130,9 +146,12 @@ func (b *kubernetesEventBundle) formatEventText() string {
 
 func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
 	eventText := "**" + event.Reason + "**: " + event.Message + "\n"
-	if len(eventText) > maxEstimatedEventTextLength {
+
+	// If we haven't seen this action before, and adding it would probably exceed the limit, deny it
+	if b.countByAction[eventText] == 0 && (b.estimatedSize+estimateEventOverhead(eventText) > maxEstimatedEventTextLength) {
 		return "", false
 	}
+
 	return eventText, true
 }
 
@@ -152,4 +171,13 @@ func formatStringIntMap(input map[string]int) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// estimateEventOverhead calculates the overhead for a single event in the bundle
+// including count representation, space, and the event text
+func estimateEventOverhead(eventText string) int {
+	// Count: worst case 10 digits (max int32 ~2 billion) +
+	// Space separator: 1 char +
+	// Event text
+	return 10 + 1 + len(eventText)
 }

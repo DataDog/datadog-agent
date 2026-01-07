@@ -257,6 +257,11 @@ func TestEventsTagging(t *testing.T) {
 }
 
 func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
+	reallyLongMessage := strings.Repeat("a", 3700)
+	mediumMessage1 := strings.Repeat("b", 1500)
+	mediumMessage2 := strings.Repeat("c", 1500)
+	mediumMessage3 := strings.Repeat("d", 1500)
+
 	tests := []struct {
 		name               string
 		events             []*v1.Event
@@ -271,20 +276,46 @@ func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
 			name: "event text length exceeds the maximum allowed length",
 			events: []*v1.Event{
 				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600),
-				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", strings.Repeat("a", maxEstimatedEventTextLength), "Normal", 709662600),
+				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", reallyLongMessage, "Normal", 709662600),
 			},
 			expectedEventsFits: []bool{true, false},
+		},
+		{
+			name: "multiple medium events exceed cumulative limit",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage1, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage2, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+			},
+			expectedEventsFits: []bool{true, true, false},
+		},
+		{
+			name: "duplicate events do not exceed cumulative limit",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+			},
+			expectedEventsFits: []bool{true, true, true},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fmt.Println(tt.name)
 			assert.Equal(t, len(tt.events), len(tt.expectedEventsFits))
 
 			bundle := newKubernetesEventBundler("", tt.events[0])
 			for i, ev := range tt.events {
 				_, fits := bundle.fitsEvent(ev)
 				assert.Equal(t, tt.expectedEventsFits[i], fits)
+
+				if fits {
+					err := bundle.addEvent(ev)
+					assert.NoError(t, err)
+				}
+
+				fmt.Println(bundle.estimatedSize)
 			}
 		})
 	}
