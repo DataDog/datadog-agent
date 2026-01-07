@@ -43,5 +43,11 @@ common:cache --remote_timeout=60
 common:ci --config=cache
 common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log
 
+# For Rust targets, enable clippy and rustfmt checks during the build
+build:ci --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
+build:ci --output_groups=+clippy_checks
+build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
+build:ci --output_groups=+rustfmt_checks
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
