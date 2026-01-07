@@ -196,6 +196,26 @@ func TestSustainedElevationDetector_SourceIsSetToSeriesName(t *testing.T) {
 	assert.Equal(t, "memory.used", result.Anomalies[0].Source, "source should be series name")
 }
 
+func TestSustainedElevationDetector_TimeRangeIsSet(t *testing.T) {
+	detector := NewSustainedElevationDetector()
+
+	result := detector.Analyze(observer.Series{
+		Name: "test.metric",
+		Points: []observer.Point{
+			{Timestamp: 1000, Value: 8},
+			{Timestamp: 2000, Value: 10},
+			{Timestamp: 3000, Value: 12},
+			{Timestamp: 4000, Value: 100},
+			{Timestamp: 5000, Value: 100},
+			{Timestamp: 6000, Value: 100},
+		},
+	})
+
+	require.Len(t, result.Anomalies, 1)
+	assert.Equal(t, int64(1000), result.Anomalies[0].TimeRange.Start, "TimeRange.Start should be first timestamp")
+	assert.Equal(t, int64(6000), result.Anomalies[0].TimeRange.End, "TimeRange.End should be last timestamp")
+}
+
 func TestSustainedElevationDetector_CustomThreshold(t *testing.T) {
 	detector := &SustainedElevationDetector{
 		MinPoints: 6,
