@@ -109,7 +109,6 @@ static __always_inline int kretprobe_conntrack_common(struct pt_regs *ctx, int e
         return 0;
     }
 
-    // Add both directions to conntrack map
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
