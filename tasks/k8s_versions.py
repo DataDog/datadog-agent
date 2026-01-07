@@ -10,9 +10,12 @@ import json
 import os
 import re
 import sys
+from functools import total_ordering
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
+
+from tasks.kind_node_image import get_github_rc_releases
 
 try:
     import requests
@@ -30,6 +33,51 @@ VERSIONS_FILE = "k8s_versions.json"
 E2E_YAML_PATH = ".gitlab/e2e/e2e.yml"
 
 
+@total_ordering
+class Version:
+    """Kubernetes version with proper semantic version comparison.
+
+    Handles both final releases and RC (release candidate) versions:
+    - v1.35.0-rc.1 < v1.35.0-rc.2 < v1.35.0
+    """
+
+    def __init__(self, major: int, minor: int, patch: int, rc: int | None = None):
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+        self.rc = rc  # None for final releases, number for RC versions
+
+    def __eq__(self, other):
+        if not isinstance(other, Version):
+            return NotImplemented
+        return (self.major, self.minor, self.patch, self.rc) == (
+            other.major,
+            other.minor,
+            other.patch,
+            other.rc,
+        )
+
+    def __lt__(self, other):
+        if not isinstance(other, Version):
+            return NotImplemented
+
+        # Compare major, minor, patch first
+        # If they aren't equal, then return the tuple comparison
+        if (self.major, self.minor, self.patch) != (other.major, other.minor, other.patch):
+            return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
+
+        # If base versions are equal, compare RC status
+        # RC versions are less than final releases: v1.35.0-rc.1 < v1.35.0
+        if self.rc is None:
+            return False  # self is final (>= any RC or final with same base version)
+        return other.rc is None or self.rc < other.rc  # self is RC, so less than final OR compare RC numbers
+
+    def __repr__(self):
+        if self.rc is None:
+            return f"Version({self.major}.{self.minor}.{self.patch})"
+        return f"Version({self.major}.{self.minor}.{self.patch}-rc.{self.rc})"
+
+
 def _check_dependencies():
     """Check if required dependencies are installed."""
     missing = []
@@ -45,14 +93,27 @@ def _check_dependencies():
         )
 
 
-def _parse_version(version_str: str) -> tuple[int, int, int] | None:
+def _parse_version(version_str: str) -> Version | None:
     """
-    Parse a Kubernetes version string like 'v1.34.0' into a tuple (1, 34, 0).
+    Parse a Kubernetes version string into a Version object.
+
+    Examples:
+        'v1.34.0' -> Version(1, 34, 0)
+        'v1.35.0-rc.1' -> Version(1, 35, 0, rc=1)
+
     Returns None if the version string is invalid.
     """
+    # Match a release version
     match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)$', version_str)
     if match:
-        return tuple(map(int, match.groups()))
+        major, minor, patch = map(int, match.groups())
+        return Version(major, minor, patch)
+    # Match an RC version
+    rc_match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)\-rc\.(\d+)$', version_str)
+    if rc_match:
+        major, minor, patch, rc = map(int, rc_match.groups())
+        return Version(major, minor, patch, rc=rc)
+
     return None
 
 
@@ -92,11 +153,13 @@ def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
     Fetch and parse the latest Kubernetes version from Docker Hub.
     Returns a dictionary with only the single latest version.
     """
-    tags = _get_docker_hub_tags()
 
     # Filter for valid Kubernetes version tags
     version_tags = []
-    for tag in tags:
+
+    # Final release Kubernetes version tags
+    _ = _get_docker_hub_tags()  # TODO: add this back when testing of RCs is done
+    for tag in []:
         tag_name = tag.get('name', '')
         version = _parse_version(tag_name)
 
@@ -105,13 +168,40 @@ def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
             if digest:
                 version_tags.append({'version': version, 'tag': tag_name, 'digest': digest})
 
+    # RC Kubernetes version tags
+    for tag in get_github_rc_releases():
+        tag_name = tag.get('tag_name', '')
+        tarball = tag.get('tarball_url')
+        version = _parse_version(tag_name)
+        if version and tag_name and tarball:
+            # Hardcode 'rc' to True because get_github_rc_releases() only returns rc releases
+            version_tags.append({'version': version, 'tag': tag_name, 'rc': True, 'tarball': tarball})
+
     # Sort by version (major, minor, patch)
     version_tags.sort(key=lambda x: x['version'], reverse=True)
 
     # Return only the single latest version
     if version_tags:
         latest = version_tags[0]
-        return {latest['tag']: {'digest': latest['digest'], 'tag': latest['tag']}}
+
+        # Parse out the necessary fields
+        tag = latest.get('tag')
+        digest = latest.get('digest')
+        rc = latest.get('rc')
+        tarball = latest.get('tarball')
+
+        # Build return dictionary
+        # Structure: {tag_name: {'tag': tag_name, 'digest': digest?, 'rc': bool?, 'tarball': url?}}
+        # Final releases include 'digest', RC releases include 'rc' and 'tarball'
+        if tag:
+            result = {tag: {'tag': tag}}
+            if digest:
+                result[tag]['digest'] = digest
+            if rc:
+                result[tag]['rc'] = rc
+            if tarball:
+                result[tag]['tarball'] = tarball
+            return result
 
     return {}
 
@@ -140,7 +230,7 @@ def _find_new_versions(
     new_versions = {}
 
     for version, data in current.items():
-        if version not in previous or previous[version]['digest'] != data['digest']:
+        if version not in previous or previous[version].get('digest') != data.get('digest'):
             new_versions[version] = data
 
     return new_versions
@@ -333,7 +423,7 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     """
     _check_dependencies()
 
-    print("Fetching latest Kubernetes version from Docker Hub...")
+    print("Fetching latest Kubernetes version from Docker Hub and GitHub...")
     current_versions = _get_latest_k8s_versions()
 
     if not current_versions:
@@ -344,20 +434,24 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     # Show the latest version
     latest_version = list(current_versions.keys())[0]
     latest_data = current_versions[latest_version]
+
     print(f"Latest Kubernetes version: {latest_version}")
-    print(f"  Digest: {latest_data['digest']}")
+    if latest_data.get('tarball'):
+        print(f"  Tarball: {latest_data['tarball']}")
+    else:
+        print(f"  Digest: {latest_data['digest']}")
 
     # Load previous versions and compare
     previous_versions = _load_existing_versions(output_file)
     new_versions = _find_new_versions(current_versions, previous_versions)
 
     if new_versions:
-        print("\nNew version found!")
+        print("\nNew version(s) found!")
         for version, data in new_versions.items():
-            print(f"  {version}: {data['digest']}")
-
-        # Save current versions for next run
-        _save_versions(current_versions, output_file)
+            if data.get('tarball'):
+                print(f"  {version}: {data['tarball']}")
+            else:
+                print(f"  {version}: {data['digest']}")
 
         # Set GitHub Actions outputs
         _set_github_output('has_new_versions', 'true')
@@ -408,3 +502,41 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     else:
         _set_github_output('updated', 'false')
         print("\nNo updates made")
+
+
+@task
+def save_versions(_, versions, versions_file=VERSIONS_FILE):
+    """
+    Save multiple Kubernetes versions to the versions file.
+
+    This task merges the provided versions with existing versions in the file,
+    preserving existing entries and adding new ones.
+
+    Args:
+        versions: JSON string or dict mapping version tags to version data
+                  (e.g., '{"v1.35.0": {"tag": "v1.35.0", "digest": "sha256:..."}}')
+        versions_file: Path to the JSON file to store versions (default: k8s_versions.json)
+    """
+
+    # Parse if it's a JSON string
+    if isinstance(versions, str):
+        try:
+            versions = json.loads(versions)
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid JSON in versions argument: {e}", code=1) from e
+
+    # Load existing versions
+    existing_versions = _load_existing_versions(versions_file)
+
+    # Safely append the passed in dictionary items to the version list
+    for outer_tag, version in versions.items():
+        inner_tag = version.get('tag')
+        digest = version.get('digest')
+        if not inner_tag or not digest:
+            print(f"Version {outer_tag} is missing required field tag or digest, skipping...")
+            continue
+
+        existing_versions[outer_tag] = {'tag': inner_tag, 'digest': digest}
+
+    # Save to file
+    _save_versions(existing_versions, versions_file)
