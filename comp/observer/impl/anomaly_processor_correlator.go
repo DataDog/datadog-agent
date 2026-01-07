@@ -136,16 +136,21 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 		if c.patternMatches(pattern, sourceSet) {
 			currentlyActive[pattern.name] = true
 
+			// Collect the anomalies that match this pattern's required sources
+			matchingAnomalies := c.collectMatchingAnomalies(pattern)
+
 			if existing, ok := c.activeCorrelations[pattern.name]; ok {
-				// Pattern already active - update LastUpdated
+				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = now
 				existing.Signals = c.getSortedSources(sourceSet)
+				existing.Anomalies = matchingAnomalies
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
 					Pattern:     pattern.name,
 					Title:       pattern.reportTitle,
 					Signals:     c.getSortedSources(sourceSet),
+					Anomalies:   matchingAnomalies,
 					FirstSeen:   now,
 					LastUpdated: now,
 				}
@@ -172,6 +177,20 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 		}
 	}
 	return true
+}
+
+// collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources.
+func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.AnomalyOutput {
+	var matchingAnomalies []observer.AnomalyOutput
+	for _, entry := range c.buffer {
+		for _, src := range pattern.requiredSources {
+			if entry.anomaly.Source == src {
+				matchingAnomalies = append(matchingAnomalies, entry.anomaly)
+				break
+			}
+		}
+	}
+	return matchingAnomalies
 }
 
 // buildReport creates a ReportOutput for a matched pattern.
@@ -214,10 +233,13 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))
 	for _, ac := range c.activeCorrelations {
 		// Return a copy to prevent external modification
+		anomaliesCopy := make([]observer.AnomalyOutput, len(ac.Anomalies))
+		copy(anomaliesCopy, ac.Anomalies)
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     ac.Pattern,
 			Title:       ac.Title,
 			Signals:     append([]string(nil), ac.Signals...),
+			Anomalies:   anomaliesCopy,
 			FirstSeen:   ac.FirstSeen,
 			LastUpdated: ac.LastUpdated,
 		})
