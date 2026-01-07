@@ -276,3 +276,119 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 	activeCorrs = correlator.ActiveCorrelations()
 	assert.Empty(t, activeCorrs, "pattern should be cleared when signals expire")
 }
+
+func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
+	correlator := NewCorrelator(DefaultCorrelatorConfig())
+
+	// Add anomalies with descriptions for all required signals
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Title:       "High retransmits",
+		Description: "network.retransmits:avg elevated: recent avg 100 vs baseline 10 (>3 stddev)",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "ebpf.lock_contention_ns:avg",
+		Title:       "Lock contention",
+		Description: "ebpf.lock_contention_ns:avg elevated: recent avg 500 vs baseline 50 (>3 stddev)",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "connection.errors:count",
+		Title:       "Connection errors",
+		Description: "connection.errors:count elevated: recent avg 25 vs baseline 2 (>3 stddev)",
+	})
+
+	correlator.Flush()
+	activeCorrs := correlator.ActiveCorrelations()
+	require.Len(t, activeCorrs, 1)
+
+	// Anomalies field should contain all three anomalies
+	anomalies := activeCorrs[0].Anomalies
+	require.Len(t, anomalies, 3, "should have 3 anomalies")
+
+	// Verify each anomaly has the expected description
+	descriptions := make(map[string]bool)
+	for _, a := range anomalies {
+		descriptions[a.Description] = true
+	}
+	assert.True(t, descriptions["network.retransmits:avg elevated: recent avg 100 vs baseline 10 (>3 stddev)"])
+	assert.True(t, descriptions["ebpf.lock_contention_ns:avg elevated: recent avg 500 vs baseline 50 (>3 stddev)"])
+	assert.True(t, descriptions["connection.errors:count elevated: recent avg 25 vs baseline 2 (>3 stddev)"])
+}
+
+func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	currentTime := baseTime
+
+	config := CorrelatorConfig{
+		WindowDuration: 30 * time.Second,
+		Now:            func() time.Time { return currentTime },
+	}
+	correlator := NewCorrelator(config)
+
+	// Add initial anomalies
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "first retransmits anomaly",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "ebpf.lock_contention_ns:avg",
+		Description: "first lock contention anomaly",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "connection.errors:count",
+		Description: "first connection errors anomaly",
+	})
+
+	correlator.Flush()
+	activeCorrs := correlator.ActiveCorrelations()
+	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs[0].Anomalies, 3)
+
+	// Advance time slightly and add another anomaly for one of the signals
+	currentTime = baseTime.Add(5 * time.Second)
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "second retransmits anomaly",
+	})
+
+	correlator.Flush()
+	activeCorrs = correlator.ActiveCorrelations()
+	require.Len(t, activeCorrs, 1)
+	// Should now have 4 anomalies (3 original + 1 new)
+	assert.Len(t, activeCorrs[0].Anomalies, 4, "should include all matching anomalies from buffer")
+}
+
+func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
+	correlator := NewCorrelator(DefaultCorrelatorConfig())
+
+	// Add all required signals plus an extra one
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "retransmits anomaly",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "ebpf.lock_contention_ns:avg",
+		Description: "lock contention anomaly",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "connection.errors:count",
+		Description: "connection errors anomaly",
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "extra.signal:avg",
+		Description: "extra signal anomaly",
+	})
+
+	correlator.Flush()
+	activeCorrs := correlator.ActiveCorrelations()
+	require.Len(t, activeCorrs, 1)
+
+	// Anomalies should only contain the 3 matching signals, not the extra one
+	anomalies := activeCorrs[0].Anomalies
+	assert.Len(t, anomalies, 3, "should only include anomalies matching pattern's required sources")
+
+	// Verify extra signal is not included
+	for _, a := range anomalies {
+		assert.NotEqual(t, "extra.signal:avg", a.Source, "extra signal should not be in anomalies")
+	}
+}

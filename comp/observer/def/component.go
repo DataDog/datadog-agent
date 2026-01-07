@@ -168,9 +168,10 @@ type CorrelationState interface {
 
 // ActiveCorrelation represents a detected correlation pattern.
 type ActiveCorrelation struct {
-	Pattern     string    // pattern name, e.g. "kernel_bottleneck"
-	Title       string    // display title, e.g. "Correlated: Kernel network bottleneck"
-	Signals     []string  // contributing signal sources
-	FirstSeen   time.Time // when pattern first matched
-	LastUpdated time.Time // most recent contributing signal
+	Pattern     string          // pattern name, e.g. "kernel_bottleneck"
+	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
+	Signals     []string        // contributing signal sources
+	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation
+	FirstSeen   time.Time       // when pattern first matched
+	LastUpdated time.Time       // most recent contributing signal
 }

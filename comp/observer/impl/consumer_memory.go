@@ -98,10 +98,13 @@ func (r *StdoutReporter) reportCorrelationChanges() {
 	}
 
 	// Check for new correlations (in current but not in seen)
-	for pattern, title := range currentlyActive {
-		if _, seen := r.seenCorrelations[pattern]; !seen {
-			fmt.Printf("[observer] NEW: %s\n", title)
-			r.seenCorrelations[pattern] = title
+	for _, ac := range activeCorrelations {
+		if _, seen := r.seenCorrelations[ac.Pattern]; !seen {
+			fmt.Printf("[observer] NEW: %s\n", ac.Title)
+			for _, anomaly := range ac.Anomalies {
+				fmt.Printf("  - %s\n", anomaly.Description)
+			}
+			r.seenCorrelations[ac.Pattern] = ac.Title
 		}
 	}
 
