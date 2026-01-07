@@ -145,7 +145,7 @@ func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Pr
 func assertCommProperty(t require.TestingT, processes []*agentmodel.Process, expectedComm string) {
 	for _, proc := range processes {
 		// compare the comm property of the process
-		assert.Containsf(t, expectedComm, proc.Command.Comm, "process comm does not match. Expected %s", expectedComm)
+		assert.Containsf(t, proc.Command.Comm, expectedComm, "process comm does not match. Expected %s", expectedComm)
 	}
 }
 
