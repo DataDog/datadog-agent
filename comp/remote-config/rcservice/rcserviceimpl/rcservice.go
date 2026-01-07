@@ -83,7 +83,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	// TODO(KUBEACTIONS-POC): REMOVE THESE HARDCODES - Temporary overrides for staging testing
 	if apiKey == "" {
 		deps.Logger.Warn("API key is empty, using hardcoded test key")
-		apiKey = "API_KEY HERE"
+		apiKey = ""
 	}
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
 
