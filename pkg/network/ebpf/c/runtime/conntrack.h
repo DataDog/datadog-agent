@@ -42,10 +42,15 @@ static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
 
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(skb->_nfct)) {
+        log_debug("JMW get_nfct: using _nfct field");
         BPF_CORE_READ_INTO(&nfct, skb, _nfct);
     } else if (bpf_core_field_exists(((struct sk_buff___nfct_old *)skb)->nfct)) {
+        log_debug("JMW get_nfct: using nfct field (old)");
         BPF_CORE_READ_INTO(&nfct, (struct sk_buff___nfct_old *)skb, nfct);
+    } else {
+        log_debug("JMW get_nfct: neither _nfct nor nfct field exists!");
     }
+    log_debug("JMW get_nfct: nfct value = %llx", nfct);
 #endif // COMPILE_CORE
 
     if (!nfct) {
