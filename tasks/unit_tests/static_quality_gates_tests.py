@@ -27,7 +27,6 @@ from tasks.quality_gates import (
     display_pr_comment,
     generate_new_quality_gate_config,
     get_change_metrics,
-    get_wire_change_metrics,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -1503,7 +1502,7 @@ class TestGetChangeMetrics(unittest.TestCase):
 
 
 class TestGetWireChangeMetrics(unittest.TestCase):
-    """Test the get_wire_change_metrics function for on-wire size calculations."""
+    """Test the get_change_metrics function for on-wire size calculations (metric_type='wire')."""
 
     def test_normal_positive_delta(self):
         """Should calculate change for a positive delta (size increased)."""
@@ -1513,7 +1512,7 @@ class TestGetWireChangeMetrics(unittest.TestCase):
             "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
             "relative_on_wire_size": 10 * 1024 * 1024,  # +10 MiB delta
         }
-        change_str, limit_bounds, is_neutral = get_wire_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler, metric_type="wire")
 
         self.assertIn("+10.0 MiB", change_str)
         self.assertIn("increase", change_str)
@@ -1531,7 +1530,7 @@ class TestGetWireChangeMetrics(unittest.TestCase):
             "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
             "relative_on_wire_size": 500,  # 500 bytes (below 2 KiB threshold)
         }
-        change_str, limit_bounds, is_neutral = get_wire_change_metrics("test_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler, metric_type="wire")
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
@@ -1543,7 +1542,7 @@ class TestGetWireChangeMetrics(unittest.TestCase):
         handler = GateMetricHandler("main", "dev")
         handler.metrics = {}
 
-        change_str, limit_bounds, is_neutral = get_wire_change_metrics("nonexistent_gate", handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics("nonexistent_gate", handler, metric_type="wire")
 
         self.assertEqual("N/A", change_str)
         self.assertEqual("N/A", limit_bounds)

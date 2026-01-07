@@ -97,9 +97,16 @@ body_error_footer_pattern = """<details>
 NEUTRAL_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
 
 
-def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str, bool]:
+def get_change_metrics(
+    gate_name: str, metric_handler: GateMetricHandler, metric_type: str = "disk"
+) -> tuple[str, str, bool]:
     """
-    Calculate change metrics for a gate (on-disk sizes).
+    Calculate change metrics for a gate.
+
+    Args:
+        gate_name: The name of the quality gate
+        metric_handler: The metric handler containing gate metrics
+        metric_type: Either "disk" for on-disk sizes or "wire" for on-wire/compressed sizes
 
     Returns:
         Tuple of (change_str, limit_bounds_str, is_neutral) for display in PR comment.
@@ -109,27 +116,32 @@ def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tup
     """
     gate_metrics = metric_handler.metrics.get(gate_name, {})
 
-    current_disk = gate_metrics.get("current_on_disk_size")
-    max_disk = gate_metrics.get("max_on_disk_size")
-    relative_disk = gate_metrics.get("relative_on_disk_size")
+    # Select metric keys based on type
+    current_key = f"current_on_{metric_type}_size"
+    max_key = f"max_on_{metric_type}_size"
+    relative_key = f"relative_on_{metric_type}_size"
+
+    current_size = gate_metrics.get(current_key)
+    max_size = gate_metrics.get(max_key)
+    relative_size = gate_metrics.get(relative_key)
 
     # If we don't have the required metrics, return N/A
-    if current_disk is None or max_disk is None:
+    if current_size is None or max_size is None:
         return "N/A", "N/A", False
 
     # Calculate baseline (ancestor size) from current - relative
-    if relative_disk is not None:
-        baseline_disk = current_disk - relative_disk
+    if relative_size is not None:
+        baseline_size = current_size - relative_size
     else:
-        baseline_disk = None
+        baseline_size = None
 
     # Convert to MiB for display
-    current_mib = current_disk / (1024 * 1024)
-    max_mib = max_disk / (1024 * 1024)
-    baseline_mib = baseline_disk / (1024 * 1024) if baseline_disk is not None else None
+    current_mib = current_size / (1024 * 1024)
+    max_mib = max_size / (1024 * 1024)
+    baseline_mib = baseline_size / (1024 * 1024) if baseline_size is not None else None
 
     # Determine if change is neutral (below threshold)
-    is_neutral = relative_disk is not None and abs(relative_disk) < NEUTRAL_THRESHOLD_BYTES
+    is_neutral = relative_size is not None and abs(relative_size) < NEUTRAL_THRESHOLD_BYTES
 
     # Build limit bounds string based on whether change is neutral
     if is_neutral:
@@ -142,96 +154,25 @@ def get_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tup
         limit_bounds_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
 
     # Build change string with delta and percentage
-    if baseline_disk is None or relative_disk is None:
+    if baseline_size is None or relative_size is None:
         change_str = "N/A"
     elif is_neutral:
         change_str = "neutral"
     else:
         # Format the delta in human-readable units
-        delta_str = byte_to_string(relative_disk)
+        delta_str = byte_to_string(relative_size)
 
-        if baseline_disk > 0:
+        if baseline_size > 0:
             # Calculate percentage change relative to baseline
-            pct_change = abs(relative_disk / baseline_disk) * 100
+            pct_change = abs(relative_size / baseline_size) * 100
 
-            if relative_disk > 0:
+            if relative_size > 0:
                 change_str = f"+{delta_str} ({pct_change:.2f}% increase)"
             else:
                 change_str = f"{delta_str} ({pct_change:.2f}% reduction)"
         else:
             # Baseline is 0, can't calculate percentage
-            if relative_disk > 0:
-                change_str = f"+{delta_str} (new)"
-            else:
-                change_str = f"{delta_str} (reduction)"
-
-    return change_str, limit_bounds_str, is_neutral
-
-
-def get_wire_change_metrics(gate_name: str, metric_handler: GateMetricHandler) -> tuple[str, str, bool]:
-    """
-    Calculate change metrics for a gate (on-wire/compressed sizes).
-
-    Returns:
-        Tuple of (change_str, limit_bounds_str, is_neutral) for display in PR comment.
-        - change_str: e.g., "neutral", "-58.7 KiB (0.29% reduction)", "+98.3 KiB (1.35% increase)"
-        - limit_bounds_str: e.g., "**707.163** MiB" for neutral, "707.000 → **707.163** → 707.240" for changes
-        - is_neutral: True if the change is below the threshold (< 2 KiB)
-    """
-    gate_metrics = metric_handler.metrics.get(gate_name, {})
-
-    current_wire = gate_metrics.get("current_on_wire_size")
-    max_wire = gate_metrics.get("max_on_wire_size")
-    relative_wire = gate_metrics.get("relative_on_wire_size")
-
-    # If we don't have the required metrics, return N/A
-    if current_wire is None or max_wire is None:
-        return "N/A", "N/A", False
-
-    # Calculate baseline (ancestor size) from current - relative
-    if relative_wire is not None:
-        baseline_wire = current_wire - relative_wire
-    else:
-        baseline_wire = None
-
-    # Convert to MiB for display
-    current_mib = current_wire / (1024 * 1024)
-    max_mib = max_wire / (1024 * 1024)
-    baseline_mib = baseline_wire / (1024 * 1024) if baseline_wire is not None else None
-
-    # Determine if change is neutral (below threshold)
-    is_neutral = relative_wire is not None and abs(relative_wire) < NEUTRAL_THRESHOLD_BYTES
-
-    # Build limit bounds string based on whether change is neutral
-    if is_neutral:
-        # For neutral changes, just show the current size (bolded)
-        limit_bounds_str = f"**{current_mib:.3f}** MiB"
-    elif baseline_mib is not None:
-        # For meaningful changes, show: baseline → current (bold) → limit
-        limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
-    else:
-        limit_bounds_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
-
-    # Build change string with delta and percentage
-    if baseline_wire is None or relative_wire is None:
-        change_str = "N/A"
-    elif is_neutral:
-        change_str = "neutral"
-    else:
-        # Format the delta in human-readable units
-        delta_str = byte_to_string(relative_wire)
-
-        if baseline_wire > 0:
-            # Calculate percentage change relative to baseline
-            pct_change = abs(relative_wire / baseline_wire) * 100
-
-            if relative_wire > 0:
-                change_str = f"+{delta_str} ({pct_change:.2f}% increase)"
-            else:
-                change_str = f"{delta_str} ({pct_change:.2f}% reduction)"
-        else:
-            # Baseline is 0, can't calculate percentage
-            if relative_wire > 0:
+            if relative_size > 0:
                 change_str = f"+{delta_str} (new)"
             else:
                 change_str = f"{delta_str} (reduction)"
@@ -309,10 +250,10 @@ def display_pr_comment(
         gate_name = gate['name'].replace("static_quality_gate_", "")
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
-        change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler)
+        change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
 
         # Get change metrics for on-wire
-        wire_change_str, wire_limit_bounds, _ = get_wire_change_metrics(gate['name'], metric_handler)
+        wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate['name'], metric_handler, metric_type="wire")
 
         if gate["error_type"] is None:
             if is_neutral:
