@@ -58,3 +58,17 @@ func TestSetAddSample(t *testing.T) {
 	_, err = set.flush(80)
 	assert.NotNil(t, err)
 }
+
+// BenchmarkSetFlushCycles tests performance across multiple flush cycles
+func BenchmarkSetFlushCycles(b *testing.B) {
+	set := NewSet()
+	samples := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for _, v := range samples {
+			set.addSample(&MetricSample{RawValue: v}, 50)
+		}
+		set.flush(60)
+	}
+}
