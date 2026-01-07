@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+ 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // const maxUDPFrameLen = 9216
@@ -27,6 +29,7 @@ func darwinMaxUDPFrameLen() int {
 			return v
 		}
 	}
+	log.Warnf("darwinMaxUDPFrameLen: unable to determine UDP max datagram via sysctl; falling back to %d", 9216)
 	return 9216
 }
 
