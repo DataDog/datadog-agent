@@ -1332,9 +1332,15 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("integration.enabled", true)
 
+	// Infrastructure mode
+	// The infrastructure mode is used to determine the features that are available to the agent.
+	// The possible values are: full, basic, end_user_device.
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("integration.allowed_checks.basic", []string{
+	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+	config.BindEnvAndSetDefault("integration.basic.allowed", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
@@ -1359,6 +1365,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
+	// integration.basic.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
+	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
 	// Infrastructure mode - exclusive checks
 	// When infrastructure_mode is set to end_user_device, some checks are only allowed to run in this mode and not in the other modes.
@@ -1366,19 +1376,9 @@ func agent(config pkgconfigmodel.Setup) {
 		"wlan",
 	})
 
-	// Infrastructure mode
-	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device.
-	config.BindEnvAndSetDefault("infrastructure_mode", "full")
-
-	// Infrastructure mode - additional checks
-	// When infrastructure_mode is set some mode only allow a limited set of checks to run.
-	// This setting allows customers to add additional checks to the allowlist beyond the default set.
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
 	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
-
-	// Infrastructure mode - excluded checks
-	// This setting allows customers to exclude checks from the allowlist.
-	config.BindEnvAndSetDefault("excluded_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -2809,6 +2809,14 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
+
+	// Apply legacy alias: copy values from legacy key to mode-specific key
+	// Legacy `allowed_additional_checks` -> `integration.<mode>.additional`
+	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
+		modeAdditionalKey := "integration." + infraMode + ".additional"
+		combined := append(config.GetStringSlice(modeAdditionalKey), legacyAdditional...)
+		config.Set(modeAdditionalKey, combined, pkgconfigmodel.SourceAgentRuntime)
+	}
 
 	if infraMode == "end_user_device" {
 		// Enable features for end_user_device mode

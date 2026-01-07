@@ -15,8 +15,17 @@ import (
 // IsCheckAllowed returns true if the check is allowed.
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list or starting with "custom_" are permitted.
+// Note: Legacy keys (excluded_checks, allowed_additional_checks) are aliased to mode-specific
+// keys in config.go via applyInfrastructureModeOverrides.
 func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
-	if !cfg.GetBool("integration.enabled") || slices.Contains(cfg.GetStringSlice("excluded_checks"), checkName) {
+	if !cfg.GetBool("integration.enabled") {
+		return false
+	}
+
+	infraMode := cfg.GetString("infrastructure_mode")
+
+	// Check excluded list for the current mode
+	if slices.Contains(cfg.GetStringSlice("integration."+infraMode+".excluded"), checkName) {
 		return false
 	}
 
@@ -25,11 +34,11 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 		return true
 	}
 
-	infraMode := cfg.GetString("infrastructure_mode")
-	// if allowed checks is empty, all checks are allowed
-	if allowedChecks := cfg.GetStringSlice("integration.allowed_checks." + infraMode); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
+	// If allowed checks is empty, all checks are allowed
+	if allowedChecks := cfg.GetStringSlice("integration." + infraMode + ".allowed"); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
 		return true
 	}
 
-	return slices.Contains(cfg.GetStringSlice("allowed_additional_checks"), checkName) || slices.Contains(cfg.GetStringSlice("integration.infrastructure_mode_exclusive_checks."+infraMode), checkName)
+	// Check additional list for the current mode
+	return slices.Contains(cfg.GetStringSlice("integration."+infraMode+".additional"), checkName) || slices.Contains(cfg.GetStringSlice("integration.infrastructure_mode_exclusive_checks."+infraMode), checkName)
 }
