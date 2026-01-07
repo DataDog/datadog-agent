@@ -35,17 +35,8 @@ cc_library(
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
-        "-O2",
-    ] + select({
-        "@platforms//os:windows": [
-            "/O2",
-            "/wd4232",  # nonstandard extension used
-            "/wd4244",  # possible loss of data
-            "/wd4267",  # possible loss of data
-            "/wd4996",  # deprecated functions
-        ],
-        "//conditions:default": ["-O3"],
-    }),
+        "-O3",
+    ],
     linkstatic = True,
     visibility = ["//visibility:public"],
 )
