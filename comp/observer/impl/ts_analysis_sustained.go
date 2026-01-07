@@ -83,6 +83,10 @@ func (s *SustainedElevationDetector) Analyze(series observer.Series) observer.Ti
 				Title:       fmt.Sprintf("Sustained elevation: %s", series.Name),
 				Description: fmt.Sprintf("%s elevated: recent avg %.2f vs baseline %.2f (>%.2f stddev)", series.Name, recentMean, baselineMean, threshold),
 				Tags:        series.Tags,
+				TimeRange: observer.TimeRange{
+					Start: series.Points[0].Timestamp,
+					End:   series.Points[len(series.Points)-1].Timestamp,
+				},
 			}},
 		}
 	}

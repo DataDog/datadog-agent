@@ -179,18 +179,31 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 	return true
 }
 
-// collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources.
+// collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources,
+// deduped by source - keeping only the most recent anomaly per source (it has the most complete data).
 func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.AnomalyOutput {
-	var matchingAnomalies []observer.AnomalyOutput
+	// Map from source to most recent anomaly for that source
+	bySource := make(map[string]observer.AnomalyOutput)
+
 	for _, entry := range c.buffer {
 		for _, src := range pattern.requiredSources {
 			if entry.anomaly.Source == src {
-				matchingAnomalies = append(matchingAnomalies, entry.anomaly)
+				existing, exists := bySource[src]
+				// Keep the one with the later End time (more recent/complete data)
+				if !exists || entry.anomaly.TimeRange.End > existing.TimeRange.End {
+					bySource[src] = entry.anomaly
+				}
 				break
 			}
 		}
 	}
-	return matchingAnomalies
+
+	// Convert map to slice
+	result := make([]observer.AnomalyOutput, 0, len(bySource))
+	for _, anomaly := range bySource {
+		result = append(result, anomaly)
+	}
+	return result
 }
 
 // buildReport creates a ReportOutput for a matched pattern.

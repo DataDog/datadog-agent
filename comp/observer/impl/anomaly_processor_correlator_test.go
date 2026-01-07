@@ -325,18 +325,21 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	}
 	correlator := NewCorrelator(config)
 
-	// Add initial anomalies
+	// Add initial anomalies with TimeRange
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "first retransmits anomaly",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "first lock contention anomaly",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Description: "first connection errors anomaly",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
 	})
 
 	correlator.Flush()
@@ -344,18 +347,68 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	require.Len(t, activeCorrs, 1)
 	require.Len(t, activeCorrs[0].Anomalies, 3)
 
-	// Advance time slightly and add another anomaly for one of the signals
+	// Advance time slightly and add another anomaly for one of the signals with later TimeRange
 	currentTime = baseTime.Add(5 * time.Second)
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "second retransmits anomaly",
+		TimeRange:   observer.TimeRange{Start: 150, End: 250}, // later end time
 	})
 
 	correlator.Flush()
 	activeCorrs = correlator.ActiveCorrelations()
 	require.Len(t, activeCorrs, 1)
-	// Should now have 4 anomalies (3 original + 1 new)
-	assert.Len(t, activeCorrs[0].Anomalies, 4, "should include all matching anomalies from buffer")
+	// Should still have 3 anomalies (deduped by source, keeping most recent)
+	assert.Len(t, activeCorrs[0].Anomalies, 3, "should dedupe anomalies by source")
+}
+
+func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
+	correlator := NewCorrelator(DefaultCorrelatorConfig())
+
+	// Add multiple anomalies for the same source with different TimeRanges
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "oldest retransmits",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "newest retransmits", // should be kept
+		TimeRange:   observer.TimeRange{Start: 150, End: 300},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "network.retransmits:avg",
+		Description: "middle retransmits",
+		TimeRange:   observer.TimeRange{Start: 120, End: 250},
+	})
+
+	// Add other required signals
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "ebpf.lock_contention_ns:avg",
+		Description: "lock contention",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:      "connection.errors:count",
+		Description: "connection errors",
+		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+	})
+
+	correlator.Flush()
+	activeCorrs := correlator.ActiveCorrelations()
+	require.Len(t, activeCorrs, 1)
+
+	// Should have exactly 3 anomalies (one per source)
+	anomalies := activeCorrs[0].Anomalies
+	assert.Len(t, anomalies, 3, "should have one anomaly per source")
+
+	// Find the network.retransmits anomaly and verify it's the newest one
+	for _, a := range anomalies {
+		if a.Source == "network.retransmits:avg" {
+			assert.Equal(t, "newest retransmits", a.Description, "should keep anomaly with latest TimeRange.End")
+			assert.Equal(t, int64(300), a.TimeRange.End, "should have latest end time")
+		}
+	}
 }
 
 func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
