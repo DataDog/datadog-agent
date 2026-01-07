@@ -35,7 +35,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 2 * time.Second
+	redemptionTime                       = 5 * time.Second
 	// mounts LRU limit: 100000 mounts
 	mountsLimit = 100000
 )
