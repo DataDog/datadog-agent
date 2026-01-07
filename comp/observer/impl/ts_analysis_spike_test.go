@@ -106,3 +106,23 @@ func TestSpikeDetector_ZeroAverage(t *testing.T) {
 	result := d.Analyze(series)
 	assert.Empty(t, result.Anomalies)
 }
+
+func TestSpikeDetector_TimeRangeIsSet(t *testing.T) {
+	d := &SpikeDetector{}
+
+	series := observer.Series{
+		Namespace: "test",
+		Name:      "my.metric",
+		Points: []observer.Point{
+			{Timestamp: 1000, Value: 10},
+			{Timestamp: 2000, Value: 10},
+			{Timestamp: 3000, Value: 10},
+			{Timestamp: 4000, Value: 50}, // spike
+		},
+	}
+
+	result := d.Analyze(series)
+	assert.Len(t, result.Anomalies, 1)
+	assert.Equal(t, int64(1000), result.Anomalies[0].TimeRange.Start, "TimeRange.Start should be first timestamp")
+	assert.Equal(t, int64(4000), result.Anomalies[0].TimeRange.End, "TimeRange.End should be last timestamp")
+}

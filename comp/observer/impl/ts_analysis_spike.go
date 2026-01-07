@@ -43,6 +43,10 @@ func (s *SpikeDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 				Title:       "Spike detected",
 				Description: fmt.Sprintf("%s/%s spiked to %.2f (avg: %.2f)", series.Namespace, series.Name, latest, avg),
 				Tags:        series.Tags,
+				TimeRange: observer.TimeRange{
+					Start: series.Points[0].Timestamp,
+					End:   series.Points[len(series.Points)-1].Timestamp,
+				},
 			}},
 		}
 	}
