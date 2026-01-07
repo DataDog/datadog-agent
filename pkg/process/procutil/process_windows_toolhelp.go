@@ -241,9 +241,14 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err er
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.ProcessID, err)
 	}
-	cp.executablePath = windows.UTF16ToString(pe32.ExeFile[:])
+	imagePath, err := winutil.GetImagePathForProcess(cp.procHandle)
+	if err != nil {
+		log.Debugf("Error retrieving exe path for pid %v %v", pe32.ProcessID, err)
+	} else {
+		cp.comm = getFileDescriptionCached(imagePath)
+	}
+	cp.executablePath = winutil.ConvertWindowsString16(pe32.ExeFile[:])
 	cp.commandLine = cp.executablePath
-	cp.comm = getFileDescriptionCached(cp.executablePath)
 	// we cannot read the command line if the process is protected
 	if !isProtected {
 		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)

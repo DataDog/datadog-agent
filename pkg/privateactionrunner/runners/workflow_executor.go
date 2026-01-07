@@ -111,6 +111,10 @@ func (l *Loop) handleTask(
 	task *types.Task,
 	credential *privateconnection.PrivateCredentials,
 ) {
+	logger := log.FromContext(ctx).With(
+		log.String(observability.TaskIDTagName, task.Data.ID),
+		log.String(observability.ActionFqnTagName, task.GetFQN()),
+	)
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
@@ -118,6 +122,7 @@ func (l *Loop) handleTask(
 	if err == nil {
 		l.publishSuccess(ctx, task, output)
 	} else {
+		logger.Warn("task execution failed", log.ErrorField(err))
 		l.publishFailure(ctx, task, err)
 	}
 }
