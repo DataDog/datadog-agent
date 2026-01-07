@@ -23,8 +23,10 @@ license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
 build do
+  sh_lib = if linux_target? then "libffi.so" else "libffi.dylib" end
+
   command_on_repo_root "bazelisk run -- @libffi//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libffi.pc" \
-    " #{install_dir}/embedded/lib/libffi.so"
+    " #{install_dir}/embedded/lib/#{sh_lib}"
 end
