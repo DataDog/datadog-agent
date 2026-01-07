@@ -322,7 +322,7 @@ http_archive(
     strip_prefix = "xmlsec1-1.3.7",
     files = {
         "BUILD.bazel": "//deps:xmlsec/xmlsec.BUILD.bazel",
-        "config-linux-x86_64.h": "//deps:dbus/config-linux-x86_64.h",
-        "config-linux-arm64.h": "//deps:dbus/config-linux-arm64.h",
+        "config-linux-x86_64.h": "//deps:xmlsec/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:xmlsec/config-linux-arm64.h",
     },
 )
