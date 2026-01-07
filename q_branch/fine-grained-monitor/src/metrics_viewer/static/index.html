@@ -420,6 +420,119 @@
             opacity: 0.9;
         }
 
+        /* REQ-MV-021: Panel cards */
+        .panel-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            padding: 10px;
+        }
+
+        .panel-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .panel-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--bg-accent);
+            color: var(--text-inverse);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .panel-remove {
+            padding: 0 4px;
+            font-size: 16px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .panel-remove:hover {
+            color: var(--text-primary);
+        }
+
+        .panel-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .panel-field-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .panel-field-row label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            min-width: 50px;
+        }
+
+        .panel-metric-value,
+        .panel-study-value {
+            flex: 1;
+            padding: 4px 6px;
+            border-radius: 3px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .panel-metric-value.editable,
+        .panel-study-value.editable {
+            cursor: pointer;
+        }
+
+        .panel-metric-value.editable:hover,
+        .panel-study-value.editable:hover {
+            background: var(--bg-hover);
+            border: 1px solid var(--border-secondary);
+            padding: 3px 5px;
+        }
+
+        .study-clear {
+            padding: 0 4px;
+            font-size: 14px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .study-clear:hover {
+            color: var(--text-primary);
+        }
+
+        .add-panel-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 4px;
+            border-radius: 4px;
+            background: var(--bg-accent);
+            color: var(--text-inverse);
+            border: none;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .add-panel-btn:hover {
+            opacity: 0.9;
+        }
+
         /* REQ-MV-020: Multi-panel container */
         .panels-container {
             flex: 1;
@@ -815,17 +928,10 @@
                 </div>
             </div>
             <div class="sidebar-content">
-                <!-- REQ-MV-020: Panel tabs -->
+                <!-- REQ-MV-021: Panel cards -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Panels</div>
-                    <div id="panelTabs"></div>
-                </div>
-
-                <!-- REQ-MV-002: Metric selection with fuzzy search -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Metrics</div>
-                    <input type="text" id="metricSearch" class="search-input" placeholder="Search metrics...">
-                    <div class="metric-list" id="metricList"></div>
+                    <div id="panelCards"></div>
                 </div>
 
                 <!-- REQ-MV-003: Container search and selection -->
@@ -836,22 +942,6 @@
                     <div class="action-buttons">
                         <button class="btn-secondary btn-sm" data-action="clear">Clear All</button>
                         <button class="btn-warning btn-sm" data-action="reset">Reset Zoom</button>
-                    </div>
-                </div>
-
-                <!-- REQ-MV-006, REQ-MV-007, REQ-MV-017, REQ-MV-018: Studies section -->
-                <div class="sidebar-section" id="studiesSection">
-                    <div class="sidebar-section-title">Studies</div>
-                    <div id="studyTypeSelector" style="margin-bottom: 8px;">
-                        <select id="studyTypeSelect" class="search-input" style="margin-bottom: 0;">
-                            <option value="periodicity">Periodicity (patterns)</option>
-                            <option value="changepoint">Changepoint (shifts)</option>
-                        </select>
-                    </div>
-                    <div id="studiesContent">
-                        <div style="color: #888; font-size: 12px;">
-                            Click the study icon on a container to analyze
-                        </div>
                     </div>
                 </div>
             </div>

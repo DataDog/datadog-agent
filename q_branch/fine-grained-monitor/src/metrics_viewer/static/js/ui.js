@@ -171,43 +171,7 @@ export function setLoading(isLoading, message = 'Loading data...') {
 // ============================================================
 
 export const Components = {
-    MetricList(state) {
-        if (state.metrics.length === 0) {
-            return `
-                <div style="padding: 16px; text-align: center;">
-                    <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
-                    <div style="color: #666; font-size: 13px; font-weight: 500;">Waiting for data...</div>
-                    <div style="color: #888; font-size: 11px; margin-top: 4px;">
-                        Collector is writing metrics.<br>
-                        Page will refresh automatically.
-                    </div>
-                </div>
-            `;
-        }
-
-        let filtered = state.metrics;
-        if (state.metricSearchQuery?.trim()) {
-            const query = state.metricSearchQuery.toLowerCase();
-            filtered = state.metrics.filter(m => m.name.toLowerCase().includes(query));
-        }
-
-        if (filtered.length === 0) {
-            return '<div style="padding: 8px; color: #888; font-size: 12px;">No metrics match search</div>';
-        }
-
-        // Get first panel's metric for selection highlight
-        const selectedMetric = state.panels[0]?.metric;
-
-        return filtered.map(m => {
-            const isSelected = m.name === selectedMetric;
-            const selectedClass = isSelected ? 'selected' : '';
-            return `
-                <div class="metric-item ${selectedClass}" data-metric="${escapeAttr(m.name)}">
-                    <span class="metric-name">${escapeHtml(m.name)}</span>
-                </div>
-            `;
-        }).join('');
-    },
+    // MetricList: Removed - metrics now selected via inline autocomplete in panel cards (REQ-MV-022, REQ-MV-023)
 
     ContainerList(state) {
         if (state.containers.length === 0) {
@@ -228,14 +192,6 @@ export const Components = {
             const isStale = lastSeenMs > 0 && (now - lastSeenMs) > ONE_HOUR_MS;
             const staleStyle = isStale ? 'opacity: 0.6;' : '';
 
-            // Check if any panel has a study for this container
-            const hasStudy = state.panels.some(p =>
-                p.studies.some(s => s.containerId === containerId)
-            );
-            const studyBtnStyle = hasStudy
-                ? 'background: #007bff; color: white; opacity: 1;'
-                : '';
-
             return `
                 <label class="container-item ${selectedClass}" style="${staleStyle}">
                     <input type="checkbox"
@@ -247,209 +203,63 @@ export const Components = {
                         ${escapeHtml(displayName)}
                         <span style="color: #888; font-size: 0.85em; margin-left: 4px;">(${containerId.substring(0, 8)})</span>
                     </span>
-                    <button class="study-btn"
-                            style="${studyBtnStyle}"
-                            data-study-btn="${escapeAttr(containerId)}"
-                            title="Run Study">📊</button>
                 </label>
             `;
         }).join('');
     },
 
-    // REQ-MV-020: Panel tabs in sidebar
-    PanelTabs(state) {
+    // PanelTabs: Removed - replaced by PanelCards component (REQ-MV-021)
+
+    // REQ-MV-021: Panel cards for sidebar
+    PanelCards(state) {
         const { panels, maxPanels } = state;
         const canAdd = panels.length < maxPanels;
         const canRemove = panels.length > 1;
 
-        const tabs = panels.map((panel, i) => {
+        const cards = panels.map((panel, i) => {
             const metric = panel.metric || 'No metric';
-            const shortMetric = metric.length > 20 ? metric.substring(0, 17) + '...' : metric;
+            const study = panel.study || 'none';
+            const studyClearBtn = panel.study
+                ? `<button class="study-clear" data-clear-study="${panel.id}" title="Clear study">&times;</button>`
+                : '';
+
             return `
-                <div class="panel-tab" data-panel-id="${panel.id}" title="${escapeAttr(metric)}">
-                    <span class="panel-tab-number">${i + 1}</span>
-                    <span class="panel-tab-metric">${escapeHtml(shortMetric)}</span>
-                    ${canRemove ? `<button class="panel-tab-remove" data-remove-panel="${panel.id}" title="Remove panel">&times;</button>` : ''}
+                <div class="panel-card" data-panel-id="${panel.id}">
+                    <div class="panel-card-header">
+                        <span class="panel-number">${i + 1}</span>
+                        ${canRemove ? `<button class="panel-remove" data-remove-panel="${panel.id}" title="Remove panel">&times;</button>` : ''}
+                    </div>
+                    <div class="panel-card-body">
+                        <div class="panel-field-row">
+                            <label>Metric:</label>
+                            <span class="panel-metric-value editable" data-edit-metric="${panel.id}" title="Click to edit">
+                                ${escapeHtml(metric)}
+                            </span>
+                        </div>
+                        <div class="panel-field-row">
+                            <label>Study:</label>
+                            <span class="panel-study-value editable" data-edit-study="${panel.id}" title="Click to edit">
+                                ${escapeHtml(study)}
+                            </span>
+                            ${studyClearBtn}
+                        </div>
+                    </div>
                 </div>
             `;
         }).join('');
 
         const addButton = canAdd
-            ? `<button class="panel-tab-add" data-add-panel title="Add panel">+</button>`
+            ? `<button class="add-panel-btn" data-add-panel title="Add panel">+ Add Panel</button>`
             : '';
 
         return `
-            <div class="panel-tabs-container">
-                ${tabs}
-                ${addButton}
-            </div>
+            ${cards}
+            ${addButton}
         `;
     },
 
-    StudyPanel(state) {
-        // Find active studies across all panels
-        const activeStudies = [];
-        for (const panel of state.panels) {
-            for (const study of panel.studies) {
-                if (!study.loading) {
-                    activeStudies.push({ ...study, panelId: panel.id, metric: panel.metric });
-                }
-            }
-        }
-
-        if (activeStudies.length === 0) {
-            return `
-                <div style="color: #888; font-size: 12px;">
-                    Click the study icon on a container to analyze
-                </div>
-            `;
-        }
-
-        return activeStudies.map(study => {
-            const container = state.containers.find(c => c.short_id === study.containerId);
-            const displayName = getContainerDisplayName(container, study.containerId);
-            const key = DataStore.studyKey(study.metric, study.containerId, study.type);
-            const result = DataStore.getStudyResult(key);
-
-            if (study.type === 'changepoint') {
-                return Components.ChangepointPanel(state, study, displayName, result);
-            } else {
-                return Components.PeriodicityPanel(state, study, displayName, result);
-            }
-        }).join('');
-    },
-
-    PeriodicityPanel(state, study, displayName, result) {
-        const windowCount = result?.windows?.length || 0;
-
-        let dominantPeriod = 'N/A';
-        let avgConfidence = 'N/A';
-        let groupedSummaryHtml = '';
-
-        if (result && result.windows && result.windows.length > 0) {
-            const periodGroups = {};
-            result.windows.forEach(w => {
-                const p = Math.round(w.metrics.period);
-                if (!periodGroups[p]) {
-                    periodGroups[p] = [];
-                }
-                periodGroups[p].push(w);
-            });
-
-            const sortedPeriods = Object.keys(periodGroups)
-                .map(p => parseInt(p))
-                .sort((a, b) => periodGroups[b].length - periodGroups[a].length);
-            dominantPeriod = sortedPeriods[0] + 's';
-
-            const totalScore = result.windows.reduce((sum, w) => sum + (w.metrics.score || 0), 0);
-            avgConfidence = Math.round((totalScore / result.windows.length) * 100) + '%';
-
-            const formatTime = (ms) => {
-                const d = new Date(ms);
-                return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            };
-
-            groupedSummaryHtml = sortedPeriods.map(period => {
-                const windows = periodGroups[period];
-                windows.sort((a, b) => a.start_time_ms - b.start_time_ms);
-
-                const windowLines = windows.map(w => {
-                    const startTime = formatTime(w.start_time_ms);
-                    const endTime = formatTime(w.end_time_ms);
-                    const confidence = Math.round((w.metrics.score || 0) * 100);
-                    const amplitude = (w.metrics.amplitude || 0).toFixed(1);
-                    return `<div class="period-window-item"
-                                data-window-start="${w.start_time_ms}"
-                                data-window-end="${w.end_time_ms}"
-                                title="Click to zoom">${startTime} - ${endTime} (${confidence}%, amp: ${amplitude})</div>`;
-                }).join('');
-
-                return `
-                    <div class="period-group">
-                        <div class="period-group-header">${period}s period (${windows.length} windows)</div>
-                        <div class="period-group-windows">${windowLines}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        const summarySection = groupedSummaryHtml ? `
-            <div class="study-panel-summary">
-                <div class="study-panel-summary-title">Detected Patterns</div>
-                ${groupedSummaryHtml}
-            </div>
-        ` : '';
-
-        return `
-            <div class="study-panel" data-panel-id="${study.panelId}" data-study-type="${study.type}" data-container-id="${study.containerId}">
-                <div class="study-panel-header">
-                    <span>Periodicity Study</span>
-                    <button class="study-panel-close" data-close-study title="Remove study">&times;</button>
-                </div>
-                <div class="study-panel-container" title="${escapeAttr(study.containerId)}">${escapeHtml(displayName)}</div>
-                <div class="study-panel-stats">
-                    <div><strong>${windowCount}</strong> periodic windows</div>
-                    <div>Dominant period: <strong>${dominantPeriod}</strong></div>
-                    <div>Avg confidence: <strong>${avgConfidence}</strong></div>
-                </div>
-                ${summarySection}
-            </div>
-        `;
-    },
-
-    ChangepointPanel(state, study, displayName, result) {
-        const changepoints = result?.windows || [];
-        const count = changepoints.length;
-
-        let largestMagnitude = 0;
-        let summaryHtml = '';
-
-        if (count > 0) {
-            largestMagnitude = changepoints.reduce((max, w) =>
-                Math.max(max, w.metrics?.magnitude || 0), 0);
-
-            const formatTime = (ms) => {
-                const d = new Date(ms);
-                return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            };
-
-            const changepointLines = changepoints
-                .sort((a, b) => a.start_time_ms - b.start_time_ms)
-                .map(w => {
-                    const time = formatTime(w.start_time_ms);
-                    const direction = (w.metrics?.direction || 0) > 0 ? '+' : '';
-                    const magnitude = (w.metrics?.magnitude || 0).toFixed(1);
-                    const before = (w.metrics?.value_before || 0).toFixed(1);
-                    const after = (w.metrics?.value_after || 0).toFixed(1);
-                    return `<div class="period-window-item"
-                                data-changepoint-time="${w.start_time_ms}"
-                                title="Click to zoom: ${before} → ${after}">${time}: ${direction}${magnitude}</div>`;
-                }).join('');
-
-            summaryHtml = `
-                <div class="study-panel-summary">
-                    <div class="study-panel-summary-title">Detected Changes</div>
-                    <div class="period-group-windows">${changepointLines}</div>
-                </div>
-            `;
-        }
-
-        return `
-            <div class="study-panel" style="background: var(--changepoint-panel-bg); border-color: var(--changepoint-panel-border);"
-                 data-panel-id="${study.panelId}" data-study-type="${study.type}" data-container-id="${study.containerId}">
-                <div class="study-panel-header">
-                    <span>Changepoint Study</span>
-                    <button class="study-panel-close" data-close-study title="Remove study">&times;</button>
-                </div>
-                <div class="study-panel-container" title="${escapeAttr(study.containerId)}">${escapeHtml(displayName)}</div>
-                <div class="study-panel-stats">
-                    <div><strong>${count}</strong> changepoint${count !== 1 ? 's' : ''} detected</div>
-                    <div>Largest change: <strong>${largestMagnitude.toFixed(1)}</strong></div>
-                </div>
-                ${summaryHtml}
-            </div>
-        `;
-    },
+    // Legacy study panel components removed (REQ-MV-030)
+    // Studies now displayed as chart annotations with tooltips
 
     Legend(state, panelId) {
         if (state.selectedContainerIds.length === 0) return '';
@@ -494,6 +304,180 @@ export const Components = {
 };
 
 // ============================================================
+// INLINE AUTOCOMPLETE (REQ-MV-022, REQ-MV-023, REQ-MV-029)
+// ============================================================
+
+let activeAutocomplete = null;
+
+/**
+ * Show inline autocomplete dropdown.
+ * @param {HTMLElement} targetElement - Element to replace with input
+ * @param {Object} options - { items, currentValue, fuzzyMatch, placeholder, onSelect, onCancel }
+ */
+function showInlineAutocomplete(targetElement, options) {
+    // Close any existing autocomplete
+    if (activeAutocomplete) {
+        closeAutocomplete();
+    }
+
+    const { items, currentValue, fuzzyMatch, placeholder, onSelect, onCancel } = options;
+
+    // Create input element
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = '';
+    input.placeholder = placeholder || 'Type to search...';
+    input.className = 'inline-autocomplete-input';
+    input.style.cssText = `
+        width: 100%;
+        padding: 4px 6px;
+        border: 1px solid var(--border-accent);
+        border-radius: 3px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-family: monospace;
+        font-size: 12px;
+        outline: none;
+    `;
+
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'inline-autocomplete-dropdown';
+    dropdown.style.cssText = `
+        position: absolute;
+        z-index: 1000;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-primary);
+        border-radius: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        min-width: 200px;
+    `;
+
+    let filteredItems = items;
+    let selectedIndex = -1;
+
+    function fuzzyMatchFn(query, text) {
+        query = query.toLowerCase();
+        text = text.toLowerCase();
+        let qi = 0;
+        for (let ti = 0; ti < text.length && qi < query.length; ti++) {
+            if (text[ti] === query[qi]) qi++;
+        }
+        return qi === query.length;
+    }
+
+    function updateDropdown() {
+        const query = input.value.trim();
+        filteredItems = query && fuzzyMatch
+            ? items.filter(item => fuzzyMatchFn(query, item))
+            : items;
+
+        dropdown.innerHTML = filteredItems.slice(0, 10).map((item, i) => `
+            <div class="autocomplete-item ${i === selectedIndex ? 'selected' : ''}"
+                 data-index="${i}"
+                 style="padding: 6px 10px; cursor: pointer; ${i === selectedIndex ? 'background: var(--bg-hover);' : ''}">
+                ${escapeHtml(item)}
+            </div>
+        `).join('');
+
+        if (filteredItems.length === 0) {
+            dropdown.innerHTML = '<div style="padding: 6px 10px; color: var(--text-muted);">No matches</div>';
+        }
+    }
+
+    function selectItem(index) {
+        if (index >= 0 && index < filteredItems.length) {
+            onSelect(filteredItems[index]);
+            closeAutocomplete();
+        }
+    }
+
+    function closeAutocomplete() {
+        if (activeAutocomplete) {
+            activeAutocomplete.input?.remove();
+            activeAutocomplete.dropdown?.remove();
+            activeAutocomplete = null;
+        }
+    }
+
+    // Event handlers
+    input.addEventListener('input', () => {
+        selectedIndex = -1;
+        updateDropdown();
+        positionDropdown();
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, filteredItems.length - 1);
+            updateDropdown();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, -1);
+            updateDropdown();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedIndex >= 0) {
+                selectItem(selectedIndex);
+            } else if (filteredItems.length === 1) {
+                selectItem(0);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+            closeAutocomplete();
+        }
+    });
+
+    input.addEventListener('blur', (e) => {
+        // Delay to allow dropdown click to register
+        setTimeout(() => {
+            if (activeAutocomplete) {
+                onCancel();
+                closeAutocomplete();
+            }
+        }, 200);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.autocomplete-item');
+        if (item) {
+            const index = parseInt(item.dataset.index);
+            selectItem(index);
+        }
+    });
+
+    dropdown.addEventListener('mouseenter', (e) => {
+        const item = e.target.closest('.autocomplete-item');
+        if (item) {
+            selectedIndex = parseInt(item.dataset.index);
+            updateDropdown();
+        }
+    });
+
+    function positionDropdown() {
+        const rect = input.getBoundingClientRect();
+        dropdown.style.top = `${rect.bottom + window.scrollY + 2}px`;
+        dropdown.style.left = `${rect.left + window.scrollX}px`;
+        dropdown.style.width = `${Math.max(rect.width, 200)}px`;
+    }
+
+    // Replace target with input
+    targetElement.replaceWith(input);
+    document.body.appendChild(dropdown);
+
+    // Initial render and position
+    updateDropdown();
+    positionDropdown();
+    input.focus();
+
+    activeAutocomplete = { input, dropdown, targetElement };
+}
+
+// ============================================================
 // CHART RENDERER
 // ============================================================
 
@@ -527,18 +511,9 @@ export const ChartRenderer = {
             }
         }
 
-        // Clear and rebuild panels HTML structure
+        // Clear and rebuild panels HTML structure (REQ-MV-023: removed metric dropdown)
         panelsContainer.innerHTML = state.panels.map(panel => `
             <div class="panel" data-panel-id="${panel.id}">
-                <div class="panel-header">
-                    <select class="panel-metric-select" data-panel-id="${panel.id}">
-                        ${state.metrics.map(m => `
-                            <option value="${escapeAttr(m.name)}" ${m.name === panel.metric ? 'selected' : ''}>
-                                ${escapeHtml(m.name)}
-                            </option>
-                        `).join('')}
-                    </select>
-                </div>
                 <div class="panel-chart-area">
                     ${panel.loading ? `
                         <div class="loading-overlay">
@@ -766,9 +741,10 @@ export const ChartRenderer = {
         ChartRenderer.createRangeOverlay(overviewDiv, overviewPlot, allTimestamps);
     },
 
+    // REQ-MV-030: Draw study overlays on chart
     drawStudyOverlay(u, panel) {
         const state = App.getState();
-        if (panel.studies.length === 0) return;
+        if (!panel.study) return;
 
         const ctx = u.ctx;
         const { left, top, width, height } = u.bbox;
@@ -780,17 +756,18 @@ export const ChartRenderer = {
         ctx.rect(left, top, width, height);
         ctx.clip();
 
-        for (const study of panel.studies) {
-            const key = DataStore.studyKey(panel.metric, study.containerId, study.type);
+        // Draw study results for all selected containers
+        for (const containerId of state.selectedContainerIds) {
+            const key = DataStore.studyKey(panel.metric, containerId, panel.study);
             const result = DataStore.getStudyResult(key);
             if (!result?.windows) continue;
 
-            const idx = state.selectedContainerIds.indexOf(study.containerId);
-            const color = COLORS[idx >= 0 ? idx % COLORS.length : 0];
+            const colorIndex = getContainerColorIndex(state, containerId);
+            const color = COLORS[colorIndex >= 0 ? colorIndex % COLORS.length : 0];
 
-            if (study.type === 'changepoint') {
+            if (panel.study === 'changepoint') {
                 ChartRenderer.drawChangepointMarkers(ctx, u, result.windows, color, left, top, plotRight, plotBottom);
-            } else {
+            } else if (panel.study === 'periodicity') {
                 ChartRenderer.drawPeriodicityRegions(ctx, u, result.windows, color, left, top, plotRight, plotBottom);
             }
         }
@@ -1050,32 +1027,16 @@ export const ChartRenderer = {
 // ============================================================
 
 export function render(state, prevState) {
-    // Update metric list
-    const metricList = document.getElementById('metricList');
-    if (metricList) {
-        metricList.innerHTML = Components.MetricList(state);
-        const selectedMetric = metricList.querySelector('.metric-item.selected');
-        if (selectedMetric) {
-            selectedMetric.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-        }
+    // Update panel cards (REQ-MV-021)
+    const panelCardsContainer = document.getElementById('panelCards');
+    if (panelCardsContainer) {
+        panelCardsContainer.innerHTML = Components.PanelCards(state);
     }
 
     // Update container list
     const containerList = document.getElementById('containerList');
     if (containerList) {
         containerList.innerHTML = Components.ContainerList(state);
-    }
-
-    // Update panel tabs
-    const panelTabsContainer = document.getElementById('panelTabs');
-    if (panelTabsContainer) {
-        panelTabsContainer.innerHTML = Components.PanelTabs(state);
-    }
-
-    // Update studies panel
-    const studiesContent = document.getElementById('studiesContent');
-    if (studiesContent) {
-        studiesContent.innerHTML = Components.StudyPanel(state);
     }
 }
 
@@ -1084,27 +1045,7 @@ export function render(state, prevState) {
 // ============================================================
 
 export function setupEventListeners() {
-    // Metric list clicks
-    document.getElementById('metricList')?.addEventListener('click', (e) => {
-        const item = e.target.closest('.metric-item');
-        if (item) {
-            const state = App.getState();
-            const panelId = state.panels[0]?.id;
-            if (panelId) {
-                App.setPanelMetric(panelId, item.dataset.metric);
-            }
-        }
-    });
-
-    // Metric search
-    let metricSearchTimeout;
-    document.getElementById('metricSearch')?.addEventListener('input', (e) => {
-        clearTimeout(metricSearchTimeout);
-        metricSearchTimeout = setTimeout(() => {
-            App.setMetricSearch(e.target.value);
-            render(App.getState());
-        }, 150);
-    });
+    // Legacy metric list/search listeners removed - now using inline autocomplete (REQ-MV-022, REQ-MV-023)
 
     // Container search
     let containerSearchTimeout;
@@ -1122,19 +1063,7 @@ export function setupEventListeners() {
         }
     });
 
-    // Study buttons on containers
-    document.getElementById('containerList')?.addEventListener('click', (e) => {
-        const studyBtn = e.target.closest('[data-study-btn]');
-        if (studyBtn) {
-            e.preventDefault();
-            const state = App.getState();
-            const studyType = document.getElementById('studyTypeSelect')?.value || 'periodicity';
-            const panelId = state.panels[0]?.id;
-            if (panelId) {
-                App.addStudy(panelId, studyType, studyBtn.dataset.studyBtn);
-            }
-        }
-    });
+    // Study buttons: Removed - studies now managed via panel cards (REQ-MV-029)
 
     // Action buttons
     document.querySelector('.action-buttons')?.addEventListener('click', (e) => {
@@ -1151,63 +1080,110 @@ export function setupEventListeners() {
         }
     });
 
-    // Panel tabs
-    document.getElementById('panelTabs')?.addEventListener('click', (e) => {
+    // Panel cards (REQ-MV-021, 022, 023, 029, 030)
+    document.getElementById('panelCards')?.addEventListener('click', (e) => {
+        // Add panel button (REQ-MV-022)
         const addBtn = e.target.closest('[data-add-panel]');
         if (addBtn) {
             const state = App.getState();
-            const lastPanel = state.panels[state.panels.length - 1];
-            App.addPanel(lastPanel?.metric || state.metrics[0]?.name);
+
+            // Create temporary card with autocomplete
+            const panelCardsContainer = document.getElementById('panelCards');
+            if (!panelCardsContainer) return;
+
+            // Create temp span for autocomplete to attach to
+            const tempSpan = document.createElement('span');
+            tempSpan.className = 'panel-metric-value editable';
+            tempSpan.textContent = 'Select metric...';
+            tempSpan.style.cssText = 'padding: 4px 6px; display: inline-block;';
+
+            // Insert before the "+ Add Panel" button
+            addBtn.parentElement.insertBefore(tempSpan, addBtn);
+
+            showInlineAutocomplete(tempSpan, {
+                items: state.metrics.map(m => m.name),
+                currentValue: null,
+                fuzzyMatch: true,
+                placeholder: 'Type to search metrics...',
+                onSelect: (metric) => {
+                    App.addPanel(metric);
+                },
+                onCancel: () => {
+                    // Just re-render to remove temp element
+                    render(App.getState());
+                }
+            });
             return;
         }
 
+        // Remove panel button
         const removeBtn = e.target.closest('[data-remove-panel]');
         if (removeBtn) {
             App.removePanel(parseInt(removeBtn.dataset.removePanel));
             return;
         }
-    });
 
-    // Panel metric select changes
-    document.getElementById('panelsContainer')?.addEventListener('change', (e) => {
-        const select = e.target.closest('.panel-metric-select');
-        if (select) {
-            App.setPanelMetric(parseInt(select.dataset.panelId), select.value);
-        }
-    });
-
-    // Studies panel interactions
-    document.getElementById('studiesContent')?.addEventListener('click', (e) => {
-        const closeBtn = e.target.closest('[data-close-study]');
-        if (closeBtn) {
-            const panel = e.target.closest('.study-panel');
-            if (panel) {
-                App.removeStudy(
-                    parseInt(panel.dataset.panelId),
-                    panel.dataset.studyType,
-                    panel.dataset.containerId
-                );
-            }
+        // Clear study button
+        const clearStudyBtn = e.target.closest('[data-clear-study]');
+        if (clearStudyBtn) {
+            App.removeStudy(parseInt(clearStudyBtn.dataset.clearStudy));
             return;
         }
 
-        // Window click for zoom
-        const windowItem = e.target.closest('.period-window-item');
-        if (windowItem) {
-            const changepointTime = windowItem.dataset.changepointTime;
-            if (changepointTime) {
-                const centerMs = parseFloat(changepointTime);
-                const padding = 30000;
-                zoomToTimeRange(centerMs - padding, centerMs + padding);
-            } else {
-                const startMs = parseFloat(windowItem.dataset.windowStart);
-                const endMs = parseFloat(windowItem.dataset.windowEnd);
-                if (!isNaN(startMs) && !isNaN(endMs)) {
-                    zoomToTimeRange(startMs, endMs);
+        // Edit metric (REQ-MV-023)
+        const editMetric = e.target.closest('[data-edit-metric]');
+        if (editMetric) {
+            const panelId = parseInt(editMetric.dataset.editMetric);
+            const state = App.getState();
+            const panel = state.panels.find(p => p.id === panelId);
+            if (!panel) return;
+
+            showInlineAutocomplete(editMetric, {
+                items: state.metrics.map(m => m.name),
+                currentValue: panel.metric,
+                fuzzyMatch: true,
+                placeholder: 'Type to search metrics...',
+                onSelect: (metric) => {
+                    App.setPanelMetric(panelId, metric);
+                },
+                onCancel: () => {
+                    render(App.getState());
                 }
+            });
+            return;
+        }
+
+        // Edit study (REQ-MV-029)
+        const editStudy = e.target.closest('[data-edit-study]');
+        if (editStudy) {
+            const panelId = parseInt(editStudy.dataset.editStudy);
+            const state = App.getState();
+
+            if (state.selectedContainerIds.length === 0) {
+                alert('Please select containers first');
+                return;
             }
+
+            showInlineAutocomplete(editStudy, {
+                items: ['periodicity', 'changepoint'],
+                currentValue: null,
+                fuzzyMatch: false,
+                placeholder: 'Select study type...',
+                onSelect: (studyType) => {
+                    App.addStudy(panelId, studyType);
+                },
+                onCancel: () => {
+                    render(App.getState());
+                }
+            });
+            return;
         }
     });
+
+    // Legacy event listeners removed:
+    // - Panel tabs: Removed - replaced by panel cards (REQ-MV-021)
+    // - Panel metric select: Removed - now edited via sidebar (REQ-MV-023)
+    // - Studies panel: Removed - now chart annotations (REQ-MV-030)
 
     // Window resize
     window.addEventListener('resize', () => {

@@ -135,17 +135,29 @@ registerHandler(Effects.UPDATE_REFS, (effect, context) => {
             effect.panelId,
             effect.oldMetric,
             effect.containerIds,
-            effect.studies || []
+            [] // No more studies array
         );
+
+        // Remove study refs if panel had a study
+        if (effect.oldStudy) {
+            for (const cid of effect.containerIds) {
+                const key = DataStore.studyKey(effect.oldMetric, cid, effect.oldStudy);
+                if (DataStore.removeRef(key, effect.panelId)) {
+                    keysToEvict.push(key);
+                }
+            }
+        }
     } else if (effect.removeStudy) {
-        // Single study being removed
-        const key = DataStore.studyKey(
-            effect.removeStudy.metric,
-            effect.removeStudy.containerId,
-            effect.removeStudy.studyType
-        );
-        if (DataStore.removeRef(key, effect.panelId)) {
-            keysToEvict.push(key);
+        // Study being removed from panel
+        const { metric, studyType } = effect.removeStudy;
+        const { getState } = context;
+        const state = getState();
+
+        for (const cid of state.selectedContainerIds) {
+            const key = DataStore.studyKey(metric, cid, studyType);
+            if (DataStore.removeRef(key, effect.panelId)) {
+                keysToEvict.push(key);
+            }
         }
     } else {
         // Panel metric change
@@ -156,10 +168,10 @@ registerHandler(Effects.UPDATE_REFS, (effect, context) => {
             effect.containerIds
         );
 
-        // Also remove study refs if studies were cleared
-        if (effect.studies) {
-            for (const study of effect.studies) {
-                const key = DataStore.studyKey(effect.oldMetric, study.containerId, study.type);
+        // Remove study refs if study was cleared on metric change
+        if (effect.oldStudy) {
+            for (const cid of effect.containerIds) {
+                const key = DataStore.studyKey(effect.oldMetric, cid, effect.oldStudy);
                 if (DataStore.removeRef(key, effect.panelId)) {
                     keysToEvict.push(key);
                 }
@@ -223,35 +235,40 @@ registerHandler(Effects.FETCH_TIMESERIES, async (effect, context) => {
 });
 
 /**
- * Fetch study results.
+ * Fetch study results for all containers on a panel.
  */
 registerHandler(Effects.FETCH_STUDY, async (effect, context) => {
-    const { panelId, metric, containerId, studyType } = effect;
+    const { panelId, metric, containerIds, studyType } = effect;
     const { dispatch, Actions } = context;
 
-    const key = DataStore.studyKey(metric, containerId, studyType);
+    console.log('[FETCH_STUDY] Starting:', { panelId, metric, studyType, containerCount: containerIds.length });
 
-    // Check cache first
-    if (!DataStore.hasStudyResult(key)) {
-        try {
-            const result = await Api.fetchStudy(studyType, metric, containerId);
-            if (result) {
-                DataStore.setStudyResult(key, result);
-                DataStore.addRef(key, panelId);
+    // Fetch study for each container
+    const fetchPromises = containerIds.map(async (containerId) => {
+        const key = DataStore.studyKey(metric, containerId, studyType);
+
+        // Check cache first
+        if (!DataStore.hasStudyResult(key)) {
+            try {
+                const result = await Api.fetchStudy(studyType, metric, containerId);
+                if (result) {
+                    DataStore.setStudyResult(key, result);
+                    DataStore.addRef(key, panelId);
+                }
+            } catch (err) {
+                console.error(`Failed to fetch study for ${containerId}:`, err);
             }
-        } catch (err) {
-            console.error('Failed to fetch study:', err);
+        } else {
+            // Already cached, just add ref
+            DataStore.addRef(key, panelId);
         }
-    } else {
-        // Already cached, just add ref
-        DataStore.addRef(key, panelId);
-    }
+    });
+
+    await Promise.all(fetchPromises);
 
     dispatch({
         type: Actions.SET_STUDY_LOADING,
         panelId,
-        studyType,
-        containerId,
         loading: false,
     });
 

@@ -313,12 +313,12 @@ export function toggleContainer(containerId) {
     dispatch({ type: Actions.TOGGLE_CONTAINER, containerId });
 }
 
-export function addStudy(panelId, studyType, containerId) {
-    dispatch({ type: Actions.ADD_STUDY, panelId, studyType, containerId });
+export function addStudy(panelId, studyType) {
+    dispatch({ type: Actions.ADD_STUDY, panelId, studyType });
 }
 
-export function removeStudy(panelId, studyType, containerId) {
-    dispatch({ type: Actions.REMOVE_STUDY, panelId, studyType, containerId });
+export function removeStudy(panelId) {
+    dispatch({ type: Actions.REMOVE_STUDY, panelId });
 }
 
 export function setTimeRange(min, max) {

@@ -85,7 +85,7 @@ export const initialState = {
             id: 1,
             metric: null,       // Set after metrics load
             loading: false,
-            studies: [],        // [{type, containerId, loading}]
+            study: null,        // 'periodicity' | 'changepoint' | null
         }
     ],
     nextPanelId: 2,
@@ -139,7 +139,7 @@ export function reduce(state, action) {
                 id: state.nextPanelId,
                 metric: action.metric,
                 loading: true,
-                studies: [],
+                study: null,
             };
 
             const newState = {
@@ -194,7 +194,7 @@ export function reduce(state, action) {
                         oldMetric: panel.metric,
                         newMetric: null,
                         containerIds: state.selectedContainerIds,
-                        studies: panel.studies,
+                        oldStudy: panel.study,
                         remove: true,
                     },
                     { type: Effects.RENDER_PANELS },
@@ -214,7 +214,7 @@ export function reduce(state, action) {
                 ...panel,
                 metric: action.metric,
                 loading: true,
-                studies: [], // Clear studies on metric change
+                study: null, // Clear study on metric change
             };
 
             const newState = {
@@ -233,7 +233,7 @@ export function reduce(state, action) {
                         oldMetric,
                         newMetric: action.metric,
                         containerIds: state.selectedContainerIds,
-                        studies: panel.studies,
+                        oldStudy: panel.study,
                     },
                     {
                         type: Effects.FETCH_TIMESERIES,
@@ -350,27 +350,19 @@ export function reduce(state, action) {
 
         case Actions.ADD_STUDY: {
             const panel = state.panels.find(p => p.id === action.panelId);
-            if (!panel) {
+            if (!panel || !panel.metric) {
                 return { state, effects: [] };
             }
 
-            // Check if study already exists
-            const exists = panel.studies.some(
-                s => s.type === action.studyType && s.containerId === action.containerId
-            );
-            if (exists) {
+            // Check if same study already active
+            if (panel.study === action.studyType) {
                 return { state, effects: [] };
             }
-
-            const newStudy = {
-                type: action.studyType,
-                containerId: action.containerId,
-                loading: true,
-            };
 
             const updatedPanel = {
                 ...panel,
-                studies: [...panel.studies, newStudy],
+                study: action.studyType,
+                loading: true,
             };
 
             const newState = {
@@ -387,9 +379,10 @@ export function reduce(state, action) {
                         type: Effects.FETCH_STUDY,
                         panelId: panel.id,
                         metric: panel.metric,
-                        containerId: action.containerId,
                         studyType: action.studyType,
+                        containerIds: state.selectedContainerIds,
                     },
+                    { type: Effects.RENDER_PANELS },
                     { type: Effects.RENDER_SIDEBAR },
                 ],
             };
@@ -397,22 +390,14 @@ export function reduce(state, action) {
 
         case Actions.REMOVE_STUDY: {
             const panel = state.panels.find(p => p.id === action.panelId);
-            if (!panel) {
+            if (!panel || !panel.study) {
                 return { state, effects: [] };
             }
 
-            const study = panel.studies.find(
-                s => s.type === action.studyType && s.containerId === action.containerId
-            );
-            if (!study) {
-                return { state, effects: [] };
-            }
-
+            const oldStudy = panel.study;
             const updatedPanel = {
                 ...panel,
-                studies: panel.studies.filter(
-                    s => !(s.type === action.studyType && s.containerId === action.containerId)
-                ),
+                study: null,
             };
 
             const newState = {
@@ -430,8 +415,7 @@ export function reduce(state, action) {
                         panelId: panel.id,
                         removeStudy: {
                             metric: panel.metric,
-                            containerId: action.containerId,
-                            studyType: action.studyType,
+                            studyType: oldStudy,
                         },
                     },
                     { type: Effects.RENDER_PANELS },
@@ -443,18 +427,9 @@ export function reduce(state, action) {
         case Actions.SET_STUDY_LOADING: {
             const newState = {
                 ...state,
-                panels: state.panels.map(p => {
-                    if (p.id !== action.panelId) return p;
-                    return {
-                        ...p,
-                        studies: p.studies.map(s => {
-                            if (s.type !== action.studyType || s.containerId !== action.containerId) {
-                                return s;
-                            }
-                            return { ...s, loading: action.loading };
-                        }),
-                    };
-                }),
+                panels: state.panels.map(p =>
+                    p.id === action.panelId ? { ...p, loading: action.loading } : p
+                ),
             };
             return { state: newState, effects: [] };
         }
@@ -577,12 +552,12 @@ export function getActiveMetrics(state) {
 }
 
 /**
- * Get all studies across all panels.
+ * Get all active studies across all panels.
  */
 export function getAllStudies(state) {
-    return state.panels.flatMap(p =>
-        p.studies.map(s => ({ ...s, panelId: p.id, metric: p.metric }))
-    );
+    return state.panels
+        .filter(p => p.study !== null)
+        .map(p => ({ studyType: p.study, panelId: p.id, metric: p.metric }));
 }
 
 /**
