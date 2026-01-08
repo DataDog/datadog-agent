@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testChannel",
+      "method": "main.testAtomicAdd",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testChannel",
+            "function": "main.testAtomicAdd",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go",
-            "lineNumber": 30
+            "lineNumber": 23
           },
           {
             "function": "main.executeOther",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go",
-            "lineNumber": 53
+            "lineNumber": 54
           },
           {
             "function": "main.main",
@@ -42,30 +42,33 @@
           }
         ],
         "probe": {
-          "id": "testChannel",
+          "id": "testAtomicAdd",
           "location": {
-            "method": "main.testChannel"
+            "method": "main.testAtomicAdd"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "c": {
-                "type": "chan bool",
-                "notCapturedReason": "unimplemented"
+              "x": {
+                "type": "uint64",
+                "value": "1"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "uint64",
+                "value": "1"
               }
             }
           }
         }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      }
     },
     "timestamp": "[ts]",
-    "message": "{chan}"
+    "duration": "[duration]",
+    "message": "1"
   }
 ]
