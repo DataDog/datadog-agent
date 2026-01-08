@@ -32,7 +32,7 @@ _replace_prefix = rule(
         "_patchelf": attr.label(
             cfg = "exec",
             executable = True,
-            default = Label("@patchelf")
+            default = Label("@patchelf"),
         ),
     },
 )
@@ -45,5 +45,5 @@ def rewrite_rpath(name, input, prefix):
         os = select({
             "@platforms//os:linux": "linux",
             "@platforms//os:macos": "macos",
-        })
+        }),
     )
