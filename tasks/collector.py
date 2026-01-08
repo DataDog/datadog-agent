@@ -55,18 +55,18 @@ COMPONENTS_TO_STRIP = {
 
 # TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
 BASE_URL = (
-    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.143.0/"
+    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
 )
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
-        "x86_64": "ocb_0.143.0_linux_amd64",
-        "arm64": "ocb_0.143.0_linux_arm64",
-        "aarch64": "ocb_0.143.0_linux_arm64",
+        "x86_64": "ocb_0.142.0_linux_amd64",
+        "arm64": "ocb_0.142.0_linux_arm64",
+        "aarch64": "ocb_0.142.0_linux_arm64",
     },
     "Darwin": {
-        "x86_64": "ocb_0.143.0_darwin_amd64",
-        "arm64": "ocb_0.143.0_darwin_arm64",
+        "x86_64": "ocb_0.142.0_darwin_amd64",
+        "arm64": "ocb_0.142.0_darwin_arm64",
     },
 }
 
