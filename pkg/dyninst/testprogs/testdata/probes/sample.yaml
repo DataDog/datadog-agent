@@ -1393,11 +1393,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStructWithMap
-    template: "{s}"
+    template: "{s} {@duration}"
     segments:
       - json:
           ref: "s"
         dsl: "s"
+      - str: " "
+      - json:
+          ref: "@duration"
+        dsl: "@duration"
     captureSnapshot: true
   - id: testArrayOfMaps
     type: LOG_PROBE

@@ -273,15 +273,15 @@ func TestEventIteratorRegister(t *testing.T) {
 	}
 
 	t.Run("std", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
-		})
+		}, "test_register_1")
 	})
 
 	t.Run("pid1", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
@@ -289,7 +289,7 @@ func TestEventIteratorRegister(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_2")
-		})
+		}, "test_register_2")
 	})
 }
 
@@ -417,7 +417,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 		if err != nil {
 			return err
@@ -437,7 +437,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 			assert.Equal(t, "a", splittedFilepath[len(splittedFilepath)-1], "invalid path resolution at the right edge")
 			assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 		}
-	})
+	}, "path_test")
 }
 
 func cleanupABottomUp(path string) {
