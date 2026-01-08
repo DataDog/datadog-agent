@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"testing"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
@@ -71,46 +70,56 @@ func TestCorrelator_ThreeRequiredSignalsProduceReport(t *testing.T) {
 	reports := correlator.Flush()
 	assert.Empty(t, reports, "Flush should return empty slice in stateful model")
 
-	// Active correlations should reflect the matched pattern
+	// Active correlations should include all matching patterns
+	// With 3 signals present, all 3 patterns match (kernel_bottleneck, network_degradation, lock_contention_cascade)
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1, "three matching signals should produce one active correlation")
-	assert.Equal(t, "Correlated: Kernel network bottleneck", activeCorrs[0].Title)
-	assert.Equal(t, "kernel_bottleneck", activeCorrs[0].Pattern)
+	require.Len(t, activeCorrs, 3, "three signals should match all three patterns")
+
+	// Verify kernel_bottleneck pattern is present
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found, "kernel_bottleneck pattern should be active")
+	assert.Equal(t, "Correlated: Kernel network bottleneck", found.Title)
+}
+
+// findCorrelation finds a correlation by pattern name in a slice.
+func findCorrelation(correlations []observer.ActiveCorrelation, pattern string) *observer.ActiveCorrelation {
+	for i := range correlations {
+		if correlations[i].Pattern == pattern {
+			return &correlations[i]
+		}
+	}
+	return nil
 }
 
 func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
-	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	currentTime := baseTime
-
 	config := CorrelatorConfig{
-		WindowDuration: 30 * time.Second,
-		Now:            func() time.Time { return currentTime },
+		WindowSeconds: 30,
 	}
 	correlator := NewCorrelator(config)
 
-	// Add first anomaly at base time
+	// Add first anomaly at data time 1000
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "Network retransmits exceeded threshold",
+		TimeRange:   observer.TimeRange{Start: 900, End: 1000},
 	})
 
-	// Advance time by 31 seconds (beyond window)
-	currentTime = baseTime.Add(31 * time.Second)
-
-	// Add remaining anomalies
+	// Add remaining anomalies at data time 1031 (31 seconds later, beyond window)
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Title:       "Lock contention",
 		Description: "High lock contention detected",
+		TimeRange:   observer.TimeRange{Start: 1020, End: 1031},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Title:       "Connection errors",
 		Description: "Connection error rate elevated",
+		TimeRange:   observer.TimeRange{Start: 1020, End: 1031},
 	})
 
-	// First anomaly should be evicted, so pattern should not match
+	// First anomaly should be evicted (1000 < 1031 - 30 = 1001), so pattern should not match
 	reports := correlator.Flush()
 	assert.Empty(t, reports, "pattern should not match when first anomaly is evicted")
 
@@ -127,10 +136,14 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3, "all three patterns should match")
+
+	// Find the kernel_bottleneck pattern
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 
 	// Signals should contain all three signals (sorted alphabetically)
-	signals := activeCorrs[0].Signals
+	signals := found.Signals
 	require.Len(t, signals, 3)
 	assert.Contains(t, signals, "network.retransmits:avg")
 	assert.Contains(t, signals, "ebpf.lock_contention_ns:avg")
@@ -146,9 +159,12 @@ func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3, "all three patterns should match")
 
-	assert.Equal(t, "kernel_bottleneck", activeCorrs[0].Pattern)
+	// Verify all patterns are present
+	assert.NotNil(t, findCorrelation(activeCorrs, "kernel_bottleneck"))
+	assert.NotNil(t, findCorrelation(activeCorrs, "network_degradation"))
+	assert.NotNil(t, findCorrelation(activeCorrs, "lock_contention_cascade"))
 }
 
 func TestCorrelator_BufferNotClearedAfterFlush(t *testing.T) {
@@ -158,15 +174,15 @@ func TestCorrelator_BufferNotClearedAfterFlush(t *testing.T) {
 	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
 	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
 
-	// First flush should create active correlation
+	// First flush should create active correlations
 	correlator.Flush()
 	activeCorrs1 := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs1, 1)
+	require.Len(t, activeCorrs1, 3)
 
-	// Second flush should maintain active correlation (buffer not cleared)
+	// Second flush should maintain active correlations (buffer not cleared)
 	correlator.Flush()
 	activeCorrs2 := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs2, 1)
+	require.Len(t, activeCorrs2, 3)
 
 	// Buffer should still have all entries
 	assert.Len(t, correlator.GetBuffer(), 3)
@@ -179,8 +195,7 @@ func TestCorrelator_Name(t *testing.T) {
 
 func TestCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultCorrelatorConfig()
-	assert.Equal(t, 30*time.Second, config.WindowDuration)
-	assert.NotNil(t, config.Now)
+	assert.Equal(t, int64(30), config.WindowSeconds)
 }
 
 func TestCorrelator_PartialPatternNoActiveCorrelation(t *testing.T) {
@@ -206,7 +221,10 @@ func TestCorrelator_ExtraSignalsStillMatch(t *testing.T) {
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1, "pattern should match even with extra signals")
+	require.Len(t, activeCorrs, 3, "all patterns should match even with extra signals")
+
+	// Verify kernel_bottleneck is among the matches
+	assert.NotNil(t, findCorrelation(activeCorrs, "kernel_bottleneck"))
 }
 
 func TestCorrelator_EmptyBufferNoActiveCorrelation(t *testing.T) {
@@ -218,63 +236,86 @@ func TestCorrelator_EmptyBufferNoActiveCorrelation(t *testing.T) {
 }
 
 func TestCorrelator_ActiveCorrelationTimestamps(t *testing.T) {
-	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	currentTime := baseTime
+	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	config := CorrelatorConfig{
-		WindowDuration: 30 * time.Second,
-		Now:            func() time.Time { return currentTime },
-	}
-	correlator := NewCorrelator(config)
-
-	// Add all required signals at base time
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
+	// Add all required signals at data time 1000
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "network.retransmits:avg",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "ebpf.lock_contention_ns:avg",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "connection.errors:count",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
 
-	// FirstSeen and LastUpdated should be base time
-	assert.Equal(t, baseTime, activeCorrs[0].FirstSeen)
-	assert.Equal(t, baseTime, activeCorrs[0].LastUpdated)
+	// Check kernel_bottleneck timestamps
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 
-	// Advance time and flush again
-	currentTime = baseTime.Add(10 * time.Second)
+	// FirstSeen and LastUpdated should be data time 1000
+	assert.Equal(t, int64(1000), found.FirstSeen)
+	assert.Equal(t, int64(1000), found.LastUpdated)
+
+	// Add new anomalies at data time 1010
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "network.retransmits:avg",
+		TimeRange: observer.TimeRange{Start: 990, End: 1010},
+	})
+
 	correlator.Flush()
 	activeCorrs = correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
 
-	// FirstSeen should stay the same, LastUpdated should update
-	assert.Equal(t, baseTime, activeCorrs[0].FirstSeen)
-	assert.Equal(t, currentTime, activeCorrs[0].LastUpdated)
+	// Find it again
+	found = findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
+
+	// FirstSeen should stay the same, LastUpdated should update to latest data time
+	assert.Equal(t, int64(1000), found.FirstSeen)
+	assert.Equal(t, int64(1010), found.LastUpdated)
 }
 
 func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
-	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	currentTime := baseTime
-
 	config := CorrelatorConfig{
-		WindowDuration: 30 * time.Second,
-		Now:            func() time.Time { return currentTime },
+		WindowSeconds: 30,
 	}
 	correlator := NewCorrelator(config)
 
-	// Add all required signals
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
+	// Add all required signals at data time 1000
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "network.retransmits:avg",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "ebpf.lock_contention_ns:avg",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "connection.errors:count",
+		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+	})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1, "pattern should be active")
+	require.Len(t, activeCorrs, 3, "all patterns should be active")
 
-	// Advance time beyond window so all signals expire
-	currentTime = baseTime.Add(35 * time.Second)
+	// Add an anomaly at data time 1035 (35 seconds later), which advances currentDataTime
+	// and causes all previous signals to expire (1000 < 1035 - 30 = 1005)
+	correlator.Process(observer.AnomalyOutput{
+		Source:    "some.other.signal:avg",
+		TimeRange: observer.TimeRange{Start: 1030, End: 1035},
+	})
 	correlator.Flush()
 	activeCorrs = correlator.ActiveCorrelations()
-	assert.Empty(t, activeCorrs, "pattern should be cleared when signals expire")
+	assert.Empty(t, activeCorrs, "all patterns should be cleared when signals expire")
 }
 
 func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
@@ -299,10 +340,14 @@ func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
+
+	// Check kernel_bottleneck correlation
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 
 	// Anomalies field should contain all three anomalies
-	anomalies := activeCorrs[0].Anomalies
+	anomalies := found.Anomalies
 	require.Len(t, anomalies, 3, "should have 3 anomalies")
 
 	// Verify each anomaly has the expected description
@@ -316,97 +361,99 @@ func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
 }
 
 func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
-	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	currentTime := baseTime
+	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	config := CorrelatorConfig{
-		WindowDuration: 30 * time.Second,
-		Now:            func() time.Time { return currentTime },
-	}
-	correlator := NewCorrelator(config)
-
-	// Add initial anomalies with TimeRange
+	// Add initial anomalies with TimeRange - all within 30 second window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "first retransmits anomaly",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "first lock contention anomaly",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Description: "first connection errors anomaly",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
-	require.Len(t, activeCorrs[0].Anomalies, 3)
+	require.Len(t, activeCorrs, 3)
 
-	// Advance time slightly and add another anomaly for one of the signals with later TimeRange
-	currentTime = baseTime.Add(5 * time.Second)
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
+	require.Len(t, found.Anomalies, 3)
+
+	// Add another anomaly for one of the signals with later TimeRange (still within 30s window)
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "second retransmits anomaly",
-		TimeRange:   observer.TimeRange{Start: 150, End: 250}, // later end time
+		TimeRange:   observer.TimeRange{Start: 1015, End: 1020}, // later but within window
 	})
 
 	correlator.Flush()
 	activeCorrs = correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
+
+	found = findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 	// Should still have 3 anomalies (deduped by source, keeping most recent)
-	assert.Len(t, activeCorrs[0].Anomalies, 3, "should dedupe anomalies by source")
+	assert.Len(t, found.Anomalies, 3, "should dedupe anomalies by source")
 }
 
 func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add multiple anomalies for the same source with different TimeRanges
+	// All timestamps within the 30-second window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "oldest retransmits",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "newest retransmits", // should be kept
-		TimeRange:   observer.TimeRange{Start: 150, End: 300},
+		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "middle retransmits",
-		TimeRange:   observer.TimeRange{Start: 120, End: 250},
+		TimeRange:   observer.TimeRange{Start: 1005, End: 1015},
 	})
 
-	// Add other required signals
+	// Add other required signals - all within window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "lock contention",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Description: "connection errors",
-		TimeRange:   observer.TimeRange{Start: 100, End: 200},
+		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
 	})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
+
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 
 	// Should have exactly 3 anomalies (one per source)
-	anomalies := activeCorrs[0].Anomalies
+	anomalies := found.Anomalies
 	assert.Len(t, anomalies, 3, "should have one anomaly per source")
 
 	// Find the network.retransmits anomaly and verify it's the newest one
 	for _, a := range anomalies {
 		if a.Source == "network.retransmits:avg" {
 			assert.Equal(t, "newest retransmits", a.Description, "should keep anomaly with latest TimeRange.End")
-			assert.Equal(t, int64(300), a.TimeRange.End, "should have latest end time")
+			assert.Equal(t, int64(1025), a.TimeRange.End, "should have latest end time")
 		}
 	}
 }
@@ -434,10 +481,14 @@ func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
-	require.Len(t, activeCorrs, 1)
+	require.Len(t, activeCorrs, 3)
+
+	// Check kernel_bottleneck pattern
+	found := findCorrelation(activeCorrs, "kernel_bottleneck")
+	require.NotNil(t, found)
 
 	// Anomalies should only contain the 3 matching signals, not the extra one
-	anomalies := activeCorrs[0].Anomalies
+	anomalies := found.Anomalies
 	assert.Len(t, anomalies, 3, "should only include anomalies matching pattern's required sources")
 
 	// Verify extra signal is not included
