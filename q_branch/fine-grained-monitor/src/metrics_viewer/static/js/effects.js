@@ -343,26 +343,11 @@ registerHandler(Effects.FETCH_CONTAINERS, async (effect, context) => {
             dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds: validSelection });
         } else if (validSelection.length > 0) {
             // Same containers, but we need to refetch timeseries for new range
-            // Trigger timeseries fetch for all panels
-            for (const panel of state.panels) {
-                dispatch({
-                    type: Actions.SET_PANEL_LOADING,
-                    panelId: panel.id,
-                    loading: true,
-                });
-            }
-            // The SET_SELECTED_CONTAINERS will trigger timeseries fetch via effects
-            // But since selection didn't change, we need to manually trigger
-            for (const panel of state.panels) {
-                // Clear cache for this metric to force refetch with new range
-                // This is a bit of a hack - ideally we'd have range-aware caching
-                for (const cid of validSelection) {
-                    const key = `${panel.metric}:${cid}`;
-                    // DataStore doesn't expose a clear method, so we'll let the fetch handler handle it
-                }
-            }
-            // Dispatch a "refresh" by re-setting the same containers
-            dispatch({ type: Actions.SET_SELECTED_CONTAINERS, containerIds: [...validSelection] });
+            // Clear timeseries cache so data is refetched with new time range
+            DataStore.clearAllTimeseries();
+
+            // Directly dispatch force refresh - cleaner than working around SET_SELECTED_CONTAINERS deduplication
+            dispatch({ type: Actions.FORCE_REFRESH_PANELS });
         }
     } catch (err) {
         console.error('Failed to fetch containers:', err);

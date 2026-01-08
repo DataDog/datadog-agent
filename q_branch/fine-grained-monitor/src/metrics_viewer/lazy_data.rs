@@ -443,7 +443,7 @@ impl LazyDataStore {
     }
 
     /// Get timeseries data for specific containers.
-    /// REQ-MV-037: Loads data from files within the specified time range.
+    /// REQ-MV-037: Loads data from files within the specified time range and filters points.
     /// Loads from parquet on first request, then caches.
     /// Automatically discovers new parquet files before loading.
     pub fn get_timeseries(
@@ -506,7 +506,7 @@ impl LazyDataStore {
 
             let loaded = load_metric_data(&paths, metric, &missing)?;
 
-            // Cache the loaded data
+            // Cache the loaded data (cache full data for reuse across time ranges)
             {
                 let mut cache = self.timeseries_cache.write().unwrap();
                 let metric_cache = cache.entry(metric.to_string()).or_default();
@@ -516,6 +516,21 @@ impl LazyDataStore {
             }
 
             result.extend(loaded);
+        }
+
+        // REQ-MV-037: Filter results by time range cutoff
+        if let Some(cutoff_ms) = time_range.cutoff_ms() {
+            result = result
+                .into_iter()
+                .map(|(id, points)| {
+                    let filtered: Vec<TimeseriesPoint> = points
+                        .into_iter()
+                        .filter(|p| p.time_ms >= cutoff_ms)
+                        .collect();
+                    (id, filtered)
+                })
+                .filter(|(_, points)| !points.is_empty())
+                .collect();
         }
 
         Ok(result)

@@ -32,6 +32,15 @@ impl TimeRange {
         }
     }
 
+    /// Get the cutoff timestamp in milliseconds for this time range.
+    /// Returns None for All (no cutoff).
+    pub fn cutoff_ms(&self) -> Option<i64> {
+        self.to_duration().map(|d| {
+            let now = chrono::Utc::now();
+            (now - d).timestamp_millis()
+        })
+    }
+
     /// Short string representation for API.
     pub fn as_str(&self) -> &'static str {
         match self {

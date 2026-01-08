@@ -46,6 +46,9 @@ export const Actions = {
 
     // REQ-MV-037: Data time range selection
     SET_DATA_TIME_RANGE: 'SET_DATA_TIME_RANGE',
+
+    // Force refresh (for time range changes when selection is unchanged)
+    FORCE_REFRESH_PANELS: 'FORCE_REFRESH_PANELS',
 };
 
 // ============================================================
@@ -548,6 +551,27 @@ export function reduce(state, action) {
                     { type: Effects.RENDER_SIDEBAR },
                 ],
             };
+        }
+
+        // Force refresh all panels (used when time range changes but selection is the same)
+        case Actions.FORCE_REFRESH_PANELS: {
+            const newState = {
+                ...state,
+                panels: state.panels.map(p => ({ ...p, loading: true })),
+            };
+
+            const effects = [];
+            for (const panel of state.panels) {
+                effects.push({
+                    type: Effects.FETCH_TIMESERIES,
+                    panelId: panel.id,
+                    metric: panel.metric,
+                    containerIds: state.selectedContainerIds,
+                });
+            }
+            effects.push({ type: Effects.RENDER_PANELS });
+
+            return { state: newState, effects };
         }
 
         default:

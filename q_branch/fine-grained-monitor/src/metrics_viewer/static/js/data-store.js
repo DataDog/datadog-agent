@@ -352,6 +352,14 @@ export function clear() {
 }
 
 /**
+ * Clear all timeseries data (for time range changes).
+ * Keeps refs intact so panels will refetch.
+ */
+export function clearAllTimeseries() {
+    _timeseries.clear();
+}
+
+/**
  * Get a snapshot of all refs (for testing/debugging).
  * @returns {Object<string, string[]>}
  */
