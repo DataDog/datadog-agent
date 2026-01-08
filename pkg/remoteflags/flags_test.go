@@ -39,11 +39,11 @@ func TestSubscribe_ValidParams(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	assert.NoError(t, err)
 	assert.False(t, onChangeCalled, "onChange should not be called if no value exists yet")
 }
@@ -88,11 +88,11 @@ func TestSubscribe_ImmediateCallbackIfValueExists(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Wait for callback (with timeout)
@@ -124,13 +124,13 @@ func TestOnUpdate_ValidConfig(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {
 		t.Errorf("safeRecover should not be called for valid config")
 	}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Create a valid config update
@@ -187,13 +187,13 @@ func TestOnUpdate_InvalidJSON(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {
 		t.Errorf("safeRecover should not be called for JSON parsing errors")
 	}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Create an invalid config update
@@ -237,13 +237,13 @@ func TestOnUpdate_FlagValueChange(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {
 		t.Errorf("safeRecover should not be called")
 	}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// First update: enabled = true
@@ -342,14 +342,14 @@ func TestOnUpdate_MultipleSubscribers(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(_ error, _ FlagValue) {}
 
-	err := client.Subscribe(testFlag1, onChange1, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange1, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
-	err = client.Subscribe(testFlag1, onChange2, onNoData, safeRecover)
+	err = client.Subscribe(testFlag1, onChange2, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Send update
@@ -392,7 +392,7 @@ func TestOnUpdate_MissingFlag(t *testing.T) {
 		return nil
 	}
 
-	onNoData := func() {
+	onNoConfig := func() {
 		noDataReceived = true
 		wg.Done()
 	}
@@ -401,7 +401,7 @@ func TestOnUpdate_MissingFlag(t *testing.T) {
 		t.Errorf("safeRecover should not be called when flag is simply missing")
 	}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Send update for a different flag
@@ -503,7 +503,7 @@ func TestOnChange_FailedPropagation(t *testing.T) {
 		return fmt.Errorf("simulated apply failure")
 	}
 
-	onNoData := func() {}
+	onNoConfig := func() {}
 
 	safeRecover := func(err error, failedValue FlagValue) {
 		safeRecoverCalled = true
@@ -512,7 +512,7 @@ func TestOnChange_FailedPropagation(t *testing.T) {
 		wg.Done()
 	}
 
-	err := client.Subscribe(testFlag1, onChange, onNoData, safeRecover)
+	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover)
 	require.NoError(t, err)
 
 	// Create a valid config update
