@@ -978,15 +978,14 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
 	github.com/aymerick/raymond v2.0.2+incompatible
+	github.com/creack/pty v1.1.23
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
-	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
-	github.com/Masterminds/squirrel v1.5.4
-	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/creack/pty v1.1.23
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.21.2
@@ -1123,6 +1122,8 @@ require (
 	github.com/joyent/triton-go v1.7.1-0.20200416154420-6801d15b779f // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
@@ -1131,8 +1132,6 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
-	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
-	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
