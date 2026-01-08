@@ -225,11 +225,11 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 
 	if lookIntoRedemption {
 		getMount = func(mountid uint32) *model.Mount {
-			return mr.lookupByMountID(mountid)
+			return mr.lookupByMountID(mountid, true)
 		}
 	} else {
 		getMount = func(mountid uint32) *model.Mount {
-			m, _ := mr.mounts.Get(mountid, true)
+			m, _ := mr.mounts.Get(mountid)
 			return m
 		}
 	}
@@ -309,7 +309,7 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
-		seclog.Warnf("tried to delete non-existant mount id %d", m)
+		seclog.Warnf("tried to delete inexistent mount id %d", mountID)
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
