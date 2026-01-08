@@ -57,6 +57,7 @@ var functions = template.FuncMap{
 
 type statusResponse struct {
 	Version            string                       `json:"version"`
+	SecretsPubKey      string                       `json:"secrets_pub_key"`
 	Packages           *repository.PackageStates    `json:"packages"`
 	ApmInjectionStatus ssi.APMInstrumentationStatus `json:"apm_injection_status"`
 	RemoteConfigState  []*remoteConfigPackageState  `json:"remote_config_state"`
@@ -92,6 +93,7 @@ func status(debug bool, jsonOutput bool) error {
 			fmt.Fprint(os.Stderr, err.Error())
 		}
 		status.RemoteConfigState = remoteConfigStatus.PackageStates
+		status.SecretsPubKey = remoteConfigStatus.SecretsPubKey
 	}
 
 	if !jsonOutput {
@@ -114,6 +116,7 @@ func status(debug bool, jsonOutput bool) error {
 // the protos in the installer binary is too heavy.
 type remoteConfigState struct {
 	PackageStates []*remoteConfigPackageState `json:"remote_config_state"`
+	SecretsPubKey string                      `json:"secrets_pub_key"`
 }
 
 type remoteConfigPackageState struct {
