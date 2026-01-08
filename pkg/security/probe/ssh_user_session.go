@@ -141,7 +141,10 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 	p.resolver.SSHSessionParsed.Mu.Unlock()
 
 	if ok {
-		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(value.AuthenticationMethod))
+		if model.SSHAuthMethodStrings == nil {
+			model.InitSSHAuthMethodConstants()
+		}
+		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodStrings[usersession.AuthType(value.AuthenticationMethod)]
 		ev.ProcessContextSerializer.UserSession.SSHPublicKey = value.PublicKey
 	}
 }

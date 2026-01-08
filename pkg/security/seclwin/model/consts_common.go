@@ -486,9 +486,9 @@ var (
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
 	// UserSessionTypeStrings are the supported user session types
-	userSessionTypeStrings = map[usersession.Type]string{}
+	UserSessionTypeStrings = map[usersession.Type]string{}
 	// SSHAuthMethodStrings are the supported SSH authentication methods
-	sshAuthMethodStrings = map[usersession.AuthType]string{}
+	SSHAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -638,17 +638,19 @@ func initLinkageTypeConstants() {
 	}
 }
 
-func initUserSessionTypes() {
+// InitUserSessionTypes initialize the constants for user session types
+func InitUserSessionTypes() {
 	for k, v := range UserSessionTypes {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		userSessionTypeStrings[v] = k
+		UserSessionTypeStrings[v] = k
 	}
 }
 
-func initSSHAuthMethodConstants() {
+// InitSSHAuthMethodConstants initialize the constants for SSH auth methods
+func InitSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		sshAuthMethodStrings[v] = k
+		SSHAuthMethodStrings[v] = k
 	}
 }
 
@@ -699,8 +701,8 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
-	initUserSessionTypes()
-	initSSHAuthMethodConstants()
+	InitUserSessionTypes()
+	InitSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -1184,25 +1186,4 @@ func (l LinkageType) String() string {
 		initLinkageTypeConstants()
 	}
 	return linkageTypeStrings[l]
-}
-
-// UserSessionTypeToString converts a usersession.Type to its string representation
-func UserSessionTypeToString(t usersession.Type) string {
-	// init constants if needed
-	SECLConstants()
-
-	if val, ok := userSessionTypeStrings[t]; ok {
-		return val
-	}
-	return ""
-}
-
-func SSHAuthMethodToString(t usersession.AuthType) string {
-	// init constants if needed
-	SECLConstants()
-
-	if val, ok := sshAuthMethodStrings[t]; ok {
-		return val
-	}
-	return ""
 }
