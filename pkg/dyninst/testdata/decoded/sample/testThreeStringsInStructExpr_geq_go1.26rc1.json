@@ -20,7 +20,13 @@
             "method": "main.testThreeStringsInStruct"
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "abc def ghi"

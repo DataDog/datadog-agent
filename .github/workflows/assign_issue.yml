@@ -27,7 +27,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              labels: ["pending"]
+              labels: ["pending", "oss/0"]
             });
 
   triage:

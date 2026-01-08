@@ -57,7 +57,6 @@ single_version_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
     ],
 )
 
@@ -317,11 +316,13 @@ http_archive(
 )
 
 http_archive(
-    name = "krb5",
-    url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
-    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
-    strip_prefix = "krb5-1.21.3",
+    name = "xmlsec",
+    url = "https://github.com/lsh123/xmlsec/releases/download/1.3.7/xmlsec1-1.3.7.tar.gz",
+    sha256 = "d82e93b69b8aa205a616b62917a269322bf63a3eaafb3775014e61752b2013ea",
+    strip_prefix = "xmlsec1-1.3.7",
     files = {
-        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
+        "BUILD.bazel": "//deps:xmlsec/xmlsec.BUILD.bazel",
+        "config-linux-x86_64.h": "//deps:xmlsec/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:xmlsec/config-linux-arm64.h",
     },
 )

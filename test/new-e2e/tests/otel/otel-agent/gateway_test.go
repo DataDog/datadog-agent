@@ -93,3 +93,7 @@ func (s *gatewayTestSuite) TestOTelAgentInstalled() {
 func (s *gatewayTestSuite) TestOTelGatewayInstalled() {
 	utils.TestOTelGatewayInstalled(s)
 }
+
+func (s *gatewayTestSuite) TestOTelGatewayFlare() {
+	utils.TestOTelGatewayFlareCmd(s)
+}

@@ -169,6 +169,7 @@ func (g *generator) addEventHandler(
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
+		NoReturnReason:      injectionPoint.NoReturnReason,
 		TopPCOffset:         injectionPoint.TopPCOffset,
 		ProbeID:             probeID,
 		EventKind:           eventKind,
