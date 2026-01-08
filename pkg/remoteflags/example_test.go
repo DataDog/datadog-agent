@@ -38,7 +38,7 @@ func Example_basicUsage() {
 				return disableNewAlgorithm()
 			}
 		},
-		// onNoData: Called when flag is not present in config
+		// onNoConfig: Called when flag is not present in config
 		func() {
 			log.Info("Flag not present in configuration")
 		},
