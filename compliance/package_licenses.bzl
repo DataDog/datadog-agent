@@ -43,13 +43,6 @@ def package_licenses(name = None, src = None):
         strip_prefix = ".",
     )
 
-    # You would expect that filter_directory returns something usuable to pkg_* rules.
-    # It does not, so we have to wrap it.
-    pkg_files(
-        name = "%s_license_copies_" % name,
-        srcs = [":%s_license_dir_stripped_" % name],
-    )
-
     # Turn the copied offers into a target we can feed to other rules.
     native.filegroup(
         name = "%s_copied_offer_dir_" % name,
