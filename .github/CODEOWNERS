@@ -308,9 +308,12 @@
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
-/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
+/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
+
+/packages/                              @DataDog/agent-build
+/packages/debian/                       @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                       @DataDog/agent-build @DataDog/fleet
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS

@@ -50,12 +50,12 @@ func TestMacros(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err = os.Mkdir(testFile, 0777); err != nil {
 			return err
 		}
 		return os.Remove(testFile)
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
-	})
+	}, "test_rule")
 }

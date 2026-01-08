@@ -15,51 +15,9 @@ build do
       # building into / is not acceptable. We'll continue to to that for now,
       # but the replacement has to build to a build output tree.
       command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/debian/etc:install --verbose --destdir=#{destdir}"
-      command_on_repo_root "cp bazel-bin/packages/debian/etc/etc/init/datadog-agent.conf /etc/init"
 
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
-
-      erb source: "upstart_debian.process.conf.erb",
-          dest: "/etc/init/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.sysprobe.conf.erb",
-          dest: "/etc/init/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.trace.conf.erb",
-          dest: "/etc/init/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.security.conf.erb",
-          dest: "/etc/init/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.data-plane.conf.erb",
-          dest: "/etc/init/datadog-agent-data-plane.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.erb",
-          dest: "/etc/init.d/datadog-agent",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.process.erb",
-          dest: "/etc/init.d/datadog-agent-process",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.trace.erb",
-          dest: "/etc/init.d/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.security.erb",
-          dest: "/etc/init.d/datadog-agent-security",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.data-plane.erb",
-          dest: "/etc/init.d/datadog-agent-data-plane",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
 
       project.extra_package_file '/etc/init.d/datadog-agent'
       project.extra_package_file '/etc/init.d/datadog-agent-process'

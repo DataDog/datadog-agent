@@ -29,6 +29,14 @@ build do
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
         command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
+	if linux_target?
+	    if heroku_target?
+               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
+            else
+               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+            end
+        end
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
