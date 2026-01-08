@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-trace
-# Short-Description: Start and stop datadog trace agent
-# Description: Datadog Trace Agent (APM)
+# Provides: datadog-agent-process
+# Short-Description: Start and stop datadog process agent
+# Description: Datadog Process Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -12,14 +12,14 @@
 
 . /lib/lsb/init-functions
 
-ETC_DIR="<%= etc_dir %>"
-INSTALL_DIR="<%= install_dir %>"
-AGENTPATH="$INSTALL_DIR/embedded/bin/trace-agent"
-PIDFILE="$INSTALL_DIR/run/trace-agent.pid"
-AGENT_ARGS="--config=$ETC_DIR/datadog.yaml --pidfile=$PIDFILE"
+ETC_DIR="{etc_dir}"
+INSTALL_DIR="{install_dir}"
+AGENTPATH="$INSTALL_DIR/embedded/bin/process-agent"
+PIDFILE="$INSTALL_DIR/run/process-agent.pid"
+AGENT_ARGS="--cfgpath=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
 AGENT_USER="dd-agent"
-NAME="datadog-agent-trace"
-DESC="Datadog Trace Agent (APM)"
+NAME="datadog-agent-process"
+DESC="Datadog Process Agent"
 
 
 
@@ -94,7 +94,7 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
+	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --exec $AGENTPATH
 	RETVAL="$?"
 	rm -f $PIDFILE
 	return $RETVAL
@@ -126,7 +126,7 @@ case "$1" in
 
 		start_and_wait
 
-			;;
+		;;
 
 	stop)
 		if init_is_upstart; then

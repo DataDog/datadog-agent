@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-process
-# Short-Description: Start and stop datadog process agent
-# Description: Datadog Process Agent
+# Provides: datadog-agent-security
+# Short-Description: Start and stop datadog security agent
+# Description: Datadog Security Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -12,19 +12,24 @@
 
 . /lib/lsb/init-functions
 
-ETC_DIR="<%= etc_dir %>"
-INSTALL_DIR="<%= install_dir %>"
-AGENTPATH="$INSTALL_DIR/embedded/bin/process-agent"
-PIDFILE="$INSTALL_DIR/run/process-agent.pid"
-AGENT_ARGS="--cfgpath=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
-AGENT_USER="dd-agent"
-NAME="datadog-agent-process"
-DESC="Datadog Process Agent"
+ETC_DIR="{etc_dir}"
+INSTALL_DIR="{install_dir}"
+AGENTPATH="$INSTALL_DIR/embedded/bin/security-agent"
+PIDFILE="$INSTALL_DIR/run/security-agent.pid"
+AGENT_ARGS="start -c=$ETC_DIR/datadog.yaml -c=$ETC_DIR/security-agent.yaml --sysprobe-config=$ETC_DIR/system-probe.yaml -p=$PIDFILE"
+SECURITY_AGENT_CONFIG_FILE="$ETC_DIR/security-agent.yaml"
+NAME="datadog-agent-security"
+DESC="Datadog Security Agent"
 
 
 
 if [ ! -x $AGENTPATH ]; then
 	echo "$AGENTPATH not found. Exiting $NAME"
+	exit 0
+fi
+
+if [ ! -e $SECURITY_AGENT_CONFIG_FILE ]; then
+	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting $NAME"
 	exit 0
 fi
 
@@ -42,9 +47,9 @@ do_start()
 	#   0 if daemon has been started
 	#   1 if daemon was already running
 	#   2 if daemon could not be started
-	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH > /dev/null \
+	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user root --startas $AGENTPATH > /dev/null \
 		|| return 1
-	start-stop-daemon --start --background --chuid $AGENT_USER --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH -- \
+	start-stop-daemon --start --background --chuid root --quiet --pidfile $PIDFILE --user root --startas $AGENTPATH -- \
 		$AGENT_ARGS \
 		|| return 2
 	# Add code here, if necessary, that waits for the process to be ready
@@ -67,7 +72,7 @@ start_and_wait()
 			# check if the agent is running once per second for 5 seconds
 			retries=5
 			while [ $retries -gt 1 ]; do
-				start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
+				start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user root --startas $AGENTPATH
 				if [ "$?" -eq "1" ]; then
 					# We've started up successfully. Exit cleanly
 					log_end_msg 0
@@ -94,7 +99,7 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --exec $AGENTPATH
+	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user root --startas $AGENTPATH
 	RETVAL="$?"
 	rm -f $PIDFILE
 	return $RETVAL
@@ -126,7 +131,7 @@ case "$1" in
 
 		start_and_wait
 
-		;;
+			;;
 
 	stop)
 		if init_is_upstart; then

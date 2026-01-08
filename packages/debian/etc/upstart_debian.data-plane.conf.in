@@ -1,4 +1,4 @@
-description "Datadog Process Agent"
+description "Datadog Agent Data Plane"
 
 start on started datadog-agent
 stop on (runlevel [!2345] or stopping datadog-agent)
@@ -16,9 +16,9 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec <%= install_dir %>/embedded/bin/process-agent --cfgpath=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid
+  exec {install_dir}/embedded/bin/agent-data-plane run --config {etc_dir}/datadog.yaml --pidfile {install_dir}/run/agent-data-plane.pid
 end script
 
 post-stop script
-  rm -f <%= install_dir %>/run/process-agent.pid
+  rm -f {install_dir}/run/agent-data-plane.pid
 end script
