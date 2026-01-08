@@ -19,7 +19,6 @@ import (
 type Component interface {
 	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
-	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entityID types.EntityID) ([]string, error)
 	List() types.TaggerListResponse
 	GetEntity(entityID types.EntityID) (*types.Entity, error)

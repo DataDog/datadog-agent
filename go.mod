@@ -980,7 +980,7 @@ require (
 	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/creack/pty v1.1.23
+	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
