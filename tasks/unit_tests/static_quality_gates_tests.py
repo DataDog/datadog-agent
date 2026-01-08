@@ -813,6 +813,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "max_on_wire_size": 125 * 1024 * 1024,
             "relative_on_wire_size": 5 * 1024 * 1024,
         }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,
@@ -822,13 +824,14 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
-        # Check that the table format is present
+        # Check that the table format is present with new header
         self.assertIn('Change', body)
-        self.assertIn('Limit Bounds', body)
+        self.assertIn('Size (prev', body)
         self.assertIn('Successful checks', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
@@ -836,6 +839,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('On-wire sizes (compressed)', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
+        # Check PR was passed to pr_commenter
+        self.assertEqual(call_args[1]['pr'], mock_pr)
 
     @patch.dict(
         'os.environ',
@@ -866,6 +871,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "max_on_wire_size": 125 * 1024 * 1024,
             "relative_on_wire_size": 500,
         }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,
@@ -875,6 +882,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
@@ -918,6 +926,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "max_on_wire_size": 125 * 1024 * 1024,
             "relative_on_wire_size": 200,
         }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,
@@ -927,6 +937,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
@@ -948,6 +959,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     def test_no_info(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,
@@ -957,6 +970,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         # Check that the new table format is present in error section
@@ -964,7 +978,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         body = call_args[1]['body']
         self.assertIn('### Error', body)
         self.assertIn('Change', body)
-        self.assertIn('Limit Bounds', body)
+        self.assertIn('Size (prev', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
         self.assertIn('Gate failure full details', body)
@@ -994,6 +1008,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "max_on_wire_size": 125 * 1024 * 1024,
             "relative_on_wire_size": 2 * 1024 * 1024,
         }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,
@@ -1003,6 +1019,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         # Check that both error and success sections are present
@@ -1014,7 +1031,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         self.assertIn('gateB', body)
         # Check new columns are present
         self.assertIn('Change', body)
-        self.assertIn('Limit Bounds', body)
+        self.assertIn('Size (prev', body)
         # Check on-wire section is present
         self.assertIn('On-wire sizes (compressed)', body)
 
@@ -1029,6 +1046,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     def test_missing_data(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,
@@ -1037,6 +1056,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         # Check that N/A appears when metrics are missing
@@ -1064,6 +1084,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             "max_on_wire_size": 75 * 1024 * 1024,
             "relative_on_wire_size": 2 * 1024 * 1024,
         }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,
@@ -1072,6 +1094,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
@@ -1222,6 +1245,8 @@ class TestNonBlockingPrComment(unittest.TestCase):
         """Non-blocking failures should show warning indicator, not error."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,  # final_state is success (no blocking failures)
@@ -1235,6 +1260,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             ],
             gate_metric_handler,
             "ancestor123",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
@@ -1258,6 +1284,8 @@ class TestNonBlockingPrComment(unittest.TestCase):
         """Blocking failures should show error indicator and blocking message."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,  # final_state is failure (has blocking failures)
@@ -1271,6 +1299,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             ],
             gate_metric_handler,
             "ancestor123",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args
@@ -1292,6 +1321,8 @@ class TestNonBlockingPrComment(unittest.TestCase):
         """Mixed blocking and non-blocking failures should show both indicators."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,  # final_state is failure (has blocking failures)
@@ -1311,6 +1342,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             ],
             gate_metric_handler,
             "ancestor123",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
         call_args = pr_commenter_mock.call_args

@@ -64,7 +64,7 @@ def get_pr_for_branch(branch: str):
 # Main table pattern for on-disk metrics (primary view)
 body_pattern = """### {}
 
-||Quality gate|Change|Limit Bounds|
+||Quality gate|Change|Size (prev → **curr** → max)|
 |--|--|--|--|
 """
 
@@ -80,7 +80,7 @@ body_collapsed_pattern = """<details>
 body_wire_pattern = """<details>
 <summary>On-wire sizes (compressed)</summary>
 
-||Quality gate|Change|Limit Bounds|
+||Quality gate|Change|Size (prev → **curr** → max)|
 |--|--|--|--|
 """
 
@@ -212,7 +212,12 @@ def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> 
 
 
 def display_pr_comment(
-    ctx, final_state: bool, gate_states: list[dict[str, typing.Any]], metric_handler: GateMetricHandler, ancestor: str
+    ctx,
+    final_state: bool,
+    gate_states: list[dict[str, typing.Any]],
+    metric_handler: GateMetricHandler,
+    ancestor: str,
+    pr,
 ):
     """
     Display a comment on a PR with results from our static quality gates checks
@@ -324,7 +329,7 @@ def display_pr_comment(
 
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{success_section}\n{wire_section}"
 
-    pr_commenter(ctx, title=title, body=body)
+    pr_commenter(ctx, title=title, body=body, pr=pr)
 
 
 def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
@@ -498,7 +503,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         # Reuse cached PR lookup from earlier
         if pr:
             # Pass True for final_state if there are no blocking failures
-            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor)
+            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)
