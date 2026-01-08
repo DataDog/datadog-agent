@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 # mount debugfs before start
 pre-start script
   # Do not run if config file doesn't exist
-  test -f <%= etc_dir %>/system-probe.yaml || { stop ; exit 0; }
+  test -f {etc_dir}/system-probe.yaml || { stop ; exit 0; }
 
   if [ -d /sys/kernel/debug ]; then
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
@@ -26,9 +26,9 @@ pre-start script
 end script
 
 script
-  exec <%= install_dir %>/embedded/bin/system-probe run --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
+  exec {install_dir}/embedded/bin/system-probe run --config={etc_dir}/system-probe.yaml --pid={install_dir}/run/system-probe.pid
 end script
 
 post-stop script
-  rm -f <%= install_dir %>/run/system-probe.pid
+  rm -f {install_dir}/run/system-probe.pid
 end script
