@@ -17,6 +17,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -191,6 +194,8 @@ func start(
 	_ inventoryhost.Component,
 	_ healthprobe.Component,
 ) error {
+	ddruntime.PrepareGoRuntime(env.IsContainerized())
+
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 

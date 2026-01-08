@@ -67,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -283,6 +284,8 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
+	ddruntime.PrepareGoRuntime(env.IsContainerized())
+
 	if err := coredump.Setup(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}

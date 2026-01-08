@@ -88,3 +88,13 @@ func NumVCPU() int {
 	// Value < 1 returns the current value without altering it.
 	return runtime.GOMAXPROCS(0)
 }
+
+// PrepareGoRuntime configures the Go runtime for optimal performance in containerized environments.
+// It sets GOMAXPROCS based on cgroup CPU limits and GOMEMLIMIT based on cgroup memory limits.
+// This should be called early in the application startup, after the logger is initialized.
+func PrepareGoRuntime(isContainerized bool) {
+	SetMaxProcs()
+	if _, err := SetGoMemLimit(isContainerized); err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+}

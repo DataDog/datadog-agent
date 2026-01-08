@@ -17,7 +17,8 @@ import (
 )
 
 // SetGoMemLimit configures Go memory soft limit based on cgroups.
-// The soft limit is set to 90% of the cgroup memory hard limit.
+// The soft limit is set to 85% of the cgroup memory hard limit, which triggers
+// aggressive GC as memory approaches the cgroup ceiling.
 // The function is noop if
 //   - GOMEMLIMIT is set already
 //   - There is no cgroup limit
@@ -44,7 +45,7 @@ func SetGoMemLimit(isContainerized bool) (int64, error) {
 		log.Info("Cgroup memory limit not found, doing nothing")
 		return 0, nil
 	}
-	softLimit := int64(0.9 * float64(*stats.Limit))
+	softLimit := int64(0.85 * float64(*stats.Limit))
 	log.Infof("Cgroup memory limit is %d, setting gomemlimit to %d", *stats.Limit, softLimit)
 	debug.SetMemoryLimit(softLimit)
 	return softLimit, nil

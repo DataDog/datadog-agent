@@ -175,8 +175,7 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 		stopSystemProbe()
 	}()
 
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
+	ddruntime.PrepareGoRuntime(env.IsContainerized())
 
 	if sysprobeconfig.GetBool("system_probe_config.disable_thp") {
 		if err := ddruntime.DisableTransparentHugePages(); err != nil {

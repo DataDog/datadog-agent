@@ -197,6 +197,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 )
 
@@ -216,9 +217,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
-			fx.Invoke(func(_ log.Component) {
-				ddruntime.SetMaxProcs()
-			}),
+			fx.Invoke(func(_ log.Component) { ddruntime.PrepareGoRuntime(env.IsContainerized()) }),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
