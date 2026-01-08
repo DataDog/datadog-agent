@@ -1,5 +1,6 @@
 # Serverless-init release pipeline
-# Builds and publishes serverless-init images to registry.datadoghq.com
+# Builds and publishes serverless-init images to registry.ddbuild.io
+# Then triggers downstream pipeline to replicate to registry.datadoghq.com
 #
 # Usage:
 #   For RC: Set tag with -rc suffix (e.g., "1.7.8-rc1"), latestTag: "no"
@@ -36,9 +37,10 @@ variables:
 
 stages:
   - build-and-publish
+  - trigger-registry
 
 # ==================== BUILD AND PUBLISH IMAGES ====================
-# Build multi-arch images and push to registry.datadoghq.com
+# Build multi-arch images and push to registry.ddbuild.io
 
 .build-and-publish-template:
   stage: build-and-publish
@@ -55,8 +57,8 @@ stages:
         exit 1
       fi
     - docker buildx create --use --name multiarch-builder || docker buildx use multiarch-builder
-    # Login to registry.datadoghq.com (uses GitLab's built-in credentials)
-    - echo "$DD_REGISTRY_TOKEN" | docker login registry.datadoghq.com -u "$DD_REGISTRY_USERNAME" --password-stdin
+    # Login to registry.ddbuild.io
+    - !reference [.login_to_docker_readonly]
   script:
     - |
       echo "Building and publishing serverless-init image (${VARIANT_NAME})"
@@ -64,25 +66,30 @@ stages:
       # Determine image names and tags based on release type
       if [ "$LATEST_TAG" = "yes" ]; then
         # Production release - push with version and latest tags
-        DD_REGISTRY_IMAGE="registry.datadoghq.com/serverless-init"
+        DDBUILD_IMAGE="registry.ddbuild.io/ci/datadog-agent/serverless-init"
 
-        TAG_ARGS="-t ${DD_REGISTRY_IMAGE}:${TAG}${IMAGE_SUFFIX}"
-        TAG_ARGS="${TAG_ARGS} -t ${DD_REGISTRY_IMAGE}:latest${IMAGE_SUFFIX}"
+        TAG_ARGS="-t ${DDBUILD_IMAGE}:${TAG}${IMAGE_SUFFIX}"
+        TAG_ARGS="${TAG_ARGS} -t ${DDBUILD_IMAGE}:latest${IMAGE_SUFFIX}"
+        TAG_ARGS="${TAG_ARGS} -t ${DDBUILD_IMAGE}:v${CI_PIPELINE_ID}${IMAGE_SUFFIX}"
 
         echo "📦 Publishing PRODUCTION release:"
-        echo "  - registry.datadoghq.com/serverless-init:${TAG}${IMAGE_SUFFIX}"
-        echo "  - registry.datadoghq.com/serverless-init:latest${IMAGE_SUFFIX}"
+        echo "  - registry.ddbuild.io/ci/datadog-agent/serverless-init:${TAG}${IMAGE_SUFFIX}"
+        echo "  - registry.ddbuild.io/ci/datadog-agent/serverless-init:latest${IMAGE_SUFFIX}"
+        echo "  - registry.ddbuild.io/ci/datadog-agent/serverless-init:v${CI_PIPELINE_ID}${IMAGE_SUFFIX}"
       else
         # Release candidate - push to -dev with version tag
-        DD_REGISTRY_IMAGE="registry.datadoghq.com/serverless-init-dev"
+        DDBUILD_IMAGE="registry.ddbuild.io/ci/datadog-agent/serverless-init-dev"
 
-        TAG_ARGS="-t ${DD_REGISTRY_IMAGE}:${TAG}${IMAGE_SUFFIX}"
+        TAG_ARGS="-t ${DDBUILD_IMAGE}:${TAG}${IMAGE_SUFFIX}"
+        TAG_ARGS="${TAG_ARGS} -t ${DDBUILD_IMAGE}:v${CI_PIPELINE_ID}${IMAGE_SUFFIX}"
 
         echo "🧪 Publishing RELEASE CANDIDATE:"
-        echo "  - registry.datadoghq.com/serverless-init-dev:${TAG}${IMAGE_SUFFIX}"
+        echo "  - registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:${TAG}${IMAGE_SUFFIX}"
+        echo "  - registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:v${CI_PIPELINE_ID}${IMAGE_SUFFIX}"
       fi
 
       # Build and push multi-architecture image to registry
+      # Add labels for registry replication
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --build-arg EXTENSION_VERSION="${TAG}" \
@@ -91,10 +98,27 @@ stages:
         --build-arg BUILD_TAGS="${BUILD_TAGS}" \
         -f .gitlab/serverless-init/Dockerfile${ALPINE_SUFFIX} \
         ${TAG_ARGS} \
+        --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" \
+        --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" \
+        --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" \
+        --label "org.opencontainers.image.version=${TAG}" \
+        --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
+        --label "com.datadoghq.tags.pipeline.id=${CI_PIPELINE_ID}" \
+        --label "com.datadoghq.tags.pipeline.url=${CI_PIPELINE_URL}" \
         --push \
         .
 
-      echo "✅ Successfully published ${VARIANT_NAME} image to registry.datadoghq.com!"
+      echo "✅ Successfully published ${VARIANT_NAME} image to registry.ddbuild.io!"
+
+      # Save image information for downstream pipeline trigger
+      mkdir -p image-info
+      echo "${DDBUILD_IMAGE}:${TAG}${IMAGE_SUFFIX}" > image-info/${VARIANT_NAME}-image.txt
+  artifacts:
+    reports:
+      dotenv: image-info/${VARIANT_NAME}-image.txt
+    paths:
+      - image-info/${VARIANT_NAME}-image.txt
+    expire_in: 1 day
 
 build-and-publish-standard:
   extends: .build-and-publish-template
@@ -109,3 +133,71 @@ build-and-publish-alpine:
     ALPINE_SUFFIX: ".alpine"
     IMAGE_SUFFIX: "-alpine"
     VARIANT_NAME: "alpine"
+
+# ==================== TRIGGER REGISTRY REPLICATION ====================
+# Trigger downstream pipeline to replicate images to public registries
+# Separate jobs for standard and alpine variants
+
+trigger-registry-replication-prod-standard:
+  stage: trigger-registry
+  trigger:
+    project: DataDog/public-images
+    strategy: depend
+  rules:
+    - if: '$LATEST_TAG == "yes"'
+      when: on_success
+  dependencies:
+    - build-and-publish-standard
+  variables:
+    IMG_SOURCES: "registry.ddbuild.io/ci/datadog-agent/serverless-init:${TAG}"
+    IMG_DESTINATIONS: "serverless-init:${TAG},serverless-init:latest,serverless-init:1"
+    IMG_SIGNING: "false"
+    IMG_REGISTRIES: "public"
+
+trigger-registry-replication-prod-alpine:
+  stage: trigger-registry
+  trigger:
+    project: DataDog/public-images
+    strategy: depend
+  rules:
+    - if: '$LATEST_TAG == "yes"'
+      when: on_success
+  dependencies:
+    - build-and-publish-alpine
+  variables:
+    IMG_SOURCES: "registry.ddbuild.io/ci/datadog-agent/serverless-init:${TAG}-alpine"
+    IMG_DESTINATIONS: "serverless-init:${TAG}-alpine,serverless-init:latest-alpine,serverless-init:1-alpine"
+    IMG_SIGNING: "false"
+    IMG_REGISTRIES: "public"
+
+trigger-registry-replication-rc-standard:
+  stage: trigger-registry
+  trigger:
+    project: DataDog/public-images
+    strategy: depend
+  rules:
+    - if: '$LATEST_TAG != "yes"'
+      when: on_success
+  dependencies:
+    - build-and-publish-standard
+  variables:
+    IMG_SOURCES: "registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:${TAG}"
+    IMG_DESTINATIONS: "serverless-init-dev:${TAG},serverless-init-dev:latest,serverless-init-dev:1"
+    IMG_SIGNING: "false"
+    IMG_REGISTRIES: "prod"
+
+trigger-registry-replication-rc-alpine:
+  stage: trigger-registry
+  trigger:
+    project: DataDog/public-images
+    strategy: depend
+  rules:
+    - if: '$LATEST_TAG != "yes"'
+      when: on_success
+  dependencies:
+    - build-and-publish-alpine
+  variables:
+    IMG_SOURCES: "registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:${TAG}-alpine"
+    IMG_DESTINATIONS: "serverless-init-dev:${TAG}-alpine,serverless-init-dev:latest-alpine,serverless-init-dev:1-alpine"
+    IMG_SIGNING: "false"
+    IMG_REGISTRIES: "prod"

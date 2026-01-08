@@ -4,11 +4,20 @@ This directory contains the GitLab CI pipeline for building and releasing server
 
 ## 📋 Overview
 
-The pipeline builds serverless-init binaries and container images for both standard (Debian-based) and Alpine Linux variants, supporting both amd64 and arm64 architectures. Images are published to:
+The pipeline builds serverless-init binaries and container images for both standard (Debian-based) and Alpine Linux variants, supporting both amd64 and arm64 architectures. The `serverless_init_dotnet.sh` file is also copied into images to help users instrument dotnet code.
 
-- **registry.datadoghq.com** (Internal Datadog Registry): `registry.datadoghq.com/serverless-init` (prod) or `registry.datadoghq.com/serverless-init-dev` (RC)
+**Build Registry:**
+- Images are built and published to **registry.ddbuild.io** (Internal CI Registry)
+  - RC images: `registry.ddbuild.io/ci/datadog-agent/serverless-init-dev`
+  - Production images: `registry.ddbuild.io/ci/datadog-agent/serverless-init`
 
-The `serverless_init_dotnet.sh` file is also copied into images to help users instrument dotnet code.
+**Public Registries:**
+- Images are automatically replicated to **public registries** via downstream pipeline trigger to `DataDog/public-images`
+  - ECR: `public.ecr.aws/datadog/serverless-init`
+  - GCR: `gcr.io/datadoghq/serverless-init` -> fronted by `registry.datadoghq.com`
+  - GAR: `us-docker.pkg.dev/datadoghq/gcr.io/serverless-init`
+  - Docker Hub: `docker.io/datadog/serverless-init`
+
 
 ## 🚀 Usage
 
@@ -24,15 +33,23 @@ The `serverless_init_dotnet.sh` file is also copied into images to help users in
    - `AGENT_VERSION`: (optional) specific agent version, or leave empty for default
 5. Run the pipeline
 
-**Results:**
-- `registry.datadoghq.com/serverless-init-dev:1.7.8-rc1`
-- `registry.datadoghq.com/serverless-init-dev:1.7.8-rc1-alpine`
+**Results (Build Registry):**
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:1.7.8-rc1`
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:1.7.8-rc1-alpine`
+
+**Automatic Replication (Public Registries):**
+
+The pipeline automatically triggers downstream jobs to replicate the RC images to our internal registry.
+- Standard: `serverless-init-dev:1.7.8-rc1`
+- Alpine: `serverless-init-dev:1.7.8-rc1-alpine`
 
 ### Testing the RC
 
 Use the [serverless-init-self-monitoring GitLab pipeline](https://gitlab.ddbuild.io/DataDog/serverless-init-self-monitoring/-/pipelines/new) to deploy and test your RC:
 
-1. Set `AGENT_IMAGE` to your RC image (e.g., `registry.datadoghq.com/serverless-init-dev:1.7.8-rc1`)
+1. Set `AGENT_IMAGE` to your RC image from either:
+   - Build registry: `registry.ddbuild.io/ci/datadog-agent/serverless-init-dev:1.7.8-rc1`
+   - Public registry (after replication): `public.ecr.aws/datadog/serverless-init-dev:1.7.8-rc1` or other public registries
 2. Set `ENVIRONMENT` to `rc`
 3. Run the pipeline
 4. Monitor the [self-monitoring dashboard](https://ddserverless.datadoghq.com/dashboard/c73-7ff-zpk/azure-gcp-self-monitoring)
@@ -58,40 +75,44 @@ Once your RC has been validated:
    - `AGENT_VERSION`: (optional) specific agent version
 6. Run the pipeline
 
-**Results:**
-- `registry.datadoghq.com/serverless-init:1.7.8`
-- `registry.datadoghq.com/serverless-init:1.7.8-alpine`
-- `registry.datadoghq.com/serverless-init:latest`
-- `registry.datadoghq.com/serverless-init:latest-alpine`
+**Results (Build Registry):**
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init:1.7.8`
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init:1.7.8-alpine`
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init:latest`
+- `registry.ddbuild.io/ci/datadog-agent/serverless-init:latest-alpine`
 
-### Replicating to Public Registries (ECR, GCR, GAR, Docker Hub)
+**Automatic Replication (Public Registries):**
 
-After releasing to production, replicate images to public registries using the [public-images pipeline](https://gitlab.ddbuild.io/DataDog/public-images/-/pipelines/new).
+The pipeline automatically triggers **4 downstream jobs** in the `DataDog/public-images` project to replicate images to public registries (ECR, GCR, GAR, Docker Hub):
 
-Run **twice** (once for standard, once for alpine):
+- **Standard variant**: `serverless-init:1.7.8`, `serverless-init:latest`, `serverless-init:1`
+- **Alpine variant**: `serverless-init:1.7.8-alpine`, `serverless-init:latest-alpine`, `serverless-init:1-alpine`
 
-**Standard variant:**
-- `IMG_SOURCES`: `registry.datadoghq.com/serverless-init:1.7.8`
-- `IMG_DESTINATIONS`: `serverless-init:1.7.8,serverless-init:latest,serverless-init:1`
-- `IMG_SIGNING`: `false`
-
-**Alpine variant:**
-- `IMG_SOURCES`: `registry.datadoghq.com/serverless-init:1.7.8-alpine`
-- `IMG_DESTINATIONS`: `serverless-init:1.7.8-alpine,serverless-init:latest-alpine,serverless-init:1-alpine`
-- `IMG_SIGNING`: `false`
-
-This replicates images to ECR, GCR, GAR, and Docker Hub.
+This replication happens **automatically** - you don't need to manually trigger anything. The pipeline triggers separate jobs for standard and alpine variants.
 
 ## 🏗️ Pipeline Architecture
 
-The pipeline runs **2 parallel jobs** that each:
-1. Build the Go binary for amd64 and arm64 (using Docker buildx cross-compilation)
-2. Create the final multi-arch container image
-3. Push to registry.datadoghq.com
+The pipeline consists of two stages:
 
-**Jobs:**
+### Stage 1: Build and Publish (runs in parallel)
 - `build-and-publish-standard`: Builds and publishes the standard (Debian) variant
 - `build-and-publish-alpine`: Builds and publishes the Alpine variant
+
+Each job:
+1. Builds the Go binary for amd64 and arm64 (using Docker buildx cross-compilation)
+2. Creates the final multi-arch container image with proper OCI labels
+3. Pushes to `registry.ddbuild.io`
+
+### Stage 2: Trigger Registry (2 jobs at a time, 4 jobs total)
+**Production images** (runs when `LATEST_TAG=yes`):
+- `trigger-registry-replication-prod-standard`: Replicates standard variant
+- `trigger-registry-replication-prod-alpine`: Replicates alpine variant
+
+**RC images** (runs when `LATEST_TAG=no`):
+- `trigger-registry-replication-rc-standard`: Replicates standard variant to `-dev` tags
+- `trigger-registry-replication-rc-alpine`: Replicates alpine variant to `-dev` tags
+
+All jobs trigger the `DataDog/public-images` project which replicates to the datadog registry, ECR, GCR, GAR, and Docker Hub.
 
 ## 🔍 Troubleshooting
 
@@ -99,16 +120,24 @@ The pipeline runs **2 parallel jobs** that each:
 
 If you encounter authentication errors:
 
-1. Verify GitLab CI/CD variables are set correctly (`DD_REGISTRY_TOKEN`, `DD_REGISTRY_USERNAME`)
-2. Check Vault integration - these credentials are typically auto-configured
-3. Ensure you have permission to push to registry.datadoghq.com
+1. Verify you have access to `registry.ddbuild.io` (should be automatic for GitLab runners)
+2. Check that the `.login_to_docker_readonly` reference is working correctly
+3. For replication, ensure the downstream pipeline trigger has proper permissions to the `DataDog/public-images` project
 
-### Build Failureswha
+### Build Failures
 
 - Check that the `TAG` variable is set and follows semantic versioning
 - Verify `BUILD_TAGS` includes required Go build tags: `serverless otlp zlib zstd`
 - Ensure the datadog-agent source code is in a buildable state
--
+
+### Replication Failures
+
+If the automatic replication to public registries fails:
+- Check the downstream pipelines in `DataDog/public-images` for errors
+- Verify that the images exist in `registry.ddbuild.io` before replication
+- Ensure all 4 trigger jobs (2 for standard, 2 for alpine) completed successfully
+- Check that the `IMG_SOURCES` variables point to the correct image tags
+
 ## 📚 Related Documentation
 
 - [Releasing a new version](https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/3048800938/Releasing+a+new+version) (Confluence)
