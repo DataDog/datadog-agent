@@ -636,7 +636,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
 
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
-	config.SetKnown("entity_id") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("entity_id", "")
 
 	// Metadata endpoints
 
@@ -790,7 +790,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                       // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                        // Override the Datadog API Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                        // Override the Datadog APP Key for external metrics endpoint
-	config.SetKnown("external_metrics_provider.endpoints")                                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // List of redundant endpoints to query external metrics from
+	config.SetDefault("external_metrics_provider.endpoints", []interface{}{})                   // List of redundant endpoints to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)                 // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)                   // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                       // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
@@ -946,10 +946,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
-	config.SetKnown("metadata_providers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("config_providers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("cluster_name")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("listeners")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("metadata_providers", []map[string]interface{}{})
+	config.SetDefault("config_providers", []map[string]interface{}{})
+	config.SetDefault("cluster_name", "")
+	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
@@ -962,11 +962,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_annotations_labels", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
-	config.BindEnv("orchestrator_explorer.max_per_message")                                                                                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.max_message_bytes")                                                                                                                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")                                              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")                                                                                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.max_per_message")                                                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.max_message_bytes")                                                                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("orchestrator_explorer.orchestrator_additional_endpoints", map[string][]string{}, "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("orchestrator_explorer.use_legacy_endpoint") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
@@ -1037,7 +1037,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("process_config.orchestrator_additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -1142,7 +1142,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
-	config.SetKnown("cmd.check.fullsketches") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("cmd.check.fullsketches", false)
 
 	// Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
 	// in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
@@ -1201,7 +1201,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.gc_interval", time.Duration(time.Hour))
 
 	// Legacy installer configuration
-	config.SetKnown("remote_policies") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("remote_policies", false)
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1936,8 +1936,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
@@ -3088,7 +3087,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-	config.SetKnown(prefix + "dev_mode_no_ssl") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault(prefix+"dev_mode_no_ssl", false)
 }
 
 // pathExists returns true if the given path exists
