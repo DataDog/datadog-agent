@@ -16,6 +16,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	installerexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -141,7 +142,7 @@ type errorWithCode struct {
 func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
-	installerBinary, err := os.Executable()
+	installerBinary, err := installerexec.GetExecutable()
 	if err != nil {
 		return response, fmt.Errorf("error getting executable path: %w", err)
 	}

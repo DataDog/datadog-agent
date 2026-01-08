@@ -728,6 +728,49 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 	}
 }
 
+func TestOperationApply_NestedMaps(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+
+	// Create a YAML file with nested maps
+	orig := map[string]any{
+		"foo": "bar",
+		"nested": map[string]any{
+			"key": "value",
+		},
+	}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Patch: update nested value
+	patchJSON := `[{"op": "replace", "path": "/nested/key", "value": "newvalue"}]`
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(patchJSON),
+	}
+
+	err = op.apply(context.Background(), root, tmpDir)
+	assert.NoError(t, err)
+
+	// Check file content
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+
+	nested := updatedMap["nested"].(map[interface{}]interface{})
+	assert.Equal(t, "newvalue", nested["key"])
+	assert.Equal(t, "bar", updatedMap["foo"])
+}
+
 func TestReplaceSecrets(t *testing.T) {
 	t.Run("successfully replace secrets", func(t *testing.T) {
 		ops := Operations{

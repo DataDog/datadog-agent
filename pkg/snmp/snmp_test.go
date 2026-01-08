@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package snmp
+package snmp_test
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -16,26 +17,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	defaultTimeout = 5
+	defaultRetries = 3
+)
+
 func TestBuildSNMPParams(t *testing.T) {
-	authentication := Authentication{}
+	authentication := snmp.Authentication{}
 	_, err := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
-	authentication = Authentication{
+	authentication = snmp.Authentication{
 		User:    "admin",
 		Version: "4",
 	}
 	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
-	authentication = Authentication{
+	authentication = snmp.Authentication{
 		Community: "public",
 	}
 	params, _ := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "192.168.0.1", params.Target)
 
-	authentication = Authentication{
+	authentication = snmp.Authentication{
 		User: "admin",
 	}
 	params, _ = authentication.BuildSNMPParams("192.168.0.2", 0)
@@ -44,7 +50,7 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, "192.168.0.2", params.Target)
 
 	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
-		authentication = Authentication{
+		authentication = snmp.Authentication{
 			User:         "admin",
 			AuthProtocol: authProto,
 		}
@@ -54,7 +60,7 @@ func TestBuildSNMPParams(t *testing.T) {
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
-		authentication = Authentication{
+		authentication = snmp.Authentication{
 			User:         "admin",
 			PrivProtocol: privProto,
 		}
@@ -63,21 +69,21 @@ func TestBuildSNMPParams(t *testing.T) {
 		assert.Equal(t, privProto, authentication.PrivProtocol)
 	}
 
-	authentication = Authentication{
+	authentication = snmp.Authentication{
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
 	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
-	authentication = Authentication{
+	authentication = snmp.Authentication{
 		User:         "admin",
 		PrivProtocol: "bar",
 	}
 	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
 
-	authentications := []Authentication{
+	authentications := []snmp.Authentication{
 		{
 			Community: "myCommunityString1",
 		},
@@ -107,7 +113,7 @@ snmp_listener:
      collect_device_metadata: false
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -129,7 +135,7 @@ snmp_listener:
      collect_device_metadata: false
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -151,7 +157,7 @@ snmp_listener:
      collect_device_metadata: false
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -177,7 +183,7 @@ network_devices:
        collect_device_metadata: false
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -200,7 +206,7 @@ network_devices:
        collect_device_metadata: false
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -223,7 +229,7 @@ network_devices:
        collect_device_metadata: false
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -258,7 +264,7 @@ network_devices:
        collect_device_metadata: true
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, 3, len(conf.Configs))
@@ -285,7 +291,7 @@ network_devices:
        collect_device_metadata: true
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(conf.Configs))
 	assert.Equal(t, "127.0.0.4/30", conf.Configs[0].Network)
@@ -295,7 +301,7 @@ network_devices:
 	assert.Equal(t, "127.0.0.6/30", conf.Configs[2].Network)
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
-	// incorrect snmp_listener config and correct network_devices config
+	// correct snmp_listener config and incorrect network_devices config
 	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
@@ -309,8 +315,9 @@ network_devices:
     - foo: bar
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.Error(t, err)
+	assert.ErrorContains(t, err, "expected a map or struct, got \"slice\"")
 }
 
 func Test_AuthenticationsConfig(t *testing.T) {
@@ -330,7 +337,7 @@ network_devices:
           snmp_version: someSnmpVersion
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	networkConf := conf.Configs[0]
@@ -369,7 +376,7 @@ network_devices:
           privKey: somePrivKey2
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	networkConf = conf.Configs[0]
@@ -387,6 +394,37 @@ network_devices:
 	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
 }
 
+func Test_GlobalOIDBatchSize(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       oid_batch_size: 200
+`)
+
+	conf, err := snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, 5, conf.Configs[0].OidBatchSize)
+	assert.Equal(t, 200, conf.Configs[1].OidBatchSize)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    oid_batch_size: 100
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       oid_batch_size: 200
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, 100, conf.Configs[0].OidBatchSize)
+	assert.Equal(t, 200, conf.Configs[1].OidBatchSize)
+}
+
 func Test_LoaderConfig(t *testing.T) {
 	configmock.NewFromYAML(t, `
 network_devices:
@@ -399,10 +437,10 @@ network_devices:
        loader: python
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, "", conf.Configs[0].Loader)
+	assert.Equal(t, "core", conf.Configs[0].Loader)
 	assert.Equal(t, "core", conf.Configs[1].Loader)
 	assert.Equal(t, "python", conf.Configs[2].Loader)
 
@@ -418,7 +456,7 @@ network_devices:
        loader: python
 `)
 
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "core", conf.Configs[0].Loader)
@@ -438,7 +476,7 @@ network_devices:
      - network: 127.2.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, uint(30), conf.Configs[0].MinCollectionInterval)
@@ -474,7 +512,7 @@ network_devices:
              disabled: true
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	networkConf := conf.Configs[0]
@@ -525,7 +563,7 @@ network_devices:
        version: legacySnmpVersion
        network: 127.2.0.0/30
 `)
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 	legacyConfig := conf.Configs[0]
 
@@ -550,7 +588,7 @@ network_devices:
      - community_string: someCommunityString
        network_address: 127.1.0.0/30
 `)
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf := conf.Configs[0]
 	assert.Equal(t, "default", networkConf.Namespace)
@@ -564,7 +602,7 @@ network_devices:
     - community_string: someCommunityString
       network_address: 127.1.0.0/30
 `)
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf = conf.Configs[0]
 	assert.Equal(t, "ponyo", networkConf.Namespace)
@@ -581,19 +619,10 @@ network_devices:
       network_address: 127.2.0.0/30
       namespace: mononoke
 `)
-	conf, err = NewListenerConfig()
+	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
 	assert.Equal(t, "totoro", conf.Configs[0].Namespace)
 	assert.Equal(t, "mononoke", conf.Configs[1].Namespace)
-}
-
-func TestFirstNonEmpty(t *testing.T) {
-	assert.Equal(t, firstNonEmpty(), "")
-	assert.Equal(t, firstNonEmpty("totoro"), "totoro")
-	assert.Equal(t, firstNonEmpty("", "mononoke"), "mononoke")
-	assert.Equal(t, firstNonEmpty("", "mononoke", "ponyo"), "mononoke")
-	assert.Equal(t, firstNonEmpty("", "", "ponyo"), "ponyo")
-	assert.Equal(t, firstNonEmpty("", "", ""), "")
 }
 
 func Test_UseDeviceIDAsHostname(t *testing.T) {
@@ -607,7 +636,7 @@ network_devices:
      - network: 127.2.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, false, conf.Configs[0].UseDeviceIDAsHostname)
@@ -627,7 +656,7 @@ network_devices:
      - network: 127.3.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, true, conf.Configs[0].CollectTopology)
@@ -648,7 +677,7 @@ network_devices:
      - network: 127.3.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, true, conf.Configs[0].CollectTopology)
@@ -668,7 +697,7 @@ network_devices:
      - network: 127.3.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, true, conf.Configs[0].CollectTopology)
@@ -732,7 +761,7 @@ network_devices:
 		t.Run(tt.name, func(t *testing.T) {
 			configmock.NewFromYAML(t, tt.config)
 
-			conf, err := NewListenerConfig()
+			conf, err := snmp.NewListenerConfig()
 			assert.NoError(t, err)
 
 			collectVPNs := make([]bool, len(conf.Configs))
@@ -747,8 +776,8 @@ network_devices:
 func TestConfig_LegacyDigest(t *testing.T) {
 	tests := []struct {
 		name         string
-		configA      Config
-		configB      Config
+		configA      snmp.Config
+		configB      snmp.Config
 		ipAddressA   string
 		ipAddressB   string
 		isSameDigest bool
@@ -768,99 +797,99 @@ func TestConfig_LegacyDigest(t *testing.T) {
 			name:       "test port",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Port: 123},
-			configB:    Config{Port: 124},
+			configA:    snmp.Config{Port: 123},
+			configB:    snmp.Config{Port: 124},
 		},
 		{
 			name:       "test version",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Version: "1"},
-			configB:    Config{Version: "2"},
+			configA:    snmp.Config{Version: "1"},
+			configB:    snmp.Config{Version: "2"},
 		},
 		{
 			name:       "test community",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Community: "something"},
-			configB:    Config{Community: "somethingElse"},
+			configA:    snmp.Config{Community: "something"},
+			configB:    snmp.Config{Community: "somethingElse"},
 		},
 		{
 			name:       "test user",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{User: "myuser"},
-			configB:    Config{User: "myuser2"},
+			configA:    snmp.Config{User: "myuser"},
+			configB:    snmp.Config{User: "myuser2"},
 		},
 		{
 			name:       "test AuthKey",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{AuthKey: "my-AuthKey"},
-			configB:    Config{AuthKey: "my-AuthKey2"},
+			configA:    snmp.Config{AuthKey: "my-AuthKey"},
+			configB:    snmp.Config{AuthKey: "my-AuthKey2"},
 		},
 		{
 			name:       "test AuthProtocol",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{AuthProtocol: "sha"},
-			configB:    Config{AuthProtocol: "md5"},
+			configA:    snmp.Config{AuthProtocol: "sha"},
+			configB:    snmp.Config{AuthProtocol: "md5"},
 		},
 		{
 			name:       "test PrivKey",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{PrivKey: "abc"},
-			configB:    Config{PrivKey: "123"},
+			configA:    snmp.Config{PrivKey: "abc"},
+			configB:    snmp.Config{PrivKey: "123"},
 		},
 		{
 			name:       "test PrivProtocol",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{PrivProtocol: "AES"},
-			configB:    Config{PrivProtocol: "DES"},
+			configA:    snmp.Config{PrivProtocol: "AES"},
+			configB:    snmp.Config{PrivProtocol: "DES"},
 		},
 		{
 			name:       "test ContextEngineID",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{ContextEngineID: "engineID"},
-			configB:    Config{ContextEngineID: "engineID2"},
+			configA:    snmp.Config{ContextEngineID: "engineID"},
+			configB:    snmp.Config{ContextEngineID: "engineID2"},
 		},
 		{
 			name:       "test ContextName",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{ContextName: "someContextName"},
-			configB:    Config{ContextName: "someContextName2"},
+			configA:    snmp.Config{ContextName: "someContextName"},
+			configB:    snmp.Config{ContextName: "someContextName2"},
 		},
 		{
 			name:       "test Loader",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Loader: "core"},
-			configB:    Config{Loader: "python"},
+			configA:    snmp.Config{Loader: "core"},
+			configB:    snmp.Config{Loader: "python"},
 		},
 		{
 			name:       "test Namespace",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Namespace: "ns1"},
-			configB:    Config{Namespace: "ns2"},
+			configA:    snmp.Config{Namespace: "ns1"},
+			configB:    snmp.Config{Namespace: "ns2"},
 		},
 		{
 			name:       "test different IgnoredIPAddresses",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
-			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+			configA:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
+			configB:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
 		},
 		{
 			name:       "test empty IgnoredIPAddresses",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{IgnoredIPAddresses: map[string]bool{}},
-			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+			configA:    snmp.Config{IgnoredIPAddresses: map[string]bool{}},
+			configB:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
 		},
 	}
 	for _, tt := range tests {
@@ -879,8 +908,8 @@ func TestConfig_LegacyDigest(t *testing.T) {
 func TestConfig_Digest(t *testing.T) {
 	tests := []struct {
 		name         string
-		configA      Config
-		configB      Config
+		configA      snmp.Config
+		configB      snmp.Config
 		ipAddressA   string
 		ipAddressB   string
 		isSameDigest bool
@@ -900,99 +929,99 @@ func TestConfig_Digest(t *testing.T) {
 			name:       "test port",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Port: 123},
-			configB:    Config{Port: 124},
+			configA:    snmp.Config{Port: 123},
+			configB:    snmp.Config{Port: 124},
 		},
 		{
 			name:       "test version",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{Version: "1"}}},
-			configB:    Config{Authentications: []Authentication{{Version: "2"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{Version: "1"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{Version: "2"}}},
 		},
 		{
 			name:       "test community",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{Community: "something"}}},
-			configB:    Config{Authentications: []Authentication{{Community: "somethingElse"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{Community: "something"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{Community: "somethingElse"}}},
 		},
 		{
 			name:       "test user",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{User: "myuser"}}},
-			configB:    Config{Authentications: []Authentication{{User: "myuser2"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{User: "myuser"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{User: "myuser2"}}},
 		},
 		{
 			name:       "test AuthKey",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{AuthKey: "my-AuthKey"}}},
-			configB:    Config{Authentications: []Authentication{{AuthKey: "my-AuthKey2"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{AuthKey: "my-AuthKey"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{AuthKey: "my-AuthKey2"}}},
 		},
 		{
 			name:       "test AuthProtocol",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{AuthProtocol: "sha"}}},
-			configB:    Config{Authentications: []Authentication{{AuthProtocol: "md5"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{AuthProtocol: "sha"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{AuthProtocol: "md5"}}},
 		},
 		{
 			name:       "test PrivKey",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{PrivKey: "abc"}}},
-			configB:    Config{Authentications: []Authentication{{PrivKey: "123"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{PrivKey: "abc"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{PrivKey: "123"}}},
 		},
 		{
 			name:       "test PrivProtocol",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{PrivProtocol: "AES"}}},
-			configB:    Config{Authentications: []Authentication{{PrivProtocol: "DES"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{PrivProtocol: "AES"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{PrivProtocol: "DES"}}},
 		},
 		{
 			name:       "test ContextEngineID",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{ContextEngineID: "engineID"}}},
-			configB:    Config{Authentications: []Authentication{{ContextEngineID: "engineID2"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{ContextEngineID: "engineID"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{ContextEngineID: "engineID2"}}},
 		},
 		{
 			name:       "test ContextName",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{ContextName: "someContextName"}}},
-			configB:    Config{Authentications: []Authentication{{ContextName: "someContextName2"}}},
+			configA:    snmp.Config{Authentications: []snmp.Authentication{{ContextName: "someContextName"}}},
+			configB:    snmp.Config{Authentications: []snmp.Authentication{{ContextName: "someContextName2"}}},
 		},
 		{
 			name:       "test Loader",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Loader: "core"},
-			configB:    Config{Loader: "python"},
+			configA:    snmp.Config{Loader: "core"},
+			configB:    snmp.Config{Loader: "python"},
 		},
 		{
 			name:       "test Namespace",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Namespace: "ns1"},
-			configB:    Config{Namespace: "ns2"},
+			configA:    snmp.Config{Namespace: "ns1"},
+			configB:    snmp.Config{Namespace: "ns2"},
 		},
 		{
 			name:       "test different IgnoredIPAddresses",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
-			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+			configA:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
+			configB:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
 		},
 		{
 			name:       "test empty IgnoredIPAddresses",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{IgnoredIPAddresses: map[string]bool{}},
-			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+			configA:    snmp.Config{IgnoredIPAddresses: map[string]bool{}},
+			configB:    snmp.Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
 		},
 	}
 	for _, tt := range tests {
@@ -1016,7 +1045,7 @@ network_devices:
      - network: 127.1.0.0/30
 `)
 
-	conf, err := NewListenerConfig()
+	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.False(t, conf.Deduplicate)
