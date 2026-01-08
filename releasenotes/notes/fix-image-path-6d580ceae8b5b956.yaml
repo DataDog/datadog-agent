@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed Windows live process file descriptor resolution to use the full executable path.
+    Fixed live process file descriptor resolution on Windows to use the full executable path.
