@@ -305,12 +305,15 @@ func (m *Message) Render() ([]byte, error) {
 
 // GetStatus returns the message status.
 func (m *Message) GetStatus() string {
-	return m.Status
+	return m.MessageMetadata.GetStatus()
 }
 
 // GetTags returns the message processing tags.
 func (m *Message) GetTags() []string {
-	return m.ProcessingTags
+	if m.Origin == nil {
+		return m.ProcessingTags
+	}
+	return m.Origin.Tags(m.ProcessingTags)
 }
 
 // GetHostname returns the message hostname.
