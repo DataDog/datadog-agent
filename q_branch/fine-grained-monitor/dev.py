@@ -1299,7 +1299,7 @@ def start_mcp_forward() -> bool:
 
     # Verify service exists
     result = subprocess.run(
-        ["kubectl", "get", "svc", "mcp-metrics-viewer", "-n", NAMESPACE, "--context", kube_context],
+        ["kubectl", "get", "svc", "fgm-mcp-server", "-n", NAMESPACE, "--context", kube_context],
         capture_output=True,
     )
     if result.returncode != 0:
@@ -1309,7 +1309,7 @@ def start_mcp_forward() -> bool:
         [
             "kubectl",
             "port-forward",
-            "svc/mcp-metrics-viewer",
+            "svc/fgm-mcp-server",
             f"{mcp_port}:8080",
             "-n",
             NAMESPACE,
