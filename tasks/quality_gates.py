@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import tempfile
 import traceback
 import typing
@@ -13,7 +14,13 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
+from tasks.libs.common.git import (
+    create_tree,
+    get_commit_sha,
+    get_common_ancestor,
+    get_current_branch,
+    is_a_release_branch,
+)
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.experimental_gates import (
@@ -58,6 +65,34 @@ def get_pr_for_branch(branch: str):
         return prs[0] if prs else None
     except Exception as e:
         print(color_message(f"[WARN] Failed to get PR for branch {branch}: {e}", "orange"))
+        return None
+
+
+def get_pr_number_from_commit(ctx) -> str | None:
+    """
+    Extract PR number from the HEAD commit message.
+
+    On main branch, merged commits typically end with (#XXXXX).
+    Example: "Fix bug in quality gates (#44462)"
+
+    Args:
+        ctx: Invoke context for running git commands
+
+    Returns:
+        The PR number as a string, or None if not found.
+    """
+    try:
+        # Get the first line of the HEAD commit message
+        result = ctx.run("git log -1 --pretty=%s HEAD", hide=True)
+        commit_message = result.stdout.strip()
+
+        # Match pattern like "(#12345)" at the end of the message
+        match = re.search(r'\(#(\d+)\)\s*$', commit_message)
+        if match:
+            return match.group(1)
+        return None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to extract PR number from commit: {e}", "orange"))
         return None
 
 
@@ -379,10 +414,17 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Early PR lookup - cache for later use in metrics and PR comment
     # Skip for release branches since they don't have associated PRs
     pr = None
+    pr_number = None
     if not is_a_release_branch(ctx, branch):
         pr = get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
+            pr_number = str(pr.number)
+        else:
+            # On main branch (or when no open PR), extract PR number from commit message
+            pr_number = get_pr_number_from_commit(ctx)
+            if pr_number:
+                print(color_message(f"Extracted PR #{pr_number} from commit message", "cyan"))
 
     for gate in gate_list:
         result = None
@@ -445,8 +487,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
                 "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
             }
-            if pr:
-                gate_tags["pr_number"] = str(pr.number)
+            if pr_number:
+                gate_tags["pr_number"] = pr_number
 
             metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
@@ -466,6 +508,12 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     ancestor = get_common_ancestor(ctx, "HEAD")
+    current_commit = get_commit_sha(ctx)
+    # When on main branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/main
+    # is the current commit. In this case, use the parent commit as the ancestor instead.
+    if ancestor == current_commit:
+        ancestor = get_commit_sha(ctx, commit="HEAD~1")
+        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
     metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
 
     # Post-process gate failures: mark as non-blocking if delta <= 0

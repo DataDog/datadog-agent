@@ -27,6 +27,7 @@ from tasks.quality_gates import (
     display_pr_comment,
     generate_new_quality_gate_config,
     get_change_metrics,
+    get_pr_number_from_commit,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -1644,45 +1645,97 @@ class TestGetPrForBranch(unittest.TestCase):
         self.assertEqual(result.number, 111)
 
 
-class TestPrNumberInMetricTags(unittest.TestCase):
-    """Test that PR number is included in metric tags when available."""
+class TestGetPrNumberFromCommit(unittest.TestCase):
+    """Test the get_pr_number_from_commit helper function."""
 
-    def test_pr_number_added_to_gate_tags(self):
-        """Verify pr_number is included when building gate tags with a PR."""
-        # Simulate the gate tags dict building from parse_and_trigger_gates
-        mock_pr = MagicMock()
-        mock_pr.number = 42
+    def test_extracts_pr_number_standard_format(self):
+        """Should extract PR number from standard merge commit format."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Fix bug in quality gates (#44462)\n"
+        mock_ctx.run.return_value = mock_result
 
-        gate_tags = {
-            "gate_name": "test_gate",
-            "arch": "amd64",
-            "os": "debian",
-            "pipeline_id": "12345",
-            "ci_commit_ref_slug": "test-branch",
-            "ci_commit_sha": "abc123",
-        }
-        if mock_pr:
-            gate_tags["pr_number"] = str(mock_pr.number)
+        result = get_pr_number_from_commit(mock_ctx)
 
-        self.assertIn("pr_number", gate_tags)
-        self.assertEqual(gate_tags["pr_number"], "42")
+        self.assertEqual(result, "44462")
+        mock_ctx.run.assert_called_once_with("git log -1 --pretty=%s HEAD", hide=True)
 
-    def test_pr_number_not_added_when_no_pr(self):
-        """Verify pr_number is not included when there's no PR."""
-        pr = None
+    def test_extracts_pr_number_with_trailing_whitespace(self):
+        """Should extract PR number even with trailing whitespace."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Add new feature (#12345)   \n"
+        mock_ctx.run.return_value = mock_result
 
-        gate_tags = {
-            "gate_name": "test_gate",
-            "arch": "amd64",
-            "os": "debian",
-            "pipeline_id": "12345",
-            "ci_commit_ref_slug": "test-branch",
-            "ci_commit_sha": "abc123",
-        }
-        if pr:
-            gate_tags["pr_number"] = str(pr.number)
+        result = get_pr_number_from_commit(mock_ctx)
 
-        self.assertNotIn("pr_number", gate_tags)
+        self.assertEqual(result, "12345")
+
+    def test_extracts_pr_number_long_number(self):
+        """Should handle PR numbers of various lengths."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Update docs (#1)\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "1")
+
+    def test_returns_none_when_no_pr_pattern(self):
+        """Should return None when commit message doesn't contain PR pattern."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Initial commit\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_pr_pattern_not_at_end(self):
+        """Should return None when PR pattern is not at the end."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Fix (#123) issue with something\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_returns_none_on_git_error(self):
+        """Should return None when git command fails."""
+        mock_ctx = MagicMock()
+        mock_ctx.run.side_effect = Exception("git command failed")
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_handles_squash_merge_format(self):
+        """Should handle squash merge commit format."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "[backport/7.x] Fix security issue (#99999)\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "99999")
+
+    def test_extracts_revert_pr_not_original(self):
+        """Should extract the revert PR number, not the original PR from the reverted commit."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        # Revert commit format: the revert PR (#44639) is at the end, original PR (#44326) is inside
+        mock_result.stdout = 'Revert "build krb5 with bazel (#44326)" (#44639)\n'
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        # Should extract 44639 (the revert PR), not 44326 (the original)
+        self.assertEqual(result, "44639")
 
 
 if __name__ == '__main__':

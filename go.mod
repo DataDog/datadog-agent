@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-devel
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
-	github.com/DataDog/datadog-traceroute v0.1.33
+	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.10
@@ -197,8 +197,8 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
-	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
-	github.com/aquasecurity/trivy-db v0.0.0-20250227071930-8bd8a9b89e2d
+	github.com/aquasecurity/trivy v0.63.0
+	github.com/aquasecurity/trivy-db v0.0.0-20250604074528-8a8d6e3cc002
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
@@ -260,7 +260,7 @@ require (
 	github.com/google/btree v1.1.3
 	github.com/google/cel-go v0.26.1
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.20.3
+	github.com/google/go-containerregistry v0.20.6
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
@@ -523,7 +523,7 @@ require (
 	github.com/aquasecurity/go-pep440-version v0.0.1 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/jfather v0.0.8 // indirect
-	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
+	github.com/aquasecurity/trivy-java-db v0.0.0-20250520062418-66df85428c9e // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
@@ -573,9 +573,9 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.168.0 // indirect
-	github.com/docker/cli v27.5.0+incompatible // indirect
+	github.com/docker/cli v28.2.2+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker-credential-helpers v0.8.2 // indirect
+	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
@@ -803,7 +803,7 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
-	github.com/samber/oops v1.15.0 // indirect
+	github.com/samber/oops v1.18.1 // indirect
 	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
@@ -835,7 +835,7 @@ require (
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/urfave/cli/v3 v3.1.1 // indirect
-	github.com/vbatts/tar-split v0.11.6 // indirect
+	github.com/vbatts/tar-split v0.12.1 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -977,9 +977,10 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/creack/pty v1.1.23
+	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
