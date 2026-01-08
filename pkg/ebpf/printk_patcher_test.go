@@ -29,6 +29,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 	require.NoError(t, err)
 
 	tracefsRoot, err := tracefs.Root()
+	require.NoError(t, err)
 	// Check that tracing is on, if it's off we might try to enable it
 	tracingOnPath := tracefsRoot + "/tracing_on"
 	tracingOn, err := os.ReadFile(tracingOnPath)
