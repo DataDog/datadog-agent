@@ -12,7 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.1
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	google.golang.org/grpc v1.77.0
+	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 )
 
