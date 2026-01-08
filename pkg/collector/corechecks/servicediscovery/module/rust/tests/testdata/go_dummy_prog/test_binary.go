@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// main is a dummy program used for testing Go language detection.
 package main
 
 import (
@@ -17,5 +18,5 @@ func main() {
 
 	// Wait for stdin input before exiting
 	reader := bufio.NewReader(os.Stdin)
-	reader.ReadByte()
+	_, _ = reader.ReadByte()
 }
