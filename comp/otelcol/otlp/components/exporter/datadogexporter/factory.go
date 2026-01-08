@@ -166,7 +166,7 @@ func (f *factory) createTracesExporter(
 		return nil, errors.New("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.store.DDOTGWUsage, f.reporter)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -290,7 +290,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,

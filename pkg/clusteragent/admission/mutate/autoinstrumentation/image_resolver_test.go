@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,24 +108,24 @@ func (m *mockRCClient) setBlocking(block bool) {
 func TestNewImageResolver(t *testing.T) {
 	t.Run("with_remote_config_client", func(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
-		mockConfig := config.NewMock(t)
-		resolver := NewImageResolver(mockClient, mockConfig)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), mockClient)
+		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*remoteConfigImageResolver)
 		assert.True(t, ok, "Should return remoteConfigImageResolver when rcClient is not nil")
 	})
 
 	t.Run("without_remote_config_client__typed_nil", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		resolver := NewImageResolver((*mockRCClient)(nil), mockConfig)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), (*mockRCClient)(nil))
+		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*noOpImageResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
 
 	t.Run("without_remote_config_client__untyped_nil", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		resolver := NewImageResolver(nil, mockConfig)
+		mockConfig := imageresolver.NewConfig(config.NewMock(t), nil)
+		resolver := NewImageResolver(mockConfig)
 
 		_, ok := resolver.(*noOpImageResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
@@ -228,8 +229,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("image_resolver_multi_repo.json")
-	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
-	resolver := newRemoteConfigImageResolver(mockRCClient, datadoghqRegistries)
+	resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockRCClient))
 
 	testCases := []struct {
 		name           string
@@ -414,8 +414,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
-	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
-	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json"), datadoghqRegistries).(*remoteConfigImageResolver)
+	resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), newMockRCClient("image_resolver_multi_repo.json")))
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
 		var wg sync.WaitGroup
@@ -437,7 +436,7 @@ func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < 10; j++ {
-					resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+					resolver.(*remoteConfigImageResolver).processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
 					time.Sleep(10 * time.Millisecond)
 				}
 			}()
@@ -495,9 +494,8 @@ func TestAsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
-		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 
-		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -508,8 +506,7 @@ func TestAsyncInitialization(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true)
 
-		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
-		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -533,8 +530,7 @@ func TestAsyncInitialization(t *testing.T) {
 		}
 		close(mockClient.configsReady)
 
-		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
-		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
+		resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 		time.Sleep(50 * time.Millisecond)
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")

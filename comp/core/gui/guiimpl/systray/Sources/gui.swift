@@ -19,22 +19,11 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     var loginStatusEnableTitle = "Enable at login"
     var loginStatusDisableTitle = "Disable at login"
 
-    // WiFi IPC components
-    var wifiDataProvider: WiFiDataProvider?
-    var wifiIPCServer: WiFiIPCServer?
-
     override init() {
         // make sure the first evaluation of menu item validity actually updates the items
         countUpdate = numberItems
 
         super.init()
-
-        // Initialize WiFi components
-        Logger.info("Initializing WiFi IPC components...", context: "AgentGUI")
-        wifiDataProvider = WiFiDataProvider()
-        if let provider = wifiDataProvider {
-            wifiIPCServer = WiFiIPCServer(wifiDataProvider: provider)
-        }
 
         // Create menu items
         versionItem = NSMenuItem(title: "Datadog Agent", action: nil, keyEquivalent: "")
@@ -119,18 +108,6 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
             // Start the Agent on App startup
             self.commandAgentService(command: "start", display: "starting")
         }
-
-        // Start WiFi IPC server
-        if let server = wifiIPCServer {
-            do {
-                try server.start()
-                Logger.info("WiFi IPC server started successfully", context: "AgentGUI")
-            } catch {
-                Logger.error("Failed to start WiFi IPC server: \(error.localizedDescription)", context: "AgentGUI")
-                Logger.error("WiFi metrics will be unavailable for the agent", context: "AgentGUI")
-            }
-        }
-
         NSApp.run()
     }
 
@@ -164,8 +141,7 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     }
 
     @objc func startAgent(_ sender: Any?) {
-        // Verify no stale process is running before starting
-        self.waitForProcessTerminationAndStart()
+        self.commandAgentService(command: "start", display: "starting")
     }
 
     @objc func stopAgent(_ sender: Any?) {
@@ -199,36 +175,12 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         if self.agentRestart {
             self.agentRestart = false
             if !agentStatus {
-                // Wait for process to fully terminate before restarting
-                self.waitForProcessTerminationAndStart()
+                self.commandAgentService(command: "start", display: "starting")
             }
         }
     }
 
-    // Wait for agent process to fully terminate, then start
-    func waitForProcessTerminationAndStart(retries: Int = 20) {
-        // Check if agent process is still running
-        if AgentManager.isProcessStillRunning() && retries > 0 {
-            // Process still cleaning up, check again in 500ms
-            Logger.debug("Agent process still running, waiting for termination... (retries left: \(retries))", context: "AgentGUI")
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: {
-                self.waitForProcessTerminationAndStart(retries: retries - 1)
-            })
-        } else if retries > 0 {
-            // Process fully terminated, safe to start
-            Logger.info("Agent process terminated, starting now...", context: "AgentGUI")
-            self.commandAgentService(command: "start", display: "starting")
-        } else {
-            // Timeout after 10 seconds (20 retries * 500ms)
-            Logger.error("WARNING: Timeout waiting for agent termination, forcing start...", context: "AgentGUI")
-            self.commandAgentService(command: "start", display: "starting")
-        }
-    }
-
     @objc func exitGUI(_ sender: Any?) {
-        // Stop WiFi IPC server before exiting
-        wifiIPCServer?.stop()
-        Logger.info("WiFi IPC server stopped", context: "AgentGUI")
         NSApp.terminate(sender)
     }
 }
@@ -243,7 +195,8 @@ class AgentManager {
         let (exitCode, stdOut, stdErr) = call(launchPath: "/bin/launchctl", arguments: ["list", agentServiceName])
 
         if exitCode != 0 {
-            Logger.error("Command failed - stdout: \(stdOut), stderr: \(stdErr)", context: "AgentManager")
+            NSLog(stdOut)
+            NSLog(stdErr)
             return false
         }
 
@@ -254,25 +207,15 @@ class AgentManager {
         return false
     }
 
-    // Check if agent process is actually running (not just launchctl status)
-    static func isProcessStillRunning() -> Bool {
-        // Check for datadog-agent process using pgrep
-        // Look for the actual agent binary, not the wrapper scripts
-        let processInfo = bashCall(command: "pgrep -f 'datadog-agent/bin/agent/agent' | head -1")
-        let hasProcess = processInfo.exitCode == 0 &&
-                        !processInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-        return hasProcess
-    }
-
     // Run the lifecycle command (start or stop) and call the callback once the desired state is achieved
     // or a timeout is reached
     static func lifecycleCommand(command: String, callback: @escaping (Bool) -> Void) {
         let processInfo = agentServiceCall(command: command)
         if processInfo.exitCode != 0 {
-            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
+            NSLog(processInfo.stdOut)
+            NSLog(processInfo.stdErr)
         }
-
+        
 
         checkStatusAndCall(command: command, timeout: serviceTimeout, callback: callback)
     }
@@ -286,7 +229,8 @@ class AgentManager {
     static func agentCommand(command: String) {
         let processInfo = agentCall(command: command)
         if processInfo.exitCode != 0 {
-            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
+            NSLog(processInfo.stdOut)
+            NSLog(processInfo.stdErr)
         }
     }
 
@@ -302,7 +246,8 @@ class AgentManager {
         }
         let processInfo = bashCall(command: command)
         if processInfo.exitCode != 0 {
-            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
+            NSLog(processInfo.stdOut)
+            NSLog(processInfo.stdErr)
             return currentLoginStatus
         }
 

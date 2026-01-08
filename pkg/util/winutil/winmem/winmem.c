@@ -15,8 +15,12 @@ static BOOL CALLBACK internalCallback(
 }
 
 // Wrapper function that calls Windows API
-BOOL enumPageFilesWithHandle(GoHandle handle) {
+// Returns ERROR_SUCCESS on success, or GetLastError() on failure
+DWORD enumPageFilesWithHandle(GoHandle handle) {
     // Call Windows API with our C callback
     // Pass the Go handle as the context
-    return EnumPageFilesW(internalCallback, (LPVOID)handle);
+    if (!EnumPageFilesW(internalCallback, (LPVOID)handle)) {
+        return GetLastError();
+    }
+    return ERROR_SUCCESS;
 }

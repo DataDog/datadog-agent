@@ -34,6 +34,7 @@ type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 	beforeInstall      *windowsCommon.FileSystemSnapshot
 	beforeInstallPerms map[string]string // path -> SDDL
+	dumpFolder         string
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -56,6 +57,20 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 		err = windowsCommon.ClearEventLog(vm, logName)
 		s.Require().NoError(err, "should clear %s event log", logName)
 	}
+
+	// Enable crash dumps before each test
+	s.dumpFolder = `C:\dumps`
+	err = windowsCommon.EnableWERGlobalDumps(vm, s.dumpFolder)
+	s.Require().NoError(err, "should enable WER dumps")
+
+	// Set GOTRACEBACK=wer globally so Go processes produce stack traces in crash dumps
+	_, err = vm.Execute(`[Environment]::SetEnvironmentVariable('GOTRACEBACK', 'wer', 'Machine')`)
+	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+
+	// Clean dump folder before each test
+	s.T().Logf("Clearing dump folder")
+	err = windowsCommon.CleanDirectory(vm, s.dumpFolder)
+	s.Require().NoError(err, "should clean dump folder")
 }
 
 // NOTE: AfterTest is not called after subtests
@@ -64,9 +79,20 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		afterTest.AfterTest(suiteName, testName)
 	}
 
+	vm := s.Env().RemoteHost
+
+	// Look for and download crash dumps
+	dumps, err := windowsCommon.DownloadAllWERDumps(vm, s.dumpFolder, s.SessionOutputDir())
+	s.Assert().NoError(err, "should download crash dumps")
+	if !s.Assert().Empty(dumps, "should not have crash dumps") {
+		s.T().Logf("Found crash dumps:")
+		for _, dump := range dumps {
+			s.T().Logf("  %s", dump)
+		}
+	}
+
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
-		vm := s.Env().RemoteHost
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)

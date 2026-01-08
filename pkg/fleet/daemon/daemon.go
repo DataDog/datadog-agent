@@ -106,7 +106,7 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 
 // NewDaemon returns a new daemon.
 func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}
