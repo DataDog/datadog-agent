@@ -336,8 +336,8 @@ async fn run_rotation_loop(
     target_broadcaster.signal();
 
     // Start CaptureManager with rotation support - this spawns the event loop
-    // internally and returns the RotationSender immediately
-    let rotation_sender = capture_manager
+    // internally and returns the RotationSender and JoinHandle immediately
+    let (rotation_sender, capture_manager_handle) = capture_manager
         .start_with_rotation()
         .await
         .context("Failed to start CaptureManager")?;
@@ -378,7 +378,6 @@ async fn run_rotation_loop(
                         limit_bytes = MAX_TOTAL_BYTES,
                         "Total size limit reached, initiating shutdown"
                     );
-                    shutdown_broadcaster.signal();
                     break;
                 }
 
@@ -442,8 +441,7 @@ async fn run_rotation_loop(
 
             _ = external_shutdown_rx.changed() => {
                 if *external_shutdown_rx.borrow() {
-                    tracing::info!("External shutdown received, signaling CaptureManager");
-                    shutdown_broadcaster.signal();
+                    tracing::info!("External shutdown received");
                     break;
                 }
             }
@@ -455,6 +453,18 @@ async fn run_rotation_loop(
             break;
         }
     }
+
+    // Graceful shutdown: signal CaptureManager and wait for it to drain all
+    // buffered metrics. This ensures short-lived container data in the 60-tick
+    // accumulator window is flushed to disk rather than lost on shutdown.
+    tracing::info!("Signaling CaptureManager shutdown and waiting for drain");
+    shutdown_broadcaster.signal_and_wait().await;
+
+    // Also await the JoinHandle to ensure the spawned task has fully exited
+    if let Err(e) = capture_manager_handle.await {
+        tracing::warn!(error = %e, "CaptureManager task panicked during shutdown");
+    }
+    tracing::info!("CaptureManager shutdown complete");
 
     // Final file size calculation
     if let Ok(metadata) = tokio::fs::metadata(&current_output_path).await {
