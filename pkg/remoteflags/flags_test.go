@@ -52,18 +52,18 @@ func TestSubscribeMustHaveSafeRecover(t *testing.T) {
 	client := NewClient()
 
 	err := client.Subscribe(
-	    "random_first_flag",
-    	func(FlagValue) error { return nil },
-	    func() { fmt.Println("no data function") },
-        func(error, FlagValue) { fmt.Println("safeRecover function") },
+		"random_first_flag",
+		func(FlagValue) error { return nil },
+		func() { fmt.Println("no data function") },
+		func(error, FlagValue) { fmt.Println("safeRecover function") },
 	)
-    require.NoError(t, err)
+	require.NoError(t, err)
 
 	err = client.Subscribe(
-	    "random_second_flag",
-    	func(FlagValue) error { return nil },
-	    func() { fmt.Println("no data function") },
-    	nil,
+		"random_second_flag",
+		func(FlagValue) error { return nil },
+		func() { fmt.Println("no data function") },
+		nil,
 	)
 	require.Error(t, err)
 }
