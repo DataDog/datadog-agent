@@ -463,6 +463,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("snmp_listener.ping.interval", 10)
 	config.BindEnvAndSetDefault("snmp_listener.ping.timeout", 3000)
 	config.BindEnvAndSetDefault("snmp_listener.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("snmp_listener.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("snmp_listener.timeout", 5)
+	config.BindEnvAndSetDefault("snmp_listener.retries", 3)
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
 	// snmp_listener config is still here for legacy reasons
@@ -484,6 +487,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_vpn", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
