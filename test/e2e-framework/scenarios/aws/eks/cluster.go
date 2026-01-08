@@ -8,12 +8,6 @@ package eks
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	localEks "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/eks"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
@@ -25,6 +19,13 @@ import (
 	v1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/samber/lo"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	localEks "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/eks"
 )
 
 func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Cluster, error) {
@@ -261,31 +262,15 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 		}
 
 		// Create managed node groups
-		if params.LinuxNodeGroup {
-			if params.UseAL2023Nodes {
-				_, err := localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
-				if err != nil {
-					return err
-				}
-			} else {
-				_, err := localEks.NewLinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
-				if err != nil {
-					return err
-				}
-			}
+		_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+		if err != nil {
+			return err
 		}
 
 		if params.LinuxARMNodeGroup {
-			if params.UseAL2023Nodes {
-				_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
-				if err != nil {
-					return err
-				}
-			} else {
-				_, err := localEks.NewLinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
-				if err != nil {
-					return err
-				}
+			_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			if err != nil {
+				return err
 			}
 		}
 

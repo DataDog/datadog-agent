@@ -85,6 +85,7 @@
 
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
+/.gitlab/.post/*                                     @DataDog/agent-devx
 /.gitlab/bazel/*                                     @DataDog/agent-build
 /.gitlab/check_deploy/*                              @DataDog/agent-delivery
 /.gitlab/check_merge/*                               @DataDog/agent-devx
@@ -97,7 +98,6 @@
 /.gitlab/kernel_matrix_testing/*                     @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/lint/*                                      @DataDog/agent-devx
 /.gitlab/maintenance_jobs/*                          @DataDog/agent-devx
-/.gitlab/notify/*                                    @DataDog/agent-devx
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
@@ -309,9 +309,12 @@
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
-/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
+/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
+
+/packages/                              @DataDog/agent-build
+/packages/debian/                       @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                       @DataDog/agent-build @DataDog/fleet
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS

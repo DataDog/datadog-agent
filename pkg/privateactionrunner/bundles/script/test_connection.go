@@ -38,6 +38,7 @@ type TestConnectionOutputs struct {
 type ScriptDetails struct {
 	Command         []string               `json:"command"`
 	ParameterSchema map[string]interface{} `json:"parameterSchema,omitempty"`
+	AllowedEnvVars  []string               `json:"allowedEnvVars,omitempty"`
 }
 
 func (h *TestConnectionHandler) Run(
