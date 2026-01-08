@@ -1,0 +1,111 @@
+# Serverless-init release pipeline
+# Builds and publishes serverless-init images to registry.datadoghq.com
+#
+# Usage:
+#   For RC: Set tag with -rc suffix (e.g., "1.7.8-rc1"), latestTag: "no"
+#   For Prod: Set tag without -rc (e.g., "1.7.8"), latestTag: "yes"
+#
+# This pipeline runs from the root of the datadog-agent repository
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - when: never
+
+variables:
+  # User-configurable variables
+  TAG:
+    description: 'Docker image tag (e.g., 1.7.8-rc1 for RC, 1.7.8 for prod)'
+    value: ''
+  LATEST_TAG:
+    description: 'Tag as latest? (yes for prod releases, no for RCs)'
+    value: 'no'
+    options:
+      - 'yes'
+      - 'no'
+  BUILD_TAGS:
+    description: 'Go build tags'
+    value: 'serverless otlp zlib zstd'
+  AGENT_VERSION:
+    description: 'Datadog agent version (optional - defaults to version in code)'
+    value: ''
+
+  # Internal variables
+  DOCKER_BUILDKIT: "1"
+  DOCKER_TLS_CERTDIR: ''
+
+stages:
+  - build-and-publish
+
+# ==================== BUILD AND PUBLISH IMAGES ====================
+# Build multi-arch images and push to registry.datadoghq.com
+
+.build-and-publish-template:
+  stage: build-and-publish
+  image: registry.ddbuild.io/images/docker:27.3.1
+  tags: ['arch:amd64']
+  rules:
+    - if: '$TAG == ""'
+      when: never
+    - when: always
+  before_script:
+    - |
+      if [ "$TAG" = "" ]; then
+        echo "ERROR: TAG variable is required"
+        exit 1
+      fi
+    - docker buildx create --use --name multiarch-builder || docker buildx use multiarch-builder
+    # Login to registry.datadoghq.com (uses GitLab's built-in credentials)
+    - echo "$DD_REGISTRY_TOKEN" | docker login registry.datadoghq.com -u "$DD_REGISTRY_USERNAME" --password-stdin
+  script:
+    - |
+      echo "Building and publishing serverless-init image (${VARIANT_NAME})"
+
+      # Determine image names and tags based on release type
+      if [ "$LATEST_TAG" = "yes" ]; then
+        # Production release - push with version and latest tags
+        DD_REGISTRY_IMAGE="registry.datadoghq.com/serverless-init"
+
+        TAG_ARGS="-t ${DD_REGISTRY_IMAGE}:${TAG}${IMAGE_SUFFIX}"
+        TAG_ARGS="${TAG_ARGS} -t ${DD_REGISTRY_IMAGE}:latest${IMAGE_SUFFIX}"
+
+        echo "📦 Publishing PRODUCTION release:"
+        echo "  - registry.datadoghq.com/serverless-init:${TAG}${IMAGE_SUFFIX}"
+        echo "  - registry.datadoghq.com/serverless-init:latest${IMAGE_SUFFIX}"
+      else
+        # Release candidate - push to -dev with version tag
+        DD_REGISTRY_IMAGE="registry.datadoghq.com/serverless-init-dev"
+
+        TAG_ARGS="-t ${DD_REGISTRY_IMAGE}:${TAG}${IMAGE_SUFFIX}"
+
+        echo "🧪 Publishing RELEASE CANDIDATE:"
+        echo "  - registry.datadoghq.com/serverless-init-dev:${TAG}${IMAGE_SUFFIX}"
+      fi
+
+      # Build and push multi-architecture image to registry
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --build-arg EXTENSION_VERSION="${TAG}" \
+        --build-arg AGENT_VERSION="${AGENT_VERSION}" \
+        --build-arg CMD_PATH="cmd/serverless-init" \
+        --build-arg BUILD_TAGS="${BUILD_TAGS}" \
+        -f .gitlab/serverless-init/Dockerfile${ALPINE_SUFFIX} \
+        ${TAG_ARGS} \
+        --push \
+        .
+
+      echo "✅ Successfully published ${VARIANT_NAME} image to registry.datadoghq.com!"
+
+build-and-publish-standard:
+  extends: .build-and-publish-template
+  variables:
+    ALPINE_SUFFIX: ""
+    IMAGE_SUFFIX: ""
+    VARIANT_NAME: "standard"
+
+build-and-publish-alpine:
+  extends: .build-and-publish-template
+  variables:
+    ALPINE_SUFFIX: ".alpine"
+    IMAGE_SUFFIX: "-alpine"
+    VARIANT_NAME: "alpine"
