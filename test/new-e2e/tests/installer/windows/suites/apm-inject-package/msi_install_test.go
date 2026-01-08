@@ -7,7 +7,6 @@ package injecttests
 
 import (
 	_ "embed"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -50,7 +49,7 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=%s", s.currentAPMInjectVersion.PackageVersion())),
+		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -68,7 +67,7 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=%s", s.currentAPMInjectVersion.PackageVersion())),
+		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -149,7 +148,7 @@ func (s *testAgentMSIInstallsAPMInject) installCurrentAgentVersion(opts ...insta
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
+		installerwindows.WithMSIArg("APIKEY=" + installer.GetAPIKey()),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
