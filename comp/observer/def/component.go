@@ -17,6 +17,9 @@ type Component interface {
 	// GetHandle returns a lightweight handle for a named source.
 	// The source name is used to identify where observations originate.
 	GetHandle(name string) Handle
+
+	// DumpMetrics writes all stored metrics to the specified file (for debugging).
+	DumpMetrics(path string) error
 }
 
 // Handle is the lightweight observation interface passed to other components.
@@ -71,6 +74,8 @@ type LogAnalysisResult struct {
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
+// The storage keeps full summaries (min/max/sum/count) so aggregation
+// is specified at read time, not write time.
 type MetricOutput struct {
 	Name  string
 	Value float64

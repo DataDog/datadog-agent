@@ -6,6 +6,8 @@
 package observerimpl
 
 import (
+	"encoding/json"
+	"os"
 	"sort"
 	"strings"
 
@@ -68,12 +70,12 @@ func (p *statPoint) aggregate(agg Aggregate) float64 {
 
 // toSeries converts internal stats to the simplified Series for analyses.
 func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
-	points := make([]observer.Point, len(s.Points))
-	for i, p := range s.Points {
-		points[i] = observer.Point{
+	points := make([]observer.Point, 0, len(s.Points))
+	for _, p := range s.Points {
+		points = append(points, observer.Point{
 			Timestamp: p.Timestamp,
 			Value:     p.aggregate(agg),
-		}
+		})
 	}
 	return observer.Series{
 		Namespace: s.Namespace,
@@ -180,4 +182,46 @@ func copyTags(tags []string) []string {
 	result := make([]string, len(tags))
 	copy(result, tags)
 	return result
+}
+
+// DumpToFile writes all series to a JSON file for debugging.
+func (s *timeSeriesStorage) DumpToFile(path string) error {
+	type dumpPoint struct {
+		Timestamp int64   `json:"ts"`
+		Sum       float64 `json:"sum"`
+		Count     int64   `json:"count"`
+		Min       float64 `json:"min"`
+		Max       float64 `json:"max"`
+	}
+	type dumpSeries struct {
+		Namespace string      `json:"namespace"`
+		Name      string      `json:"name"`
+		Tags      []string    `json:"tags"`
+		Points    []dumpPoint `json:"points"`
+	}
+
+	var out []dumpSeries
+	for _, st := range s.series {
+		ds := dumpSeries{
+			Namespace: st.Namespace,
+			Name:      st.Name,
+			Tags:      st.Tags,
+		}
+		for _, p := range st.Points {
+			ds.Points = append(ds.Points, dumpPoint{
+				Timestamp: p.Timestamp,
+				Sum:       p.Sum,
+				Count:     p.Count,
+				Min:       p.Min,
+				Max:       p.Max,
+			})
+		}
+		out = append(out, ds)
+	}
+
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }

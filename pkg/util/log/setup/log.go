@@ -44,6 +44,8 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	handler := loggerInterface.(*slog.Wrapper).Handler()
 	stdslog.SetDefault(stdslog.New(handler))
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
+	// Record the logger name for low-cardinality tagging (e.g. component:core).
+	log.SetLoggerName(string(loggerName))
 
 	// Registering a callback in case of "log_level" update
 	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {

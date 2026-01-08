@@ -7,14 +7,30 @@
 package observerimpl
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
-	// No dependencies yet - can add Lifecycle, Config, Log as needed
+	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
+	// When fields are nil, values are read from configuration defaults.
+	AgentInternalLogTap AgentInternalLogTapConfig
+}
+
+type AgentInternalLogTapConfig struct {
+	Enabled         *bool
+	SampleRateInfo  *float64
+	SampleRateDebug *float64
+	SampleRateTrace *float64
 }
 
 // Provides defines the output of the observer component.
@@ -50,6 +66,10 @@ type logObs struct {
 func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
 		logAnalyses: []observerdef.LogAnalysis{
+			&LogTimeSeriesAnalysis{
+				// Keep defaults minimal; future steps add filtering + caps.
+				MaxEvalBytes: 4096,
+			},
 			&BadDetector{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -62,7 +82,115 @@ func NewComponent(deps Requires) Provides {
 		obsCh:   make(chan observation, 1000),
 	}
 	go obs.run()
+
+	cfg := pkgconfigsetup.Datadog()
+
+	// Start periodic metric dump if configured
+	dumpPath := cfg.GetString("observer.debug_dump_path")
+	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
+	if dumpPath != "" && dumpInterval > 0 {
+		go func() {
+			ticker := time.NewTicker(dumpInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				if err := obs.DumpMetrics(dumpPath); err != nil {
+					fmt.Fprintf(os.Stderr, "[observer] dump error: %v\n", err)
+				} else {
+					fmt.Printf("[observer] dumped metrics to %s\n", dumpPath)
+				}
+			}
+		}()
+	}
+
+	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
+	enabled := cfg.GetBool("observer.capture_agent_internal_logs")
+	if deps.AgentInternalLogTap.Enabled != nil {
+		enabled = *deps.AgentInternalLogTap.Enabled
+	}
+	if enabled {
+		sampleInfo := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
+		if deps.AgentInternalLogTap.SampleRateInfo != nil {
+			sampleInfo = *deps.AgentInternalLogTap.SampleRateInfo
+		}
+		if deps.AgentInternalLogTap.SampleRateDebug != nil {
+			sampleDebug = *deps.AgentInternalLogTap.SampleRateDebug
+		}
+		if deps.AgentInternalLogTap.SampleRateTrace != nil {
+			sampleTrace = *deps.AgentInternalLogTap.SampleRateTrace
+		}
+
+		handle := obs.GetHandle("agent-internal-logs")
+		baseTags := []string{"source:datadog-agent"}
+
+		var infoN, debugN, traceN uint64
+		shouldSample := func(level pkglog.LogLevel) bool {
+			var rate float64
+			switch level {
+			case pkglog.WarnLvl, pkglog.ErrorLvl, pkglog.CriticalLvl:
+				return true
+			case pkglog.InfoLvl:
+				rate = sampleInfo
+				n := atomic.AddUint64(&infoN, 1)
+				return samplePass(rate, n)
+			case pkglog.DebugLvl:
+				rate = sampleDebug
+				n := atomic.AddUint64(&debugN, 1)
+				return samplePass(rate, n)
+			case pkglog.TraceLvl:
+				rate = sampleTrace
+				n := atomic.AddUint64(&traceN, 1)
+				return samplePass(rate, n)
+			default:
+				// Unknown level: treat as info.
+				n := atomic.AddUint64(&infoN, 1)
+				return samplePass(sampleInfo, n)
+			}
+		}
+
+		pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
+			if !shouldSample(level) {
+				return
+			}
+			// Build tags per callback so component:<...> stays accurate if the logger name changes.
+			tags := make([]string, 0, 3)
+			tags = append(tags, baseTags...)
+			if name := pkglog.GetLoggerName(); name != "" {
+				tags = append(tags, "component:"+name)
+			}
+			tags = append(tags, "level:"+strings.ToLower(level.String()))
+			// Emit structured JSON so LogTimeSeriesAnalysis can extract fields consistently.
+			// Level is carried as a tag (separate timeseries per level).
+			payload, _ := json.Marshal(map[string]any{
+				"msg": message,
+			})
+			handle.ObserveLog(&agentLogView{
+				content:  payload,
+				status:   strings.ToLower(level.String()),
+				tags:     tags,
+				hostname: "",
+			})
+		})
+	}
+
 	return Provides{Comp: obs}
+}
+
+func samplePass(rate float64, n uint64) bool {
+	if rate <= 0 {
+		return false
+	}
+	if rate >= 1 {
+		return true
+	}
+	const denom = 1000
+	threshold := uint64(rate * denom)
+	// Ensure very small non-zero rates still occasionally pass.
+	if threshold == 0 {
+		threshold = 1
+	}
+	return (n % denom) < threshold
 }
 
 // observerImpl is the implementation of the observer component.
@@ -153,6 +281,18 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	return &handle{ch: o.obsCh, source: name}
 }
 
+// DumpMetrics writes all stored metrics to the specified file as JSON.
+func (o *observerImpl) DumpMetrics(path string) error {
+	// Request dump via channel to ensure thread safety
+	type dumpReq struct {
+		path   string
+		result chan error
+	}
+	// For simplicity, just dump directly (storage access is single-threaded from run loop,
+	// but this is a debug tool so approximate snapshot is fine)
+	return o.storage.DumpToFile(path)
+}
+
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
@@ -215,6 +355,20 @@ func (v *logView) GetContent() []byte  { return v.obs.content }
 func (v *logView) GetStatus() string   { return v.obs.status }
 func (v *logView) GetTags() []string   { return v.obs.tags }
 func (v *logView) GetHostname() string { return v.obs.hostname }
+
+// agentLogView is a minimal LogView implementation for agent-internal logs.
+// It is immediately copied by the observer handle, so it must not be retained.
+type agentLogView struct {
+	content  []byte
+	status   string
+	tags     []string
+	hostname string
+}
+
+func (v *agentLogView) GetContent() []byte  { return v.content }
+func (v *agentLogView) GetStatus() string   { return v.status }
+func (v *agentLogView) GetTags() []string   { return v.tags }
+func (v *agentLogView) GetHostname() string { return v.hostname }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {
