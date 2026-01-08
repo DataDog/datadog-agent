@@ -52,7 +52,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
 
         if 'CI_JOB_ID' in os.environ:
             env['CI_JOB_ID'] = os.environ.get('CI_JOB_ID')
-        else:
+        elif os.environ.get("CI"):
             print("WARNING: CI_JOB_ID not present in environment")
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
