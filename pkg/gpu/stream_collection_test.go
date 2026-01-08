@@ -265,7 +265,7 @@ func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
 			Shared_mem_size: 100,
 		}
 		stream.handleKernelLaunch(launch)
-		ktimeLaunch += 1
+		ktimeLaunch++
 	}
 
 	// Verify that we have active items in the pool
