@@ -15,6 +15,10 @@ var AgentVersion string
 // it is populated at build time using build flags, see get_version_ldflags in tasks/utils.py
 var AgentPackageVersion string
 
+// AgentPackageVersionURLSafe contains the version of the datadog-agent package when installed by the updater.
+// It is populated at build time using build flags, see get_version_ldflags in tasks/utils.py
+var AgentPackageVersionURLSafe string
+
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
