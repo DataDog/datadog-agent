@@ -14,7 +14,7 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-type combiningBucket struct {
+type bucket struct {
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
 	maxContentSize   int
@@ -27,7 +27,7 @@ type combiningBucket struct {
 	needsTruncation bool
 }
 
-func (b *combiningBucket) add(msg *message.Message) {
+func (b *bucket) add(msg *message.Message) {
 	if b.message == nil {
 		b.message = msg
 	}
@@ -39,11 +39,11 @@ func (b *combiningBucket) add(msg *message.Message) {
 	b.lineCount++
 }
 
-func (b *combiningBucket) isEmpty() bool {
+func (b *bucket) isEmpty() bool {
 	return b.originalDataLen == 0
 }
 
-func (b *combiningBucket) reset() {
+func (b *bucket) reset() {
 	b.buffer.Reset()
 	b.message = nil
 	b.lineCount = 0
@@ -51,7 +51,7 @@ func (b *combiningBucket) reset() {
 	b.needsTruncation = false
 }
 
-func (b *combiningBucket) flush() *message.Message {
+func (b *bucket) flush() *message.Message {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -103,26 +103,26 @@ func (b *combiningBucket) flush() *message.Message {
 	return msg
 }
 
-func (b *combiningBucket) setShouldTruncate(val bool) {
+func (b *bucket) setShouldTruncate(val bool) {
 	b.shouldTruncate = val
 }
 
-func (b *combiningBucket) setNeedsTruncation(val bool) {
+func (b *bucket) setNeedsTruncation(val bool) {
 	b.needsTruncation = val
 }
 
-func (b *combiningBucket) getBufferLen() int {
+func (b *bucket) getBufferLen() int {
 	return b.buffer.Len()
 }
 
-func (b *combiningBucket) incrementLineCount() {
+func (b *bucket) incrementLineCount() {
 	b.lineCount++
 }
 
 // Aggregator aggregates multiline logs with a given label.
 type Aggregator struct {
 	outputFn           func(m *message.Message)
-	bucket             *combiningBucket
+	bucket             *bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
@@ -137,7 +137,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 
 	return &Aggregator{
 		outputFn: outputFn,
-		bucket: &combiningBucket{
+		bucket: &bucket{
 			buffer:           bytes.NewBuffer(nil),
 			tagTruncatedLogs: tagTruncatedLogs,
 			tagMultiLineLogs: tagMultiLineLogs,
