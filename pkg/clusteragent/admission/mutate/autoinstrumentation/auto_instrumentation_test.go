@@ -2180,6 +2180,146 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		"UST env vars from pod_labels_as_tags injects DD_VERSION and DD_ENV": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				// DD_VERSION and DD_ENV are injected with ValueFrom.FieldRef, so Value is empty
+				requiredEnvs: map[string]string{
+					"DD_VERSION": "",
+					"DD_ENV":     "",
+				},
+			},
+		},
+		"UST env vars from pod_labels_as_tags does not inject when namespace is not eligible": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"other-namespace",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version":                   "v1.2.3",
+					"environment":                   "production",
+					admissioncommon.EnabledLabelKey: "true",
+				},
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			// Pod is mutated via local lib injection, but UST env vars should NOT be injected
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				// DD_VERSION and DD_ENV should NOT be present since namespace is not eligible
+				unsetEnvs: []string{"DD_VERSION", "DD_ENV"},
+			},
+		},
+		"lib config from annotations injects config for python language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/python-lib.version":   "v1",
+					"admission.datadoghq.com/python-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_sampling_rate":0.5}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_RUNTIME_METRICS_ENABLED": "true",
+					"DD_TRACE_SAMPLE_RATE":       "0.50",
+				},
+			},
+		},
+		"lib config from annotations injects config for js language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/js-lib.version":   "v1",
+					"admission.datadoghq.com/js-lib.config.v1": `{"tracing_debug":true,"log_injection_enabled":true}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"js": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_TRACE_DEBUG":    "true",
+					"DD_LOGS_INJECTION": "true",
+				},
+			},
+		},
 		"config webhook applies to enabled namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
