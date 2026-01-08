@@ -23,6 +23,13 @@ copy_file(
     out = "config.h",
 )
 
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h"
+    ],
+)
+
 PUBLIC_HEADERS = [
     "dbus/dbus-address.h",
     "dbus/dbus-bus.h",
@@ -110,7 +117,6 @@ cc_library(
         "dbus/dbus-sysdeps-unix.c",
         "dbus/dbus-transport-unix.c",
         "dbus/dbus-userdb.c",
-        ":copy_config_h",
         ":dbus_arch_deps_h",
     ] + glob(["dbus/*.h"], exclude=PUBLIC_HEADERS),
     hdrs = PUBLIC_HEADERS,
@@ -124,8 +130,12 @@ cc_library(
         "-fno-strict-aliasing",
         "-fvisibility=hidden",
     ],
+    implementation_deps = [
+        ":config_h",
+    ],
     includes = ["."],
     linkstatic = True,
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
@@ -166,11 +176,19 @@ pkg_files(
     prefix = "lib/pkgconfig",
 )
 
+pkg_files(
+    name = "dbus_arch_deps_install",
+    srcs = [":dbus_arch_deps_h"],
+    # This header is really meant to be installed in the lib dir.
+    prefix = "lib/dbus-1.0/include/dbus",
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":headers",
         ":pkgconfig",
         ":lib_files",
+        ":dbus_arch_deps_install"
     ],
 )

@@ -284,7 +284,7 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 
 func (a *APIServer) updateMsgTrack(msg *api.SecurityEventMessage) {
 	if slices.Contains(events.AllSecInfoRuleIDs(), msg.RuleID) {
-		msg.Track = string(SecInfo)
+		msg.Track = string(common.SecInfo)
 	}
 }
 

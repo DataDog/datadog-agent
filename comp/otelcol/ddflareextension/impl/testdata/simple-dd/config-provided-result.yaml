@@ -36,8 +36,8 @@ exporters:
         initial_cumulative_monotonic_value: auto
     only_metadata: false
     orchestrator_explorer:
-      cluster_name: ""
       enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -48,7 +48,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -88,13 +87,11 @@ receivers:
         metric_name_escaping_scheme: allow-utf-8
         metric_name_validation_scheme: utf8
         scrape_interval: 1m
-        scrape_protocols:
-          - OpenMetricsText1.0.0
-          - OpenMetricsText0.0.1
-          - PrometheusText1.0.0
-          - PrometheusText0.0.4
+        scrape_native_histograms: false
         scrape_timeout: 10s
       otlp:
+        label_name_preserve_multiple_underscores: true
+        label_name_underscore_sanitization: true
         translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
@@ -112,6 +109,7 @@ receivers:
           metrics_path: /metrics
           scheme: http
           scrape_interval: 5s
+          scrape_native_histograms: false
           scrape_protocols:
             - PrometheusText0.0.4
           scrape_timeout: 5s

@@ -75,6 +75,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
@@ -156,7 +157,39 @@ func NewEventZeroer() func(*Event) {
 	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
-		*e = eventZero
+		switch e.GetEventType() {
+		case PrCtlEventType:
+
+			e.PrCtl = eventZero.PrCtl
+			e.BaseEvent = eventZero.BaseEvent
+		case FileOpenEventType:
+			e.Open = eventZero.Open
+			e.BaseEvent = eventZero.BaseEvent
+		case SetSockOptEventType:
+			e.SetSockOpt = eventZero.SetSockOpt
+			e.BaseEvent = eventZero.BaseEvent
+		case ArgsEnvsEventType:
+			e.ArgsEnvs = eventZero.ArgsEnvs
+			e.BaseEvent = eventZero.BaseEvent
+		case ConnectEventType:
+			e.Connect = eventZero.Connect
+			e.BaseEvent = eventZero.BaseEvent
+		case MMapEventType:
+			e.MMap = eventZero.MMap
+			e.BaseEvent = eventZero.BaseEvent
+		case DNSEventType:
+			e.DNS = eventZero.DNS
+			e.BaseEvent = eventZero.BaseEvent
+		case FileUnlinkEventType:
+			e.Unlink = eventZero.Unlink
+			e.BaseEvent = eventZero.BaseEvent
+		case AcceptEventType:
+			e.Accept = eventZero.Accept
+			e.BaseEvent = eventZero.BaseEvent
+		default:
+			*e = eventZero
+		}
+
 	}
 }
 

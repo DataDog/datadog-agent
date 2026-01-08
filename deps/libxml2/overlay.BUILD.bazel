@@ -69,9 +69,15 @@ expand_template(
 )
 
 cc_library(
+    name = "xml2_config_h",
+    hdrs = [
+        ":copy_config_h"
+    ],
+)
+
+cc_library(
     name = "libxml2",
     srcs = [
-        ":copy_config_h",
         "buf.c",
         "chvalid.c",
         "dict.c",
@@ -116,6 +122,9 @@ cc_library(
         "c14n.c",
     ] + glob(["include/private/*.h"]),
     hdrs = PUBLIC_HEADERS,
+    implementation_deps = [
+        ":xml2_config_h"
+    ],
     deps = [
         "@zlib//:zlib",
         "@xz//:liblzma",

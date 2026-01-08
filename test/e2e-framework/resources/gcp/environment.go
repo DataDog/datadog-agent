@@ -130,7 +130,7 @@ func logIn(ctx *pulumi.Context) {
 // Cross Cloud Provider config
 
 func (e *Environment) InternalRegistry() string {
-	return "us-central1-docker.pkg.dev/datadog-agent-qa/agent-qa"
+	return "registry.datadoghq.com"
 }
 
 func (e *Environment) InternalDockerhubMirror() string {

@@ -1,0 +1,56 @@
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+Package: main
+	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester/main.go [82:91] injectible: [82-91]
+		Arg: w: net/http.ResponseWriter (declared at line 82, available: [82-91])
+		Arg: r: *net/http.Request (declared at line 82, available: [82-91])
+		Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 83, available: [84-85])
+		Var: &buf: *bytes.Buffer (declared at line 88, available: [82-91])
+	Function: HandleHTTP.Printf.func1 (main.HandleHTTP.Printf.func1) in log/log.go [408:409] injectible: [408-409]
+		Arg: b: []uint8 (declared at line 408, available: [408-409])
+		Arg: ~r0: []uint8 (declared at line 408, available: )
+		Var: format: string (declared at line 409, available: [409-409])
+		Var: v: []interface {} (declared at line 409, available: [409-409])
+	Function: LookAtTheRequest (main.LookAtTheRequest) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester/main.go [94:96] injectible: [94-96]
+		Arg: path: string (declared at line 94, available: [94-95])
+	Function: LookAtTheRequest.Printf.func1 (main.LookAtTheRequest.Printf.func1) in log/log.go [408:409] injectible: [408-409]
+		Arg: b: []uint8 (declared at line 408, available: [408-409])
+		Arg: ~r0: []uint8 (declared at line 408, available: )
+		Var: format: string (declared at line 409, available: [409-409])
+		Var: v: []interface {} (declared at line 409, available: [409-409])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester/main.go [26:80] injectible: [26-29], [33-35], [37-37], [39-41], [44-45], [48-50], [53-55], [57-57], [60-62], [64-64], [66-67], [69-73], [75-75], [77-80]
+		Var: stop: context.CancelFunc (declared at line 27, available: [28-33])
+		Var: tracerEnabled: bool (declared at line 33, available: [26-80])
+		Var: mux: *github.com/DataDog/dd-trace-go/contrib/net/http/v2/internal/wrap.ServeMux (declared at line 69, available: [66-80])
+		Var: port: int (declared at line 66, available: [67-67])
+		Var: s: *net/http.Server (declared at line 71, available: [66-80])
+		Var: ctx: context.Context (declared at line 27, available: [26-80])
+		Var: ln: net.Listener (declared at line 60, available: [26-80])
+		Var: err: error (declared at line 60, available: [61-62])
+		Var: ~r0.ptr: *uint8 (declared at line 236, available: )
+		Var: ~r0.len: int (declared at line 236, available: )
+		Scope: 40-60
+			Var: ddAgentHost: string (declared at line 40, available: [41-60])
+			Var: ddAgentPort: string (declared at line 44, available: [41-53])
+			Var: opts: []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.StartOption (declared at line 48, available: )
+			Var: err: error (declared at line 53, available: [54-55])
+	Function: main.Printf.func4 (main.main.Printf.func4) in log/log.go [408:409] injectible: [408-409]
+		Arg: b: []uint8 (declared at line 408, available: [408-409])
+		Arg: ~r0: []uint8 (declared at line 408, available: )
+		Var: format: string (declared at line 409, available: [409-409])
+		Var: v: []interface {} (declared at line 409, available: [409-409])
+	Function: main.Println.func2 (main.main.Println.func2) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.Println.func5 (main.main.Println.func5) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [1003:1008] injectible: [1003-1006], [1008-1008]
+		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 1003, available: [1003-1008])
+		Var: addr: string (declared at line 1006, available: [1003-1008])
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester/main.go [29:31] injectible: [29-31]
+	Function: main.func1.Println.1 (main.main.func1.Println.1) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])

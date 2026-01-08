@@ -8,20 +8,18 @@
 package containerd
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/prometheus/common/model"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // metricTransformerFunc is used to tweak or generate new metrics from a given containerd metric
-type metricTransformerFunc = func(sender.Sender, string, model.Sample)
+type metricTransformerFunc = func(sender.Sender, string, prometheus.Sample)
 
 var defaultContainerdOpenmetricsTransformers = map[string]metricTransformerFunc{
 	"grpc_server_handled_total": grpcServerHandlerTransformer,
 }
 
-func grpcServerHandlerTransformer(s sender.Sender, name string, sample model.Sample) {
+func grpcServerHandlerTransformer(s sender.Sender, name string, sample prometheus.Sample) {
 	metric := sample.Metric
 
 	grpcMethod, ok := metric["grpc_method"]
@@ -35,7 +33,7 @@ func grpcServerHandlerTransformer(s sender.Sender, name string, sample model.Sam
 	}
 }
 
-func imagePullMetricTransformer(s sender.Sender, _ string, sample model.Sample) {
+func imagePullMetricTransformer(s sender.Sender, _ string, sample prometheus.Sample) {
 	metric := sample.Metric
 
 	grpcCode, ok := metric["grpc_code"]
@@ -45,9 +43,9 @@ func imagePullMetricTransformer(s sender.Sender, _ string, sample model.Sample) 
 	}
 
 	metricTags := []string{
-		fmt.Sprintf("grpc_service:%s", metric["grpc_service"]),
-		"grpc_code:" + toSnakeCase(string(grpcCode)),
+		"grpc_service:" + metric["grpc_service"],
+		"grpc_code:" + toSnakeCase(grpcCode),
 	}
 
-	s.MonotonicCount("containerd.image.pull", float64(sample.Value), "", metricTags)
+	s.MonotonicCount("containerd.image.pull", sample.Value, "", metricTags)
 }

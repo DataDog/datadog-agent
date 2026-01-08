@@ -99,7 +99,8 @@ type GPUMonitoringModule struct {
 
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
+	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -108,7 +109,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, stats, utils.CompactOutput)
-	})
+	}))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
