@@ -9,9 +9,6 @@
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=${INSTALL_DIR:-/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}}
     - set +x
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - go env -w GOPRIVATE="github.com/DataDog/*"
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -20,6 +17,7 @@
     - !reference [.retrieve_linux_go_tools_deps]
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - dda self dep sync -f legacy-tasks
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
@@ -108,6 +106,7 @@
           echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
           ;;
       esac
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
     - ls -l "${PIPE_DIR}"
   artifacts:

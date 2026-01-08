@@ -174,7 +174,7 @@ type JSONSegment struct {
 	EventExpressionIndex int
 }
 
-func (s JSONSegment) templateSegment() {}
+func (s *JSONSegment) templateSegment() {}
 
 // InvalidSegment is a segment that represents an issue with the template.
 type InvalidSegment struct {
@@ -184,6 +184,11 @@ type InvalidSegment struct {
 }
 
 func (s InvalidSegment) templateSegment() {}
+
+// DurationSegment is a segment that is a simple reference to @duration.
+type DurationSegment struct{}
+
+func (s *DurationSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
@@ -219,6 +224,22 @@ type InjectionPoint struct {
 	// HasAssociatedReturn is true if there is going to be a return associated
 	// with this call.
 	HasAssociatedReturn bool `json:"-"`
+	// NoReturnReason is the reason why there is no return associated with this
+	// call. Only set if HasAssociatedReturn is false.
+	NoReturnReason NoReturnReason `json:"-"`
 	// TopPCOffset is the offset of the top PC from the entry PC.
 	TopPCOffset int8 `json:"-"`
 }
+
+// This must be kept in sync with the no_return_reason enum in the ebpf/types.h
+// file.
+type NoReturnReason uint8
+
+const (
+	NoReturnReasonNone            NoReturnReason = 0
+	NoReturnReasonReturnsDisabled NoReturnReason = 1
+	NoReturnReasonLineProbe       NoReturnReason = 2
+	NoReturnReasonInlined         NoReturnReason = 3
+	NoReturnReasonNoBody          NoReturnReason = 4
+	NoReturnReasonIsReturn        NoReturnReason = 5
+)

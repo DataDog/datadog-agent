@@ -6,18 +6,7 @@ include:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   needs:
-    - docker_build_agent7_windows1809
-    - docker_build_agent7_windows1809_jmx
-    - docker_build_agent7_windows1809_core
-    - docker_build_agent7_windows1809_core_jmx
-    - docker_build_agent7_windows2022
-    - docker_build_agent7_windows2022_jmx
-    - docker_build_agent7_windows2022_core
-    - docker_build_agent7_windows2022_core_jmx
-    - docker_build_agent7_windows2025
-    - docker_build_agent7_windows2025_jmx
-    - docker_build_agent7_windows2025_core
-    - docker_build_agent7_windows2025_core_jmx
+    - docker_build_agent7_windows
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -100,8 +89,7 @@ dev_nightly-a7-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   needs:
-    - docker_build_fips_agent7_windows2022_core
-    - docker_build_fips_agent7_windows2022_core_jmx
+    - docker_build_fips_agent7_windows
   variables:
     IMG_REGISTRIES: dev
   # Only publish ltsc2022 servercore for now, that's all that's used by the integrations testing

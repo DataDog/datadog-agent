@@ -7,7 +7,7 @@ package decoder
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -64,7 +64,7 @@ func (u *MockFailingParser) Parse(input *message.Message) (*message.Message, err
 		return msg, nil
 	}
 	msg := message.NewMessage(input.GetContent(), nil, "", 0)
-	return msg, fmt.Errorf("error")
+	return msg, errors.New("error")
 }
 
 func (u *MockFailingParser) SupportsPartialLine() bool {

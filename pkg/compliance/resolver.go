@@ -227,7 +227,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			resultType = "constants"
 			result = *spec.Constants
 		default:
-			return nil, fmt.Errorf("bad input spec")
+			return nil, errors.New("bad input spec")
 		}
 
 		tagName := resultType
@@ -502,7 +502,7 @@ func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (
 		}
 		parts := strings.SplitN(string(line), ":", 4)
 		if len(parts) != 4 {
-			return nil, fmt.Errorf("malformed group file format")
+			return nil, errors.New("malformed group file format")
 		}
 		gid, err := strconv.Atoi(parts[2])
 		if err != nil {

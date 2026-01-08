@@ -192,7 +192,7 @@ func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 
 func componentStatusCmd(_ log.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	if len(cliParams.args) > 1 {
-		return fmt.Errorf("only one section must be specified")
+		return errors.New("only one section must be specified")
 	}
 
 	return redactError(componentStatus(cliParams, cliParams.args[0], client))

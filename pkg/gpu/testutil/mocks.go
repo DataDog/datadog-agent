@@ -206,8 +206,13 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 		d.GetNameFunc = func() (string, nvml.Return) {
 			return "MIG " + DefaultGPUName, nvml.SUCCESS
 		}
+
+		// MIG-Specific functions
 		d.IsMigDeviceHandleFunc = func() (bool, nvml.Return) {
 			return true, nvml.SUCCESS
+		}
+		d.GetGpuInstanceIdFunc = func() (int, nvml.Return) {
+			return migDeviceIdx, nvml.SUCCESS
 		}
 
 		// Override GetAttributesFunc for this specific MIG child to correctly distribute parent's resources.
@@ -231,6 +236,14 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 			}
 
 			return migSpecificAttributes, nvml.SUCCESS
+		}
+
+		// Override functions that return errors for MIG devices
+		d.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_UNKNOWN, nvml.ERROR_INVALID_ARGUMENT
+		}
+		d.GetCudaComputeCapabilityFunc = func() (int, int, nvml.Return) {
+			return 0, 0, nvml.ERROR_INVALID_ARGUMENT
 		}
 	}
 
@@ -270,7 +283,7 @@ func WithDeviceCount(count int) NvmlMockOption {
 				if index >= count {
 					return nil, nvml.ERROR_INVALID_ARGUMENT
 				}
-				return GetDeviceMock(index), nvml.SUCCESS
+				return GetDeviceMock(index, o.deviceOptions...), nvml.SUCCESS
 			}
 		})
 	}
@@ -285,13 +298,24 @@ func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) Nvml
 	}
 }
 
-// GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
-// useful for basic tests that need only the basic interaction with NVML to be working.
+// WithProcessInfoCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
+func WithProcessInfoCallback(callback func(uuid string) ([]nvml.ProcessInfo, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			uuid, _ := d.GetUUIDFunc()
+			d.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+				return callback(uuid)
+			}
+		})
+	}
+}
+
+// GetBasicNvmlMock returns a mock of the nvml.Interface with the default devices and options.
 func GetBasicNvmlMock() *nvmlmock.Interface {
 	return GetBasicNvmlMockWithOptions()
 }
 
-// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
+// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with the default devices and options,
 // allowing additional configuration through functional options.
 // It's ideal for tests that need custom NVML behavior beyond the defaults.
 func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface {
@@ -414,6 +438,20 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs
+func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
+	wmeta := GetWorkloadMetaMock(t)
+	for _, uuid := range GPUUUIDs {
+		wmeta.Set(&workloadmeta.GPU{
+			EntityID: workloadmeta.EntityID{
+				ID:   uuid,
+				Kind: workloadmeta.KindGPU,
+			},
+		})
+	}
+	return wmeta
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.

@@ -79,14 +79,14 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 	return bucketStartTimestamp+s.interval > timestamp
 }
 
-func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
+func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList *TagMatcher) {
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp))
+	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {

@@ -61,6 +61,7 @@ func (e ErrNoEventTypeBucket) Error() string {
 type ErrPolicyLoad struct {
 	Name    string
 	Version string
+	Type    string
 	Source  string
 	Err     error
 }

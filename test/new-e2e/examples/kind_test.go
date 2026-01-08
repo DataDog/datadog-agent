@@ -13,17 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
-	compkube "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
 type myKindSuite struct {
@@ -32,15 +34,16 @@ type myKindSuite struct {
 
 func TestMyKindSuite(t *testing.T) {
 	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(
-		awskubernetes.KindProvisioner(
-			awskubernetes.WithoutFakeIntake(),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
-			}),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")
-			}),
-		)))
+		provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				scenariokindvm.WithoutFakeIntake(),
+				scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
+					return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
+				}),
+				scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
+					return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")
+				}),
+			))))
 }
 
 func (v *myKindSuite) TestClusterAgentInstalled() {

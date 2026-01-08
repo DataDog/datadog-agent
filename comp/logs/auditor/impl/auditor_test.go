@@ -126,6 +126,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerpr
 		Count:               1,
 		CountToSkip:         0,
 		MaxBytes:            1000,
+		Source:              types.FingerprintConfigSourcePerSource,
 	}
 	fingerprint := types.Fingerprint{Value: 12345, Config: fingerprintConfig}
 
@@ -140,7 +141,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerpr
 
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":{"Value":12345,"Config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":1000}}}}}`
+	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":{"Value":12345,"Config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":1000,"source":"per-source"}}}}}`
 	suite.Equal(expectedJSON, string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)

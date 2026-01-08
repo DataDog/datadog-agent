@@ -174,6 +174,7 @@ type InjectTracerConfigEnvVar struct {
 type SystemProbeConfig struct {
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
+	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
@@ -201,6 +202,11 @@ type SBOMHostConfig struct {
 
 // GPUMonitoringConfig represents the configuration for GPU monitoring
 type GPUMonitoringConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// PrivilegedLogsConfig represents the configuration for privileged logs
+type PrivilegedLogsConfig struct {
 	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
@@ -247,6 +253,7 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install

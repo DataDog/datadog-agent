@@ -10,7 +10,6 @@ package file
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/afero"
@@ -21,7 +20,7 @@ import (
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.file.Path)
+	fullpath, err := t.fileOpener.Abs(t.file.Path)
 	if err != nil {
 		return err
 	}
@@ -81,7 +80,21 @@ func (t *Tailer) readAvailable() (int, error) {
 			offset := t.lastReadOffset.Load()
 			if sz < offset {
 				log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+				t.didFileRotate.Store(true)
 				return bytes, io.EOF
+			}
+
+			// Only perform fingerprint checks when fingerprinting is enabled and a valid fingerprint exists.
+			if t.fingerprint != nil && t.fingerprint.ValidFingerprint() {
+				currentFingerprint, err := t.fingerprinter.ComputeFingerprintFromHandle(f, t.fingerprint.Config)
+				if err != nil {
+					return bytes, err
+				}
+				if !currentFingerprint.Equals(t.fingerprint) {
+					log.Infof("Fingerprint mismatch detected mid read, file %s has rotated", t.fullpath)
+					t.didFileRotate.Store(true)
+					return bytes, io.EOF
+				}
 			}
 
 			_, err = f.Seek(offset, io.SeekStart)

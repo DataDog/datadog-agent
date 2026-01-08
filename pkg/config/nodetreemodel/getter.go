@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cast"
 )
 
-func (c *ntmConfig) leafAtPath(key string) LeafNode {
+func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
@@ -38,8 +38,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	ret := make(map[string]interface{})
-	for key, value := range c.knownKeys {
-		ret[key] = value
+	for key := range c.knownKeys {
+		ret[key] = struct{}{}
 	}
 	return ret
 }
@@ -139,27 +139,27 @@ func (c *ntmConfig) getNodeValue(key string) interface{} {
 
 	node := c.nodeAtPathFromNode(key, c.root)
 
-	if leaf, ok := node.(LeafNode); ok {
-		return leaf.Get()
+	if node.IsLeafNode() {
+		return node.Get()
 	}
 
 	// When querying an InnerNode we convert it as a map[string]interface{} to mimic Viper's logic
-	var converter func(node InnerNode) map[string]interface{}
-	converter = func(node InnerNode) map[string]interface{} {
+	var converter func(node *nodeImpl) map[string]interface{}
+	converter = func(node *nodeImpl) map[string]interface{} {
 		res := map[string]interface{}{}
 		for _, name := range node.ChildrenKeys() {
 			child, _ := node.GetChild(name)
 
-			if leaf, ok := child.(LeafNode); ok {
-				res[name] = leaf.Get()
+			if child.IsLeafNode() {
+				res[name] = child.Get()
 			} else {
-				res[name] = converter(child.(InnerNode))
+				res[name] = converter(child)
 			}
 		}
 		return res
 	}
 
-	return converter(node.(InnerNode))
+	return converter(node)
 }
 
 // Get returns a copy of the value for the given key
@@ -393,5 +393,9 @@ func (c *ntmConfig) GetSource(key string) model.Source {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.leafAtPath(key).Source()
+	leaf := c.leafAtPath(key)
+	if leaf == missingLeaf {
+		return model.SourceUnknown
+	}
+	return leaf.Source()
 }

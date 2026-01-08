@@ -46,9 +46,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestCoverage,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(""),
+					ConfigParams:         config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				core.Bundle(),
 				secretsnoopfx.Module(),

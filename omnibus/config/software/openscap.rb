@@ -15,20 +15,50 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
-dependency 'attr'
+build do
+  command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
+    " #{install_dir}/embedded/lib/libacl.so"
+
+  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
+    " #{install_dir}/embedded/lib/libattr.so"
+
+  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
+
+  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libselinux.pc" \
+    " #{install_dir}/embedded/lib/libselinux.so"
+
+  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
+    " #{install_dir}/embedded/lib/libsepol.so"
+
+  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
+    "--prefix #{install_dir}/embedded " \
+    "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
+    "#{install_dir}/embedded/lib/libpcre2*.so"
+
+  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
+    " #{install_dir}/embedded/lib/libblkid.so"
+end
+
 dependency 'bzip2'
 dependency 'curl'
-dependency 'dbus'
-dependency 'libacl'
 dependency 'libgcrypt'
-dependency 'libselinux'
-dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
-dependency 'pcre2'
 dependency 'popt'
 dependency 'rpm'
-dependency 'util-linux'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"
@@ -43,6 +73,7 @@ build do
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
   patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
+  patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -63,7 +94,7 @@ build do
     "-DCURL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DCURL_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libcurl.so",
     "-DDBUS_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/dbus-1.0",
-    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.so",
+    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.a",
     "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
     "-DLIBXML2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/libxml2",

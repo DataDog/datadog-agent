@@ -8,7 +8,7 @@ package assertions
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"gopkg.in/yaml.v2"
 )
 
@@ -29,9 +29,11 @@ type RemoteWindowsAgentConfigAssertions struct {
 //
 // The `config get` subcommand only supports a small set of keys, so this method
 // fetches the full config and unmarshals it into a map.
-func (r *RemoteWindowsAgentAssertions) RuntimeConfig() *RemoteWindowsAgentConfigAssertions {
+func (r *RemoteWindowsAgentAssertions) RuntimeConfig(commandArgs ...string) *RemoteWindowsAgentConfigAssertions {
 	r.context.T().Helper()
-	output, err := r.agentClient.ConfigWithError()
+	output, err := r.agentClient.ConfigWithError(
+		agentclient.WithArgs(commandArgs),
+	)
 	r.require.NoError(err)
 
 	var config map[interface{}]interface{}

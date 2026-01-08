@@ -22,6 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -30,6 +31,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -81,7 +83,9 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 }
 
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
-	return nil
+	return []confmap.ConverterFactory{
+		converters.NewFactoryWithAgent(),
+	}
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
@@ -101,7 +105,10 @@ func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 
 // GetProcessors returns the processors for the collector.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
-	return []processor.Factory{k8sattributesprocessor.NewFactory()}
+	return []processor.Factory{
+		k8sattributesprocessor.NewFactory(),
+		resourcedetectionprocessor.NewFactory(),
+	}
 }
 
 // GetConverters returns the converters for the collector.
@@ -145,6 +152,7 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			Exporters:  expMap,
 			Processors: processors,
 			Extensions: extensions,
+			Telemetry:  otelconftelemetry.NewFactory(),
 		}, nil
 	}
 }

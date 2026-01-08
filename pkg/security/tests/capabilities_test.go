@@ -33,6 +33,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 		return !kv.HasBPFForEachMapElemHelper()
 	})
 
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	checkKernelCompatibility(t, "no override_creds/restore_creds", func(kv *kernel.Version) bool {
 		return kv.Code >= kernel.Kernel6_14
 	})
@@ -72,7 +76,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("used-exec-flush", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return dockerInstance.Command(syscallTester, []string{"chroot", "/", ";", "self-exec", "self-exec", "check"}, []string{}).Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
@@ -81,11 +85,11 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_CHROOT), "capabilities attempted should contain CAP_SYS_CHROOT")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_CHROOT), "capabilities used should contain CAP_SYS_CHROOT")
-		})
+		}, "test_capabilities_used_exec_flush")
 	})
 
 	t.Run("attempted-exit-flush", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_ = dockerInstance.Command(syscallTester, []string{"acct"}, []string{}).Run()
 			// ignore the error here because the command is expected to fail
 			return nil
@@ -96,7 +100,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(0), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_PACCT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_PACCT), "capabilities attempted should contain CAP_SYS_PACCT")
 			assert.Equal(t, uint64(0), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_PACCT), "capabilities used shouldn't contain CAP_SYS_PACCT")
-		})
+		}, "test_capabilities_attempted_exit_flush")
 	})
 
 	t.Run("used-periodic-flush", func(t *testing.T) {
@@ -111,7 +115,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 				}
 			}
 		}()
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			syscallTesterCmd = dockerInstance.Command(syscallTester, []string{"chown", "/etc/profile", "1001", "1001", ";", "pause"}, []string{})
 			return syscallTesterCmd.Start()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -121,6 +125,6 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_CHOWN), "capabilities attempted should contain CAP_CHOWN")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_CHOWN), "capabilities used should contain CAP_CHOWN")
-		})
+		}, "test_capabilities_used_periodic_flush")
 	})
 }

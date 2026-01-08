@@ -11,11 +11,11 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - Kind: Entry
-          Type: 234 EventRootType Probe[main.HandleHTTP]
+          Type: 192 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd597d3", Frameless: false}]
           Condition: null
         - Kind: Return
-          Type: 235 EventRootType Probe[main.HandleHTTP]Return
+          Type: 193 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0xd59a14"
               Frameless: false
@@ -33,11 +33,11 @@ Probes:
       subprogram: {subprogram: 2}
       events:
         - Kind: Entry
-          Type: 236 EventRootType Probe[main.LookAtTheRequest]
+          Type: 194 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd59b2e", Frameless: false}]
           Condition: null
         - Kind: Return
-          Type: 237 EventRootType Probe[main.LookAtTheRequest]Return
+          Type: 195 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd59bbd", Frameless: false}]
           Condition: null
 Subprograms:
@@ -107,16 +107,6 @@ Subprograms:
           Role: Parameter
 Types:
     - __kind: PointerType
-      ID: 220
-      Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
-      ByteSize: 8
-      Pointee: 219 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
-    - __kind: PointerType
-      ID: 228
-      Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
-      ByteSize: 8
-      Pointee: 227 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
-    - __kind: PointerType
       ID: 39
       Name: '*[]runtime.ancestorInfo'
       ByteSize: 8
@@ -146,25 +136,10 @@ Types:
       GoKind: 22
       Pointee: 4 BaseType bool
     - __kind: PointerType
-      ID: 224
-      Name: '*bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
-      ByteSize: 8
-      Pointee: 225 GoHMapBucketType bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-    - __kind: PointerType
       ID: 161
       Name: '*bucket<string,[]string>'
       ByteSize: 8
       Pointee: 162 GoHMapBucketType bucket<string,[]string>
-    - __kind: PointerType
-      ID: 204
-      Name: '*bucket<string,float64>'
-      ByteSize: 8
-      Pointee: 205 GoHMapBucketType bucket<string,float64>
-    - __kind: PointerType
-      ID: 199
-      Name: '*bucket<string,interface {}>'
-      ByteSize: 8
-      Pointee: 200 GoHMapBucketType bucket<string,interface {}>
     - __kind: PointerType
       ID: 182
       Name: '*bucket<string,string>'
@@ -176,7 +151,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 2.17632e+06
       GoKind: 22
-      Pointee: 108 StructureType bytes.Buffer
+      Pointee: 108 UnresolvedPointeeType bytes.Buffer
     - __kind: PointerType
       ID: 171
       Name: '*crypto/tls.ConnectionState'
@@ -211,35 +186,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 2.187104e+06
       GoKind: 22
-      Pointee: 106 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
-    - __kind: PointerType
-      ID: 212
-      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext'
-      ByteSize: 8
-      GoRuntimeType: 1.916704e+06
-      GoKind: 22
-      Pointee: 213 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
-    - __kind: PointerType
-      ID: 207
-      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
-      ByteSize: 8
-      GoRuntimeType: 1.129216e+06
-      GoKind: 22
-      Pointee: 208 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
-    - __kind: PointerType
-      ID: 210
-      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
-      ByteSize: 8
-      GoRuntimeType: 1.129344e+06
-      GoKind: 22
-      Pointee: 211 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
-    - __kind: PointerType
-      ID: 230
-      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute'
-      ByteSize: 8
-      GoRuntimeType: 1.130112e+06
-      GoKind: 22
-      Pointee: 231 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+      Pointee: 106 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: PointerType
       ID: 115
       Name: '*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter'
@@ -248,25 +195,10 @@ Types:
       GoKind: 22
       Pointee: 116 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter
     - __kind: PointerType
-      ID: 222
-      Name: '*hash<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
-      ByteSize: 8
-      Pointee: 223 GoHMapHeaderType hash<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-    - __kind: PointerType
       ID: 159
       Name: '*hash<string,[]string>'
       ByteSize: 8
       Pointee: 160 GoHMapHeaderType hash<string,[]string>
-    - __kind: PointerType
-      ID: 202
-      Name: '*hash<string,float64>'
-      ByteSize: 8
-      Pointee: 203 GoHMapHeaderType hash<string,float64>
-    - __kind: PointerType
-      ID: 197
-      Name: '*hash<string,interface {}>'
-      ByteSize: 8
-      Pointee: 198 GoHMapHeaderType hash<string,interface {}>
     - __kind: PointerType
       ID: 180
       Name: '*hash<string,string>'
@@ -591,7 +523,7 @@ Types:
       GoRuntimeType: 555296
       GoKind: 18
     - __kind: EventRootType
-      ID: 234
+      ID: 192
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -617,10 +549,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 235
+      ID: 193
       Name: Probe[main.HandleHTTP]Return
     - __kind: EventRootType
-      ID: 236
+      ID: 194
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -636,7 +568,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 237
+      ID: 195
       Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 85
@@ -738,81 +670,17 @@ Types:
       HasCount: true
       Element: 3 BaseType uint8
     - __kind: GoSliceDataType
-      ID: 232
-      Name: '[]bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array'
-      DynamicSizeClass: hashmap
-      ByteSize: 208
-      Element: 225 GoHMapBucketType bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-    - __kind: GoSliceDataType
       ID: 187
       Name: '[]bucket<string,[]string>.array'
       DynamicSizeClass: hashmap
       ByteSize: 336
       Element: 162 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 218
-      Name: '[]bucket<string,float64>.array'
-      DynamicSizeClass: hashmap
-      ByteSize: 208
-      Element: 205 GoHMapBucketType bucket<string,float64>
-    - __kind: GoSliceDataType
-      ID: 216
-      Name: '[]bucket<string,interface {}>.array'
-      DynamicSizeClass: hashmap
-      ByteSize: 272
-      Element: 200 GoHMapBucketType bucket<string,interface {}>
-    - __kind: GoSliceDataType
       ID: 191
       Name: '[]bucket<string,string>.array'
       DynamicSizeClass: hashmap
       ByteSize: 272
       Element: 183 GoHMapBucketType bucket<string,string>
-    - __kind: GoSliceHeaderType
-      ID: 206
-      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
-      ByteSize: 24
-      GoRuntimeType: 463424
-      GoKind: 23
-      RawFields:
-        - Name: array
-          Offset: 0
-          Type: 207 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
-        - Name: len
-          Offset: 8
-          Type: 9 BaseType int
-        - Name: cap
-          Offset: 16
-          Type: 9 BaseType int
-      Data: 219 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
-    - __kind: GoSliceDataType
-      ID: 219
-      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
-      DynamicSizeClass: slice
-      ByteSize: 56
-      Element: 208 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
-    - __kind: GoSliceHeaderType
-      ID: 209
-      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
-      ByteSize: 24
-      GoRuntimeType: 463616
-      GoKind: 23
-      RawFields:
-        - Name: array
-          Offset: 0
-          Type: 210 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
-        - Name: len
-          Offset: 8
-          Type: 9 BaseType int
-        - Name: cap
-          Offset: 16
-          Type: 9 BaseType int
-      Data: 227 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
-    - __kind: GoSliceDataType
-      ID: 227
-      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
-      DynamicSizeClass: slice
-      ByteSize: 40
-      Element: 211 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
     - __kind: ArrayType
       ID: 185
       Name: '[]key<string>'
@@ -894,33 +762,12 @@ Types:
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
-      ID: 229
-      Name: '[]val<*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
-      ByteSize: 64
-      Count: 8
-      HasCount: true
-      Element: 230 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
-    - __kind: ArrayType
       ID: 186
       Name: '[]val<[]string>'
       ByteSize: 192
       Count: 8
       HasCount: true
       Element: 167 GoSliceHeaderType []string
-    - __kind: ArrayType
-      ID: 217
-      Name: '[]val<float64>'
-      ByteSize: 64
-      Count: 8
-      HasCount: true
-      Element: 17 BaseType float64
-    - __kind: ArrayType
-      ID: 214
-      Name: '[]val<interface {}>'
-      ByteSize: 128
-      Count: 8
-      HasCount: true
-      Element: 215 GoEmptyInterfaceType interface {}
     - __kind: ArrayType
       ID: 190
       Name: '[]val<string>'
@@ -934,25 +781,6 @@ Types:
       ByteSize: 1
       GoRuntimeType: 543328
       GoKind: 1
-    - __kind: GoHMapBucketType
-      ID: 225
-      Name: bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-      ByteSize: 208
-      RawFields:
-        - Name: tophash
-          Offset: 0
-          Type: 184 ArrayType [8]uint8
-        - Name: keys
-          Offset: 8
-          Type: 185 ArrayType []key<string>
-        - Name: values
-          Offset: 136
-          Type: 229 ArrayType []val<*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-        - Name: overflow
-          Offset: 200
-          Type: 224 PointerType *bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-      KeyType: 11 GoStringHeaderType string
-      ValueType: 230 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
     - __kind: GoHMapBucketType
       ID: 162
       Name: bucket<string,[]string>
@@ -973,44 +801,6 @@ Types:
       KeyType: 11 GoStringHeaderType string
       ValueType: 167 GoSliceHeaderType []string
     - __kind: GoHMapBucketType
-      ID: 205
-      Name: bucket<string,float64>
-      ByteSize: 208
-      RawFields:
-        - Name: tophash
-          Offset: 0
-          Type: 184 ArrayType [8]uint8
-        - Name: keys
-          Offset: 8
-          Type: 185 ArrayType []key<string>
-        - Name: values
-          Offset: 136
-          Type: 217 ArrayType []val<float64>
-        - Name: overflow
-          Offset: 200
-          Type: 204 PointerType *bucket<string,float64>
-      KeyType: 11 GoStringHeaderType string
-      ValueType: 17 BaseType float64
-    - __kind: GoHMapBucketType
-      ID: 200
-      Name: bucket<string,interface {}>
-      ByteSize: 272
-      RawFields:
-        - Name: tophash
-          Offset: 0
-          Type: 184 ArrayType [8]uint8
-        - Name: keys
-          Offset: 8
-          Type: 185 ArrayType []key<string>
-        - Name: values
-          Offset: 136
-          Type: 214 ArrayType []val<interface {}>
-        - Name: overflow
-          Offset: 264
-          Type: 199 PointerType *bucket<string,interface {}>
-      KeyType: 11 GoStringHeaderType string
-      ValueType: 215 GoEmptyInterfaceType interface {}
-    - __kind: GoHMapBucketType
       ID: 183
       Name: bucket<string,string>
       ByteSize: 272
@@ -1029,28 +819,10 @@ Types:
           Type: 182 PointerType *bucket<string,string>
       KeyType: 11 GoStringHeaderType string
       ValueType: 11 GoStringHeaderType string
-    - __kind: StructureType
+    - __kind: UnresolvedPointeeType
       ID: 108
       Name: bytes.Buffer
-      ByteSize: 40
-      GoRuntimeType: 1.450816e+06
-      GoKind: 25
-      RawFields:
-        - Name: buf
-          Offset: 0
-          Type: 38 GoSliceHeaderType []uint8
-        - Name: off
-          Offset: 24
-          Type: 9 BaseType int
-        - Name: lastRead
-          Offset: 32
-          Type: 233 BaseType bytes.readOp
-    - __kind: BaseType
-      ID: 233
-      Name: bytes.readOp
-      ByteSize: 1
-      GoRuntimeType: 541536
-      GoKind: 3
+      ByteSize: 8
     - __kind: BaseType
       ID: 90
       Name: complex128
@@ -1123,146 +895,9 @@ Types:
       ByteSize: 8
       GoRuntimeType: 798176
       GoKind: 19
-    - __kind: StructureType
+    - __kind: UnresolvedPointeeType
       ID: 106
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
-      ByteSize: 288
-      GoRuntimeType: 2.251424e+06
-      GoKind: 25
-      RawFields:
-        - Name: mu
-          Offset: 0
-          Type: 192 StructureType sync.RWMutex
-        - Name: name
-          Offset: 24
-          Type: 11 GoStringHeaderType string
-        - Name: service
-          Offset: 40
-          Type: 11 GoStringHeaderType string
-        - Name: resource
-          Offset: 56
-          Type: 11 GoStringHeaderType string
-        - Name: spanType
-          Offset: 72
-          Type: 11 GoStringHeaderType string
-        - Name: start
-          Offset: 88
-          Type: 13 BaseType int64
-        - Name: duration
-          Offset: 96
-          Type: 13 BaseType int64
-        - Name: meta
-          Offset: 104
-          Type: 179 GoMapType map[string]string
-        - Name: metaStruct
-          Offset: 112
-          Type: 196 GoMapType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
-        - Name: metrics
-          Offset: 120
-          Type: 201 GoMapType map[string]float64
-        - Name: spanID
-          Offset: 128
-          Type: 10 BaseType uint64
-        - Name: traceID
-          Offset: 136
-          Type: 10 BaseType uint64
-        - Name: parentID
-          Offset: 144
-          Type: 10 BaseType uint64
-        - Name: error
-          Offset: 152
-          Type: 12 BaseType int32
-        - Name: spanLinks
-          Offset: 160
-          Type: 206 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
-        - Name: spanEvents
-          Offset: 184
-          Type: 209 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
-        - Name: goExecTraced
-          Offset: 208
-          Type: 4 BaseType bool
-        - Name: noDebugStack
-          Offset: 209
-          Type: 4 BaseType bool
-        - Name: finished
-          Offset: 210
-          Type: 4 BaseType bool
-        - Name: context
-          Offset: 216
-          Type: 212 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
-        - Name: integration
-          Offset: 224
-          Type: 11 GoStringHeaderType string
-        - Name: supportsEvents
-          Offset: 240
-          Type: 4 BaseType bool
-        - Name: pprofCtxActive
-          Offset: 248
-          Type: 176 GoInterfaceType context.Context
-        - Name: pprofCtxRestore
-          Offset: 264
-          Type: 176 GoInterfaceType context.Context
-        - Name: taskEnd
-          Offset: 280
-          Type: 57 GoSubroutineType func()
-    - __kind: UnresolvedPointeeType
-      ID: 213
-      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
-      ByteSize: 8
-    - __kind: StructureType
-      ID: 208
-      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
-      ByteSize: 56
-      GoRuntimeType: 1.822016e+06
-      GoKind: 25
-      RawFields:
-        - Name: TraceID
-          Offset: 0
-          Type: 10 BaseType uint64
-        - Name: TraceIDHigh
-          Offset: 8
-          Type: 10 BaseType uint64
-        - Name: SpanID
-          Offset: 16
-          Type: 10 BaseType uint64
-        - Name: Attributes
-          Offset: 24
-          Type: 179 GoMapType map[string]string
-        - Name: Tracestate
-          Offset: 32
-          Type: 11 GoStringHeaderType string
-        - Name: Flags
-          Offset: 48
-          Type: 2 BaseType uint32
-    - __kind: GoMapType
-      ID: 196
-      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
-      ByteSize: 8
-      GoRuntimeType: 1.007296e+06
-      GoKind: 21
-      HeaderType: 198 GoHMapHeaderType hash<string,interface {}>
-    - __kind: StructureType
-      ID: 211
-      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
-      ByteSize: 40
-      GoRuntimeType: 1.663808e+06
-      GoKind: 25
-      RawFields:
-        - Name: Name
-          Offset: 0
-          Type: 11 GoStringHeaderType string
-        - Name: TimeUnixNano
-          Offset: 16
-          Type: 10 BaseType uint64
-        - Name: Attributes
-          Offset: 24
-          Type: 221 GoMapType map[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
-        - Name: RawAttributes
-          Offset: 32
-          Type: 226 GoMapType map[string]interface {}
-    - __kind: UnresolvedPointeeType
-      ID: 231
-      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
       ByteSize: 8
     - __kind: GoInterfaceType
       ID: 147
@@ -1281,40 +916,6 @@ Types:
       ID: 116
       Name: github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter
       ByteSize: 8
-    - __kind: GoHMapHeaderType
-      ID: 223
-      Name: hash<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-      ByteSize: 48
-      RawFields:
-        - Name: count
-          Offset: 0
-          Type: 9 BaseType int
-        - Name: flags
-          Offset: 8
-          Type: 3 BaseType uint8
-        - Name: B
-          Offset: 9
-          Type: 3 BaseType uint8
-        - Name: noverflow
-          Offset: 10
-          Type: 7 BaseType uint16
-        - Name: hash0
-          Offset: 12
-          Type: 2 BaseType uint32
-        - Name: buckets
-          Offset: 16
-          Type: 224 PointerType *bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-        - Name: oldbuckets
-          Offset: 24
-          Type: 224 PointerType *bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-        - Name: nevacuate
-          Offset: 32
-          Type: 1 BaseType uintptr
-        - Name: extra
-          Offset: 40
-          Type: 163 PointerType *runtime.mapextra
-      BucketType: 225 GoHMapBucketType bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-      BucketsType: 232 GoSliceDataType []bucket<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array
     - __kind: GoHMapHeaderType
       ID: 160
       Name: hash<string,[]string>
@@ -1349,74 +950,6 @@ Types:
           Type: 163 PointerType *runtime.mapextra
       BucketType: 162 GoHMapBucketType bucket<string,[]string>
       BucketsType: 187 GoSliceDataType []bucket<string,[]string>.array
-    - __kind: GoHMapHeaderType
-      ID: 203
-      Name: hash<string,float64>
-      ByteSize: 48
-      RawFields:
-        - Name: count
-          Offset: 0
-          Type: 9 BaseType int
-        - Name: flags
-          Offset: 8
-          Type: 3 BaseType uint8
-        - Name: B
-          Offset: 9
-          Type: 3 BaseType uint8
-        - Name: noverflow
-          Offset: 10
-          Type: 7 BaseType uint16
-        - Name: hash0
-          Offset: 12
-          Type: 2 BaseType uint32
-        - Name: buckets
-          Offset: 16
-          Type: 204 PointerType *bucket<string,float64>
-        - Name: oldbuckets
-          Offset: 24
-          Type: 204 PointerType *bucket<string,float64>
-        - Name: nevacuate
-          Offset: 32
-          Type: 1 BaseType uintptr
-        - Name: extra
-          Offset: 40
-          Type: 163 PointerType *runtime.mapextra
-      BucketType: 205 GoHMapBucketType bucket<string,float64>
-      BucketsType: 218 GoSliceDataType []bucket<string,float64>.array
-    - __kind: GoHMapHeaderType
-      ID: 198
-      Name: hash<string,interface {}>
-      ByteSize: 48
-      RawFields:
-        - Name: count
-          Offset: 0
-          Type: 9 BaseType int
-        - Name: flags
-          Offset: 8
-          Type: 3 BaseType uint8
-        - Name: B
-          Offset: 9
-          Type: 3 BaseType uint8
-        - Name: noverflow
-          Offset: 10
-          Type: 7 BaseType uint16
-        - Name: hash0
-          Offset: 12
-          Type: 2 BaseType uint32
-        - Name: buckets
-          Offset: 16
-          Type: 199 PointerType *bucket<string,interface {}>
-        - Name: oldbuckets
-          Offset: 24
-          Type: 199 PointerType *bucket<string,interface {}>
-        - Name: nevacuate
-          Offset: 32
-          Type: 1 BaseType uintptr
-        - Name: extra
-          Offset: 40
-          Type: 163 PointerType *runtime.mapextra
-      BucketType: 200 GoHMapBucketType bucket<string,interface {}>
-      BucketsType: 216 GoSliceDataType []bucket<string,interface {}>.array
     - __kind: GoHMapHeaderType
       ID: 181
       Name: hash<string,string>
@@ -1481,19 +1014,6 @@ Types:
       ByteSize: 1
       GoRuntimeType: 542368
       GoKind: 3
-    - __kind: GoEmptyInterfaceType
-      ID: 215
-      Name: interface {}
-      ByteSize: 16
-      GoRuntimeType: 797888
-      GoKind: 20
-      RawFields:
-        - Name: _type
-          Offset: 0
-          Type: 19 VoidPointerType unsafe.Pointer
-        - Name: data
-          Offset: 8
-          Type: 19 VoidPointerType unsafe.Pointer
     - __kind: StructureType
       ID: 82
       Name: internal/chacha8rand.State
@@ -1606,27 +1126,6 @@ Types:
         - Name: data
           Offset: 8
           Type: 19 VoidPointerType unsafe.Pointer
-    - __kind: GoMapType
-      ID: 221
-      Name: map[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
-      ByteSize: 8
-      GoRuntimeType: 904992
-      GoKind: 21
-      HeaderType: 223 GoHMapHeaderType hash<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
-    - __kind: GoMapType
-      ID: 201
-      Name: map[string]float64
-      ByteSize: 8
-      GoRuntimeType: 904896
-      GoKind: 21
-      HeaderType: 203 GoHMapHeaderType hash<string,float64>
-    - __kind: GoMapType
-      ID: 226
-      Name: map[string]interface {}
-      ByteSize: 8
-      GoRuntimeType: 896352
-      GoKind: 21
-      HeaderType: 198 GoHMapHeaderType hash<string,interface {}>
     - __kind: GoMapType
       ID: 179
       Name: map[string]string
@@ -2807,60 +2306,6 @@ Types:
         - Name: Hijacker
           Offset: 32
           Type: 151 GoInterfaceType net/http.Hijacker
-    - __kind: StructureType
-      ID: 193
-      Name: sync.Mutex
-      ByteSize: 8
-      GoRuntimeType: 1.313984e+06
-      GoKind: 25
-      RawFields:
-        - Name: state
-          Offset: 0
-          Type: 12 BaseType int32
-        - Name: sema
-          Offset: 4
-          Type: 2 BaseType uint32
-    - __kind: StructureType
-      ID: 192
-      Name: sync.RWMutex
-      ByteSize: 24
-      GoRuntimeType: 1.750592e+06
-      GoKind: 25
-      RawFields:
-        - Name: w
-          Offset: 0
-          Type: 193 StructureType sync.Mutex
-        - Name: writerSem
-          Offset: 8
-          Type: 2 BaseType uint32
-        - Name: readerSem
-          Offset: 12
-          Type: 2 BaseType uint32
-        - Name: readerCount
-          Offset: 16
-          Type: 194 StructureType sync/atomic.Int32
-        - Name: readerWait
-          Offset: 20
-          Type: 194 StructureType sync/atomic.Int32
-    - __kind: StructureType
-      ID: 194
-      Name: sync/atomic.Int32
-      ByteSize: 4
-      GoRuntimeType: 1.315424e+06
-      GoKind: 25
-      RawFields:
-        - Name: _
-          Offset: 0
-          Type: 195 StructureType sync/atomic.noCopy
-        - Name: v
-          Offset: 0
-          Type: 12 BaseType int32
-    - __kind: StructureType
-      ID: 195
-      Name: sync/atomic.noCopy
-      GoRuntimeType: 965792
-      GoKind: 25
-      RawFields: []
     - __kind: BaseType
       ID: 15
       Name: uint
@@ -2903,7 +2348,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 543392
       GoKind: 26
-MaxTypeID: 237
+MaxTypeID: 195
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x1804ac0", TypesOffset: 296}
 CommonTypes:

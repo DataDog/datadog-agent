@@ -37,9 +37,9 @@ func (t *TracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	// and more importantly the host group, i.e. primary tags, as attributes in
 	// the root span meta. These tags are already being injected into all of
 	// the spans in our serverless traces, so we do not need to do anything
-	// about that for now. Eventually the stats computation will either move to
-	// the tracer and agent or use trace tag on the backend, so so we will not
-	// need to worry about it.
+	// about that for now. Trace computation is now controlled by
+	//DD_SERVERLESS_INIT_DISABLE_TRACE_STATS and DD_SERVERLESS_INIT_ENABLE_BACKEND_TRACE_STATS,
+	// and can happen in the agent.
 	t.ensureFunctionTags(tp)
 }
 

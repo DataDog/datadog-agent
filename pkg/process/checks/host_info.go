@@ -61,8 +61,8 @@ func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 }
 
 func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (string, error) {
-	// use the common agent hostname utility when not running in the process-agent or when running in Fargate
-	if flavor.GetFlavor() != flavor.ProcessAgent && !fargate.IsFargateInstance() {
+	// use the common agent hostname utility when not running in the process-agent or when running in sidecar
+	if flavor.GetFlavor() != flavor.ProcessAgent && !fargate.IsSidecar() {
 		hostName, err := hostnameComp.Get(context.TODO())
 		if err != nil {
 			return "", fmt.Errorf("error while getting hostname: %v", err)
@@ -91,8 +91,8 @@ func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration, ipc ipc.Component) (string, error) {
-	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	if fargate.IsFargateInstance() {
+	// Sidecar is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
+	if fargate.IsSidecar() {
 		hostname, err := getFargateHost(context.Background())
 		if err == nil {
 			return hostname, nil

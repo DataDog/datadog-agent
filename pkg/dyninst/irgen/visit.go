@@ -9,6 +9,7 @@ package irgen
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 )
 
@@ -73,7 +74,7 @@ func visitReader(
 				)
 			}
 			if child == nil {
-				return fmt.Errorf(
+				return errors.New(
 					"visitReader: unexpected EOF while reading children",
 				)
 			}

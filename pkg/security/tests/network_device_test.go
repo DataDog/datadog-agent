@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -83,7 +84,7 @@ func TestNetDevice(t *testing.T) {
 		}
 		stat, ok := fi.Sys().(*syscall.Stat_t)
 		if !ok {
-			return fmt.Errorf("couldn't parse test_netns inum")
+			return errors.New("couldn't parse test_netns inum")
 		}
 		testNetns = uint32(stat.Ino)
 

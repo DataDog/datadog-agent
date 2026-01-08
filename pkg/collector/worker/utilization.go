@@ -6,6 +6,7 @@
 package worker
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 
@@ -40,7 +41,7 @@ func (m *UtilizationMonitor) GetWorkerUtilization(workerName string) (float64, e
 	// Get instances map using the new getter function
 	instancesMap := expvars.GetWorkerInstances()
 	if instancesMap == nil {
-		return 0.0, fmt.Errorf("worker instances not found in expvars")
+		return 0.0, errors.New("worker instances not found in expvars")
 	}
 
 	// Look for the specific worker
@@ -64,7 +65,7 @@ func (m *UtilizationMonitor) GetAllWorkerUtilizations() (map[string]float64, err
 	// Get instances map using the new getter function
 	instancesMap := expvars.GetWorkerInstances()
 	if instancesMap == nil {
-		return nil, fmt.Errorf("worker instances not found in expvars")
+		return nil, errors.New("worker instances not found in expvars")
 	}
 
 	// Add all data to the return map

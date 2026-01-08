@@ -1,5 +1,5 @@
 .new-e2e_agent_a7:
-  rules: !reference [.on_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   variables:
     AGENT_MAJOR_VERSION: 7
 

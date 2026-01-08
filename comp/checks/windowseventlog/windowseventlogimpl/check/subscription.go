@@ -8,6 +8,7 @@
 package evtlog
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +35,7 @@ func (c *Check) getChannelPath() (string, error) {
 	if val, isSet := c.config.instance.ChannelPath.Get(); isSet {
 		return val, nil
 	}
-	return "", fmt.Errorf("channel path is not set")
+	return "", errors.New("channel path is not set")
 }
 
 func (c *Check) initSubscription() error {
@@ -45,15 +46,15 @@ func (c *Check) initSubscription() error {
 	// so we might as well check they are set here, too.
 	startMode, isSet := c.config.instance.Start.Get()
 	if !isSet {
-		return fmt.Errorf("start mode is not set")
+		return errors.New("start mode is not set")
 	}
 	bookmarkFrequency, isSet := c.config.instance.BookmarkFrequency.Get()
 	if !isSet {
-		return fmt.Errorf("bookmark frequency is not set")
+		return errors.New("bookmark frequency is not set")
 	}
 	payloadSize, isSet := c.config.instance.PayloadSize.Get()
 	if !isSet {
-		return fmt.Errorf("payload size is not set")
+		return errors.New("payload size is not set")
 	}
 	channelPath, err := c.getChannelPath()
 	if err != nil {
@@ -61,7 +62,7 @@ func (c *Check) initSubscription() error {
 	}
 	query, isSet := c.config.instance.Query.Get()
 	if !isSet {
-		return fmt.Errorf("query is not set")
+		return errors.New("query is not set")
 	}
 
 	// Create BookmarkManager for handling bookmark lifecycle
@@ -153,7 +154,7 @@ func (c *Check) startSubscription() error {
 		}
 	} else {
 		// validateConfig should prevent this from happening
-		return fmt.Errorf("neither channel path nor dd_security_events is set")
+		return errors.New("neither channel path nor dd_security_events is set")
 	}
 	return nil
 }
@@ -170,12 +171,12 @@ func (c *Check) logsSubmitterPipeline(inCh <-chan *evtapi.EventRecord, wg *sync.
 	logsAgent, isSet := c.logsAgent.Get()
 	if !isSet {
 		// sanity: validateConfig should prevent this from happening
-		return fmt.Errorf("no logs agent available")
+		return errors.New("no logs agent available")
 	}
 
 	if c.ddSecurityEventsFilter == nil {
 		// sanity: validateConfig should prevent this from happening
-		return fmt.Errorf("no security profile loaded")
+		return errors.New("no security profile loaded")
 	}
 
 	eventWithDataCh := c.eventDataGetter(c.fetchEventsLoopStop, inCh, wg)
@@ -328,9 +329,9 @@ func (c *Check) getProfilesDir() (string, error) {
 	} else {
 		root = c.agentConfig.GetString("confd_path")
 		if root == "" {
-			return "", fmt.Errorf("confd_path is not set")
+			return "", errors.New("confd_path is not set")
 		}
-		root = filepath.Join(root, fmt.Sprintf(`%s.d`, CheckName))
+		root = filepath.Join(root, CheckName+".d")
 	}
 	return filepath.Join(root, "profiles"), nil
 }

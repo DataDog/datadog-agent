@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -125,7 +126,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 				return deprecations, fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return deprecations, fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return deprecations, errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 	// Create necessary destination dir

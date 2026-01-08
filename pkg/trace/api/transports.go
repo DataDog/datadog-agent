@@ -38,11 +38,11 @@ func newMeasuringTransport(rt http.RoundTripper, prefix string, tags []string, s
 // RoundTrip makes an HTTP round trip measuring request count and timing.
 func (m *measuringTransport) RoundTrip(req *http.Request) (rres *http.Response, rerr error) {
 	defer func(start time.Time) {
-		_ = m.statsd.Count(fmt.Sprintf("%s.proxy_request", m.prefix), 1, m.tags, 1)
-		_ = m.statsd.Timing(fmt.Sprintf("%s.proxy_request_duration_ms", m.prefix), time.Since(start), m.tags, 1)
+		_ = m.statsd.Count(m.prefix+".proxy_request", 1, m.tags, 1)
+		_ = m.statsd.Timing(m.prefix+".proxy_request_duration_ms", time.Since(start), m.tags, 1)
 		if rerr != nil {
-			tags := append(m.tags, fmt.Sprintf("error:%s", fmt.Sprintf("%T", rerr)))
-			_ = m.statsd.Count(fmt.Sprintf("%s.proxy_request_error", m.prefix), 1, tags, 1)
+			tags := append(m.tags, "error:"+fmt.Sprintf("%T", rerr))
+			_ = m.statsd.Count(m.prefix+".proxy_request_error", 1, tags, 1)
 		}
 	}(time.Now())
 	return m.rt.RoundTrip(req)

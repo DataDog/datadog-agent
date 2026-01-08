@@ -8,6 +8,7 @@ e2e_pre_test:
   needs:
     - go_e2e_deps
     - go_e2e_test_binaries
+    - go_tools_deps
     - job: publish_fakeintake
       optional: true
   script:

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -75,7 +76,7 @@ func TestListPids(t *testing.T) {
 		dir := t.TempDir()
 		const pageSize = 3
 		for i := range pageSize * 5 {
-			p := fmt.Sprintf("%d", i+1)
+			p := strconv.Itoa(i + 1)
 			require.NoError(t, os.Mkdir(filepath.Join(dir, p), 0o755))
 		}
 		seq := listPidsChunks(dir, pageSize)

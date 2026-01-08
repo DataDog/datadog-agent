@@ -152,7 +152,6 @@ components_classic_style = [
     'comp/process/hostinfo/hostinfoimpl',
     'comp/process/processcheck/processcheckimpl',
     'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
-    'comp/process/processeventscheck/processeventscheckimpl',
     'comp/process/profiler/profilerimpl',
     'comp/process/rtcontainercheck/rtcontainercheckimpl',
     'comp/process/runner/runnerimpl',

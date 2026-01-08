@@ -8,21 +8,16 @@ package logs
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"net"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cihub/seelog"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -35,18 +30,13 @@ const (
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
 
-const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
-
 func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
-	if cfg.GetBool("log_format_rfc3339") {
-		return time.RFC3339
-	}
-	return logDateFormat
+	return formatters.GetLogDateFormat(cfg.GetBool("log_format_rfc3339"))
 }
 
 func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
 	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-		return strconv.Quote(message)
+		return formatters.Quote(message)
 	}
 }
 
@@ -63,7 +53,12 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if err != nil {
 		return err
 	}
-	_ = seelog.ReplaceLogger(loggerInterface)
+	if logger, ok := loggerInterface.(seelog.LoggerInterface); ok {
+		loggerInterface.Infof("%s: using seelog logger", loggerName)
+		_ = seelog.ReplaceLogger(logger)
+	} else {
+		loggerInterface.Infof("%s: using slog logger", loggerName)
+	}
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
 	// Registering a callback in case of "log_level" update
@@ -78,12 +73,13 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
-		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
 		logger, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 		if err != nil {
 			return
 		}
-		_ = seelog.ReplaceLogger(logger)
+		if logger, ok := logger.(seelog.LoggerInterface); ok {
+			_ = seelog.ReplaceLogger(logger)
+		}
 		// We wire the new logger with the Datadog logic
 		log.ChangeLogLevel(logger, seelogLogLevel)
 	})
@@ -98,17 +94,30 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	return buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	logger, err := buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return logger, nil
 }
 
 // SetupDogstatsdLogger returns a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	return buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	logger, err := buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := logger.(seelog.LoggerInterface); ok {
+		logger.Info("dogstatsd: using seelog logger")
+	} else {
+		logger.Info("dogstatsd: using slog logger")
+	}
+	return logger, nil
 }
 
 func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false, nil, commonFormatter(loggerName, cfg))
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
@@ -120,16 +129,16 @@ func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, lo
 	// Configure log file, log file max size, log file roll up
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
-	return generateLoggerInterface(config)
+	return generateLoggerInterface(config, cfg)
 }
 
-func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
+func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC, jsonFormatter(loggerName, cfg), commonFormatter(loggerName, cfg))
 	config.EnableConsoleLog(logToConsole)
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 
@@ -137,22 +146,21 @@ func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, sy
 		config.ConfigureSyslog(syslogURI)
 	}
 
-	return generateLoggerInterface(config)
+	return generateLoggerInterface(config, cfg)
 }
 
 // generateLoggerInterface return a logger Interface from a log config
-func generateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
+func generateLoggerInterface(logConfig *seelogCfg.Config, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
+	if cfg.GetBool("log_use_slog") {
+		return logConfig.SlogLogger()
+	}
+
 	configTemplate, err := logConfig.Render()
 	if err != nil {
 		return nil, err
 	}
 
-	loggerInterface, err := seelog.LoggerFromConfigAsString(configTemplate)
-	if err != nil {
-		return nil, err
-	}
-
-	return loggerInterface, nil
+	return seelog.LoggerFromConfigAsString(configTemplate)
 }
 
 // logWriter is a Writer that logs all written messages with the global seelog logger
@@ -230,165 +238,7 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 	return t.writer.Write(p)
 }
 
-var levelToSyslogSeverity = map[seelog.LogLevel]int{
-	// Mapping to RFC 5424 where possible
-	seelog.TraceLvl:    7,
-	seelog.DebugLvl:    7,
-	seelog.InfoLvl:     6,
-	seelog.WarnLvl:     4,
-	seelog.ErrorLvl:    3,
-	seelog.CriticalLvl: 2,
-	seelog.Off:         7,
-}
-
-func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
-	facility := 20
-	rfc := false
-
-	ps := strings.Split(params, ",")
-	if len(ps) == 2 {
-		i, err := strconv.Atoi(ps[0])
-		if err == nil && i >= 0 && i <= 23 {
-			facility = i
-		}
-
-		rfc = (ps[1] == "true")
-	} else {
-		fmt.Println("badly formatted syslog header parameters - using defaults")
-	}
-
-	pid := os.Getpid()
-	appName := filepath.Base(os.Args[0])
-
-	if rfc { // RFC 5424
-		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
-		}
-	}
-
-	// otherwise old-school logging
-	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
-	}
-}
-
-// SyslogReceiver implements seelog.CustomReceiver
-type SyslogReceiver struct {
-	enabled bool
-	uri     *url.URL
-	conn    net.Conn
-}
-
-func getSyslogConnection(uri *url.URL) (net.Conn, error) {
-	var conn net.Conn
-	var err error
-
-	// local
-	localNetNames := []string{"unixgram", "unix"}
-	if uri == nil {
-		addrs := []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
-		for _, netName := range localNetNames {
-			for _, addr := range addrs {
-				conn, err = net.Dial(netName, addr)
-				if err == nil { // on success
-					return conn, nil
-				}
-			}
-		}
-	} else {
-		switch uri.Scheme {
-		case "unix", "unixgram":
-			fmt.Printf("Trying to connect to: %s", uri.Path)
-			for _, netName := range localNetNames {
-				conn, err = net.Dial(netName, uri.Path)
-				if err == nil {
-					break
-				}
-			}
-		case "udp":
-			conn, err = net.Dial(uri.Scheme, uri.Host)
-		case "tcp":
-			conn, err = net.Dial("tcp", uri.Host)
-		}
-		if err == nil {
-			return conn, nil
-		}
-	}
-
-	return nil, errors.New("Unable to connect to syslog")
-}
-
-// ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
-	if !s.enabled {
-		return nil
-	}
-
-	if s.conn != nil {
-		_, err := s.conn.Write([]byte(message))
-		if err == nil {
-			return nil
-		}
-	}
-
-	// try to reconnect - close the connection first just in case
-	//                    we don't want fd leaks here.
-	if s.conn != nil {
-		s.conn.Close()
-	}
-	conn, err := getSyslogConnection(s.uri)
-	if err != nil {
-		return err
-	}
-
-	s.conn = conn
-	_, err = s.conn.Write([]byte(message))
-	fmt.Printf("Retried: %v\n", message)
-	return err
-}
-
-// AfterParse parses the receiver configuration
-func (s *SyslogReceiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
-	var conn net.Conn
-	var ok bool
-	var err error
-
-	s.enabled = true
-	uri, ok := initArgs.XmlCustomAttrs["uri"]
-	if ok && uri != "" {
-		url, err := url.ParseRequestURI(uri)
-		if err != nil {
-			s.enabled = false
-		}
-
-		s.uri = url
-	}
-
-	if !s.enabled {
-		return errors.New("bad syslog receiver configuration - disabling")
-	}
-
-	conn, err = getSyslogConnection(s.uri)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return nil
-	}
-	s.conn = conn
-
-	return nil
-}
-
-// Flush is a NOP in current implementation
-func (s *SyslogReceiver) Flush() {
-	// Nothing to do here...
-}
-
-// Close is a NOP in current implementation
-func (s *SyslogReceiver) Close() error {
-	return nil
-}
-
 func init() {
-	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
-	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
+	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", syslog.CreateSyslogHeaderFormatter)
+	seelog.RegisterReceiver("syslog", &syslog.Receiver{})
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
 package ddflareextensionimpl
 
@@ -40,6 +42,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
 	"go.uber.org/zap"
 )
@@ -220,6 +223,8 @@ func components() (otelcol.Factories, error) {
 	if err != nil {
 		return otelcol.Factories{}, err
 	}
+
+	factories.Telemetry = otelconftelemetry.NewFactory()
 
 	return factories, nil
 }

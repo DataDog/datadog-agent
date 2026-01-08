@@ -9,7 +9,7 @@
 package winevtapi
 
 import (
-	"fmt"
+	"errors"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -137,7 +137,7 @@ func (api *API) EvtNext(
 	var Returned uint32
 
 	if len(EventsArray) == 0 {
-		return nil, fmt.Errorf("input EventsArray is empty")
+		return nil, errors.New("input EventsArray is empty")
 	}
 
 	// Fill array
@@ -236,7 +236,7 @@ func evtRenderText(
 	Flags uint) ([]uint16, error) {
 
 	if Flags != evtapi.EvtRenderEventXml && Flags != evtapi.EvtRenderBookmark {
-		return nil, fmt.Errorf("Invalid Flags")
+		return nil, errors.New("Invalid Flags")
 	}
 
 	// Get required buffer size

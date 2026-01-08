@@ -13,13 +13,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -240,7 +240,7 @@ func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, 
 }
 
 func getNsInfoOld(pid int) (*namespaceInfo, error) {
-	path := kernel.HostProc(fmt.Sprintf("%d", pid))
+	path := kernel.HostProc(strconv.Itoa(pid))
 	proc, err := procfs.NewFS(path)
 	if err != nil {
 		return nil, err

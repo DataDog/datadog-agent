@@ -84,6 +84,16 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
 #endif
 }
 
+static __always_inline void get_tcp_retrans_counts(struct sock* skp, __u32* retransmits) {
+#ifdef COMPILE_PREBUILT
+    // fetching the total_retrans field not supported on prebuilt
+    // setting the field to 0 is safe since the caller will not use the value if it's less than the current count
+    *retransmits = 0;
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(retransmits, tcp_sk(skp), total_retrans);
+#endif
+}
+
 static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
     u16 sport = 0;

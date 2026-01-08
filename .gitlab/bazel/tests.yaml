@@ -1,5 +1,4 @@
 .bazel:tests:
-  extends: .bazel:defs
   rules:
     - !reference [ .except_mergequeue ]
     - when: on_success

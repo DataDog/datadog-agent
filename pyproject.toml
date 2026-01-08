@@ -17,6 +17,7 @@ exclude = [
     "venv",
     "dev",
     "third_party",
+    "cmd/system-probe/subcommands/usm/debug_scripts",  # Standalone scripts for customer debugging
 ]
 line-length = 120
 
@@ -52,6 +53,8 @@ quote-style = "preserve"
 
 [tool.mypy]
 python_version = "3.12"
+# Make mypy aware of dda extension modules (e.g. `lab`).
+mypy_path = [".dda/extend/pythonpath"]
 # Follows imports and type-check imported modules.
 follow_imports = "normal"
 # Ignore errors about imported packages that don't provide type hints.
@@ -85,7 +88,7 @@ disable_error_code = []
 
 [tool.vulture]
 ignore_decorators = ["@task"]
-ignore_names = ["test_*", "Test*"]
+ignore_names = ["test_*", "Test*", "model_config"]
 paths = ["tasks"]
 
 [tool.ddev]

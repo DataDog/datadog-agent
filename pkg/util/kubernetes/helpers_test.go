@@ -6,7 +6,6 @@
 package kubernetes
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +33,7 @@ func TestParseDeploymentForReplicaSet(t *testing.T) {
 		"frontend-5f":         "", // too short
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			assert.Equal(t, out, ParseDeploymentForReplicaSet(in))
 		})
 	}
@@ -62,7 +61,7 @@ func TestParseDeploymentForPodName(t *testing.T) {
 		"frontend-56c89cff-bx":  "", // too short
 		"frontend-56a89cfff7-a": "", // no vowels allowed
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			assert.Equal(t, out, ParseDeploymentForPodName(in))
 		})
 	}
@@ -90,7 +89,7 @@ func TestParseReplicaSetForPodName(t *testing.T) {
 		"frontend-56c89cff-bx":  "", // too short
 		"frontend-56a89cfff7-a": "", // no vowels allowed
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			assert.Equal(t, out, ParseReplicaSetForPodName(in))
 		})
 	}
@@ -111,7 +110,7 @@ func TestParseCronJobForJob(t *testing.T) {
 		"hello-60":         {"", 0},
 		"hello-1562319a60": {"", 0},
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			cronjobName, id := ParseCronJobForJob(in)
 			assert.Equal(t, out, struct {
 				string

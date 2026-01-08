@@ -24,17 +24,22 @@ type Report struct {
 	bom *cyclonedx_v1_4.Bom
 }
 
-func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, dependencies bool) (*Report, error) {
+type reportOptions struct {
+	dependencies    bool
+	simplifyBomRefs bool
+}
+
+func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, opts reportOptions) (*Report, error) {
 	bom, err := marshaler.MarshalReport(context.TODO(), *report)
 	if err != nil {
 		return nil, err
 	}
 
-	if !dependencies {
+	if !opts.dependencies {
 		bom.Dependencies = nil
 	}
 
-	bom14 := bomconvert.ConvertBOM(bom)
+	bom14 := bomconvert.ConvertBOM(bom, opts.simplifyBomRefs)
 
 	return &Report{
 		id:  id,

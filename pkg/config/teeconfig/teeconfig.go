@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -158,6 +156,14 @@ func (t *teeConfig) IsConfigured(key string) bool {
 	base := t.baseline.IsConfigured(key)
 	compare := t.compare.IsConfigured(key)
 	t.compareResult(key, "IsConfigured", base, compare)
+	return base
+}
+
+// HasSection returns true if the section exists in the config
+func (t *teeConfig) HasSection(key string) bool {
+	base := t.baseline.HasSection(key)
+	compare := t.compare.HasSection(key)
+	t.compareResult(key, "HasSection", base, compare)
 	return base
 }
 
@@ -353,11 +359,6 @@ func (t *teeConfig) BindEnv(key string, envvars ...string) {
 func (t *teeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	t.baseline.SetEnvKeyReplacer(r)
 	t.compare.SetEnvKeyReplacer(r)
-}
-
-// UnmarshalKey wraps Viper for concurrent access
-func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
-	return t.baseline.UnmarshalKey(key, rawVal, opts...)
 }
 
 // ReadInConfig wraps Viper for concurrent access

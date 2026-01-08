@@ -9,11 +9,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"math"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -64,7 +65,7 @@ type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFPro
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevisionOp)
 	return e.Request(req)
 }
 
@@ -216,7 +217,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		return nil, nil
 	}
 
-	if _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
+	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
 		return nil, err
 	}
 
@@ -225,7 +226,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	}
 
 	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
+	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
 		return nil, err
 	}
 

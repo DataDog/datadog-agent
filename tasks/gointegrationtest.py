@@ -1,3 +1,4 @@
+import os
 import sys
 import traceback
 from dataclasses import dataclass, field
@@ -46,6 +47,8 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
         IntegrationTest(
             dir=".", prefix="./comp/checks/windowseventlog/windowseventlogimpl/check", extra_args="-evtapi Windows"
         ),
+        # Run software inventory integration tests that compare against PowerShell Get-Package
+        IntegrationTest(dir=".", prefix="./pkg/inventory/software", extra_args=""),
     ],
 )
 
@@ -67,6 +70,16 @@ def containerized_integration_tests(
 ):
     if sys.platform == 'win32' and not integration_tests_config.is_windows_supported:
         raise TestsNotSupportedError(f'{integration_tests_config.name} integration tests are not supported on Windows')
+
+    # On Windows, add current directory to PATH so libdatadog-interop.dll can be found
+    env = integration_tests_config.env.copy()
+    if sys.platform == 'win32':
+        current_dir = os.getcwd()
+        if 'PATH' in os.environ:
+            env['PATH'] = f"{current_dir};{os.environ['PATH']}"
+        else:
+            env['PATH'] = current_dir
+
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(integration_tests_config.go_build_tags),
@@ -79,9 +92,9 @@ def containerized_integration_tests(
     for it in integration_tests_config.tests:
         if it.dir:
             with ctx.cd(f"{it.dir}"):
-                ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
+                ctx.run(f"{go_cmd} {it.prefix}", env=env)
         else:
-            ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
+            ctx.run(f"{go_cmd} {it.prefix}", env=env)
 
 
 @task(iterable=["only"])

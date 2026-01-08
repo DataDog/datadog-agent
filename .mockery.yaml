@@ -19,11 +19,6 @@ packages:
   github.com/DataDog/datadog-agent/pkg/security/agent:
     interfaces:
       SecurityModuleCmdClientWrapper:
-  github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api:
-    interfaces:
-      EventMonitoringModuleServer:
-      EventMonitoringModuleClient:
-      EventMonitoringModule_GetProcessEventsClient:
 
   # processes
   github.com/DataDog/datadog-agent/pkg/process/runner:

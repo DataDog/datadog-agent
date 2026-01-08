@@ -231,7 +231,7 @@ func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *workl
 
 	podID := pod.ID
 	if podID == "" {
-		log.Debug("skipping pod with no uid for termination metric, duration: %f", dur.Seconds())
+		log.Debugf("skipping pod with no uid for termination metric, duration: %f", dur.Seconds())
 		return
 	}
 	entityID := types.NewEntityID(types.KubernetesPodUID, podID)

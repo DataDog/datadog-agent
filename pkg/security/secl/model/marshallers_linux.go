@@ -143,7 +143,7 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 
 	marshalTime(data[16:24], e.ForkTime.Sub(bootTime))
 	marshalTime(data[24:32], e.ExitTime.Sub(bootTime))
-	binary.NativeEndian.PutUint64(data[32:40], e.UserSession.ID)
+	binary.NativeEndian.PutUint64(data[32:40], e.UserSession.K8SSessionID)
 	written := 40
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)

@@ -8,7 +8,6 @@ package setup
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -154,7 +153,7 @@ b:
 func TestUnknownVarsWarning(t *testing.T) {
 	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
-			env := []string{fmt.Sprintf("%s=foo", v)}
+			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
@@ -473,6 +472,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
@@ -491,6 +491,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 			},
 		},
 		{
@@ -499,6 +500,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_GLOBAL_VIEW_DB_TAG", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -506,6 +508,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 		{
@@ -528,6 +531,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -535,6 +539,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 	}
@@ -656,9 +661,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1040,82 +1045,6 @@ func TestClusterCheckDefaults(t *testing.T) {
 	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
 }
 
-func TestProxyNotLoaded(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-	assert.Equal(t, 0, len(proxyHTTPConfig))
-	assert.Equal(t, 0, len(proxyHTTPSConfig))
-}
-
-func TestProxyLoadedFromEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTP, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPS, proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFile(t *testing.T) {
-	t.Skip()
-
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, "http://localhost:1234", proxyHTTPConfig)
-	assert.Equal(t, "https://localhost:1234", proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTPEnvVar := "http://localhost:1234"
-	proxyHTTPSEnvVar := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTPEnvVar)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPSEnvVar)
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
-}
-
 var testExampleConf = []byte(`
 secret_backend_command: some command
 additional_endpoints:
@@ -1207,9 +1136,9 @@ func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (inte
 			if err != nil {
 				return nil, err
 			}
-			if leaf, match := node.(nodetreemodel.LeafNode); match {
+			if node.IsLeafNode() {
 				// if we find a leaf, can't get a child of it
-				leafValue := leaf.Get()
+				leafValue := node.Get()
 				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
 					remain := strings.Join(parts[i:], ".")
 					return leafMap[remain], nil
@@ -1342,7 +1271,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1352,7 +1281,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 

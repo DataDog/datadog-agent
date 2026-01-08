@@ -6,7 +6,6 @@ exporters:
       key: '[REDACTED]'
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -34,6 +33,9 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
+    orchestrator_explorer:
+      enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -44,7 +46,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -65,15 +66,7 @@ exporters:
     sampling_initial: 2
     sampling_thereafter: 1
     use_internal_logger: true
-    sending_queue:
-      batch: null
-      block_on_overflow: false
-      enabled: true
-      num_consumers: 10
-      queue_size: 1
-      sizer: {}
-      storage: null
-      wait_for_result: false
+    sending_queue: null
     verbosity: Detailed
 extensions:
   ddflare/dd-autoconfigured:
@@ -81,7 +74,6 @@ extensions:
     endpoint: localhost:7777
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
   health_check/dd-autoconfigured:
@@ -89,14 +81,17 @@ extensions:
       enabled: false
       exporter_failure_threshold: 5
       interval: 5m
+    component_health: null
     cors: null
     endpoint: localhost:13133
+    grpc: null
+    http: null
     idle_timeout: 0s
     path: /
     read_header_timeout: 0s
     response_body: null
-    response_headers: {}
     tls: null
+    use_v2: false
     write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
@@ -110,7 +105,6 @@ extensions:
       enabled: false
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
 processors:
@@ -120,6 +114,7 @@ processors:
       exclude: null
       include: null
       log_record: []
+      resource: []
     metrics:
       datapoint: []
       exclude:
@@ -134,12 +129,15 @@ processors:
       include: null
       metric: []
       regexp: null
+      resource: []
     profiles:
       profile: []
+      resource: []
     spans:
       exclude: null
       include: null
     traces:
+      resource: []
       span: []
       spanevent: []
 receivers:
@@ -160,7 +158,6 @@ receivers:
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         traces_url_path: /v1/traces
         write_timeout: 0s
@@ -171,7 +168,6 @@ receivers:
         cors: null
         idle_timeout: 0s
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         write_timeout: 0s
     config:
@@ -180,13 +176,11 @@ receivers:
         metric_name_escaping_scheme: allow-utf-8
         metric_name_validation_scheme: utf8
         scrape_interval: 1m
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText1.0.0
-        - PrometheusText0.0.4
+        scrape_native_histograms: false
         scrape_timeout: 10s
       otlp:
+        label_name_preserve_multiple_underscores: true
+        label_name_underscore_sanitization: true
         translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
@@ -204,6 +198,7 @@ receivers:
         metrics_path: /metrics
         scheme: http
         scrape_interval: 1m
+        scrape_native_histograms: false
         scrape_protocols:
         - PrometheusText0.0.4
         scrape_timeout: 10s

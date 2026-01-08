@@ -772,7 +772,7 @@ func sortFieldsByChecks(module *common.Module) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
@@ -819,7 +819,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, "go:build "+tag)
 		}
 	}
 	return formattedBuildTags
@@ -837,7 +837,7 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				// process & exec context are set in the template
-				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") {
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") {
 					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 				}
 			} else if field.IsArray && fieldPath != inputField.Name {

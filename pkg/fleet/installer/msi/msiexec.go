@@ -131,14 +131,14 @@ func WithMsi(target string) MsiexecOption {
 func WithMsiFromPackagePath(target, product string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		updaterPath := filepath.Join(paths.PackagesPath, product, target)
-		msis, err := filepath.Glob(filepath.Join(updaterPath, fmt.Sprintf("%s-*-1-x86_64.msi", product)))
+		msis, err := filepath.Glob(filepath.Join(updaterPath, product+"-*-1-x86_64.msi"))
 		if err != nil {
 			return err
 		}
 		if len(msis) > 1 {
-			return fmt.Errorf("too many MSIs in package")
+			return errors.New("too many MSIs in package")
 		} else if len(msis) == 0 {
-			return fmt.Errorf("no MSIs in package")
+			return errors.New("no MSIs in package")
 		}
 		a.target = msis[0]
 		return nil
@@ -509,7 +509,7 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		}
 	}
 	if a.msiAction == "" || a.target == "" {
-		return nil, fmt.Errorf("argument error")
+		return nil, errors.New("argument error")
 	}
 	cmd := &Msiexec{
 		args: a,

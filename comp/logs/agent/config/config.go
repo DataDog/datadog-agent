@@ -47,8 +47,8 @@ const DefaultIntakeProtocol IntakeProtocol = ""
 // DefaultIntakeOrigin indicates that no special DD_SOURCE header is in use for the endpoint intake track type.
 const DefaultIntakeOrigin IntakeOrigin = "agent"
 
-// ServerlessIntakeOrigin is the lambda extension origin
-const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
+// ServerlessIntakeOrigin indicates that data was sent by serverless
+const ServerlessIntakeOrigin IntakeOrigin = "serverless"
 
 // DDOTIntakeOrigin is the DDOT Collector origin
 const DDOTIntakeOrigin IntakeOrigin = "ddot"
@@ -124,7 +124,7 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
 	}
-	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !logsConfig.shouldUseTCP()) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -137,6 +137,16 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+}
+
+// ShouldUseTCP returns true if the configuration should use TCP.
+func ShouldUseTCP(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).shouldUseTCP()
+}
+
+// HTTPConnectivityRetryIntervalMax returns the maximum interval for HTTP connectivity retry attempts.
+func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) time.Duration {
+	return defaultLogsConfigKeys(coreConfig).httpConnectivityRetryIntervalMax()
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
@@ -156,6 +166,17 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 	err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config)
 	if err != nil {
 		return nil, err
+	}
+
+	// Rectify the count value to the appropriate default value if not set.
+	if !coreConfig.IsConfigured("logs_config.fingerprint_config.count") {
+		switch config.FingerprintStrategy {
+		case types.FingerprintStrategyLineChecksum:
+			config.Count = types.DefaultLinesCount
+		case types.FingerprintStrategyByteChecksum:
+			config.Count = types.DefaultBytesCount
+		default:
+		}
 	}
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
@@ -246,7 +267,9 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", logsConfig.logsNoSSL())
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel
@@ -258,6 +281,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		e.useSSL = main.useSSL
 		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
 		e.ProxyAddress = logsConfig.socks5ProxyAddress()
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}
@@ -349,7 +373,9 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionKind = main.CompressionKind
@@ -363,6 +389,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol
 		e.Origin = intakeOrigin
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}

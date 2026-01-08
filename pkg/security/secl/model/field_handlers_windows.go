@@ -9,8 +9,11 @@
 package model
 
 import (
+	"net"
 	"time"
 )
+
+var _ = net.IP{}
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {

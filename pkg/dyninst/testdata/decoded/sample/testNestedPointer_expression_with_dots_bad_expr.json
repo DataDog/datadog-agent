@@ -1,0 +1,34 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testNestedPointer",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "testNestedPointer_expression_with_dots_bad_expr",
+          "location": {
+            "method": "main.testNestedPointer"
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "{error: cannot access member \"anotherInt\" on type *ir.GoStringHeaderType (\"string\") in expression \"x.nested.anotherString.anotherInt\"} {error: failed to resolve field \"notAMember\" in expression \"x.notAMember\": type \"main.anotherStruct\" has no notAMember field}"
+  }
+]

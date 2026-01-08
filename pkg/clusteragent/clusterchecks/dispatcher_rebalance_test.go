@@ -1441,7 +1441,7 @@ func TestRebalance(t *testing.T) {
 func TestMoveCheck(t *testing.T) {
 	type checkInfo struct {
 		config integration.Config
-		id     checkid.ID
+		id     checkid.ID //nolint:unused
 		node   string
 	}
 

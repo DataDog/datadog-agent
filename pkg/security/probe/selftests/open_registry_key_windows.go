@@ -9,13 +9,13 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"golang.org/x/net/context"
 )
 
 // WindowsOpenRegistryKeyTest defines a windows open registry key self test
@@ -27,7 +27,7 @@ type WindowsOpenRegistryKeyTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_windows_open_registry_key_name", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_windows_open_registry_key_name"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
@@ -48,7 +48,7 @@ func (o *WindowsOpenRegistryKeyTest) GenerateEvent(ctx context.Context) error {
 		o.keyPath,
 	)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error opening registry key: %w", err)
+		return fmt.Errorf("error opening registry key %s: %w", o.keyPath, err)
 	}
 
 	return nil

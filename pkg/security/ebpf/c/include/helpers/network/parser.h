@@ -168,7 +168,9 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     pkt->translated_ns_flow = pkt->ns_flow;
 
 // lookup flow in conntrack table
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < 10; i++) {
         struct namespaced_flow_t *translated_ns_flow = bpf_map_lookup_elem(&conntrack, &tmp_ns_flow);
         if (translated_ns_flow == NULL) {

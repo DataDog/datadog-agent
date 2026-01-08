@@ -104,10 +104,10 @@ func (c *Check) Tablespaces() error {
 	for _, r := range rows {
 		tags := appendPDBTag(c.tags, r.PdbName)
 		tags = append(tags, "tablespace:"+r.TablespaceName)
-		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.used", common.IntegrationName), r.Used, tags)
-		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.size", common.IntegrationName), r.Size, tags)
-		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), r.InUse, tags)
-		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), r.Offline, tags)
+		sendMetric(c, gauge, common.IntegrationName+".tablespace.used", r.Used, tags)
+		sendMetric(c, gauge, common.IntegrationName+".tablespace.size", r.Size, tags)
+		sendMetric(c, gauge, common.IntegrationName+".tablespace.in_use", r.InUse, tags)
+		sendMetric(c, gauge, common.IntegrationName+".tablespace.offline", r.Offline, tags)
 	}
 
 	rowsMaxSize := []rowMaxSizeDB{}
@@ -119,7 +119,7 @@ func (c *Check) Tablespaces() error {
 	for _, r := range rowsMaxSize {
 		tags := appendPDBTag(c.tags, r.PdbName)
 		tags = append(tags, "tablespace:"+r.TablespaceName)
-		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.maxsize", common.IntegrationName), r.MaxSize, tags)
+		sendMetric(c, gauge, common.IntegrationName+".tablespace.maxsize", r.MaxSize, tags)
 	}
 
 	sender.Commit()

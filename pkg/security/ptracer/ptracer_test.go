@@ -9,6 +9,7 @@
 package ptracer
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -57,7 +58,7 @@ func child() {
 	signal.Notify(sigs)
 	defer signal.Reset()
 	for sig := range sigs {
-		_, err := fmt.Fprintf(fifo, "%v", sig)
+		_, err := fmt.Fprintf(fifo, "%v\n", sig)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -84,10 +85,13 @@ func TestSignalForwarding(t *testing.T) {
 	var childPID int32
 	binary.Read(fifo, binary.LittleEndian, &childPID)
 
+	// ensure child process is killed at test end
+	defer syscall.Kill(int(childPID), syscall.SIGKILL)
+
 	// start the forwarder
 	startSignalForwarder(int(childPID))
 
-	buffer := make([]byte, 64)
+	reader := bufio.NewReader(fifo)
 	for _, sig := range forwardedSignals {
 		t.Run(fmt.Sprintf("%v", sig), func(t *testing.T) {
 			// send signal to ourselves
@@ -95,12 +99,11 @@ func TestSignalForwarding(t *testing.T) {
 			syscall.Kill(os.Getpid(), unixSig)
 
 			// wait for child response
-			n, err := fifo.Read(buffer)
+			line, err := reader.ReadString('\n')
 			if err != nil {
 				t.Fatal(err)
 			}
-			response := string(buffer[:n])
-			assert.Equal(t, fmt.Sprintf("%v", sig), response)
+			assert.Equal(t, fmt.Sprintf("%v\n", sig), line)
 		})
 	}
 
@@ -111,10 +114,8 @@ func TestSignalForwarding(t *testing.T) {
 		defer close(resultChan)
 
 		go func() {
-			buffer := make([]byte, 64)
-			n, _ := fifo.Read(buffer)
-			if n > 0 {
-				resultChan <- string(buffer[:n])
+			if line, err := reader.ReadString('\n'); err == nil {
+				resultChan <- line
 			}
 		}()
 
@@ -124,8 +125,8 @@ func TestSignalForwarding(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			return
-		case result := <-resultChan:
-			t.Errorf("Non-forwarded signal was received: %s", result)
+		case line := <-resultChan:
+			t.Errorf("Non-forwarded signal was received: %s", line)
 			return
 		}
 	})

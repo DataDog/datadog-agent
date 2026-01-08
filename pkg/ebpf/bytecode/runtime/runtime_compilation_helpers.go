@@ -83,7 +83,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 				return nil, compilationErr, fmt.Errorf("error getting helper availability: %w", err)
 			}
 			defer os.Remove(helperPath)
-			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
+			flags = append(flags, "-include"+helperPath)
 		}
 
 		log.Debugf("compiling runtime version of %s to %s", filename, outputFile)
@@ -113,7 +113,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 
 func computeFlagsAndHash(additionalFlags []string) ([]string, string) {
 	flags := make([]string, 0, len(defaultFlags)+len(additionalFlags)+1)
-	flags = append(flags, fmt.Sprintf("-D__TARGET_ARCH_%s", kernel.Arch()))
+	flags = append(flags, "-D__TARGET_ARCH_"+kernel.Arch())
 	flags = append(flags, defaultFlags...)
 	flags = append(flags, additionalFlags...)
 
@@ -121,7 +121,7 @@ func computeFlagsAndHash(additionalFlags []string) ([]string, string) {
 	for _, f := range flags {
 		hasher.Write([]byte(f))
 	}
-	flagHash := fmt.Sprintf("%x", hasher.Sum(nil))
+	flagHash := hex.EncodeToString(hasher.Sum(nil))
 
 	return flags, flagHash
 }

@@ -6,7 +6,7 @@
 package helpers
 
 import (
-	"expvar"
+	"sync/atomic"
 	"testing"
 	"unsafe"
 
@@ -16,43 +16,39 @@ import (
 /*
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
-
-void TestMemoryTracker(void *, size_t, rtloader_mem_ops_t);
-void initTestMemoryTracker(void) {
-	set_memory_tracker_cb(TestMemoryTracker);
-}
-
 */
 import "C"
 
 // InitMemoryTracker initializes RTLoader memory tracking
 func InitMemoryTracker() {
-	C.initTestMemoryTracker()
+	C.enable_memory_tracker()
 }
 
-// TrackedCString retruns an allocation-tracked pointer to a string
+// TrackedCString returns an allocation-tracked pointer to a string
 func TrackedCString(str string) unsafe.Pointer {
-	cstr := C.CString(str)
 	Allocations.Add(1)
-
-	return unsafe.Pointer(cstr)
+	return unsafe.Pointer(C.CString(str))
 }
 
 // ResetMemoryStats resets allocations and frees counters to zero
 func ResetMemoryStats() {
-	Allocations.Set(0)
-	Frees.Set(0)
+	C.get_and_reset_memory_stats()
+	Allocations.Store(0)
+	Frees.Store(0)
 }
 
 // AssertMemoryUsage makes sure the allocations and frees match
 func AssertMemoryUsage(t *testing.T) {
-	assert.Equal(t, Allocations.Value(), Frees.Value(),
+	t.Helper()
+	stats := C.get_and_reset_memory_stats()
+	assert.Equal(t, uint64(stats.allocations)+Allocations.Load(), uint64(stats.frees)+Frees.Load(),
 		"Number of allocations doesn't match number of frees")
 }
 
 // AssertMemoryExpectation makes sure the allocations match the
 // provided value
-func AssertMemoryExpectation(t *testing.T, counter expvar.Int, expected int64) {
-	assert.Equal(t, expected, counter.Value(),
+func AssertMemoryExpectation(t *testing.T, counter atomic.Uint64, expected uint64) {
+	t.Helper()
+	assert.Equal(t, expected, counter.Load(),
 		"Memory statistic doesn't match the expected value")
 }

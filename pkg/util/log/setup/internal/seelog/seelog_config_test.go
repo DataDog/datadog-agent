@@ -8,16 +8,26 @@ package seelog
 
 import (
 	"bytes"
+	"context"
 	"flag"
+	"fmt"
+	stdslog "log/slog"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 // run `go test ./setup/internal/... -generate` to regenerate the expected outputs in testdata/
 var generate = flag.Bool("generate", false, "generates output to testdata/ if set")
+
+func callerPC() uintptr {
+	pcs := make([]uintptr, 1)
+	runtime.Callers(1, pcs)
+	return pcs[0]
+}
 
 func TestSeelogConfig(t *testing.T) {
 	// if you change the test cases or the expected format, you'll need to regenerate the expected output
@@ -117,7 +127,7 @@ func TestSeelogConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			config := NewSeelogConfig(tc.loggerName, tc.logLevel, tc.format, tc.jsonFormat, tc.commonFormat, tc.syslogRFC)
+			config := NewSeelogConfig(tc.loggerName, tc.logLevel, tc.format, tc.jsonFormat, tc.commonFormat, tc.syslogRFC, nil, nil)
 			config.ConfigureSyslog(tc.syslogURI)
 			config.EnableFileLogging(tc.logfile, tc.maxsize, tc.maxrolls)
 			config.EnableConsoleLog(tc.consoleLoggingEnabled)
@@ -149,4 +159,50 @@ func testSeelogConfig(t *testing.T, config *Config, testName string) {
 	}
 
 	require.Equal(t, string(expected), cfg)
+}
+
+func TestCommonSyslogFormatter(t *testing.T) {
+	pid := os.Getpid()
+	procName := "seelog.test"
+	if runtime.GOOS == "windows" {
+		procName = "seelog.test.exe"
+	}
+	expected := fmt.Sprintf(`<166>%s[%d]: CORE | INFO | (pkg/util/log/setup/internal/seelog/seelog_config_test.go:28 in callerPC) | check:cpu | Done running check
+`, procName, pid)
+
+	cfg := Config{loggerName: "CORE"}
+	logTime := time.Now()
+	record := stdslog.Record{
+		PC:      callerPC(),
+		Level:   stdslog.LevelInfo,
+		Message: "Done running check",
+		Time:    logTime,
+	}
+	record.AddAttrs(stdslog.String("check", "cpu"))
+	msg := cfg.commonSyslogFormatter(context.Background(), record)
+
+	require.Equal(t, expected, msg)
+}
+
+func TestJsonSyslogFormatter(t *testing.T) {
+	pid := os.Getpid()
+	procName := "seelog.test"
+	if runtime.GOOS == "windows" {
+		procName = "seelog.test.exe"
+	}
+	expected := fmt.Sprintf(`<166>1 %s %d - - {"agent":"core","level":"INFO","relfile":"pkg/util/log/setup/internal/seelog/seelog_config_test.go","line":"28","msg":"Done running check","check":"cpu"}
+`, procName, pid)
+
+	cfg := Config{loggerName: "CORE", syslogRFC: true}
+	logTime := time.Now()
+	record := stdslog.Record{
+		PC:      callerPC(),
+		Level:   stdslog.LevelInfo,
+		Message: "Done running check",
+		Time:    logTime,
+	}
+	record.AddAttrs(stdslog.String("check", "cpu"))
+	msg := cfg.jsonSyslogFormatter(context.Background(), record)
+
+	require.Equal(t, expected, msg)
 }

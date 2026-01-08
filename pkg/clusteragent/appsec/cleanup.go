@@ -44,7 +44,7 @@ func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Com
 			<-leaderNotifChange
 		}
 
-		patterns := injector.CompilePatterns()
+		patterns := injector.InstantiatePatterns()
 		for _, pattern := range patterns {
 			cleanupPattern(ctx, logger, apiClient.DynamicCl, pattern)
 		}

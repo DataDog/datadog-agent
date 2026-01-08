@@ -10,8 +10,8 @@ package securityprofile
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"
@@ -1819,9 +1819,9 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				baseDNSReq := ti.eventDNSReq
 				for currentIncrement < ti.loopUntil {
 					if ti.eventType == model.ExecEventType {
-						ti.eventProcessPath = basePath + fmt.Sprintf("%d", rand.Int())
+						ti.eventProcessPath = basePath + strconv.Itoa(rand.Int())
 					} else if ti.eventType == model.DNSEventType {
-						ti.eventDNSReq = fmt.Sprintf("%d", rand.Int()) + baseDNSReq
+						ti.eventDNSReq = strconv.Itoa(rand.Int()) + baseDNSReq
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)

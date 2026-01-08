@@ -97,12 +97,13 @@ func (f *FakeProcFSEntry) getEnvironContents() string {
 
 // getMainTaskStatusContent returns the formatted contents of the /proc/<pid>/task/<pid>/status file for the entry.
 func (f *FakeProcFSEntry) getMainTaskStatusContent() string {
-	nspid := f.NsPid
-	if nspid == 0 {
-		nspid = f.Pid
+	content := fmt.Sprintf("Pid: %d\n", f.Pid)
+
+	if f.NsPid != 0 {
+		content += fmt.Sprintf("NSpid: %d\n", f.NsPid)
 	}
-	// note: just populate pid and nspid for now
-	return fmt.Sprintf("Pid: %d\nNSpid: %d\n", f.Pid, nspid)
+
+	return content
 }
 
 func createFile(tb testing.TB, path, data string) {

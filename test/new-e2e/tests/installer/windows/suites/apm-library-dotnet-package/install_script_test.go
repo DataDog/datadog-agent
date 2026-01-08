@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 
 	"testing"
@@ -58,7 +58,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
-			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", version.Version()),
+			"DD_APM_INSTRUMENTATION_LIBRARIES": "dotnet:" + version.Version(),
 		}),
 	)
 	// Start the IIS app to load the library

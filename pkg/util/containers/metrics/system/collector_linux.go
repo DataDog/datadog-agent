@@ -261,11 +261,11 @@ func (c *systemCollector) GetSelfContainerID() (string, error) {
 // controller. The `reader` must use a `cgroups.ContainerFilter`.
 func (c *systemCollector) getSelfContainerIDFromInode() (string, error) {
 	if c.selfReader == nil {
-		return "", fmt.Errorf("self reader is not initialized")
+		return "", errors.New("self reader is not initialized")
 	}
 	selfCgroup := c.selfReader.GetCgroup(cgroups.SelfCgroupIdentifier)
 	if selfCgroup == nil {
-		return "", fmt.Errorf("unable to get self cgroup")
+		return "", errors.New("unable to get self cgroup")
 	}
 
 	return c.GetContainerIDForInode(selfCgroup.Inode(), 0)
@@ -281,7 +281,7 @@ func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Durat
 
 		cg = c.reader.GetCgroup(containerID)
 		if cg == nil {
-			return nil, fmt.Errorf("containerID not found")
+			return nil, errors.New("containerID not found")
 		}
 	}
 

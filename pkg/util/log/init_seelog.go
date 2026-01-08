@@ -6,116 +6,47 @@
 package log
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
+	"log/slog"
 
 	"github.com/cihub/seelog"
-)
 
-type contextFormat uint8
-
-const (
-	jsonFormat = contextFormat(iota)
-	textFormat
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
 
 func parseShortFilePath(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return extractShortPathFromFullPath(context.FullPath())
+		return formatters.ExtractShortPathFromFullPath(context.FullPath())
 	}
-}
-
-func extractShortPathFromFullPath(fullPath string) string {
-	shortPath := ""
-	if strings.Contains(fullPath, "-agent/") {
-		// We want to trim the part containing the path of the project
-		// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
-		slices := strings.Split(fullPath, "-agent/")
-		shortPath = slices[len(slices)-1]
-	} else {
-		// For logging from dependencies, we want to log e.g.
-		// "collector@v0.35.0/service/collector.go"
-		slices := strings.Split(fullPath, "/")
-		atSignIndex := len(slices) - 1
-		for ; atSignIndex > 0; atSignIndex-- {
-			if strings.Contains(slices[atSignIndex], "@") {
-				break
-			}
-		}
-		shortPath = strings.Join(slices[atSignIndex:], "/")
-	}
-	return shortPath
 }
 
 func createExtraJSONContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextList, ok := context.CustomContext().([]interface{})
-		if len(contextList) == 0 || !ok {
-			return ""
-		}
-		return extractContextString(jsonFormat, contextList)
+		return formatters.ExtraJSONContext(toAttrHolder(context.CustomContext()))
 	}
 }
 
 func createExtraTextContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextList, ok := context.CustomContext().([]interface{})
-		if len(contextList) == 0 || !ok {
-			return ""
-		}
-		return extractContextString(textFormat, contextList)
+		return formatters.ExtraTextContext(toAttrHolder(context.CustomContext()))
 	}
 }
 
-func extractContextString(format contextFormat, contextList []interface{}) string {
-	if len(contextList) == 0 || len(contextList)%2 != 0 {
-		return ""
-	}
+func toAttrHolder(context interface{}) formatters.AttrHolder {
+	return attrHolderImpl(formatters.ToSlogAttrs(context))
+}
 
-	builder := strings.Builder{}
-	if format == jsonFormat {
-		builder.WriteString(",")
-	}
+type attrHolderImpl []slog.Attr
 
-	for i := 0; i < len(contextList); i += 2 {
-		key, val := contextList[i], contextList[i+1]
-		// Only add if key is string
-		if keyStr, ok := key.(string); ok {
-			addToBuilder(&builder, keyStr, val, format, i == len(contextList)-2)
+func (h attrHolderImpl) Attrs(fn func(a slog.Attr) bool) {
+	for _, attr := range h {
+		if !fn(attr) {
+			break
 		}
 	}
-
-	if format != jsonFormat {
-		builder.WriteString(" | ")
-	}
-
-	return builder.String()
 }
 
-func addToBuilder(builder *strings.Builder, key string, value interface{}, format contextFormat, isLast bool) {
-	var buf []byte
-	appendFmt(builder, format, key, buf)
-	builder.WriteString(":")
-	switch val := value.(type) {
-	case string:
-		appendFmt(builder, format, val, buf)
-	default:
-		appendFmt(builder, format, fmt.Sprintf("%v", val), buf)
-	}
-	if !isLast {
-		builder.WriteString(",")
-	}
-}
-
-func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []byte) {
-	if format == jsonFormat {
-		buf = buf[:0]
-		buf = strconv.AppendQuote(buf, s)
-		builder.Write(buf)
-	} else {
-		builder.WriteString(s)
-	}
+func (h attrHolderImpl) NumAttrs() int {
+	return len(h)
 }
 
 func init() {

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var eventOnce sync.Once
@@ -50,7 +51,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 	}
 
 	var workingEvent *model.Event
-	test.WaitSignal(tb, func() error {
+	test.WaitSignalFromRule(tb, func() error {
 		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 		if errno != 0 {
 			return error(errno)
@@ -59,9 +60,15 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 	}, func(event *model.Event, _ *rules.Rule) {
 		workingEvent = event
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
-	})
+	}, "test_rule")
 
-	return serializers.NewEventSerializer(workingEvent, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return nil
+	}
+
+	return serializers.NewEventSerializer(workingEvent, nil, scrubber)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {

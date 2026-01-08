@@ -16,7 +16,7 @@ from tasks.libs.common.utils import bin_name, environ, gitlab_section
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/cmd/golangci-lint',
+    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest',
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',

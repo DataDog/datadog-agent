@@ -17,6 +17,7 @@ import (
 	"math"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,9 +37,12 @@ var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 
 // PackagesIterator returns an iterator over the packages in the binary.
 //
+// The last package yielded by the iterator has its Final field set to true. No
+// more packages will be yielded after that, but an error may still be yielded.
+//
 // PackagesIterator can only be used if the packagesIterator was configured with
 // ExtractOptions.AccumulateInlineInfoAcrossCompileUnits=false.
-func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[Package, error], error) {
+func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[PackageWithFinal, error], error) {
 	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return nil, err
@@ -69,7 +73,7 @@ func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions)
 				existingPkg.Types[name] = t
 			}
 		} else {
-			packages[pkg.Name] = &pkg
+			packages[pkg.Name] = &pkg.Package
 		}
 	}
 
@@ -308,7 +312,7 @@ func (v Variable) Serialize(w StringWriter, indent string) {
 	w.WriteString(": ")
 	w.WriteString(v.TypeName)
 	w.WriteString(" (declared at line ")
-	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(strconv.Itoa(v.DeclLine))
 	w.WriteString(", available: ")
 	for i, r := range v.AvailableLineRanges {
 		if i > 0 {
@@ -736,12 +740,59 @@ func (b *packagesIterator) close() {
 	}
 }
 
+type PackageWithFinal struct {
+	Package
+	// Final is set if this is the last package in the binary.
+	Final bool
+}
+
 // iterator returns a Go iterator that yields packages one by one. The returned
 // iterator takes ownership of the Elf file, so it must be called (or used in a
 // range loop) in order to eventually release resources.
 //
-// Packages with no types or functions not yielded.
-func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
+// Packages with no types or functions are not yielded.
+//
+// For simplicity, the iterator never returns both a package and an error.
+//
+// The implementation wraps innerIterator() and yields packages with a delay of
+// one so that it can set the Final field of the last package.
+func (b *packagesIterator) iterator() iter.Seq2[PackageWithFinal, error] {
+	return func(yield func(pkg PackageWithFinal, err error) bool) {
+		var prev *Package
+		var err error
+		for pkg, err := range b.innerIterator() {
+			if err != nil {
+				break
+			}
+			if prev != nil {
+				if !yield(PackageWithFinal{Package: *prev, Final: false}, nil /* err */) {
+					return
+				}
+			}
+			prev = &pkg
+		}
+		if prev != nil {
+			yield(PackageWithFinal{
+				Package: *prev,
+				// NOTE: We set the Final field even if the iteration terminated
+				// because of an error.
+				Final: true,
+			}, nil /* err */)
+		}
+		if err != nil {
+			yield(PackageWithFinal{}, err)
+		}
+	}
+}
+
+// iterator returns a Go iterator that yields packages one by one. The returned
+// iterator takes ownership of the Elf file, so it must be called (or used in a
+// range loop) in order to eventually release resources.
+//
+// Packages with no types or functions are not yielded.
+//
+// For simplicity, the iterator never returns both a package and an error.
+func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 	var err error
 	// Keep track of packages we've seen so that we ignore compile units
 	// belonging to packages we've already yielded. This happens for packages

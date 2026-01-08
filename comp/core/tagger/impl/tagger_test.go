@@ -659,7 +659,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
 			originInfo: taggertypes.OriginInfo{
-				ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID),
+				ContainerIDFromSocket: "container_id://" + containerID,
 				LocalData: origindetection.LocalData{
 					PodUID: podUID,
 				},

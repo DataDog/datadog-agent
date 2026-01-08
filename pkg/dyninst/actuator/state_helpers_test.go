@@ -25,7 +25,7 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Create new state with basic fields copied.
-	copied := newState()
+	copied := newState(CircuitBreakerConfig{})
 
 	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
@@ -109,7 +109,7 @@ func deepCopyProcess(original *process) *process {
 
 // TestDeepCopyState verifies that deepCopyState works correctly.
 func TestDeepCopyState(t *testing.T) {
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	processID := ProcessID{PID: 123}
 	executable := Executable{Path: "/test/path"}
 	probe := &rcjson.SnapshotProbe{

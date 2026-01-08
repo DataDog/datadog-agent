@@ -87,6 +87,13 @@ type Decoder interface {
 		symbolicator symbol.Symbolicator,
 		out []byte,
 	) ([]byte, ir.ProbeDefinition, error)
+
+	// ReportStackPCs reports the program counters of the stack trace for a
+	// given stack hash.
+	ReportStackPCs(
+		stackHash uint64,
+		stackPCs []uint64,
+	)
 }
 
 // decoderFactory is the default decoder factory.

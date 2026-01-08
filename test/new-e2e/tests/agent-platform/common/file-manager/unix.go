@@ -6,11 +6,12 @@
 package filemanager
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Unix implement filemanager interface for Unix distributions
@@ -46,13 +47,13 @@ func (e *dummyentry) Name() string {
 	return e.name
 }
 func (e *dummyentry) IsDir() bool {
-	panic(fmt.Errorf("not implemented"))
+	panic(errors.New("not implemented"))
 }
 func (e *dummyentry) Type() fs.FileMode {
-	panic(fmt.Errorf("not implemented"))
+	panic(errors.New("not implemented"))
 }
 func (e *dummyentry) Info() (fs.FileInfo, error) {
-	panic(fmt.Errorf("not implemented"))
+	panic(errors.New("not implemented"))
 }
 
 // ReadDir only returns the Name of files in path, not stat modes

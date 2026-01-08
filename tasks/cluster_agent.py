@@ -169,7 +169,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the cluster-agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/cluster-agent/tags/list")
+        tags = requests.get("https://registry.datadoghq.com/v2/cluster-agent/tags/list")
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -178,7 +178,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/cluster-agent:{latest_release}"
+        base_image = f"registry.datadoghq.com/cluster-agent:{latest_release}"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -196,7 +196,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y bash-completion less vim tshark && \
     apt-get clean
 

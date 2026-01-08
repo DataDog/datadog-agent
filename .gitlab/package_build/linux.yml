@@ -16,6 +16,7 @@
   - !reference [.upload_sbom_artifacts]
 
 .agent_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -30,8 +31,6 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -127,6 +126,7 @@ iot-agent-armhf:
 # ----- Dogstatsd -----
 
 .dogstatsd_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -148,8 +148,6 @@ iot-agent-armhf:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 dogstatsd-x64:
   extends: [.dogstatsd_build_common, .toolchain-common-x64]
@@ -160,6 +158,7 @@ dogstatsd-arm64:
 # ----- DDOT -----
 
 .otel_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -181,8 +180,6 @@ dogstatsd-arm64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 datadog-otel-agent-x64:
   extends: [.otel_build_common, .toolchain-common-x64, .agent_base_flavor]

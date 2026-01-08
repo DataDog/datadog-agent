@@ -101,8 +101,8 @@ except ImportError:
     tabulate = None
 
 
-X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
-ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+X86_AMI_ID_SANDBOX = "ami-0ee01fdc00d76ae88"
+ARM_AMI_ID_SANDBOX = "ami-0b200b09727f5cd75"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
@@ -497,9 +497,7 @@ def selfcheck(
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
     info("[+] Configuring SSH key for use with the KMT AWS instances")
-    info(
-        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
-    )
+    info("[+] Ensure your desired SSH key is set up in the AWS agent-sandbox account so we can check its existence")
     info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
@@ -2318,8 +2316,8 @@ def tag_ci_job(ctx: Context):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
     if len(metrics) > 0:
-        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
-        ctx.run(f"datadog-ci metric --level job {metrics_str}")
+        metrics_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci measure --level job {metrics_str}")
 
 
 @task

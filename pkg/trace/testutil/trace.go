@@ -93,7 +93,7 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
-		Origin:   "lambda",
+		Origin:   "cloudrun",
 		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }

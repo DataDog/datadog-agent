@@ -9,6 +9,7 @@ package actuator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
 // Runtime abstracts the creation, attachment, and cleanup of a program.
@@ -26,6 +27,10 @@ type Runtime interface {
 type LoadedProgram interface {
 	// Attach attaches the program to a process.
 	Attach(ProcessID, Executable) (AttachedProgram, error)
+
+	// RuntimeStats returns the per-core runtime stats of the program.
+	RuntimeStats() []loader.RuntimeStats
+
 	// Close closes the loaded program. It will only be called after any
 	// Attach() call have returned and any AttachedProgram.Detach() call have
 	// returned.
@@ -35,5 +40,5 @@ type LoadedProgram interface {
 // AttachedProgram represents a program attached to a process.
 type AttachedProgram interface {
 	// Detach detaches the program from the process.
-	Detach() error
+	Detach(reason error) error
 }

@@ -206,6 +206,9 @@ var defaultProfiles = `
             - check_name
             - state
         - name: pymem.inuse
+        - name: health_platform.issues_detected
+          aggregate_tags:
+            - health_check_id
     schedule:
       start_after: 30
       iterations: 0
@@ -224,6 +227,16 @@ var defaultProfiles = `
         - name: logs.encoded_bytes_sent
           aggregate_tags:
             - compression_kind
+        - name: logs.http_connectivity_check
+          aggregate_tags:
+            - status
+        - name: logs.http_connectivity_retry_attempt
+          aggregate_tags:
+            - status
+        - name: logs.restart_attempt
+          aggregate_tags:
+            - status
+            - transport
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:
@@ -376,7 +389,10 @@ var defaultProfiles = `
           aggregate_tags:
             - version
             - command
-            - host
+        - name: runtime.datadog_agent_ddot_gateway_configured
+          aggregate_tags:
+            - version
+            - command
     schedule:
       start_after: 30
       iterations: 0
@@ -386,9 +402,8 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
       metrics:
-        - name: trace.running
-          aggregate_tags:
-            - state
+        - name: trace.enabled
+        - name: trace.working
     schedule:
       start_after: 60
       iterations: 0

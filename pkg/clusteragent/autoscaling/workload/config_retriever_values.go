@@ -9,8 +9,8 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -32,7 +32,7 @@ type valuesItem struct {
 	namespace         string
 	name              string
 	receivedTimestamp time.Time
-	receivedVersion   string
+	receivedVersion   uint64
 	scalingValues     model.ScalingValues
 }
 
@@ -98,7 +98,7 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 		namespace:         values.Namespace,
 		name:              values.Name,
 		receivedTimestamp: timestamp,
-		receivedVersion:   strconv.FormatUint(receivedVersion, 10),
+		receivedVersion:   receivedVersion,
 		scalingValues:     scalingValues,
 	}
 
@@ -227,7 +227,7 @@ func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.Workl
 	if data.Replicas != nil {
 		horizontalValues.Replicas = *data.Replicas
 	} else {
-		return nil, fmt.Errorf("horizontal replicas value are missing")
+		return nil, errors.New("horizontal replicas value are missing")
 	}
 
 	return horizontalValues, nil

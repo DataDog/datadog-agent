@@ -37,7 +37,7 @@ var ErrNotFound = errors.New("entity not found")
 type TagStore struct {
 	sync.RWMutex
 
-	store     types.ObjectStore[EntityTags]
+	store     *genericstore.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
 	subscriptionManager subscriber.SubscriptionManager

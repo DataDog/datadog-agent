@@ -79,9 +79,16 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[1, 2, 3, ...]"
   },
   {
     "service": "sample",
@@ -168,8 +175,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[1, 2, 3, ...]"
   }
 ]

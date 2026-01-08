@@ -6,7 +6,7 @@
 package marshal
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -78,7 +78,7 @@ func TestConnectionModelerError(t *testing.T) {
 	}()
 
 	kernel.RootNSPID = func() (int, error) {
-		return 0, fmt.Errorf("some RootNSPID error")
+		return 0, errors.New("some RootNSPID error")
 	}
 	mock.NewSystemProbe(t)
 

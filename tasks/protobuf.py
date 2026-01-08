@@ -18,6 +18,7 @@ PROTO_PKGS = {
     'process': False,
     'workloadmeta': False,
     'languagedetection': False,
+    'privateactionrunner': False,
     'remoteagent': False,
     'autodiscovery': False,
     'trace/idx': False,
@@ -26,6 +27,7 @@ PROTO_PKGS = {
 
 CLI_EXTRAS = {
     'trace/idx': '--go_opt=module=github.com/DataDog/datadog-agent',
+    'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
 }
 
 # maybe put this in a separate function

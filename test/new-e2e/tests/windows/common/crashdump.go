@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/cenkalti/backoff/v4"
 )
 
@@ -201,20 +201,21 @@ func DownloadSystemCrashDump(host *components.RemoteHost, systemCrashDumpFile st
 
 // EnableDriverVerifier enables standard verifier checks on the specified kernel drivers. Requires a reboot.
 func EnableDriverVerifier(host *components.RemoteHost, kernelDrivers []string) (string, error) {
-	var driverList string
+	var driverListBuilder strings.Builder
 
 	for _, driverName := range kernelDrivers {
 		if !strings.HasSuffix(driverName, ".sys") {
-			driverList += fmt.Sprintf("%s.sys ", driverName)
+			driverListBuilder.WriteString(driverName + ".sys ")
 		} else {
-			driverList += fmt.Sprintf("%s ", driverName)
+			driverListBuilder.WriteString(driverName + " ")
 		}
 	}
+	driverList := driverListBuilder.String()
 
 	fmt.Println("Enabling driver verifier for: ", driverList)
 
 	// Driver verifier returns an error code of 2.
-	out, err := host.Execute(fmt.Sprintf("verifier /standard /driver %s", driverList))
+	out, err := host.Execute("verifier /standard /driver " + driverList)
 	out = strings.TrimSpace(out)
 
 	return out, err
@@ -256,7 +257,7 @@ func waitForRebootFunc(host *components.RemoteHost, b backoff.BackOff, rebootFun
 		bootTime := strings.TrimSpace(out)
 		fmt.Println("current boot time:", bootTime)
 		if bootTime == lastBootTime {
-			return fmt.Errorf("boot time has not changed")
+			return errors.New("boot time has not changed")
 		}
 		return nil
 	}, b)

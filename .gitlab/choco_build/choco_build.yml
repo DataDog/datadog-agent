@@ -16,9 +16,11 @@
     - >
       docker run --rm
       -v "$(Get-Location):c:\mnt"
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e BUCKET_BRANCH="$BUCKET_BRANCH"
+      -e CI
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e CI_PROJECT_NAME
+      -e CI_PIPELINE_ID
+      -e BUCKET_BRANCH
       -e AWS_NETWORKING=true
       ${WINBUILDIMAGE}
       powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg\pipeline-${CI_PIPELINE_ID} -Flavor $FLAVOR -InstallDeps 1"

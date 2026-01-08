@@ -113,7 +113,7 @@ func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	newDump := dump.NewActivityDump(m.pathsReducer, prev.Profile.Metadata.DifferentiateArgs, 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, newLoadConfig, func(ad *dump.ActivityDump) {
 		ad.Profile.Header = prev.Profile.Header
 		ad.Profile.Metadata = prev.Profile.Metadata
-		ad.Profile.Metadata.Name = fmt.Sprintf("activity-dump-%s", utils.RandString(10))
+		ad.Profile.Metadata.Name = "activity-dump-" + utils.RandString(10)
 		ad.Profile.Metadata.Start = now
 		ad.Profile.Metadata.End = now.Add(newTimeout)
 		ad.Profile.AddTags(prev.Profile.GetTags())

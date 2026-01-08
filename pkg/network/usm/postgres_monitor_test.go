@@ -52,12 +52,12 @@ const (
 )
 
 var (
-	longCreateQuery = fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", strings.Repeat("table_", repeatCount))
-	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
+	longCreateQuery = "CREATE TABLE " + strings.Repeat("table_", repeatCount) + " (id SERIAL PRIMARY KEY, foo TEXT)"
+	longDropeQuery  = "DROP TABLE IF EXISTS " + strings.Repeat("table_", repeatCount)
 )
 
 func createInsertQuery(values ...string) string {
-	return fmt.Sprintf("INSERT INTO dummy (foo) VALUES ('%s')", strings.Join(values, "'), ('"))
+	return "INSERT INTO dummy (foo) VALUES ('" + strings.Join(values, "'), ('") + "')"
 }
 
 func generateTestValues(startingIndex, count int) []string {

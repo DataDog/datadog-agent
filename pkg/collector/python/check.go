@@ -39,6 +39,10 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -271,8 +275,21 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		return err
 	}
 
+	var runOnce bool
+	var rawInst integration.RawMap
+	if err := yaml.Unmarshal(data, &rawInst); err == nil {
+		if v, ok := rawInst["run_once"]; ok {
+			if b, okb := v.(bool); okb && b {
+				runOnce = true
+			}
+		}
+	}
+
 	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
+	if runOnce {
+		// Set interval to 0 for immediate one-shot execution
+		c.interval = 0
+	} else if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
@@ -300,10 +317,10 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
 	cCheckName := TrackedCString(c.ModuleName)
-	defer C._free(unsafe.Pointer(cInitConfig))
-	defer C._free(unsafe.Pointer(cInstance))
-	defer C._free(unsafe.Pointer(cCheckID))
-	defer C._free(unsafe.Pointer(cCheckName))
+	defer C.call_free(unsafe.Pointer(cInitConfig))
+	defer C.call_free(unsafe.Pointer(cInstance))
+	defer C.call_free(unsafe.Pointer(cCheckID))
+	defer C.call_free(unsafe.Pointer(cCheckName))
 
 	var check *C.rtloader_pyobject_t
 	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
@@ -324,7 +341,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 			return err
 		}
 		cAgentConfig := TrackedCString(string(agentConfig))
-		defer C._free(unsafe.Pointer(cAgentConfig))
+		defer C.call_free(unsafe.Pointer(cAgentConfig))
 
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {

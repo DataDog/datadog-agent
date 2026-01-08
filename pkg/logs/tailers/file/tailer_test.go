@@ -33,6 +33,10 @@ import (
 var chanSize = 10
 var closeTimeout = 1 * time.Second
 
+// TailerTestSuite contains unit tests for the file tailer.
+// These tests are focused on verifying the core functionality of the file tailer
+// with minimal external dependencies. The goal moving forward is to move
+// all of these tests over to file mocks or the integration test suite.
 type TailerTestSuite struct {
 	suite.Suite
 	testDir  string
@@ -268,7 +272,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(
-		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		"file:"+filepath.Join(suite.testDir, "tailer.log"),
 		suite.tailer.Identifier())
 }
 
