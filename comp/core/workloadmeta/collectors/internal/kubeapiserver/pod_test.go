@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -248,4 +249,127 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 
 	copiedPod.Status.PodIP = "10.0.0.2"
 	assert.NotEqual(t, copiedPod.Status.PodIP, original.Status.PodIP)
+}
+
+// Test_ParsersProduceSameOutput verifies that the minimalPodParser produces
+// the same output as the full podParser.
+func Test_ParsersProduceSameOutput(t *testing.T) {
+	runtimeClassName := "test-runtime"
+
+	fullPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			UID:       types.UID("test-uid-12345"),
+			Labels: map[string]string{
+				"app":     "test-app",
+				"version": "v1",
+			},
+			Annotations: map[string]string{
+				"annotation-1": "value-1",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "ReplicaSet",
+					Name: "test-rs",
+					UID:  types.UID("owner-uid"),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "container-1",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("200m"),
+						},
+					},
+				},
+				{
+					Name: "container-2",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("50m"),
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "data-volume",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "test-pvc",
+						},
+					},
+				},
+				{
+					Name: "config-volume",
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "test-cm"},
+						},
+					},
+				},
+			},
+			RuntimeClassName:  &runtimeClassName,
+			PriorityClassName: "high-priority",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{
+				{
+					Type:   corev1.PodReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			PodIP:    "10.0.0.1",
+			QOSClass: corev1.PodQOSBurstable,
+		},
+	}
+
+	// this MinimalPod is the simplification of the fullPod defined above
+	minimalPod := &MinimalPod{
+		ObjectMeta: fullPod.ObjectMeta,
+		Spec: MinimalPodSpec{
+			Containers: []MinimalContainer{
+				{
+					Name:      "container-1",
+					Resources: fullPod.Spec.Containers[0].Resources,
+				},
+				{
+					Name:      "container-2",
+					Resources: fullPod.Spec.Containers[1].Resources,
+				},
+			},
+			Volumes: []MinimalVolume{
+				{
+					PersistentVolumeClaim: fullPod.Spec.Volumes[0].PersistentVolumeClaim,
+				},
+				// The second volume is not a PVC, so it is not included in the MinimalPod
+			},
+			RuntimeClassName:  fullPod.Spec.RuntimeClassName,
+			PriorityClassName: fullPod.Spec.PriorityClassName,
+		},
+		Status: MinimalPodStatus{
+			Phase:      fullPod.Status.Phase,
+			Conditions: fullPod.Status.Conditions,
+			PodIP:      fullPod.Status.PodIP,
+			QOSClass:   fullPod.Status.QOSClass,
+		},
+	}
+
+	fullParser, err := kubernetesresourceparsers.NewPodParser(nil)
+	require.NoError(t, err)
+	fullParserResult := fullParser.Parse(fullPod)
+
+	minimalParser := minimalPodParser{}
+	minimalParserResult := minimalParser.Parse(minimalPod)
+
+	assert.Equal(t, fullParserResult, minimalParserResult)
 }
