@@ -28,11 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// apmInjectionErrorAnnotationKey this annotation is added when the apm auto-instrumentation admission controller failed to mutate the Pod.
-	apmInjectionErrorAnnotationKey = "apm.datadoghq.com/injection-error"
-)
-
 type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
@@ -63,7 +58,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		if pod.Annotations == nil {
 			pod.Annotations = make(map[string]string)
 		}
-		pod.Annotations[apmInjectionErrorAnnotationKey] = injectionDecision.message
+		SetAnnotation(pod, AnnotationInjectionError, injectionDecision.message)
 		return nil
 	}
 
@@ -229,48 +224,61 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
 	}
 
-	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractorFunc(m.imageResolver),
-		injectorImageAnnotationExtractor,
-		injectorDebugAnnotationExtractor,
-	} {
-		opt, err := e.extract(pod)
-		if err != nil {
-			if !isErrAnnotationNotFound(err) {
-				log.Warnf("error extracting injector annotation %s in single step", e.key)
-			}
-			continue
-		}
-		opts = append(opts, opt)
+	// Check for the injector version set.
+	injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion)
+	if found {
+		opts = append(opts, injectorWithImageTag(injectorVersion, m.imageResolver))
+	}
+
+	// Check for the injector image being set.
+	injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage)
+	if found {
+		opts = append(opts, injectorWithImageName(injectorImage))
+	}
+
+	// Check if the user has debug enabled.
+	debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug)
+	if found {
+		opts = append(opts, injectorDebug(debugEnabled))
 	}
 
 	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
-func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
-	var (
-		libList        []libInfo
-		extractLibInfo = func(e annotationExtractor[libInfo]) {
-			i, err := e.extract(pod)
-			if err != nil {
-				if !isErrAnnotationNotFound(err) {
-					log.Warnf("error extracting annotation for key %s", e.key)
-				}
-			} else {
-				libList = append(libList, i)
-			}
-		}
-	)
+func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
+	libs := []libInfo{}
+
+	// Check all supported languages for potential Local SDK Injection.
 	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
-		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+		// Check for a custom library image.
+		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfo("", customImage))
+		}
+
+		// Check for a custom library version.
+		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
+		}
+
+		// Check all containers in the pod for container specific Local SDK Injection.
+		for _, container := range pod.Spec.Containers {
+			// Check for custom library image.
+			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfo(container.Name, customImage))
+			}
+
+			// Check for custom library version.
+			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
+			}
 		}
 	}
 
-	return libList
+	return libs
 }
 
 func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
@@ -677,4 +685,52 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 
 func initContainerIsSidecar(container *corev1.Container) bool {
 	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
+}
+
+// getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists
+// if the first owner is a replicaset, it returns the name
+func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
+	owners := pod.GetOwnerReferences()
+
+	if len(owners) == 0 {
+		return "", "", false
+	}
+
+	owner := owners[0]
+	ownerName, ownerKind := owner.Name, owner.Kind
+
+	if ownerKind == "ReplicaSet" {
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerName)
+		if deploymentName != "" {
+			ownerKind = "Deployment"
+			ownerName = deploymentName
+		}
+	}
+
+	return ownerName, ownerKind, true
+}
+
+func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
+	// populate libInfoList using the languages found in workloadmeta
+	id := fmt.Sprintf("%s/%s", ns, deploymentName)
+	deployment, err := store.GetKubernetesDeployment(id)
+	if err != nil {
+		return nil
+	}
+
+	var libList []libInfo
+	for container, languages := range deployment.InjectableLanguages {
+		for lang := range languages {
+			// There's a mismatch between language detection and auto-instrumentation.
+			// The Node language is a js lib.
+			if lang == "node" {
+				lang = "js"
+			}
+
+			l := language(lang)
+			libList = append(libList, l.defaultLibInfo(registry, container.Name))
+		}
+	}
+
+	return libList
 }

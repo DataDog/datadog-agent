@@ -25,14 +25,16 @@ type Fixture struct {
 	Expected []byte
 }
 
-func loadFixture(profileName string) Fixture {
-	initial, err := fixturesFS.ReadFile("fixtures/" + profileName + "/initial.txt")
+func loadFixture(profileName string, command CommandType) Fixture {
+	initialPath := path.Join("fixtures", profileName, string(command), "initial.txt")
+	initial, err := fixturesFS.ReadFile(initialPath)
 	if err != nil {
-		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, error: %s", profileName, err))
+		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, command: %s, error: %s", profileName, command, err))
 	}
-	expected, err := fixturesFS.ReadFile("fixtures/" + profileName + "/expected.txt")
+	expectedPath := path.Join("fixtures", profileName, string(command), "expected.txt")
+	expected, err := fixturesFS.ReadFile(expectedPath)
 	if err != nil {
-		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, error: %s", profileName, err))
+		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, command:%s, error: %s", profileName, command, err))
 	}
 	return Fixture{
 		Initial:  normalizeOutput(initial),

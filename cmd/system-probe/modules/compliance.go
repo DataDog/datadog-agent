@@ -8,14 +8,23 @@
 package modules
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
 	"sync/atomic"
+	"time"
 
 	// import the full compliance code in the system-probe (including the rego evaluator)
 	// this allows us to reserve the package size while we work on pluging things out
 	_ "github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() { registerModule(ComplianceModule) }
@@ -53,6 +62,40 @@ func (m *complianceModule) GetStats() map[string]interface{} {
 }
 
 // Register implements module.Module.
-func (m *complianceModule) Register(_ *module.Router) error {
+func (m *complianceModule) Register(router *module.Router) error {
+	router.HandleFunc("/dbconfig", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, m.handleScanDBConfig))
 	return nil
+}
+
+func (m *complianceModule) handleError(writer http.ResponseWriter, request *http.Request, status int, err error) {
+	_ = log.Errorf("module compliance: failed to properly handle %s request: %s", request.URL.Path, err)
+	writer.Header().Set("Content-Type", "text/plain")
+	writer.WriteHeader(status)
+	writer.Write([]byte(err.Error()))
+}
+
+func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, request *http.Request) {
+	m.performedChecks.Add(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	qs := request.URL.Query()
+	pid, err := strconv.ParseInt(qs.Get("pid"), 10, 32)
+	if err != nil {
+		m.handleError(writer, request, http.StatusBadRequest, fmt.Errorf("pid query parameter is not an integer: %w", err))
+		return
+	}
+
+	resource, ok := dbconfig.LoadDBResourceFromPID(ctx, int32(pid))
+	if !ok {
+		m.handleError(writer, request, http.StatusNotFound, fmt.Errorf("resource not found for pid=%d", pid))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+	e := json.NewEncoder(writer)
+	if err := e.Encode(resource); err != nil {
+		_ = log.Errorf("module compliance: failed to properly handle %s request: could not send response %s", request.URL.Path, err)
+	}
 }

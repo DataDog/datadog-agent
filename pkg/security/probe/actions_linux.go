@@ -100,12 +100,20 @@ func (k *HashActionReport) PatchEvent(ev *serializers.EventSerializer) {
 type RawPacketActionReport struct {
 	sync.RWMutex
 
-	Filter string `json:"filter"`
-	Policy string `json:"policy"`
+	Filter string                `json:"filter"`
+	Policy string                `json:"policy"`
+	Status RawPacketActionStatus `json:"status"`
 
 	// internal
 	rule *rules.Rule
 }
+
+type RawPacketActionStatus string
+
+const (
+	RawPacketActionStatusApplied RawPacketActionStatus = "applied"
+	RawPacketActionStatusError   RawPacketActionStatus = "error"
+)
 
 // IsResolved return if the action is resolved
 func (k *RawPacketActionReport) IsResolved() error {

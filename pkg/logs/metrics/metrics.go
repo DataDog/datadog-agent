@@ -119,6 +119,21 @@ var (
 	// TlmRotationSizeDifferences records the absolute file size difference whenever the file size changes between checks
 	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
 		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
+
+	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs_agent", "http_connectivity_check",
+		[]string{"status"}, "Count of HTTP connectivity checks with status")
+
+	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityRetryAttempt = telemetry.NewCounter("logs_agent", "http_connectivity_retry_attempt",
+		[]string{"status"}, "Count of HTTP connectivity retry attempts with success/failure status")
+
+	// TlmRestartAttempt tracks logs agent restart attempts
+	// Tags: status (success/failure/timeout), transport (tcp/http)
+	TlmRestartAttempt = telemetry.NewCounter("logs_agent", "restart_attempt",
+		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
 )
 
 func init() {

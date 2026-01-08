@@ -22,7 +22,7 @@ import (
 // ConfigsForPod returns the openmetrics configurations for a given pod if it matches the AD configuration
 func ConfigsForPod(pc *types.PrometheusCheck, pod *workloadmeta.KubernetesPod, wmeta workloadmeta.Component) ([]integration.Config, error) {
 	var configs []integration.Config
-	namespacedName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	namespacedName := pod.Namespace + "/" + pod.Name
 	if pc.IsExcluded(pod.Annotations, namespacedName) {
 		return nil, nil
 	}

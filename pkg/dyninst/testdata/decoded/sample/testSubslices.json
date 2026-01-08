@@ -85,16 +85,25 @@
                   {
                     "type": "uint",
                     "value": "2"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "3"
                   }
-                ],
-                "notCapturedReason": "collectionSize"
+                ]
               }
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
-    "message": "[1, 2], [1], [1, 2, ...]"
+    "message": "[1, 2], [1], [1, 2, 3]"
   }
 ]

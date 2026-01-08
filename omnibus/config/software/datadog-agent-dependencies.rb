@@ -10,12 +10,16 @@ end
 if fips_mode?
   dependency 'openssl-fips-provider'
 else
-  dependency 'secret-generic-connector' unless heroku_target?
+  if !heroku_target?
+    build do
+      command_on_repo_root "bazelisk run -- //deps/secret_connector:install --verbose --destdir=#{install_dir}"
+    end
+  end
 end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-if linux_target? and !heroku_target?
+if (linux_target? && !heroku_target?) || windows_target?
   build do
     command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir=#{install_dir}"
   end
@@ -45,17 +49,10 @@ end
 
 dependency 'datadog-agent-integrations-py3'
 
-
 # Additional software
 if windows_target?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
+  build do
+    command_on_repo_root "bazelisk run -- //packages/windows:install_drivers --destdir=#{install_dir}"
   end
 end
 

@@ -64,13 +64,13 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     __u64 shared_mem = 0;
     __u64 stream = 0;
 
-    shared_mem = PT_REGS_USER_PARM7(ctx, read_ret);
+    shared_mem = PT_REGS_USER_PARM7_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read shared_mem");
         return 0;
     }
 
-    stream = PT_REGS_USER_PARM8(ctx, read_ret);
+    stream = PT_REGS_USER_PARM8_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read stream");
         return 0;
@@ -99,19 +99,19 @@ int BPF_UPROBE(uprobe__cuLaunchKernel, const void *func, __u32 grid_x, __u32 gri
     __u64 stream = 0;
     __u32 block_z = 0;
 
-    block_z = PT_REGS_USER_PARM7(ctx, read_ret);
+    block_z = PT_REGS_USER_PARM7_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cuLaunchKernel: failed to read block_z");
         return 0;
     }
 
-    shared_mem = PT_REGS_USER_PARM8(ctx, read_ret);
+    shared_mem = PT_REGS_USER_PARM8_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cuLaunchKernel: failed to read shared_mem");
         return 0;
     }
 
-    stream = PT_REGS_USER_PARM9(ctx, read_ret);
+    stream = PT_REGS_USER_PARM9_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cuLaunchKernel: failed to read stream");
         return 0;

@@ -82,12 +82,27 @@ func TestHasValidLineage(t *testing.T) {
 		var mn *ErrProcessMissingParentNode
 		assert.ErrorAs(t, err, &mn)
 	})
+
+	t.Run("cycle-detection", func(t *testing.T) {
+		pid1 := newPCE(2, nil, false)
+		child1 := newPCE(3, pid1, false)
+		child2 := newPCE(4, child1, false)
+
+		// create cycle
+		pid1.SetAncestor(child2)
+
+		isValid, err := child2.HasValidLineage()
+		assert.False(t, isValid)
+		assert.NotNil(t, err)
+
+		assert.ErrorIs(t, err, ErrCycleInProcessLineage)
+	})
 }
 
 func TestEntryEquals(t *testing.T) {
-	e1 := NewProcessCacheEntry(nil)
+	e1 := NewProcessCacheEntry()
 	e1.Pid = 2
-	e2 := NewProcessCacheEntry(nil)
+	e2 := NewProcessCacheEntry()
 	e2.Pid = 3
 	assert.True(t, e1.Equals(e2))
 
