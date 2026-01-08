@@ -68,12 +68,26 @@ fn discover_files_by_time_range(
     let (search_start, search_end) = match time_range.to_duration() {
         Some(lookback) => {
             let earliest_wanted = now - lookback;
-            // Use data_range to bound our search, but don't go earlier than lookback window
-            let start = match data_range.earliest {
-                Some(earliest) => earliest.max(earliest_wanted),
-                None => earliest_wanted,
+            let search_end = data_range.latest.min(now);
+
+            // Fix: When data is stale (data_range.latest < earliest_wanted),
+            // use a lookback window from the latest available data instead of from now
+            let search_start = if data_range.latest < earliest_wanted {
+                // Data is stale - go back from latest available data
+                let stale_lookback = search_end - lookback;
+                match data_range.earliest {
+                    Some(earliest) => earliest.max(stale_lookback),
+                    None => stale_lookback,
+                }
+            } else {
+                // Data is current - use standard lookback from now
+                match data_range.earliest {
+                    Some(earliest) => earliest.max(earliest_wanted),
+                    None => earliest_wanted,
+                }
             };
-            (start, data_range.latest.min(now))
+
+            (search_start, search_end)
         }
         None => {
             // TimeRange::All - use full data range
@@ -279,6 +293,8 @@ pub struct MetadataIndex {
     /// Which containers exist in each file (for file-level pruning).
     /// Maps file path -> set of container short_ids found in that file.
     pub file_containers: HashMap<PathBuf, HashSet<String>>,
+    /// Data time range from the index.
+    pub data_range: DataRange,
 }
 
 impl LazyDataStore {
@@ -377,6 +393,7 @@ impl LazyDataStore {
             // Note: file_containers is empty for index-based startup
             // File-level pruning will be disabled until files are scanned
             file_containers: HashMap::new(),
+            data_range: container_index.data_range.clone(),
         };
 
         tracing::debug!(
@@ -413,14 +430,9 @@ impl LazyDataStore {
 
             let start = std::time::Instant::now();
 
-            // Create a DataRange for discovery
-            let data_range = DataRange {
-                earliest: None,
-                latest: Utc::now(),
-                rotation_interval_sec: 90, // Default flush interval
-            };
-
-            let new_files = discover_files_by_time_range(data_dir, &data_range, time_range);
+            // Use the index's data_range for discovery instead of creating a new one
+            // This ensures we use the actual data timespan, not a synthetic "now"
+            let new_files = discover_files_by_time_range(data_dir, &self.index.data_range, time_range);
             let new_count = new_files.len();
 
             let mut paths = self.paths.write().unwrap();
@@ -473,6 +485,7 @@ impl LazyDataStore {
                 missing.extend(container_ids);
             }
         }
+
 
         // Load missing data
         if !missing.is_empty() {
@@ -747,6 +760,11 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
             containers: HashMap::new(),
             metric_containers: HashMap::new(),
             file_containers: HashMap::new(),
+            data_range: DataRange {
+                earliest: None,
+                latest: Utc::now(),
+                rotation_interval_sec: 90,
+            },
         });
     }
 
@@ -976,6 +994,11 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         containers: all_containers,
         metric_containers,
         file_containers,
+        data_range: DataRange {
+            earliest: None,
+            latest: Utc::now(),
+            rotation_interval_sec: 90,
+        },
     })
 }
 
@@ -1001,6 +1024,7 @@ fn load_metric_data(
         paths.len(),
         container_ids.len()
     );
+
 
     // Process files in parallel, each file returns its own HashMap
     let parallel_start = std::time::Instant::now();
@@ -1058,6 +1082,7 @@ fn load_metric_data(
         start.elapsed().as_secs_f64() * 1000.0,
         result.len()
     );
+
 
     Ok(result)
 }

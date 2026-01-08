@@ -76,6 +76,8 @@ spec:
                 fieldPath: spec.nodeName
           - name: CLUSTER_NAME
             value: "gadget-dev"
+          - name: RUST_LOG
+            value: "debug"
         ports:
           - containerPort: 8050
             name: http
