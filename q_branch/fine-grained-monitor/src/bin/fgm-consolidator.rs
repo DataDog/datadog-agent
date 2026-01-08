@@ -390,10 +390,28 @@ fn consolidate_files(
     let output_file = File::create(&tmp_path).context("Failed to create output file")?;
     let writer = BufWriter::new(output_file);
 
+    // REQ-CON-007: Use single row group for DuckDB/PyArrow compatibility
+    //
+    // Arrow's Parquet writer creates a new dictionary for each row group.
+    // When consolidating multiple files, each input file's row groups would
+    // create separate dictionaries, causing errors in readers that expect
+    // at most one dictionary per column:
+    //   - DuckDB: "don't know what type:"
+    //   - PyArrow: "Column cannot have more than one dictionary"
+    //
+    // By setting max_row_group_size to usize::MAX, all batches go into ONE
+    // row group with ONE dictionary per column. Memory stays bounded because
+    // ArrowWriter encodes data incrementally (not buffered raw).
+    //
+    // Trade-off: We lose row-group-level predicate pushdown (the ability to
+    // skip entire row groups based on min/max statistics). For time-series
+    // analysis of specific containers, this is acceptable since queries
+    // typically target narrow time ranges within files anyway.
     let props = WriterProperties::builder()
         .set_compression(Compression::ZSTD(
             parquet::basic::ZstdLevel::try_new(compression_level).unwrap_or_default(),
         ))
+        .set_max_row_group_size(usize::MAX)
         .build();
 
     let mut arrow_writer =
