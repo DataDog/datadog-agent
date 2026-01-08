@@ -449,6 +449,7 @@ func (sw *loggerPointer) trace(s string) {
 	}
 
 	scrubbed := l.scrub(s)
+	maybeObserve(TraceLvl, scrubbed)
 	l.inner.Trace(scrubbed)
 }
 
@@ -458,6 +459,7 @@ func (sw *loggerPointer) traceStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 
+	maybeObserve(TraceLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Trace(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -467,6 +469,7 @@ func (sw *loggerPointer) traceStackDepth(s string, depth int) {
 func (sw *loggerPointer) debug(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(DebugLvl, scrubbed)
 	l.inner.Debug(scrubbed)
 }
 
@@ -474,6 +477,7 @@ func (sw *loggerPointer) debug(s string) {
 func (sw *loggerPointer) debugStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(DebugLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Debug(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -483,6 +487,7 @@ func (sw *loggerPointer) debugStackDepth(s string, depth int) {
 func (sw *loggerPointer) info(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(InfoLvl, scrubbed)
 	l.inner.Info(scrubbed)
 }
 
@@ -490,6 +495,7 @@ func (sw *loggerPointer) info(s string) {
 func (sw *loggerPointer) infoStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(InfoLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Info(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -499,6 +505,7 @@ func (sw *loggerPointer) infoStackDepth(s string, depth int) {
 func (sw *loggerPointer) warn(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(WarnLvl, scrubbed)
 	err := l.inner.Warn(scrubbed)
 
 	return err
@@ -508,6 +515,7 @@ func (sw *loggerPointer) warn(s string) error {
 func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(WarnLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Warn(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -519,6 +527,7 @@ func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
 func (sw *loggerPointer) error(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(ErrorLvl, scrubbed)
 	err := l.inner.Error(scrubbed)
 
 	return err
@@ -528,6 +537,7 @@ func (sw *loggerPointer) error(s string) error {
 func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(ErrorLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Error(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -539,6 +549,7 @@ func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
 func (sw *loggerPointer) critical(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(CriticalLvl, scrubbed)
 	err := l.inner.Critical(scrubbed)
 
 	return err
@@ -548,6 +559,7 @@ func (sw *loggerPointer) critical(s string) error {
 func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
+	maybeObserve(CriticalLvl, scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Critical(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
@@ -559,6 +571,7 @@ func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
 func (sw *loggerPointer) tracef(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(TraceLvl, scrubbed)
 	l.inner.Trace(scrubbed)
 }
 
@@ -566,6 +579,7 @@ func (sw *loggerPointer) tracef(format string, params ...interface{}) {
 func (sw *loggerPointer) debugf(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(DebugLvl, scrubbed)
 	l.inner.Debug(scrubbed)
 }
 
@@ -573,6 +587,7 @@ func (sw *loggerPointer) debugf(format string, params ...interface{}) {
 func (sw *loggerPointer) infof(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(InfoLvl, scrubbed)
 	l.inner.Info(scrubbed)
 }
 
@@ -580,6 +595,7 @@ func (sw *loggerPointer) infof(format string, params ...interface{}) {
 func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(WarnLvl, scrubbed)
 	err := l.inner.Warn(scrubbed)
 
 	return err
@@ -589,6 +605,7 @@ func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
 func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(ErrorLvl, scrubbed)
 	err := l.inner.Error(scrubbed)
 
 	return err
@@ -598,6 +615,7 @@ func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
 func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	maybeObserve(CriticalLvl, scrubbed)
 	err := l.inner.Critical(scrubbed)
 
 	return err
