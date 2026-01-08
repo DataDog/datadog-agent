@@ -837,3 +837,170 @@ func TestGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	_, exists := processors["infraattributes/default"]
 	require.True(t, exists)
 }
+
+// ============================================================================
+// Ensure Function Error Handling Tests
+// ============================================================================
+
+func TestEnsureReturnsErrorWhenIntermediateElementIsString(t *testing.T) {
+	// Test that Ensure returns an error when an intermediate path element is a string
+	cm := confMap{
+		"processors": "not-a-map",
+	}
+
+	_, err := Ensure[bool](cm, "processors::receivers::otlp")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "path element \"processors\" is not a map")
+}
+
+func TestEnsureReturnsErrorWhenIntermediateElementIsNumber(t *testing.T) {
+	// Test that Ensure returns an error when an intermediate path element is a number
+	cm := confMap{
+		"processors": confMap{
+			"receivers": 12345,
+		},
+	}
+
+	_, err := Ensure[bool](cm, "processors::receivers::otlp")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "path element \"receivers\" is not a map")
+}
+
+func TestEnsureReturnsErrorWhenIntermediateElementIsBoolean(t *testing.T) {
+	// Test that Ensure returns an error when an intermediate path element is a boolean
+	cm := confMap{
+		"processors": confMap{
+			"receivers": true,
+		},
+	}
+
+	_, err := Ensure[confMap](cm, "processors::receivers::otlp")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "path element \"receivers\" is not a map")
+}
+
+func TestEnsureReturnsErrorWhenIntermediateElementIsArray(t *testing.T) {
+	// Test that Ensure returns an error when an intermediate path element is an array
+	cm := confMap{
+		"processors": []any{"not", "a", "map"},
+	}
+
+	_, err := Ensure[bool](cm, "processors::receivers::otlp")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "path element \"processors\" is not a map")
+}
+
+func TestEnsureSucceedsWhenIntermediateElementIsMissing(t *testing.T) {
+	// Test that Ensure succeeds when intermediate elements don't exist (creates them)
+	cm := confMap{}
+
+	result, err := Ensure[bool](cm, "processors::receivers::otlp")
+	require.NoError(t, err)
+	require.False(t, result)
+
+	// Verify the path was created
+	val, ok := Get[bool](cm, "processors::receivers::otlp")
+	require.True(t, ok)
+	require.False(t, val)
+}
+
+func TestEnsureSucceedsWhenPathExists(t *testing.T) {
+	// Test that Ensure returns existing value without error
+	cm := confMap{
+		"processors": confMap{
+			"receivers": confMap{
+				"otlp": true,
+			},
+		},
+	}
+
+	result, err := Ensure[bool](cm, "processors::receivers::otlp")
+	require.NoError(t, err)
+	require.True(t, result)
+}
+
+func TestEnsureCreatesEmptyMapForMapTypes(t *testing.T) {
+	// Test that Ensure creates an empty map instead of nil for map types
+	cm := confMap{}
+
+	result, err := Ensure[confMap](cm, "processors")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result)
+
+	// Verify it was actually set in the config
+	val, ok := Get[confMap](cm, "processors")
+	require.True(t, ok)
+	require.NotNil(t, val)
+}
+
+func TestConverterErrorPropagationFromEnsure(t *testing.T) {
+	// Test that converter properly propagates errors from Ensure
+	// This tests the full integration path
+	cm := loadTestData(t, "error_pipelines_not_map.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{config: newTestConfig(t)}
+	err := converter.Convert(context.Background(), conf)
+
+	// Should error because service::pipelines is not a map
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "path element \"pipelines\" is not a map")
+}
+
+func TestConverterErrorPropagationFromProcessors(t *testing.T) {
+	// Test that converter propagates errors when an intermediate element in processors path is not a map
+	cm := loadTestData(t, "error_processor_config_not_map.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{config: newTestConfig(t)}
+	err := converter.Convert(context.Background(), conf)
+
+	// Should error when trying to set infraattributes::allow_hostname_override
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "infraattributes")
+}
+
+func TestConverterErrorPropagationFromReceivers(t *testing.T) {
+	// Test that Ensure replaces final elements with wrong types (expected behavior)
+	cm := loadTestData(t, "error_receiver_endpoints_wrong_type.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{config: newTestConfig(t)}
+	err := converter.Convert(context.Background(), conf)
+
+	// This won't error because Ensure replaces the final element
+	require.NoError(t, err)
+
+	// Verify that the string was replaced with an empty array
+	result := conf.ToStringMap()
+	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
+	require.True(t, ok)
+	require.Empty(t, endpoints)
+}
+
+func TestConverterErrorPropagationFromReceiversDeepPath(t *testing.T) {
+	// Test error propagation with a truly intermediate non-map element
+	// We need to use Set directly since the converter code may not have such deep paths
+	cm := confMap{
+		"receivers": confMap{
+			"hostprofiler": confMap{
+				"symbol_uploader": "not-a-map", // Intermediate element
+			},
+		},
+	}
+
+	// This should error because symbol_uploader is not a map
+	_, err := Ensure[bool](cm, "receivers::hostprofiler::symbol_uploader::enabled")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "symbol_uploader")
+}
+
+func TestConverterErrorPropagationFromExporters(t *testing.T) {
+	// Test that converter propagates errors when an intermediate element in exporters path is not a map
+	cm := loadTestData(t, "error_exporter_config_not_map.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{config: newTestConfig(t)}
+	err := converter.Convert(context.Background(), conf)
+
+	// Should error when trying to ensure otlphttp::headers
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "otlphttp")
+}

@@ -1,10 +1,11 @@
 processors:
-  infraattributes_custom: {}
-  myresourcedetection: {}
+  infraattributes_custom: {}  # Invalid: uses underscore instead of slash
+  myresourcedetection: {}     # Invalid: wrong prefix
+  batch: {}
 service:
   pipelines:
     profiles:
-      processors: [infraattributes_custom, myresourcedetection]
+      processors: [infraattributes_custom, myresourcedetection, batch]
       receivers: []
       exporters: [otlphttp]
 exporters:

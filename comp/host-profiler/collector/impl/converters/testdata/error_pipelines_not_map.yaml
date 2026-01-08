@@ -1,0 +1,4 @@
+service:
+  pipelines: not-a-map
+exporters:
+  otlphttp: {}

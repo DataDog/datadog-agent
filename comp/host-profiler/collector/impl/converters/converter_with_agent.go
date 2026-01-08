@@ -30,10 +30,22 @@ func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component)
 func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
 	confStringMap := conf.ToStringMap()
 
-	profilesPipeline := Ensure[confMap](confStringMap, "service::pipelines::profiles")
-	processorNames := Ensure[[]any](profilesPipeline, "processors")
-	receiverNames := Ensure[[]any](profilesPipeline, "receivers")
-	exporterNames := Ensure[[]any](profilesPipeline, "exporters")
+	profilesPipeline, err := Ensure[confMap](confStringMap, "service::pipelines::profiles")
+	if err != nil {
+		return err
+	}
+	processorNames, err := Ensure[[]any](profilesPipeline, "processors")
+	if err != nil {
+		return err
+	}
+	receiverNames, err := Ensure[[]any](profilesPipeline, "receivers")
+	if err != nil {
+		return err
+	}
+	exporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	if err != nil {
+		return err
+	}
 
 	// If there's no otlphttpexporter configured, check if an exporter is configured but not in pipeline, add it
 	// We can't infer necessary configurations as it needs URLs, so if nothing is found, notify user
@@ -60,31 +72,42 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 
 	// Go through every configured processors to make sure there are no resourcedetections declared that were not in the
 	// pipeline
-	c.ensureGlobalProcessors(confStringMap)
+	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
+		return err
+	}
 	if err := c.ensureGlobalReceivers(confStringMap); err != nil {
 		return err
 	}
 
 	// Go through every exporter and ensure every configured otlphttpexporter has a datadog API key
-	c.ensureGlobalExporters(confStringMap)
+	if err := c.ensureGlobalExporters(confStringMap); err != nil {
+		return err
+	}
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
 
-func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) {
-	processors := Ensure[confMap](conf, "processors")
+func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) error {
+	processors, err := Ensure[confMap](conf, "processors")
+	if err != nil {
+		return err
+	}
 
 	for name := range processors {
 		if strings.Contains(name, "resourcedetection") {
 			delete(processors, name)
 		}
 	}
+	return nil
 }
 
-func (c *converterWithAgent) ensureHostProfilerConfig(hostProfiler confMap) {
+func (c *converterWithAgent) ensureHostProfilerConfig(hostProfiler confMap) error {
 	// Normalize symbol uploader endpoint keys if enabled
 	if isEnabled, ok := Get[bool](hostProfiler, "symbol_uploader::enabled"); ok && isEnabled {
-		endpoints := Ensure[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
+		endpoints, err := Ensure[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
+		if err != nil {
+			return err
+		}
 		for _, endpoint := range endpoints {
 			if endpointMap, ok := endpoint.(confMap); ok {
 				c.ensureStringKey(endpointMap, "api_key")
@@ -92,10 +115,14 @@ func (c *converterWithAgent) ensureHostProfilerConfig(hostProfiler confMap) {
 			}
 		}
 	}
+	return nil
 }
 
 func (c *converterWithAgent) ensureGlobalReceivers(conf confMap) error {
-	receivers := Ensure[confMap](conf, "receivers")
+	receivers, err := Ensure[confMap](conf, "receivers")
+	if err != nil {
+		return err
+	}
 
 	for receiver, config := range receivers {
 		if strings.Contains(receiver, "hostprofiler") {
@@ -104,14 +131,19 @@ func (c *converterWithAgent) ensureGlobalReceivers(conf confMap) error {
 				return fmt.Errorf("hostprofiler config should be a map")
 			}
 
-			c.ensureHostProfilerConfig(hostProfilerConfig)
+			if err := c.ensureHostProfilerConfig(hostProfilerConfig); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (c *converterWithAgent) ensureGlobalExporters(conf confMap) {
-	exporters := Ensure[confMap](conf, "exporters")
+func (c *converterWithAgent) ensureGlobalExporters(conf confMap) error {
+	exporters, err := Ensure[confMap](conf, "exporters")
+	if err != nil {
+		return err
+	}
 
 	// Normalize headers for all otlphttp exporters
 	for exporter := range exporters {
@@ -119,9 +151,13 @@ func (c *converterWithAgent) ensureGlobalExporters(conf confMap) {
 			continue
 		}
 
-		headers := Ensure[confMap](exporters, exporter+"::headers")
+		headers, err := Ensure[confMap](exporters, exporter+"::headers")
+		if err != nil {
+			return err
+		}
 		c.ensureStringKey(headers, "dd-api-key")
 	}
+	return nil
 }
 
 func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []any) ([]any, error) {
@@ -133,7 +169,11 @@ func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []
 	}
 
 	// Check if one is configured, add it if so
-	for exporter := range Ensure[confMap](conf, "exporters") {
+	exporters, err := Ensure[confMap](conf, "exporters")
+	if err != nil {
+		return exporterNames, err
+	}
+	for exporter := range exporters {
 		if strings.Contains(exporter, "otlphttp") {
 			return append(exporterNames, exporter), nil
 		}
@@ -142,8 +182,12 @@ func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []
 	return exporterNames, fmt.Errorf("no otlphttp exporter configured in profiles pipeline")
 
 }
+
 func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames []any) ([]any, error) {
-	processors := Ensure[confMap](conf, "processors")
+	processors, err := Ensure[confMap](conf, "processors")
+	if err != nil {
+		return nil, err
+	}
 	foundInfraattributes := false
 	toDelete := make(map[string]bool)
 
@@ -164,14 +208,18 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		// Track if we have infraattributes
 		if strings.Contains(name, "infraattributes") {
 			// Make sure allow_hostname_override is true
-			Set(processors, name+"::allow_hostname_override", true)
+			if err := Set(processors, name+"::allow_hostname_override", true); err != nil {
+				return nil, err
+			}
 			foundInfraattributes = true
 		}
 	}
 
 	// Add infraattributes/default if none found
 	if !foundInfraattributes {
-		Set(processors, "infraattributes/default::allow_hostname_override", true)
+		if err := Set(processors, "infraattributes/default::allow_hostname_override", true); err != nil {
+			return nil, err
+		}
 		processorNames = append(processorNames, "infraattributes/default")
 	}
 
@@ -205,7 +253,9 @@ func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []
 	}
 
 	// Ensure default config exists if hostprofiler receiver is not configured
-	Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false)
+	if err := Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false); err != nil {
+		return nil, err
+	}
 
 	return append(receiverNames, "hostprofiler"), nil
 }

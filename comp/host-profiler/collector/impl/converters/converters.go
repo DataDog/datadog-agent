@@ -72,10 +72,10 @@ func Get[T any](c confMap, path string) (T, bool) {
 // Ensure retrieves a value of type T from the confMap at the given path.
 // If the path doesn't exist, it creates the path with a zero value of type T.
 // Path segments are separated by "::".
-// Always returns a value (zero value if created).
-func Ensure[T any](c confMap, path string) T {
+// Returns an error if an intermediate path element exists but is not a map.
+func Ensure[T any](c confMap, path string) (T, error) {
 	if val, ok := Get[T](c, path); ok {
-		return val
+		return val, nil
 	}
 	var zero T
 	// Special handling for map types - create an empty map instead of nil
@@ -83,8 +83,10 @@ func Ensure[T any](c confMap, path string) T {
 	case map[string]any:
 		zero = any(make(map[string]any)).(T)
 	}
-	Set(c, path, zero)
-	return zero
+	if err := Set(c, path, zero); err != nil {
+		return zero, fmt.Errorf("failed to ensure path %q: %w", path, err)
+	}
+	return zero, nil
 }
 
 // Set sets a value of type T in the confMap at the given path.

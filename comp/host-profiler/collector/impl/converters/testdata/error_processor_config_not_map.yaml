@@ -1,0 +1,10 @@
+service:
+  pipelines:
+    profiles:
+      processors: [infraattributes]
+      receivers: []
+      exporters: [otlphttp]
+processors:
+  infraattributes: not-a-map
+exporters:
+  otlphttp: {}
