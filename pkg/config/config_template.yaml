@@ -4847,12 +4847,12 @@ api_key:
 #       sampling_percentage: 100
 
 #     infra_attributes:
+#
 #       # @param enabled - boolean - optional - default: true
 #       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_ENABLED - boolean - optional - default: true
 #       # Set to false to disable Infra-Attribute-Processor for traces pipeline in the OTLP ingest endpoint.
 #
 #       enabled: true
-
 
 #     # @param ignore_missing_datadog_fields - boolean - optional - default: false
 #     # @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false
