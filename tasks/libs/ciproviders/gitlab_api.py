@@ -6,7 +6,6 @@ Provides functions to interact with the API and also helpers to manipulate and r
 from __future__ import annotations
 
 import glob
-import html
 import json
 import os
 import re
@@ -267,9 +266,12 @@ class GitlabCIDiff:
                 return [f'### {title}']
 
         def str_end_section(wrap: bool) -> list[str]:
-            if wrap and not cli:
+            if cli:
+                return []
+            elif wrap:
                 return ['</details>']
-            return []
+            else:
+                return []
 
         def str_job(title, color):
             # Gitlab configuration special objects (variables...)
@@ -277,12 +279,14 @@ class GitlabCIDiff:
 
             if cli:
                 return f'* {color_message(title, getattr(Color, color))}{" (configuration)" if is_special else ""}'
-            return f'- **{title}**{" (configuration)" if is_special else ""}'
+            else:
+                return f'- **{title}**{" (configuration)" if is_special else ""}'
 
         def str_rename(job_before, job_after):
             if cli:
                 return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
-            return f'- {job_before} -> **{job_after}**'
+            else:
+                return f'- {job_before} -> **{job_after}**'
 
         def str_add_job(name: str, content: str) -> list[str]:
             # Gitlab configuration special objects (variables...)
@@ -292,9 +296,10 @@ class GitlabCIDiff:
                 content = [color_message(line, Color.GREY) for line in content.splitlines()]
 
                 return [str_job(name, 'GREEN'), '', *content, '']
-            header = f'<summary><b>{html.escape(name)}</b>{" (configuration)" if is_special else ""}</summary>'
+            else:
+                header = f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>'
 
-            return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
+                return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
         def str_modified_job(name: str, diff: list[str]) -> list[str]:
             # Gitlab configuration special objects (variables...)
@@ -311,22 +316,24 @@ class GitlabCIDiff:
                         res.append(line)
 
                 return res
-            # Wrap diff in markdown code block and in details html tags
-            return [
-                '<details>',
-                f'<summary><b>{html.escape(name)}</b>{" (configuration)" if is_special else ""}</summary>',
-                '',
-                '```diff',
-                *diff,
-                '```',
-                '',
-                '</details>',
-            ]
+            else:
+                # Wrap diff in markdown code block and in details html tags
+                return [
+                    '<details>',
+                    f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>',
+                    '',
+                    '```diff',
+                    *diff,
+                    '```',
+                    '',
+                    '</details>',
+                ]
 
         def str_color(text: str, color: str) -> str:
             if cli:
                 return color_message(text, getattr(Color, color))
-            return text
+            else:
+                return text
 
         def str_summary() -> str:
             if cli:
@@ -337,11 +344,12 @@ class GitlabCIDiff:
                 res += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
 
                 return res
-            res = '| Removed | Modified | Added | Renamed |\n'
-            res += '| ------- | -------- | ----- | ------- |\n'
-            res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
+            else:
+                res = '| Removed | Modified | Added | Renamed |\n'
+                res += '| ------- | -------- | ----- | ------- |\n'
+                res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
 
-            return res
+                return res
 
         def str_note() -> list[str]:
             if not job_url or cli:
@@ -1027,7 +1035,7 @@ def read_content(ctx, file_path, git_ref: str | None = None):
         if file_path.startswith('http'):
             import requests
 
-            response = requests.get(file_path, timeout=10)
+            response = requests.get(file_path)
             response.raise_for_status()
             content = response.text
         elif not git_ref:
@@ -1046,9 +1054,9 @@ def read_content(ctx, file_path, git_ref: str | None = None):
 
 def get_preset_contexts(required_tests):
     possible_tests = ["all", "main", "release", "mq", "conductor"]
-    required_test_list = required_tests.casefold().split(",")
-    if set(required_test_list) | set(possible_tests) != set(possible_tests):
-        raise Exit(f"Invalid test required: {required_test_list} must contain only values from {possible_tests}", 1)
+    required_tests = required_tests.casefold().split(",")
+    if set(required_tests) | set(possible_tests) != set(possible_tests):
+        raise Exit(f"Invalid test required: {required_tests} must contain only values from {possible_tests}", 1)
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
@@ -1106,7 +1114,7 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["off"]),
     ]
     all_contexts = []
-    for test in required_test_list:
+    for test in required_tests:
         if test in ["all", "main"]:
             generate_contexts(main_contexts, [], all_contexts)
         if test in ["all", "release"]:
@@ -1147,11 +1155,12 @@ def load_context(context):
                 1,
             )
         return [list(y["variables"].items())]
-    try:
-        j = json.loads(context)
-        return [list(j.items())]
-    except json.JSONDecodeError as e:
-        raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+    else:
+        try:
+            j = json.loads(context)
+            return [list(j.items())]
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
 
 
 def retrieve_all_paths(yaml):
@@ -1207,7 +1216,8 @@ def gitlab_configuration_is_modified(ctx):
                             if any(keyword in above_line for keyword in ["needs:", "dependencies:", "rules:"]):
                                 print(f"> Found a gitlab configuration change on line: {content[start]}")
                                 return True
-                            break
+                            else:
+                                break
         if (
             in_config
             and line.startswith("+")
@@ -1237,16 +1247,13 @@ def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | N
 
     # The before commit is the LCA commit between before and after
     before = before or get_default_branch()
-    current_branch = get_current_branch(ctx)
     before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
     after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after)
 
-    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)}), {before}')
-    ctx.run(f"git checkout {before}")
+    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
     before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before)
-    ctx.run(f"git checkout {current_branch}")
 
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 
