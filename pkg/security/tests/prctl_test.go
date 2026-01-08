@@ -47,14 +47,14 @@ func TestPrCtl(t *testing.T) {
 	}
 
 	t.Run("prctl-set-name", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl")
-		})
+		}, "test_rule_prctl")
 	})
 	t.Run("prctl-get-dumpable", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(
 				syscall.SYS_PRCTL,
 				uintptr(syscall.PR_GET_DUMPABLE),
@@ -66,7 +66,7 @@ func TestPrCtl(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl_get_dumpable")
-		})
+		}, "test_rule_prctl_get_dumpable")
 	})
 }
 
@@ -92,11 +92,11 @@ func TestPrCtlTruncated(t *testing.T) {
 	}
 
 	t.Run("prctl-set-name-truncated", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl_truncated")
-		})
+		}, "test_rule_prctl_truncated")
 		test.eventMonitor.SendStats()
 		key := metrics.MetricNameTruncated
 		assert.NotEmpty(t, test.statsdClient.Get(key))
