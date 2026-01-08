@@ -516,7 +516,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             container.appendChild(div);
 
             const ctx = div.querySelector('canvas').getContext('2d');
-            const colorIdx = Object.keys(allCharts).length % chartColors.length;
+            const colorIdx = (Object.keys(allCharts).length + Object.keys(anomalyCharts).length) % chartColors.length;
 
             const chart = new Chart(ctx, {
                 type: 'line',
