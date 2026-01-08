@@ -59,7 +59,11 @@ func TestBindEvent(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_bind_af_inet",
+			ID:         "test_bind_af_inet_udp",
+			Expression: `bind.addr.family == AF_INET && process.file.name in [ "syscall_tester", "testsuite" ] && bind.addr.ip == 0.0.0.0/32`,
+		},
+		{
+			ID:         "test_bind_af_inet_tcp",
 			Expression: `bind.addr.family == AF_INET && process.file.name in [ "syscall_tester", "testsuite" ] && bind.addr.ip == 0.0.0.0/32`,
 		},
 		{
@@ -107,7 +111,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		}, "test_bind_af_inet")
+		}, "test_bind_af_inet_tcp")
 	})
 
 	t.Run("bind-af-inet-any-success-tcp-io-uring", func(t *testing.T) {
@@ -171,7 +175,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		}, "test_bind_af_inet")
+		}, "test_bind_af_inet_tcp")
 	})
 
 	test.RunMultiMode(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -198,7 +202,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		}, "test_bind_af_inet")
+		}, "test_bind_af_inet_udp")
 	})
 
 	test.RunMultiMode(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
