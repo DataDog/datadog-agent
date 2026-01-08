@@ -90,7 +90,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
-		defer dumpConntrackMap(t, ct)
+		defer dumpConntrackMap(t, ct) // JMWRM
 
 		netlinktestutil.SetupDNAT(t)
 
@@ -101,7 +101,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
-		defer dumpConntrackMap(t, ct)
+		defer dumpConntrackMap(t, ct) // JMWRM
 
 		netlinktestutil.SetupDNAT6(t)
 
@@ -120,7 +120,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
-		defer dumpConntrackMap(t, ct)
+		defer dumpConntrackMap(t, ct) // JMWRM
 
 		testConntrackerCrossNamespace(t, ct)
 	})
@@ -130,7 +130,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
 		defer ct.Close()
-		defer dumpConntrackMap(t, ct)
+		defer dumpConntrackMap(t, ct) // JMWRM
 
 		testConntrackerCrossNamespaceNATonRoot(t, ct)
 	})
@@ -141,6 +141,11 @@ func setupEBPFConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker
 }
 
 // JMWREVIEW JMWMOVE
+// JMWNEXT look at func TestDumpingConntrack(t *testing.T) {
+// JMWNEXT look at func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {
+// JMW look at 	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
+// JMW look at httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
+//
 // dumpConntrackMap dumps the conntrack map if ct is an ebpfConntracker
 func dumpConntrackMap(t *testing.T, ct netlink.Conntracker) {
 	ebpfCt, ok := ct.(*ebpfConntracker)
