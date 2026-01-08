@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 )
 
 func Test_javaDetector(t *testing.T) {

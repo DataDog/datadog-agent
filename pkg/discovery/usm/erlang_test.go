@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
 )
 
 func Test_detectErlangAppName(t *testing.T) {

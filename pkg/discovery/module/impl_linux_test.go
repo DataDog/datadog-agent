@@ -30,9 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"

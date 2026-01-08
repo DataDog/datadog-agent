@@ -15,7 +15,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 

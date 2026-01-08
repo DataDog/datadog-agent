@@ -8,7 +8,7 @@ package servicetype_test
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
+	"github.com/DataDog/datadog-agent/pkg/discovery/servicetype"
 )
 
 func TestDetect(t *testing.T) {

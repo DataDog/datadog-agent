@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
 )
 
 // TestResolveAppServerFromCmdLine tests that vendor can be determined from the process cmdline

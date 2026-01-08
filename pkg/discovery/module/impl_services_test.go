@@ -27,11 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
@@ -507,7 +507,7 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			// We need the process to map something in a directory called
 			// "site-packages/ddtrace". The actual mapped file does not matter.
 			lib: filepath.Join(curDir,
-				"..", "..", "..", "..",
+				"..", "..",
 				"network", "usm", "testdata",
 				"site-packages", "ddtrace",
 				"libssl.so."+runtime.GOARCH),

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
