@@ -705,11 +705,11 @@ func scanK8sHelpLine(line string) (*conf, bool) {
 		str = eatWhitespace(str)
 	}
 
-	if _, after, ok0 := strings.Cut(str, "[default="); ok0 {
+	if _, after, ok := strings.Cut(str, "[default="); ok {
 		conf.flagDefault = scanDefaultValue(after, '[', ']')
-	} else if _, after, ok0 := strings.Cut(str, "[default "); ok0 {
+	} else if _, after, ok := strings.Cut(str, "[default "); ok {
 		conf.flagDefault = scanDefaultValue(after, '[', ']')
-	} else if _, after, ok0 := strings.Cut(str, "(default "); ok0 {
+	} else if _, after, ok := strings.Cut(str, "(default "); ok {
 		conf.flagDefault = scanDefaultValue(after, '(', ')')
 	}
 	if conf.flagType == "" {

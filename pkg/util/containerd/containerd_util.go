@@ -466,8 +466,7 @@ func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, n
 			var errs error
 			for j, opt := range mounts[i].Options {
 				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
-					if after, ok := strings.CutPrefix(opt, prefix); ok {
-						trimmedOpt := after
+					if trimmedOpt, ok := strings.CutPrefix(opt, prefix); ok {
 						dirs := strings.Split(trimmedOpt, ":")
 						for n, dir := range dirs {
 							dirs[n] = image.SanitizeHostPath(dir)

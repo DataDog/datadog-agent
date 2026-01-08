@@ -470,8 +470,8 @@ func validJobFailureReason(reason string) bool {
 func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
 	for i, tag := range tags {
-		if after, ok := strings.CutPrefix(tag, "reason:"); ok {
-			if v := after; !validJobFailureReason(v) {
+		if reason, ok := strings.CutPrefix(tag, "reason:"); ok {
+			if !validJobFailureReason(reason) {
 				tags = append(tags[:i], tags[i+1:]...)
 				continue
 			}
