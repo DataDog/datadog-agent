@@ -26,7 +26,7 @@ pub fn testdata_path() -> PathBuf {
     } else {
         // Cargo case: CARGO_MANIFEST_DIR is workspace root
         PathBuf::from(manifest_dir)
-            .join("tests/testdata")
+            .join("testdata")
             .normalize()
     }
 }

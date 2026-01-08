@@ -154,7 +154,7 @@ rust_binary(
 # Test data files
 filegroup(
     name = "testdata",
-    srcs = glob(["tests/testdata/**/*"]),
+    srcs = glob(["testdata/**/*"]),
 )
 
 # Unit tests embedded in source files
