@@ -8,35 +8,29 @@ package observerimpl
 import (
 	"sort"
 	"strings"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // CorrelatorConfig configures the CrossSignalCorrelator.
 type CorrelatorConfig struct {
-	// WindowDuration is the time window for clustering anomalies.
-	// Anomalies older than this are evicted from the buffer.
+	// WindowSeconds is the time window (in seconds) for clustering anomalies.
+	// Anomalies with data timestamps older than (currentDataTime - WindowSeconds) are evicted.
 	// Default: 30 seconds.
-	WindowDuration time.Duration
-
-	// Now returns the current time. Override for testing.
-	// Default: time.Now.
-	Now func() time.Time
+	WindowSeconds int64
 }
 
 // DefaultCorrelatorConfig returns a CorrelatorConfig with default values.
 func DefaultCorrelatorConfig() CorrelatorConfig {
 	return CorrelatorConfig{
-		WindowDuration: 30 * time.Second,
-		Now:            time.Now,
+		WindowSeconds: 30,
 	}
 }
 
-// timestampedAnomaly pairs an anomaly with its arrival timestamp.
+// timestampedAnomaly pairs an anomaly with its data timestamp (from TimeRange.End).
 type timestampedAnomaly struct {
-	timestamp time.Time
-	anomaly   observer.AnomalyOutput
+	dataTime int64 // timestamp from the anomaly's data (TimeRange.End)
+	anomaly  observer.AnomalyOutput
 }
 
 // correlationPattern defines a known pattern of correlated signals.
@@ -48,36 +42,52 @@ type correlationPattern struct {
 
 // knownPatterns contains all known correlation patterns.
 // Source names include aggregation suffixes (e.g., ":avg" for value elevation, ":count" for frequency elevation).
+// Patterns are checked in order, so more specific patterns (more required sources) should come first.
 var knownPatterns = []correlationPattern{
 	{
+		// Most specific: all 3 signals indicate kernel-level issue
 		name:            "kernel_bottleneck",
 		requiredSources: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Kernel network bottleneck",
+	},
+	{
+		// Less specific: network issues without clear kernel involvement
+		name:            "network_degradation",
+		requiredSources: []string{"network.retransmits:avg", "connection.errors:count"},
+		reportTitle:     "Correlated: Network degradation",
+	},
+	{
+		// Lock contention causing downstream failures
+		name:            "lock_contention_cascade",
+		requiredSources: []string{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		reportTitle:     "Correlated: Lock contention cascade",
 	},
 }
 
 // CrossSignalCorrelator clusters anomalies from different signals within a time window
 // and detects known patterns. It implements CorrelationState to allow reporters to
 // read the current correlation state.
+//
+// Time is derived entirely from input data timestamps (anomaly.TimeRange.End), making
+// the correlator deterministic with respect to input data.
 type CrossSignalCorrelator struct {
 	config             CorrelatorConfig
 	buffer             []timestampedAnomaly
 	activeCorrelations map[string]*observer.ActiveCorrelation
+	currentDataTime    int64 // latest data timestamp seen (max of all TimeRange.End values)
 }
 
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
 // If config has zero values, defaults are applied.
 func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
-	if config.WindowDuration == 0 {
-		config.WindowDuration = 30 * time.Second
-	}
-	if config.Now == nil {
-		config.Now = time.Now
+	if config.WindowSeconds == 0 {
+		config.WindowSeconds = 30
 	}
 	return &CrossSignalCorrelator{
 		config:             config,
 		buffer:             nil,
 		activeCorrelations: make(map[string]*observer.ActiveCorrelation),
+		currentDataTime:    0,
 	}
 }
 
@@ -86,27 +96,32 @@ func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
 
-// Process adds an anomaly with the current timestamp to the buffer
-// and evicts entries older than WindowDuration.
+// Process adds an anomaly to the buffer using its data timestamp (TimeRange.End)
+// and evicts entries older than WindowSeconds.
 func (c *CrossSignalCorrelator) Process(anomaly observer.AnomalyOutput) {
-	now := c.config.Now()
+	dataTime := anomaly.TimeRange.End
 
-	// Add the new anomaly with current timestamp
+	// Update current data time (monotonically advancing)
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
+
+	// Add the new anomaly with its data timestamp
 	c.buffer = append(c.buffer, timestampedAnomaly{
-		timestamp: now,
-		anomaly:   anomaly,
+		dataTime: dataTime,
+		anomaly:  anomaly,
 	})
 
-	// Evict old entries
-	c.evictOldEntries(now)
+	// Evict old entries based on data time
+	c.evictOldEntries()
 }
 
-// evictOldEntries removes entries older than WindowDuration from the buffer.
-func (c *CrossSignalCorrelator) evictOldEntries(now time.Time) {
-	cutoff := now.Add(-c.config.WindowDuration)
+// evictOldEntries removes entries older than WindowSeconds from the buffer.
+func (c *CrossSignalCorrelator) evictOldEntries() {
+	cutoff := c.currentDataTime - c.config.WindowSeconds
 	newBuffer := c.buffer[:0]
 	for _, entry := range c.buffer {
-		if !entry.timestamp.Before(cutoff) {
+		if entry.dataTime >= cutoff {
 			newBuffer = append(newBuffer, entry)
 		}
 	}
@@ -117,10 +132,8 @@ func (c *CrossSignalCorrelator) evictOldEntries(now time.Time) {
 // It returns an empty slice since reporters now pull state via ActiveCorrelations() instead of
 // receiving pushed reports.
 func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
-	now := c.config.Now()
-
 	// Evict old entries before checking patterns
-	c.evictOldEntries(now)
+	c.evictOldEntries()
 
 	// Extract unique signal sources
 	sourceSet := make(map[string]struct{})
@@ -141,7 +154,7 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 
 			if existing, ok := c.activeCorrelations[pattern.name]; ok {
 				// Pattern already active - update LastUpdated and Anomalies
-				existing.LastUpdated = now
+				existing.LastUpdated = c.currentDataTime
 				existing.Signals = c.getSortedSources(sourceSet)
 				existing.Anomalies = matchingAnomalies
 			} else {
@@ -151,8 +164,8 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 					Title:       pattern.reportTitle,
 					Signals:     c.getSortedSources(sourceSet),
 					Anomalies:   matchingAnomalies,
-					FirstSeen:   now,
-					LastUpdated: now,
+					FirstSeen:   c.currentDataTime,
+					LastUpdated: c.currentDataTime,
 				}
 			}
 		}

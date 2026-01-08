@@ -111,19 +111,15 @@ func TestHTMLReporter_Dashboard_ReturnsHTML(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/html")
 	assert.Contains(t, rec.Body.String(), "Observer Demo Dashboard")
-	assert.Contains(t, rec.Body.String(), `<meta http-equiv="refresh" content="2">`)
+	// Check for JavaScript-based dashboard elements
+	assert.Contains(t, rec.Body.String(), "chart.js")
+	assert.Contains(t, rec.Body.String(), "fetchCorrelations")
 }
 
-func TestHTMLReporter_Dashboard_ShowsReports(t *testing.T) {
+func TestHTMLReporter_Dashboard_HasAPIEndpoints(t *testing.T) {
+	// Dashboard now uses JavaScript to fetch data from API endpoints
+	// This test verifies the HTML includes references to those endpoints
 	r := NewHTMLReporter()
-
-	r.Report(observer.ReportOutput{
-		Title: "Test Title",
-		Body:  "Test Body",
-		Metadata: map[string]string{
-			"env": "prod",
-		},
-	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
@@ -131,27 +127,9 @@ func TestHTMLReporter_Dashboard_ShowsReports(t *testing.T) {
 	r.handleDashboard(rec, req)
 
 	body := rec.Body.String()
-	assert.Contains(t, body, "Test Title")
-	assert.Contains(t, body, "Test Body")
-	assert.Contains(t, body, "env=prod")
-}
-
-func TestHTMLReporter_Dashboard_EscapesHTML(t *testing.T) {
-	r := NewHTMLReporter()
-
-	r.Report(observer.ReportOutput{
-		Title: "<script>alert('xss')</script>",
-		Body:  "Body with <b>html</b>",
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-
-	r.handleDashboard(rec, req)
-
-	body := rec.Body.String()
-	assert.NotContains(t, body, "<script>")
-	assert.Contains(t, body, "&lt;script&gt;")
+	assert.Contains(t, body, "/api/correlations")
+	assert.Contains(t, body, "/api/series/list")
+	assert.Contains(t, body, "/api/series")
 }
 
 func TestHTMLReporter_Dashboard_NotFound(t *testing.T) {
@@ -210,45 +188,15 @@ func TestHTMLReporter_APIReports_EmptyArray(t *testing.T) {
 	assert.Len(t, reports, 0)
 }
 
-// mockStorageReader implements MetricStorageReader for testing.
-type mockStorageReader struct {
-	series map[string]*observer.Series
-}
-
-func (m *mockStorageReader) GetSeries(namespace, name string, tags []string) *observer.Series {
-	key := namespace + "|" + name
-	return m.series[key]
-}
-
-func (m *mockStorageReader) AllSeries(namespace string) []observer.Series {
-	var result []observer.Series
-	for _, s := range m.series {
-		if s.Namespace == namespace {
-			result = append(result, *s)
-		}
-	}
-	return result
-}
-
 func TestHTMLReporter_APISeries_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
-	storage := &mockStorageReader{
-		series: map[string]*observer.Series{
-			"test|my.metric": {
-				Namespace: "test",
-				Name:      "my.metric",
-				Tags:      []string{"env:prod"},
-				Points: []observer.Point{
-					{Timestamp: 1000, Value: 10.5},
-					{Timestamp: 1001, Value: 20.5},
-				},
-			},
-		},
-	}
+	storage := newTimeSeriesStorage()
+	storage.Add("test", "my.metric", 10.5, 1000, nil)
+	storage.Add("test", "my.metric", 20.5, 1001, nil)
 	r.SetStorage(storage)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/series?namespace=test&name=my.metric", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/series?namespace=test&name=my.metric&agg=avg", nil)
 	rec := httptest.NewRecorder()
 
 	r.handleAPISeries(rec, req)
@@ -262,7 +210,6 @@ func TestHTMLReporter_APISeries_ReturnsJSON(t *testing.T) {
 
 	assert.Equal(t, "test", resp.Namespace)
 	assert.Equal(t, "my.metric", resp.Name)
-	assert.Equal(t, []string{"env:prod"}, resp.Tags)
 	require.Len(t, resp.Points, 2)
 	assert.Equal(t, int64(1000), resp.Points[0].Timestamp)
 	assert.Equal(t, 10.5, resp.Points[0].Value)
@@ -306,9 +253,7 @@ func TestHTMLReporter_APISeries_NoStorage(t *testing.T) {
 func TestHTMLReporter_APISeries_NotFound(t *testing.T) {
 	r := NewHTMLReporter()
 
-	storage := &mockStorageReader{
-		series: map[string]*observer.Series{},
-	}
+	storage := newTimeSeriesStorage()
 	r.SetStorage(storage)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/series?namespace=test&name=nonexistent", nil)
@@ -351,15 +296,8 @@ func TestHTMLReporter_IntegrationWithHTTPServer(t *testing.T) {
 		Metadata: map[string]string{"test": "true"},
 	})
 
-	storage := &mockStorageReader{
-		series: map[string]*observer.Series{
-			"demo|cpu.usage": {
-				Namespace: "demo",
-				Name:      "cpu.usage",
-				Points:    []observer.Point{{Timestamp: 1000, Value: 50.0}},
-			},
-		},
-	}
+	storage := newTimeSeriesStorage()
+	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
 	r.SetStorage(storage)
 
 	// Create test server using the handler
@@ -410,4 +348,103 @@ func TestEscapeHTML(t *testing.T) {
 			assert.Equal(t, tt.expected, escapeHTML(tt.input))
 		})
 	}
+}
+
+func TestHTMLReporter_APISeriesList_ReturnsJSON(t *testing.T) {
+	r := NewHTMLReporter()
+
+	storage := newTimeSeriesStorage()
+	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
+	storage.Add("demo", "memory.usage", 75.0, 1000, nil)
+	r.SetStorage(storage)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/series/list?namespace=demo", nil)
+	rec := httptest.NewRecorder()
+
+	r.handleAPISeriesList(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+
+	var items []seriesListItem
+	err := json.Unmarshal(rec.Body.Bytes(), &items)
+	require.NoError(t, err)
+
+	assert.Len(t, items, 2)
+}
+
+func TestHTMLReporter_APISeriesList_NoStorage(t *testing.T) {
+	r := NewHTMLReporter()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/series/list?namespace=demo", nil)
+	rec := httptest.NewRecorder()
+
+	r.handleAPISeriesList(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var items []seriesListItem
+	err := json.Unmarshal(rec.Body.Bytes(), &items)
+	require.NoError(t, err)
+	assert.Len(t, items, 0)
+}
+
+// mockCorrelationState implements CorrelationState for testing.
+type mockCorrelationState struct {
+	correlations []observer.ActiveCorrelation
+}
+
+func (m *mockCorrelationState) ActiveCorrelations() []observer.ActiveCorrelation {
+	return m.correlations
+}
+
+func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
+	r := NewHTMLReporter()
+
+	r.SetCorrelationState(&mockCorrelationState{
+		correlations: []observer.ActiveCorrelation{
+			{
+				Pattern: "test_pattern",
+				Title:   "Test Correlation",
+				Signals: []string{"signal1", "signal2"},
+				Anomalies: []observer.AnomalyOutput{
+					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
+				},
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/correlations", nil)
+	rec := httptest.NewRecorder()
+
+	r.handleAPICorrelations(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+
+	var correlations []correlationOutput
+	err := json.Unmarshal(rec.Body.Bytes(), &correlations)
+	require.NoError(t, err)
+
+	require.Len(t, correlations, 1)
+	assert.Equal(t, "test_pattern", correlations[0].Pattern)
+	assert.Equal(t, "Test Correlation", correlations[0].Title)
+	require.Len(t, correlations[0].Anomalies, 1)
+	assert.Equal(t, "signal1", correlations[0].Anomalies[0].Source)
+}
+
+func TestHTMLReporter_APICorrelations_NoState(t *testing.T) {
+	r := NewHTMLReporter()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/correlations", nil)
+	rec := httptest.NewRecorder()
+
+	r.handleAPICorrelations(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var correlations []correlationOutput
+	err := json.Unmarshal(rec.Body.Bytes(), &correlations)
+	require.NoError(t, err)
+	assert.Nil(t, correlations)
 }

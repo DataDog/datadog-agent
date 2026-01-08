@@ -10,7 +10,6 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
-import "time"
 
 // team: agent-metric-pipelines
 
@@ -156,16 +155,6 @@ type Reporter interface {
 	Report(report ReportOutput)
 }
 
-// MetricStorageReader provides read-only access to stored metric series.
-// This allows reporters to query historical data for visualization.
-type MetricStorageReader interface {
-	// GetSeries returns a series by namespace, name, and tags.
-	// Returns nil if series doesn't exist.
-	GetSeries(namespace, name string, tags []string) *Series
-	// AllSeries returns all series in a namespace.
-	AllSeries(namespace string) []Series
-}
-
 // CorrelationState provides read access to active correlations.
 // Reporters use this to display current correlation status.
 type CorrelationState interface {
@@ -179,6 +168,6 @@ type ActiveCorrelation struct {
 	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
 	Signals     []string        // contributing signal sources
 	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation
-	FirstSeen   time.Time       // when pattern first matched
-	LastUpdated time.Time       // most recent contributing signal
+	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
+	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
 }
