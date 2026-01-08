@@ -35,8 +35,9 @@ def build(
 
     # ldflags: -s -w to reduce binary size
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
+    # Note: FIPS mode requires symbols for verification so cannot use -s -w
     ldflags = f"-X main.appVersion={version}"
-    if not no_strip_binary:
+    if not no_strip_binary and not fips_mode:
         ldflags += " -s -w"
 
     # gcflags: -l disables inlining to reduce binary size
