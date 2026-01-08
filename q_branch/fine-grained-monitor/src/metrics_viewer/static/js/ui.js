@@ -188,6 +188,7 @@ export const Components = {
             const color = getContainerColor(containerId, state);
             const selectedClass = isSelected ? 'selected' : '';
 
+            // Show stale containers (not seen in last hour) with reduced opacity
             const lastSeenMs = c.last_seen_ms || 0;
             const isStale = lastSeenMs > 0 && (now - lastSeenMs) > ONE_HOUR_MS;
             const staleStyle = isStale ? 'opacity: 0.6;' : '';

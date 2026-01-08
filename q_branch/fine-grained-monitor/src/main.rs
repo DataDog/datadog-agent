@@ -23,9 +23,11 @@ mod discovery;
 mod index;
 mod kubernetes;
 mod observer;
+mod sidecar;
 
 use index::ContainerIndex;
 use kubernetes::KubernetesClient;
+use sidecar::{ContainerSidecar, SidecarContainer};
 
 /// Maximum total Parquet file size before triggering graceful shutdown (1 GiB)
 const MAX_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
@@ -187,6 +189,48 @@ fn generate_filename() -> String {
     format!("metrics-{}.parquet", Utc::now().format("%Y%m%dT%H%M%SZ"))
 }
 
+/// Write container sidecar file for a completed parquet file.
+///
+/// The sidecar contains the list of containers active at rotation time,
+/// enabling the viewer to discover containers by reading tiny sidecar files
+/// instead of decompressing parquet row groups.
+fn write_container_sidecar(parquet_path: &PathBuf, index: &ContainerIndex) {
+    let sidecar_path = sidecar::sidecar_path_for_parquet(parquet_path);
+
+    // Convert index entries to sidecar format
+    let containers: Vec<SidecarContainer> = index
+        .containers
+        .iter()
+        .map(|(short_id, entry)| SidecarContainer {
+            container_id: short_id.clone(),
+            pod_name: entry.pod_name.clone(),
+            container_name: entry.container_name.clone(),
+            namespace: entry.namespace.clone(),
+            pod_uid: entry.pod_uid.clone(),
+            qos_class: entry.qos_class.clone(),
+        })
+        .collect();
+
+    let sidecar = ContainerSidecar::new(containers);
+
+    match sidecar.write(&sidecar_path) {
+        Ok(()) => {
+            tracing::debug!(
+                path = %sidecar_path.display(),
+                containers = sidecar.containers.len(),
+                "Wrote container sidecar"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                path = %sidecar_path.display(),
+                "Failed to write container sidecar"
+            );
+        }
+    }
+}
+
 /// Write session manifest to output directory
 async fn write_session_manifest(
     args: &Args,
@@ -249,12 +293,8 @@ async fn run(args: Args) -> anyhow::Result<()> {
     // Write session manifest
     write_session_manifest(&args, &identifier, &run_id, &node_name, &cluster_name).await?;
 
-    // REQ-MV-012: Load or create container index for fast viewer startup
-    let index_path = args.output_dir.join("index.json");
-    let container_index = Arc::new(RwLock::new(ContainerIndex::load_or_create(
-        &index_path,
-        args.rotation_seconds,
-    )));
+    // Container metadata for sidecar generation (in-memory only, no persistence)
+    let container_index = Arc::new(RwLock::new(ContainerIndex::new(args.rotation_seconds)));
 
     // REQ-MV-015: Initialize Kubernetes API client for pod metadata enrichment
     // Gracefully degrades if API unavailable (returns None)
@@ -290,7 +330,6 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let interval_ms = args.interval_ms;
     let verbose_perf_risk = args.verbose_perf_risk;
     let observer_index = container_index.clone();
-    let observer_index_path = index_path.clone();
     let observer_k8s_client = k8s_client.clone();
     tokio::spawn(async move {
         observer_loop(
@@ -298,7 +337,6 @@ async fn run(args: Args) -> anyhow::Result<()> {
             verbose_perf_risk,
             observer_shutdown,
             observer_index,
-            observer_index_path,
             observer_k8s_client,
         )
         .await;
@@ -313,7 +351,6 @@ async fn run(args: Args) -> anyhow::Result<()> {
         external_shutdown_rx,
         shutdown_requested,
         container_index,
-        index_path,
     )
     .await
 }
@@ -327,7 +364,6 @@ async fn run_rotation_loop(
     mut external_shutdown_rx: watch::Receiver<bool>,
     shutdown_requested: Arc<AtomicBool>,
     container_index: Arc<RwLock<ContainerIndex>>,
-    index_path: PathBuf,
 ) -> anyhow::Result<()> {
     let rotation_interval = Duration::from_secs(args.rotation_seconds);
     let mut total_bytes: u64 = 0;
@@ -451,15 +487,14 @@ async fn run_rotation_loop(
                             total_bytes = total_bytes,
                             "File rotation completed"
                         );
-                        current_output_path = new_output_path;
 
-                        // REQ-MV-012: Update index data range on successful rotation
-                        if let Ok(mut index) = container_index.write() {
-                            index.update_data_range(Utc::now());
-                            if let Err(e) = index.save(&index_path) {
-                                tracing::warn!(error = %e, "Failed to save index after rotation");
-                            }
+                        // Write container sidecar for the completed file
+                        // (must happen before reassigning current_output_path)
+                        if let Ok(index) = container_index.read() {
+                            write_container_sidecar(&current_output_path, &index);
                         }
+
+                        current_output_path = new_output_path;
                     }
                     Ok(Err(e)) => {
                         tracing::error!(
@@ -528,7 +563,6 @@ async fn observer_loop(
     verbose_perf_risk: bool,
     mut shutdown_rx: watch::Receiver<bool>,
     container_index: Arc<RwLock<ContainerIndex>>,
-    index_path: PathBuf,
     k8s_client: Option<Arc<KubernetesClient>>,
 ) {
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
@@ -628,22 +662,9 @@ async fn observer_loop(
 
                 tracing::debug!(count = containers.len(), "Discovered containers");
 
-                // REQ-MV-012: Update container index if containers changed
-                let index_changed = {
-                    if let Ok(mut index) = container_index.write() {
-                        index.update(&containers)
-                    } else {
-                        false
-                    }
-                };
-
-                // Save index if containers changed
-                if index_changed {
-                    if let Ok(index) = container_index.read() {
-                        if let Err(e) = index.save(&index_path) {
-                            tracing::warn!(error = %e, "Failed to save index after container change");
-                        }
-                    }
+                // Update container index with discovered containers (for sidecar generation)
+                if let Ok(mut index) = container_index.write() {
+                    index.update(&containers);
                 }
 
                 // Sample metrics for all containers

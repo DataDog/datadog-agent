@@ -534,7 +534,7 @@ export function buildContainerFilterParams(dashboard) {
 }
 
 /**
- * Compute time range from container bounds.
+ * Compute time range from container bounds (derived from file timestamps).
  * @param {Array} containers - [{first_seen_ms, last_seen_ms}]
  * @param {Object} timeRangeConfig - {mode, padding_seconds}
  * @returns {{min: number, max: number}|null}
@@ -544,14 +544,13 @@ export function computeTimeRangeFromContainers(containers, timeRangeConfig) {
         return null;
     }
 
-    // REQ-MV-035: Find min first_seen and max last_seen
+    // Find min first_seen and max last_seen from container file timestamps
     let minTime = Infinity;
     let maxTime = -Infinity;
 
     for (const c of containers) {
-        // Try both naming conventions (ms suffix or not)
-        const firstSeen = c.first_seen_ms ?? c.first_seen;
-        const lastSeen = c.last_seen_ms ?? c.last_seen;
+        const firstSeen = c.first_seen_ms;
+        const lastSeen = c.last_seen_ms;
 
         if (firstSeen && firstSeen < minTime) {
             minTime = firstSeen;
@@ -567,7 +566,7 @@ export function computeTimeRangeFromContainers(containers, timeRangeConfig) {
         return { min: now - 3600000, max: now };
     }
 
-    // Apply padding (REQ-MV-035)
+    // Apply padding
     const paddingMs = (timeRangeConfig.padding_seconds || 0) * 1000;
     return {
         min: minTime - paddingMs,

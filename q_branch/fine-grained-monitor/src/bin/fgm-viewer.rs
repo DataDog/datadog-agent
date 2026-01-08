@@ -2,7 +2,6 @@
 //!
 //! REQ-MV-001: Loads parquet file and serves HTTP on configurable port.
 //! REQ-MV-011: Supports directory input with glob for `*.parquet` files.
-//! REQ-MV-012: Fast startup via index file - no scanning of all parquet files.
 //!
 //! # Usage
 //!
@@ -11,16 +10,16 @@
 //! fgm-viewer metrics.parquet --port 8080
 //! fgm-viewer metrics.parquet --no-browser
 //! fgm-viewer data/*.parquet  # Multiple files (shell expansion)
-//! fgm-viewer /data           # Directory input (uses index.json for fast startup)
+//! fgm-viewer /data           # Directory input (scans parquet files directly)
 //! ```
 
 use anyhow::Result;
 use clap::Parser;
-use fine_grained_monitor::index::ContainerIndex;
 use fine_grained_monitor::metrics_viewer::{server, LazyDataStore};
 use glob::glob;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tracing_subscriber;
 
 #[derive(Parser, Debug)]
 #[command(name = "fgm-viewer")]
@@ -28,7 +27,7 @@ use std::time::{Duration, Instant};
 #[command(version)]
 struct Args {
     /// Input parquet file(s) or directory
-    /// If a directory is provided, uses index.json for fast startup
+    /// If a directory is provided, scans parquet files directly for metadata
     #[arg(required = true)]
     input: Vec<PathBuf>,
 
@@ -40,76 +39,43 @@ struct Args {
     #[arg(long)]
     no_browser: bool,
 
-    /// Timeout in seconds for waiting for data (default: 180 = 3 minutes)
+    /// Timeout in seconds for waiting for parquet files to appear (default: 180 = 3 minutes)
     #[arg(long, default_value = "180")]
     timeout_secs: u64,
 }
 
-/// REQ-MV-012: Wait for index.json to appear, with timeout.
-/// Returns the loaded index and the data directory.
-fn wait_for_index(data_dir: &PathBuf, timeout: Duration) -> Result<ContainerIndex> {
-    let index_path = data_dir.join("index.json");
-    let start = Instant::now();
+/// Wait for parquet files to appear in the data directory.
+/// Returns true if files are found, false on timeout.
+fn wait_for_parquet_files(data_dir: &PathBuf, timeout: Duration) -> bool {
+    let start = std::time::Instant::now();
     let poll_interval = Duration::from_secs(5);
+    let pattern = format!("{}/**/*.parquet", data_dir.display());
 
-    eprintln!("Looking for index at {:?}", index_path);
+    eprintln!("Looking for parquet files in {:?}", data_dir);
 
     loop {
-        // Try to load the index
-        if index_path.exists() {
-            match ContainerIndex::load(&index_path) {
-                Ok(index) => {
-                    eprintln!(
-                        "Loaded index: {} containers, updated at {}",
-                        index.containers.len(),
-                        index.updated_at
-                    );
-                    return Ok(index);
-                }
-                Err(e) => {
-                    eprintln!("Index exists but failed to load: {}", e);
-                }
-            }
+        // Check for parquet files
+        let file_count = glob(&pattern)
+            .map(|paths| paths.filter_map(Result::ok).take(1).count())
+            .unwrap_or(0);
+
+        if file_count > 0 {
+            return true;
         }
 
         // Check timeout
         if start.elapsed() >= timeout {
-            // Try to fallback to scanning files
-            eprintln!("Timeout waiting for index, attempting file scan fallback...");
-            return fallback_scan_for_index(data_dir);
+            eprintln!("Timeout waiting for parquet files");
+            return false;
         }
 
         eprintln!(
-            "Index not ready, waiting... ({:.0}s / {:.0}s)",
+            "No parquet files yet, waiting... ({:.0}s / {:.0}s)",
             start.elapsed().as_secs_f64(),
             timeout.as_secs_f64()
         );
         std::thread::sleep(poll_interval);
     }
-}
-
-/// Fallback: scan parquet files to build index (slow, but recoverable)
-fn fallback_scan_for_index(data_dir: &PathBuf) -> Result<ContainerIndex> {
-    let pattern = format!("{}/**/*.parquet", data_dir.display());
-    let files: Vec<PathBuf> = glob(&pattern)?
-        .filter_map(Result::ok)
-        .take(10) // Only scan a few files for fallback
-        .collect();
-
-    if files.is_empty() {
-        anyhow::bail!("No index.json and no parquet files found in {:?}", data_dir);
-    }
-
-    eprintln!(
-        "Building minimal index from {} parquet files...",
-        files.len()
-    );
-
-    // Create a minimal index - the viewer will work but with limited container info
-    let index = ContainerIndex::new(90);
-    // Note: We can't fully populate the index without scanning all files,
-    // but we can at least start the server and let queries work
-    Ok(index)
 }
 
 /// REQ-MV-011: Expand input paths, handling directories by globbing for parquet files.
@@ -163,6 +129,9 @@ fn expand_inputs(inputs: &[PathBuf]) -> Result<Vec<PathBuf>> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize tracing (respects RUST_LOG env var)
+    tracing_subscriber::fmt::init();
+
     let args = Args::parse();
     let timeout = Duration::from_secs(args.timeout_secs);
 
@@ -171,18 +140,21 @@ async fn main() -> Result<()> {
         open_browser: !args.no_browser,
     };
 
-    // Check if input is a single directory (index-based mode)
+    // Check if input is a single directory (directory scan mode)
     let is_directory_mode = args.input.len() == 1 && args.input[0].is_dir();
 
     let store = if is_directory_mode {
-        // REQ-MV-012: Use index-based fast startup
+        // Directory mode: scan parquet files directly for metadata
         let data_dir = &args.input[0];
-        eprintln!("Index-based mode: loading from {:?}", data_dir);
+        eprintln!("Directory mode: scanning parquet files from {:?}", data_dir);
 
-        let index = wait_for_index(data_dir, timeout)?;
+        // Wait for parquet files to appear (collector might still be starting)
+        if !wait_for_parquet_files(data_dir, timeout) {
+            anyhow::bail!("No parquet files found in {:?} after {}s", data_dir, timeout.as_secs());
+        }
 
-        // Create store with index and data directory
-        LazyDataStore::from_index(index, data_dir.clone())?
+        // Create store by scanning parquet files directly (no index.json needed)
+        LazyDataStore::from_directory(data_dir.clone())?
     } else {
         // Legacy mode: explicit file list
         let files = expand_inputs(&args.input)?;

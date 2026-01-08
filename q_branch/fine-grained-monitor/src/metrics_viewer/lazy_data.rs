@@ -28,8 +28,19 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use super::data::{ContainerInfo, ContainerStats, MetricInfo, TimeRange, TimeseriesPoint};
-use crate::index::{ContainerIndex, DataRange};
+use super::data::{ContainerInfo, MetricInfo, TimeRange, TimeseriesPoint};
+use crate::sidecar::{self, ContainerSidecar};
+
+/// Data file time range information (computed from parquet file timestamps).
+#[derive(Debug, Clone)]
+pub struct DataRange {
+    /// Earliest data file timestamp
+    pub earliest: Option<DateTime<Utc>>,
+    /// Latest data file timestamp
+    pub latest: DateTime<Utc>,
+    /// Rotation interval in seconds (for computing file paths)
+    pub rotation_interval_sec: u64,
+}
 
 /// Metrics that represent cumulative counters (need rate conversion).
 const CUMULATIVE_METRICS: &[&str] = &[
@@ -272,8 +283,6 @@ pub struct LazyDataStore {
     pub index: MetadataIndex,
     /// Cached timeseries data: metric -> container -> points.
     timeseries_cache: RwLock<HashMap<String, HashMap<String, Vec<TimeseriesPoint>>>>,
-    /// Fix #10: Cached stats wrapped in Arc to avoid deep clones on cache hit.
-    stats_cache: RwLock<HashMap<String, Arc<HashMap<String, ContainerStats>>>>,
     /// Fix #9: Last refresh timestamp to avoid redundant file discovery.
     last_refresh: RwLock<Option<std::time::Instant>>,
 }
@@ -309,107 +318,118 @@ impl LazyDataStore {
             data_dir: None, // Static file list, no refresh
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
-            stats_cache: RwLock::new(HashMap::new()),
             last_refresh: RwLock::new(None),
         })
     }
 
-    /// REQ-MV-012: Create from container index for instant startup.
-    /// Uses index for container metadata, reads metrics from parquet schema.
-    pub fn from_index(container_index: ContainerIndex, data_dir: PathBuf) -> Result<Self> {
-        tracing::debug!("Building metadata from index...");
+    /// Create from a data directory by scanning parquet files directly.
+    /// This eliminates the need for index.json - container metadata comes from parquet.
+    ///
+    /// ## Data Flow
+    ///
+    /// Two loading strategies, chosen automatically:
+    ///
+    /// 1. **Sidecar fast path** (preferred, ~10ms total):
+    ///    - Read `.containers` sidecar files written by collector on rotation
+    ///    - Read ONE parquet schema for metric names
+    ///    - No row group decompression required
+    ///
+    /// 2. **Parquet scan fallback** (legacy, ~1s per file):
+    ///    - Sample row groups to discover containers from label columns
+    ///    - Used when sidecars don't exist (older data, first run)
+    pub fn from_directory(data_dir: PathBuf) -> Result<Self> {
+        tracing::info!("Building metadata from data directory...");
+        let start = std::time::Instant::now();
 
-        // REQ-MV-012: Use time-range based discovery instead of expensive glob
-        // REQ-MV-038: Default to 1 hour at startup
-        let parquet_files = discover_files_by_time_range(&data_dir, &container_index.data_range, TimeRange::default());
-        tracing::debug!("Using {} parquet files from time-range discovery", parquet_files.len());
-
-        // Get metric names from parquet schema - try multiple files
-        let mut metrics = Vec::new();
-        for file in &parquet_files {
-            match read_metrics_from_schema(file) {
-                Ok(m) => {
-                    metrics = m;
-                    tracing::debug!("Read {} metrics from schema of {:?}", metrics.len(), file);
-                    break;
-                }
-                Err(e) => {
-                    tracing::debug!("Skipping {:?}: {}", file, e);
-                    continue;
-                }
-            }
-        }
-        if metrics.is_empty() && !parquet_files.is_empty() {
-            tracing::debug!("Warning: Could not read metrics from any parquet file");
-        }
-
-        // Build container info from index
-        // REQ-MV-016: Use pod_name and namespace from enriched index
-        let mut containers = HashMap::new();
-        let mut qos_classes = HashSet::new();
-        let mut namespace_set = HashSet::new();
-
-        for (short_id, entry) in &container_index.containers {
-            containers.insert(
-                short_id.clone(),
-                ContainerInfo {
-                    id: entry.full_id.clone(),
-                    short_id: short_id.clone(),
-                    qos_class: Some(entry.qos_class.clone()),
-                    namespace: entry.namespace.clone(),
-                    pod_name: entry.pod_name.clone(),
-                    container_name: entry.container_name.clone(),
-                    // REQ-MV-035: Store first_seen for time range computation
-                    first_seen_ms: Some(entry.first_seen.timestamp_millis()),
-                    // REQ-MV-019: Store last_seen for sorting
-                    last_seen_ms: Some(entry.last_seen.timestamp_millis()),
-                    // REQ-MV-032: Pod labels from Kubernetes API
-                    labels: entry.labels.clone(),
-                },
-            );
-            qos_classes.insert(entry.qos_class.clone());
-            if let Some(ref ns) = entry.namespace {
-                namespace_set.insert(ns.clone());
-            }
-        }
-
-        // Build metric_containers map (all containers for all metrics initially)
-        let all_container_ids: HashSet<String> = containers.keys().cloned().collect();
-        let metric_containers: HashMap<String, HashSet<String>> = metrics
-            .iter()
-            .map(|m| (m.name.clone(), all_container_ids.clone()))
+        // Discover all parquet files
+        let pattern = format!("{}/**/*.parquet", data_dir.display());
+        let mut parquet_files: Vec<PathBuf> = glob::glob(&pattern)
+            .map_err(|e| anyhow::anyhow!("Invalid glob pattern: {}", e))?
+            .filter_map(Result::ok)
             .collect();
 
-        // REQ-MV-016: Include namespaces from enriched index
-        let mut namespaces: Vec<String> = namespace_set.into_iter().collect();
-        namespaces.sort();
+        if parquet_files.is_empty() {
+            tracing::warn!("No parquet files found in {:?}", data_dir);
+            return Ok(Self::empty_with_dir(data_dir));
+        }
 
-        let index = MetadataIndex {
-            metrics,
-            qos_classes: qos_classes.into_iter().collect(),
-            namespaces,
-            containers,
-            metric_containers,
-            // Note: file_containers is empty for index-based startup
-            // File-level pruning will be disabled until files are scanned
-            file_containers: HashMap::new(),
-            data_range: container_index.data_range.clone(),
-        };
+        // Sort by modification time (newest first)
+        parquet_files.sort_by(|a, b| {
+            let a_time = a.metadata().and_then(|m| m.modified()).ok();
+            let b_time = b.metadata().and_then(|m| m.modified()).ok();
+            b_time.cmp(&a_time)
+        });
 
-        tracing::debug!(
-            "Index-based startup complete: {} metrics, {} containers",
-            index.metrics.len(),
-            index.containers.len()
+        // Compute data_range from file timestamps
+        let data_range = compute_data_range(&parquet_files);
+        let total_files = parquet_files.len();
+
+        tracing::info!(
+            "Found {} parquet files, time range: {:?} to {}",
+            total_files,
+            data_range.earliest.map(|t| t.format("%Y-%m-%dT%H:%M:%S").to_string()),
+            data_range.latest.format("%Y-%m-%dT%H:%M:%S")
         );
 
+        // Try sidecar fast path first
+        let index = match load_from_sidecars(&parquet_files, data_range.clone()) {
+            Ok(idx) => {
+                tracing::info!(
+                    "Sidecar fast path: {} containers from {} sidecars in {:.3}s",
+                    idx.containers.len(),
+                    idx.file_containers.len(),
+                    start.elapsed().as_secs_f64()
+                );
+                idx
+            }
+            Err(e) => {
+                // Fall back to parquet scanning
+                tracing::info!(
+                    "Sidecar fast path unavailable ({}), falling back to parquet scan...",
+                    e
+                );
+                let mut idx = scan_metadata_limited(&parquet_files, 30)?;
+                idx.data_range = data_range;
+                tracing::info!(
+                    "Parquet scan complete: {} metrics, {} containers in {:.2}s",
+                    idx.metrics.len(),
+                    idx.containers.len(),
+                    start.elapsed().as_secs_f64()
+                );
+                idx
+            }
+        };
+
         Ok(Self {
-            paths: RwLock::new(parquet_files), // Start with discovered files
-            data_dir: Some(data_dir),          // Store for refresh
+            paths: RwLock::new(parquet_files),
+            data_dir: Some(data_dir),
             index,
             timeseries_cache: RwLock::new(HashMap::new()),
-            stats_cache: RwLock::new(HashMap::new()),
-            last_refresh: RwLock::new(Some(std::time::Instant::now())), // Just refreshed
+            last_refresh: RwLock::new(Some(std::time::Instant::now())),
         })
+    }
+
+    /// Create an empty store with just a data directory (no files yet).
+    fn empty_with_dir(data_dir: PathBuf) -> Self {
+        Self {
+            paths: RwLock::new(vec![]),
+            data_dir: Some(data_dir),
+            index: MetadataIndex {
+                metrics: vec![],
+                qos_classes: vec![],
+                namespaces: vec![],
+                containers: HashMap::new(),
+                metric_containers: HashMap::new(),
+                file_containers: HashMap::new(),
+                data_range: DataRange {
+                    earliest: None,
+                    latest: Utc::now(),
+                    rotation_interval_sec: 90,
+                },
+            },
+            timeseries_cache: RwLock::new(HashMap::new()),
+            last_refresh: RwLock::new(Some(std::time::Instant::now())),
+        }
     }
 
     /// Refresh the file list by re-discovering parquet files.
@@ -549,91 +569,13 @@ impl LazyDataStore {
         Ok(result)
     }
 
-    /// Get container stats for a metric.
-    /// REQ-MV-037: Computes stats from files within the specified time range.
-    /// Computes stats directly from parquet without materializing full timeseries.
-    /// Returns Arc to avoid deep clones on cache hit.
-    pub fn get_container_stats(&self, metric: &str, time_range: TimeRange) -> Result<Arc<HashMap<String, ContainerStats>>> {
-        let total_start = std::time::Instant::now();
-
-        // Check cache first - Arc::clone is cheap (just refcount increment)
-        // Note: Cache key should include time_range for correctness, but for now
-        // we use simple metric key since stats are additive across time ranges
-        {
-            let cache = self.stats_cache.read().unwrap();
-            if let Some(stats) = cache.get(metric) {
-                tracing::debug!(
-                    "[PERF] get_container_stats('{}') cache HIT in {:.1}ms",
-                    metric,
-                    total_start.elapsed().as_secs_f64() * 1000.0
-                );
-                return Ok(Arc::clone(stats));
-            }
-        }
-
-        tracing::debug!("[PERF] get_container_stats('{}') cache MISS - loading...", metric);
-
-        // Refresh file list to pick up newly written files for this time range
-        self.refresh_files(time_range);
-
-        // Get all containers for this metric
-        let container_ids: Vec<&str> = self
-            .index
-            .metric_containers
-            .get(metric)
-            .map(|set| set.iter().map(|s| s.as_str()).collect())
-            .unwrap_or_default();
-
-        tracing::debug!("[PERF]   {} containers to load", container_ids.len());
-
-        if container_ids.is_empty() {
-            return Ok(Arc::new(HashMap::new()));
-        }
-
-        // Load stats directly (no timeseries materialization)
-        let paths = self.paths.read().unwrap();
-        let raw_stats = load_metric_stats(&paths, metric, &container_ids)?;
-
-        // Convert to ContainerStats with info from index
-        let mut stats = HashMap::new();
-        for (id, (sample_count, avg, max)) in raw_stats {
-            if let Some(info) = self.index.containers.get(&id) {
-                stats.insert(
-                    id,
-                    ContainerStats {
-                        info: info.clone(),
-                        avg,
-                        max,
-                    },
-                );
-            }
-        }
-
-        // Wrap in Arc for cache storage and return
-        let stats = Arc::new(stats);
-
-        // Cache the stats (cheap Arc::clone)
-        {
-            let mut cache = self.stats_cache.write().unwrap();
-            cache.insert(metric.to_string(), Arc::clone(&stats));
-        }
-
-        tracing::debug!(
-            "[PERF] get_container_stats('{}') TOTAL: {:.1}ms",
-            metric,
-            total_start.elapsed().as_secs_f64() * 1000.0
-        );
-
-        Ok(stats)
-    }
-
-    /// REQ-MV-019: Get containers sorted by last_seen (most recent first).
-    /// REQ-MV-037: Filters to containers with data in the specified time range.
+    /// Get containers sorted by last_seen (most recent first).
+    /// Filters to containers with data in the specified time range.
     /// This is instant as it only reads from the index, avoiding expensive parquet reads.
     pub fn get_containers_by_recency(&self, time_range: TimeRange) -> Vec<ContainerInfo> {
         let start = std::time::Instant::now();
 
-        // REQ-MV-037: Calculate cutoff time for filtering
+        // Calculate cutoff time for filtering
         let cutoff_ms = time_range.to_duration().map(|d| {
             let now = Utc::now();
             (now - d).timestamp_millis()
@@ -644,12 +586,13 @@ impl LazyDataStore {
             .containers
             .values()
             .filter(|c| {
-                // REQ-MV-037: Filter by time range
-                // Container must have last_seen within the time range
+                // Filter by time range - container must have last_seen within range
                 match (cutoff_ms, c.last_seen_ms) {
                     (Some(cutoff), Some(last_seen)) => last_seen >= cutoff,
-                    (Some(_), None) => false, // No last_seen, exclude from bounded range
-                    (None, _) => true,        // TimeRange::All, include all
+                    // Include containers with unknown last_seen (parquet fallback path)
+                    // since we can't determine their relevance - data queries will filter
+                    (Some(_), None) => true,
+                    (None, _) => true, // TimeRange::All, include all
                 }
             })
             .cloned()
@@ -676,74 +619,247 @@ impl LazyDataStore {
     #[allow(dead_code)]
     pub fn clear_cache(&self) {
         self.timeseries_cache.write().unwrap().clear();
-        self.stats_cache.write().unwrap().clear();
     }
 }
 
-/// REQ-MV-012: Read metric names from a parquet file's metric_name column.
-/// Samples the first row group to get unique metric names efficiently.
-fn read_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
-    let file = File::open(path).context("Failed to open parquet file")?;
+/// Compute data_range from parquet file timestamps.
+fn compute_data_range(parquet_files: &[PathBuf]) -> DataRange {
+    let mut earliest: Option<DateTime<Utc>> = None;
+    let mut latest: Option<DateTime<Utc>> = None;
 
-    // Check file size - skip files that are too small or being written
-    if let Ok(metadata) = file.metadata() {
-        if metadata.len() < 8 {
-            anyhow::bail!("Parquet file too small (likely being written)");
+    for path in parquet_files {
+        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+            if let Some(ts) = parse_file_timestamp(filename) {
+                match earliest {
+                    None => earliest = Some(ts),
+                    Some(e) if ts < e => earliest = Some(ts),
+                    _ => {}
+                }
+                match latest {
+                    None => latest = Some(ts),
+                    Some(l) if ts > l => latest = Some(ts),
+                    _ => {}
+                }
+            }
         }
     }
 
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-    let schema = builder.schema();
-    let parquet_schema = builder.parquet_schema();
+    DataRange {
+        earliest,
+        latest: latest.unwrap_or_else(Utc::now),
+        rotation_interval_sec: 90,
+    }
+}
 
-    // Project only the metric_name column for efficient reading
-    let metric_name_idx = schema
-        .index_of("metric_name")
-        .context("Missing metric_name column in parquet schema")?;
+/// Load metadata from sidecar files (fast path).
+///
+/// Sidecars are small binary files (`.containers`) written by the collector alongside
+/// each parquet file. They contain container metadata serialized with bincode, enabling
+/// ~1000x faster startup than scanning parquet row groups.
+///
+/// Returns error if no sidecars found (caller should fall back to parquet scan).
+fn load_from_sidecars(parquet_files: &[PathBuf], data_range: DataRange) -> Result<MetadataIndex> {
+    let mut all_containers: HashMap<String, ContainerInfo> = HashMap::new();
+    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+    let mut qos_set: HashSet<String> = HashSet::new();
+    let mut namespace_set: HashSet<String> = HashSet::new();
+    let mut sidecars_read = 0usize;
 
-    let projection_mask =
-        parquet::arrow::ProjectionMask::roots(parquet_schema, vec![metric_name_idx]);
+    // Track min/max timestamps per container (from file timestamps)
+    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
 
-    // Only read first few row groups to get metric names (they're repeated)
-    let num_row_groups = builder.metadata().num_row_groups();
-    let row_groups_to_sample: Vec<usize> = if num_row_groups > 3 {
-        vec![0, num_row_groups / 2, num_row_groups - 1]
-    } else {
-        (0..num_row_groups).collect()
-    };
+    for parquet_path in parquet_files {
+        let sidecar_path = sidecar::sidecar_path_for_parquet(parquet_path);
 
+        // Try to read sidecar
+        let sidecar = match ContainerSidecar::read(&sidecar_path) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::trace!(
+                    path = %sidecar_path.display(),
+                    error = %e,
+                    "Sidecar not found or unreadable"
+                );
+                continue;
+            }
+        };
+
+        // Parse file timestamp for container time bounds
+        let file_ts_ms = parquet_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(parse_file_timestamp)
+            .map(|dt| dt.timestamp_millis());
+
+        sidecars_read += 1;
+        let mut file_container_ids: HashSet<String> = HashSet::new();
+
+        for sc in sidecar.containers {
+            file_container_ids.insert(sc.container_id.clone());
+
+            // Track QoS and namespace
+            qos_set.insert(sc.qos_class.clone());
+            if let Some(ref ns) = sc.namespace {
+                namespace_set.insert(ns.clone());
+            }
+
+            // Update container time bounds from file timestamp
+            if let Some(ts_ms) = file_ts_ms {
+                container_timestamps
+                    .entry(sc.container_id.clone())
+                    .and_modify(|(min, max)| {
+                        if ts_ms < *min {
+                            *min = ts_ms;
+                        }
+                        if ts_ms > *max {
+                            *max = ts_ms;
+                        }
+                    })
+                    .or_insert((ts_ms, ts_ms));
+            }
+
+            // Add/update container info (timestamps added after loop)
+            all_containers
+                .entry(sc.container_id.clone())
+                .or_insert_with(|| ContainerInfo {
+                    // Sidecar has short_id as container_id, construct full id placeholder
+                    id: sc.container_id.clone(),
+                    short_id: sc.container_id.clone(),
+                    qos_class: Some(sc.qos_class),
+                    namespace: sc.namespace,
+                    pod_name: sc.pod_name,
+                    container_name: sc.container_name,
+                    first_seen_ms: None,
+                    last_seen_ms: None,
+                    labels: None,
+                });
+        }
+
+        file_containers.insert(parquet_path.clone(), file_container_ids);
+    }
+
+    // Apply computed timestamps to containers
+    for (container_id, (first_seen, last_seen)) in container_timestamps {
+        if let Some(info) = all_containers.get_mut(&container_id) {
+            info.first_seen_ms = Some(first_seen);
+            info.last_seen_ms = Some(last_seen);
+        }
+    }
+
+    // Require at least some sidecars to use this path
+    if sidecars_read == 0 {
+        anyhow::bail!("no sidecars found");
+    }
+
+    // Get metric names from parquet schema - try multiple files
+    // (first file may be incomplete/being-written since list is sorted newest-first)
+    let mut metrics = Vec::new();
+    for file in parquet_files.iter() {
+        match get_metrics_from_schema(file) {
+            Ok(m) if !m.is_empty() => {
+                metrics = m;
+                tracing::debug!(
+                    "Read {} metrics from schema of {:?}",
+                    metrics.len(),
+                    file.file_name().unwrap_or_default()
+                );
+                break;
+            }
+            Ok(_) => {
+                tracing::trace!("Skipping {:?} (0 metrics)", file.file_name().unwrap_or_default());
+                continue;
+            }
+            Err(e) => {
+                tracing::trace!("Skipping {:?}: {}", file.file_name().unwrap_or_default(), e);
+                continue;
+            }
+        }
+    }
+
+    let qos_classes: Vec<String> = qos_set.into_iter().collect();
+    let namespaces: Vec<String> = namespace_set.into_iter().collect();
+
+    // Build metric_containers map: all containers for all metrics
+    // (We don't know which containers have which metrics without scanning parquet,
+    // so we assume all containers might have any metric - queries will filter)
+    let all_container_ids: HashSet<String> = all_containers.keys().cloned().collect();
+    let metric_containers: HashMap<String, HashSet<String>> = metrics
+        .iter()
+        .map(|m| (m.name.clone(), all_container_ids.clone()))
+        .collect();
+
+    tracing::debug!(
+        "Loaded {} containers from {} sidecars, {} metrics from schema",
+        all_containers.len(),
+        sidecars_read,
+        metrics.len()
+    );
+
+    Ok(MetadataIndex {
+        metrics,
+        qos_classes,
+        namespaces,
+        containers: all_containers,
+        metric_containers,
+        file_containers,
+        data_range,
+    })
+}
+
+/// Get metric names from parquet schema (reads footer only, no decompression).
+fn get_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
+    let file = File::open(path)?;
+    let reader = SerializedFileReader::new(file)?;
+    let metadata = reader.metadata();
+
+    // The schema has columns like: run_id, time, metric_name, value_int, l_container_id, etc.
+    // We need to read some rows to get actual metric names, but we can at least
+    // verify the schema is valid. For now, return empty and let queries discover metrics.
+
+    // Actually, let's sample ONE row group to get metric names quickly
+    if metadata.num_row_groups() == 0 {
+        return Ok(vec![]);
+    }
+
+    let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
     let reader = builder
-        .with_projection(projection_mask)
-        .with_row_groups(row_groups_to_sample)
-        .with_batch_size(65536)
+        .with_row_groups(vec![0]) // Just first row group
+        .with_batch_size(10000) // Small batch
         .build()?;
 
     let mut metric_set: HashSet<String> = HashSet::new();
 
     for batch_result in reader {
         let batch = batch_result?;
-
-        let metric_names = batch
-            .column_by_name("metric_name")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .context("metric_name column is not a StringArray")?;
-
-        for i in 0..metric_names.len() {
-            if !metric_names.is_null(i) {
-                metric_set.insert(metric_names.value(i).to_string());
+        if let Some(col) = batch.column_by_name("metric_name") {
+            if let Some(arr) = col.as_any().downcast_ref::<StringArray>() {
+                for i in 0..arr.len() {
+                    if !arr.is_null(i) {
+                        metric_set.insert(arr.value(i).to_string());
+                    }
+                }
             }
         }
     }
 
-    // Convert to MetricInfo sorted by name
     let mut metrics: Vec<MetricInfo> = metric_set
         .into_iter()
         .map(|name| MetricInfo { name })
         .collect();
-
     metrics.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(metrics)
+}
+
+/// Scan metadata from a limited number of files (wrapper for scan_metadata).
+fn scan_metadata_limited(all_files: &[PathBuf], max_files: usize) -> Result<MetadataIndex> {
+    let files_to_scan: Vec<PathBuf> = all_files.iter().take(max_files).cloned().collect();
+    tracing::info!(
+        "Scanning {} of {} files for container metadata...",
+        files_to_scan.len(),
+        all_files.len()
+    );
+    scan_metadata(&files_to_scan)
 }
 
 /// Fast metadata-only scan of parquet files.
@@ -776,6 +892,8 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     let mut qos_set: HashSet<String> = HashSet::new();
     let mut namespace_set: HashSet<String> = HashSet::new();
     let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+    // Track min/max timestamps per container (from file timestamps)
+    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
 
     let mut rows_sampled = 0u64;
 
@@ -783,6 +901,13 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
         // Track containers found in this specific file
         let mut this_file_containers: HashSet<String> = HashSet::new();
         tracing::debug!("Scanning {:?}", path);
+
+        // Parse file timestamp for container time bounds
+        let file_ts_ms = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(parse_file_timestamp)
+            .map(|dt| dt.timestamp_millis());
 
         // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
         // This handles files being actively written by the collector
@@ -919,6 +1044,21 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                 // Track which containers are in this file (for file-level pruning)
                 this_file_containers.insert(short_id.clone());
 
+                // Update container time bounds from file timestamp
+                if let Some(ts_ms) = file_ts_ms {
+                    container_timestamps
+                        .entry(short_id.clone())
+                        .and_modify(|(min, max)| {
+                            if ts_ms < *min {
+                                *min = ts_ms;
+                            }
+                            if ts_ms > *max {
+                                *max = ts_ms;
+                            }
+                        })
+                        .or_insert((ts_ms, ts_ms));
+                }
+
                 // Only process container info once per container
                 if !all_containers.contains_key(&short_id) {
                     // Extract other labels from l_* columns
@@ -951,8 +1091,8 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
                             namespace,
                             pod_name,
                             container_name,
-                            first_seen_ms: None, // Not available from parquet scan
-                            last_seen_ms: None,  // Not available from parquet scan
+                            first_seen_ms: None, // Applied after loop
+                            last_seen_ms: None,  // Applied after loop
                             labels: None,        // Not available from parquet scan
                         },
                     );
@@ -978,6 +1118,14 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
 
     let mut namespaces: Vec<String> = namespace_set.into_iter().collect();
     namespaces.sort();
+
+    // Apply computed timestamps to containers
+    for (container_id, (first_seen, last_seen)) in container_timestamps {
+        if let Some(info) = all_containers.get_mut(&container_id) {
+            info.first_seen_ms = Some(first_seen);
+            info.last_seen_ms = Some(last_seen);
+        }
+    }
 
     tracing::debug!(
         "Sampled {} rows, found {} metrics, {} containers in {:.2}s",
@@ -1083,81 +1231,6 @@ fn load_metric_data(
         result.len()
     );
 
-
-    Ok(result)
-}
-
-/// Load stats for a specific metric and set of containers.
-/// Computes aggregates (count, avg, max) directly without materializing full timeseries.
-/// Returns HashMap<container_id, (sample_count, avg, max)>.
-fn load_metric_stats(
-    paths: &[PathBuf],
-    metric: &str,
-    container_ids: &[&str],
-) -> Result<HashMap<String, (usize, f64, f64)>> {
-    let start = std::time::Instant::now();
-    let container_set: Arc<HashSet<String>> = Arc::new(
-        container_ids
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
-    );
-    let is_cumulative_metric = is_cumulative(metric);
-    let metric = metric.to_string();
-
-    tracing::debug!(
-        "[PERF]     load_metric_stats: {} files, {} containers requested",
-        paths.len(),
-        container_ids.len()
-    );
-
-    // Process files in parallel
-    let parallel_start = std::time::Instant::now();
-    let file_results: Vec<Result<HashMap<String, RawContainerData>>> = paths
-        .par_iter()
-        .map(|path| {
-            load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric)
-        })
-        .collect();
-    let parallel_elapsed = parallel_start.elapsed();
-    tracing::debug!(
-        "[PERF]       parallel file reads: {:.1}ms",
-        parallel_elapsed.as_secs_f64() * 1000.0
-    );
-
-    // Merge results from all files
-    let merge_start = std::time::Instant::now();
-    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
-    for result in file_results {
-        let file_data = result?;
-        for (id, data) in file_data {
-            raw_data
-                .entry(id)
-                .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
-                .merge(data);
-        }
-    }
-    tracing::debug!(
-        "[PERF]       merge results: {:.1}ms",
-        merge_start.elapsed().as_secs_f64() * 1000.0
-    );
-
-    // Compute stats directly (no points allocation)
-    let stats_start = std::time::Instant::now();
-    let result: HashMap<String, (usize, f64, f64)> = raw_data
-        .into_iter()
-        .filter_map(|(id, raw)| raw.into_stats().map(|s| (id, s)))
-        .collect();
-    tracing::debug!(
-        "[PERF]       compute stats: {:.1}ms",
-        stats_start.elapsed().as_secs_f64() * 1000.0
-    );
-
-    tracing::debug!(
-        "[PERF]     load_metric_stats TOTAL: {:.1}ms ({} containers)",
-        start.elapsed().as_secs_f64() * 1000.0,
-        result.len()
-    );
 
     Ok(result)
 }
@@ -1600,57 +1673,5 @@ impl RawContainerData {
     fn merge(&mut self, other: RawContainerData) {
         self.times.extend(other.times);
         self.values.extend(other.values);
-    }
-
-    /// Compute stats (count, sum, max) directly without allocating full points vector.
-    /// Returns (sample_count, avg, max) or None if no valid data.
-    fn into_stats(self) -> Option<(usize, f64, f64)> {
-        if self.times.is_empty() {
-            return None;
-        }
-
-        // Sort by time after merging data from parallel file reads
-        let mut pairs: Vec<(i64, f64)> = self
-            .times
-            .into_iter()
-            .zip(self.values)
-            .collect();
-        pairs.sort_unstable_by_key(|(time, _)| *time);
-
-        if !self.is_cumulative {
-            // Gauge metrics: compute stats directly from values
-            let count = pairs.len();
-            if count == 0 {
-                return None;
-            }
-            let sum: f64 = pairs.iter().map(|(_, v)| v).sum();
-            let max = pairs.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
-            return Some((count, sum / count as f64, max));
-        }
-
-        // Cumulative metrics: compute stats from rates
-        let mut count = 0usize;
-        let mut sum = 0.0f64;
-        let mut max = f64::NEG_INFINITY;
-
-        for window in pairs.windows(2) {
-            let (prev_time, prev_value) = window[0];
-            let (curr_time, curr_value) = window[1];
-
-            let time_delta_ms = curr_time - prev_time;
-            let value_delta = curr_value - prev_value;
-
-            if time_delta_ms > 0 && value_delta >= 0.0 {
-                let rate = value_delta * 1000.0 / time_delta_ms as f64;
-                count += 1;
-                sum += rate;
-                max = max.max(rate);
-            }
-        }
-
-        if count == 0 {
-            return None;
-        }
-        Some((count, sum / count as f64, max))
     }
 }

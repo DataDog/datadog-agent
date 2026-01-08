@@ -82,7 +82,7 @@ export const initialState = {
 
     // Metadata (from API)
     metrics: [],        // [{name, sample_count}]
-    containers: [],     // [{short_id, pod_name, namespace, qos_class, last_seen_ms}]
+    containers: [],     // [{short_id, pod_name, namespace, qos_class, first_seen_ms, last_seen_ms}]
 
     // Panel state - lightweight, just IDs and config
     panels: [
