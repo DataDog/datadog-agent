@@ -76,16 +76,35 @@ NAMESPACE = "fine-grained-monitor"
 # Note: IMAGE_TAG, KIND_CLUSTER, KUBE_CONTEXT are computed dynamically per-worktree
 
 
-def calculate_port() -> int:
-    """Calculate unique port based on checkout path for worktree support."""
+def _worktree_port_offset() -> int:
+    """Calculate unique offset (0-499) based on checkout path for worktree support."""
     path_hash = hashlib.md5(str(PROJECT_ROOT).encode()).hexdigest()
-    offset = int(path_hash[:8], 16) % 1000
-    return 8050 + offset
+    return int(path_hash[:8], 16) % 500
+
+
+def calculate_local_viewer_port() -> int:
+    """Calculate unique port for LOCAL viewer (range 8050-8549).
+
+    This is for ./dev.py local viewer start - runs fgm-viewer binary directly.
+    """
+    return 8050 + _worktree_port_offset()
+
+
+def calculate_cluster_viewer_port() -> int:
+    """Calculate unique port for CLUSTER viewer port-forward (range 8550-9049).
+
+    This is for ./dev.py cluster viewer start - forwards to pod in Kind cluster.
+    Deliberately different from local viewer to avoid confusion.
+    """
+    return 8550 + _worktree_port_offset()
 
 
 def calculate_mcp_port() -> int:
-    """Calculate unique MCP port (offset from viewer port)."""
-    return calculate_port() + 1000  # MCP port is viewer port + 1000
+    """Calculate unique MCP port (range 9050-9549).
+
+    This is for the MCP server port-forward from the cluster.
+    """
+    return 9050 + _worktree_port_offset()
 
 
 # --- Worktree identification functions ---
@@ -271,7 +290,7 @@ def build() -> bool:
 
 def cmd_status():
     """Show server status."""
-    port = calculate_port()
+    port = calculate_local_viewer_port()
     pid = get_running_pid()
     state = read_state()
 
@@ -324,7 +343,7 @@ def cmd_start(data_file: str):
         return 1
 
     # Start server
-    port = calculate_port()
+    port = calculate_local_viewer_port()
     print(f"Starting server with {data_path}...")
 
     ensure_dev_dir()
@@ -1050,7 +1069,7 @@ def cmd_cluster_status():
     # Show port-forward hints
     pods = get_cluster_pods()
     if pods:
-        port = calculate_port()
+        port = calculate_cluster_viewer_port()
         print(f"To access viewer: ./dev.py cluster viewer start (port {port})")
 
     # Show MCP forward status
@@ -1109,7 +1128,7 @@ def cmd_viewer(pod_name: str | None):
             print("already stopped")
         FORWARD_PID_FILE.unlink(missing_ok=True)
 
-    port = calculate_port()
+    port = calculate_cluster_viewer_port()
     ensure_dev_dir()
     log_handle = FORWARD_LOG_FILE.open("w")
 
@@ -2026,25 +2045,115 @@ current-context: mcp-{cluster_name}
     return 0
 
 
+def cmd_unified_status():
+    """Show status of ALL viewers (local and cluster) to avoid confusion.
+
+    This is the recommended way to check what's running - it clearly shows
+    which viewers are active and on which ports.
+    """
+    print("=" * 60)
+    print("VIEWER STATUS OVERVIEW")
+    print("=" * 60)
+    print(f"Worktree: {get_worktree_id()}")
+    print()
+
+    # --- Local viewer status ---
+    local_port = calculate_local_viewer_port()
+    local_pid = get_running_pid()
+    local_state = read_state()
+
+    print("LOCAL VIEWER (./dev.py local viewer)")
+    print("-" * 40)
+    if local_pid and local_state:
+        uptime = format_uptime(local_state.get("start_time", time.time()))
+        healthy = check_health(local_port)
+        health_str = "healthy" if healthy else "UNHEALTHY"
+        print(f"  Status:  RUNNING (pid {local_pid}, {uptime})")
+        print(f"  Health:  {health_str}")
+        print(f"  Port:    {local_port}")
+        print(f"  URL:     http://127.0.0.1:{local_port}/")
+        print(f"  Data:    {local_state.get('data_file', 'unknown')}")
+    else:
+        print("  Status:  not running")
+        print(f"  Port:    {local_port} (would use if started)")
+    print()
+
+    # --- Cluster viewer status ---
+    cluster_port = calculate_cluster_viewer_port()
+    cluster_pid = get_forward_pid()
+
+    print("CLUSTER VIEWER (./dev.py cluster viewer)")
+    print("-" * 40)
+    if cluster_pid:
+        # Check if port-forward is actually working
+        import socket
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.5)
+                s.connect(("127.0.0.1", cluster_port))
+            forward_healthy = True
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            forward_healthy = False
+
+        health_str = "connected" if forward_healthy else "DISCONNECTED"
+        print(f"  Status:  FORWARDING (pid {cluster_pid})")
+        print(f"  Health:  {health_str}")
+        print(f"  Port:    {cluster_port}")
+        print(f"  URL:     http://127.0.0.1:{cluster_port}/")
+        print(f"  Target:  pod in Kind cluster '{get_cluster_name()}'")
+    else:
+        print("  Status:  not running")
+        print(f"  Port:    {cluster_port} (would use if started)")
+    print()
+
+    # --- MCP status ---
+    mcp_port = calculate_mcp_port()
+    mcp_pid = get_mcp_forward_pid()
+
+    print("MCP SERVER (./dev.py cluster mcp)")
+    print("-" * 40)
+    if mcp_pid:
+        print(f"  Status:  FORWARDING (pid {mcp_pid})")
+        print(f"  Port:    {mcp_port}")
+        print(f"  URL:     http://127.0.0.1:{mcp_port}/mcp")
+    else:
+        print("  Status:  not running")
+        print(f"  Port:    {mcp_port} (would use if started)")
+    print()
+
+    # --- Port summary ---
+    print("PORT ALLOCATION (this worktree)")
+    print("-" * 40)
+    print(f"  Local viewer:   {local_port}")
+    print(f"  Cluster viewer: {cluster_port}")
+    print(f"  MCP server:     {mcp_port}")
+    print()
+
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Development workflow manager for fine-grained-monitor (fgm-*) binaries",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  ./dev.py status                          # Show ALL viewer status (recommended!)
+
   ./dev.py local build                     # Build all release binaries
   ./dev.py local test                      # Run tests
   ./dev.py local clippy                    # Run clippy lints
-  ./dev.py local viewer start              # Start fgm-viewer with default data
+  ./dev.py local viewer start              # Start LOCAL fgm-viewer (port 8050+)
   ./dev.py local viewer start --data /path/to/file.parquet
-  ./dev.py local viewer stop               # Stop fgm-viewer
-  ./dev.py local viewer status             # Check fgm-viewer status
+  ./dev.py local viewer stop               # Stop local fgm-viewer
+  ./dev.py local viewer status             # Check local fgm-viewer status
 
   ./dev.py cluster deploy                  # Build image, load to Kind, restart pods
   ./dev.py cluster status                  # Show cluster pod status
-  ./dev.py cluster viewer start            # Port-forward to viewer on first pod
+  ./dev.py cluster viewer start            # Port-forward to CLUSTER viewer (port 8550+)
   ./dev.py cluster viewer start --pod NAME # Port-forward to specific pod
-  ./dev.py cluster viewer stop             # Stop viewer port-forward
+  ./dev.py cluster viewer stop             # Stop cluster viewer port-forward
   ./dev.py cluster create                  # Create Kind cluster for this worktree
   ./dev.py cluster destroy                 # Destroy Kind cluster for this worktree
   ./dev.py cluster list                    # List all fgm-* clusters
@@ -2057,14 +2166,20 @@ Examples:
   ./dev.py bench wait <guid>               # Wait for benchmark and show results
   ./dev.py bench list                      # List recent benchmark runs
 
-Per-worktree isolation:
-  Each worktree gets its own Kind cluster (fgm-<basename>), API port,
-  data directory, and docker image tag. Multiple worktrees can run
-  concurrently without conflicts.
+Port allocation (per-worktree):
+  Local viewer:   8050 + offset  (./dev.py local viewer)
+  Cluster viewer: 8550 + offset  (./dev.py cluster viewer)
+  MCP server:     9050 + offset  (./dev.py cluster mcp)
+
+  Each worktree gets unique offsets based on directory path hash.
+  Use './dev.py status' to see your worktree's port assignments.
 """,
     )
 
     subparsers = parser.add_subparsers(dest="group", required=True)
+
+    # --- Top-level status command ---
+    subparsers.add_parser("status", help="Show status of ALL viewers (local + cluster) - RECOMMENDED")
 
     # --- Local subcommands ---
     local_parser = subparsers.add_parser("local", help="Local development commands")
@@ -2176,7 +2291,9 @@ Per-worktree isolation:
 
     args = parser.parse_args()
 
-    if args.group == "local":
+    if args.group == "status":
+        sys.exit(cmd_unified_status())
+    elif args.group == "local":
         if args.command == "build":
             sys.exit(cmd_build())
         elif args.command == "test":
