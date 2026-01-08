@@ -39,18 +39,23 @@ func TestDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cmp := "!="
+	if testEnvironment != DockerEnvironment {
+		cmp = "=="
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_dns_lowercase",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "perdu.com" && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "perdu.com" && process.file.name == "%s" && container.id %s ""`, path.Base(executable), cmp),
 		},
 		{
 			ID:         "test_rule_dns_uppercase",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "MICROSOFT.COM" && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "MICROSOFT.COM" && process.file.name == "%s" && container.id %s ""`, path.Base(executable), cmp),
 		},
 		{
 			ID:         "test_rule_long_query",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s" && container.id %s ""`, path.Base(executable), cmp),
 		},
 	}
 
