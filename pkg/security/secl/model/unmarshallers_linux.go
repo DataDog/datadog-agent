@@ -493,6 +493,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	case MountEventSourceMoveMountSyscall:
 		e.Mount.Origin = MountOriginMoveMount
 	}
+	e.Origin = e.Mount.Origin
 	return n + 4, nil
 }
 
