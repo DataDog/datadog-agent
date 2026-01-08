@@ -75,10 +75,10 @@ type Resolver struct {
 	dentryResolver        *dentry.Resolver
 
 	// metrics
-	addedCgroups    *atomic.Int64
-	deletedCgroups  *atomic.Int64
-	fallbackSucceed *atomic.Int64
-	fallbackFailed  *atomic.Int64
+	addedCgroups    atomic.Int64
+	deletedCgroups  atomic.Int64
+	fallbackSucceed atomic.Int64
+	fallbackFailed  atomic.Int64
 }
 
 // NewResolver returns a new cgroups monitor
@@ -88,14 +88,10 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface, dent
 	}
 
 	cr := &Resolver{
-		Notifier:        utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
-		statsdClient:    statsdClient,
-		cgroupFS:        cgroupFS,
-		addedCgroups:    atomic.NewInt64(0),
-		deletedCgroups:  atomic.NewInt64(0),
-		fallbackSucceed: atomic.NewInt64(0),
-		fallbackFailed:  atomic.NewInt64(0),
-		dentryResolver:  dentryResolver,
+		Notifier:       utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		statsdClient:   statsdClient,
+		cgroupFS:       cgroupFS,
+		dentryResolver: dentryResolver,
 	}
 
 	cleanup := func(cacheEntry *cgroupModel.CacheEntry) {
@@ -253,19 +249,28 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 	// it should not happen, but we have to fallback in this case
 	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(pid, pid)
 	if err == nil && cgroup.CGroupID != "" {
+		pathKey := model.PathKey{
+			MountID: cgroup.CGroupFileMountID,
+			Inode:   cgroup.CGroupFileInode,
+		}
+
+		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
+			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
+			cr.fallbackSucceed.Inc()
+
+			cacheEntry.AddPID(pid)
+			return cacheEntry
+		}
+
 		cgroupContext := model.CGroupContext{
-			CGroupPathKey: model.PathKey{
-				MountID: cgroup.CGroupFileMountID,
-				Inode:   cgroup.CGroupFileInode,
-			},
-			CGroupID: cgroup.CGroupID,
+			CGroupPathKey: pathKey,
+			CGroupID:      cgroup.CGroupID,
 		}
 		containerContext := model.ContainerContext{
 			ContainerID: cid,
 			CreatedAt:   uint64(execTime.UnixNano()),
 		}
 		seclog.Debugf("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
-
 		cr.fallbackSucceed.Inc()
 
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
@@ -280,7 +285,6 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 	if pathKey, found := cr.history.Get(ppid); found {
 		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
 			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
-
 			cr.fallbackSucceed.Inc()
 
 			return cr.pushNewCacheEntry(pid, cacheEntry.GetContainerContext(), cacheEntry.GetCGroupContext())
@@ -302,15 +306,14 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 			CreatedAt:   uint64(execTime.UnixNano()),
 		}
 		seclog.Debugf("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
-
 		cr.fallbackSucceed.Inc()
 
 		return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 	}
 
+	seclog.Debugf("failed to add pid %d, error on fallback to resolve its cgroup", pid)
 	cr.fallbackFailed.Inc()
 
-	seclog.Debugf("failed to add pid %d, error on fallback to resolve its cgroup", pid)
 	return nil
 }
 

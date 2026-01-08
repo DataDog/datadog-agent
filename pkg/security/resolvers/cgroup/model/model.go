@@ -25,14 +25,13 @@ type CacheEntry struct {
 	cgroupContext    model.CGroupContext
 	containerContext model.ContainerContext
 
-	deleted *atomic.Bool
+	deleted atomic.Bool
 	pids    map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
 func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.CGroupContext, pid uint32) *CacheEntry {
 	cacheEntry := CacheEntry{
-		deleted:          atomic.NewBool(false),
 		containerContext: containerContext,
 		cgroupContext:    cgroupContext,
 		pids:             make(map[uint32]bool, 10),
