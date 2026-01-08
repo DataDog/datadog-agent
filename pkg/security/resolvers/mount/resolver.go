@@ -34,7 +34,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 2 * time.Second
+	redemptionTime                       = 20 * time.Second
 	// should be enough to handle most of in-queue mounts waiting to be deleted
 	openQueuePreAllocSize = 32
 	// mounts LRU limit: 100000 mounts
