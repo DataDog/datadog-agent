@@ -51,10 +51,10 @@ spec:
             mountPath: /data
         resources:
           requests:
-            memory: "64Mi"
+            memory: "256Mi"
             cpu: "100m"
           limits:
-            memory: "256Mi"
+            memory: "1Gi"
             cpu: "500m"
       # REQ-MV-010: Viewer sidecar for in-cluster access
       - name: viewer
