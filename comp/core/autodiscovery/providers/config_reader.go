@@ -22,6 +22,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -528,4 +529,18 @@ func ResetReader(paths []string) {
 	doOnce = sync.Once{}
 
 	InitConfigFilesReader(paths)
+}
+
+// getConfigPaths returns the config search paths used by the config file reader.
+// Falls back to default paths if the reader hasn't been initialized.
+func getConfigPaths() []string {
+	if reader == nil {
+		// Fallback to default paths (same as loader.go)
+		return []string{
+			pkgconfigsetup.Datadog().GetString("confd_path"),
+			filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
+			"",
+		}
+	}
+	return reader.paths
 }

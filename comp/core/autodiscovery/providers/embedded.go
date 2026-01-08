@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:pkgconfigusage
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,7 +69,7 @@ func (p *EmbeddedConfigProvider) Collect(_ context.Context) ([]integration.Confi
 		return nil, nil
 	}
 
-	exclusiveChecks := p.config.GetStringSlice("integration.infrastructure_mode_exclusive_checks." + mode)
+	exclusiveChecks := p.config.GetStringSlice("integration." + mode + ".inject_embedded")
 	if len(exclusiveChecks) == 0 {
 		log.Debugf("No exclusive checks configured for infrastructure mode '%s'", mode)
 		return nil, nil
@@ -80,9 +79,9 @@ func (p *EmbeddedConfigProvider) Collect(_ context.Context) ([]integration.Confi
 
 	configs := make([]integration.Config, 0, len(exclusiveChecks))
 	for _, checkName := range exclusiveChecks {
-		// Skip if user has defined their own config file for this check
-		if hasUserDefinedConfig(checkName, p.config) {
-			log.Debugf("Skipping embedded config for check '%s': user-defined config found", checkName)
+		// Skip if a config file already exists for this check
+		if hasExistingConfig(checkName) {
+			log.Debugf("Skipping embedded config for check '%s': existing config found", checkName)
 			continue
 		}
 
@@ -97,48 +96,35 @@ func (p *EmbeddedConfigProvider) Collect(_ context.Context) ([]integration.Confi
 	return configs, nil
 }
 
-// hasUserDefinedConfig checks if a user-defined config file exists for the given check.
-// This checks for conf.yaml or conf.yml in the check's conf.d directory,
-// excluding .yaml.default files which are just defaults.
-func hasUserDefinedConfig(checkName string, config pkgconfigmodel.Reader) bool {
-	// Get the conf.d paths to search
-	confPaths := []string{
-		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
-		config.GetString("confd_path"),
-	}
-
+// hasExistingConfig checks if a config file already exists for the given check.
+// This includes both user-defined configs and default configs (.yaml.default).
+// Excludes metrics.yaml and auto_conf.yaml which are not check configurations.
+func hasExistingConfig(checkName string) bool {
+	confPaths := getConfigPaths()
 	checkDir := checkName + ".d"
 
 	for _, confPath := range confPaths {
-		if confPath == "" {
-			continue
-		}
-
 		checkDirPath := filepath.Join(confPath, checkDir)
 
-		// Check if the check directory exists
 		entries, err := os.ReadDir(checkDirPath)
 		if err != nil {
 			continue // Directory doesn't exist or can't be read
 		}
 
-		// Look for user-defined config files (not .default files)
 		for _, entry := range entries {
 			if entry.IsDir() {
 				continue
 			}
 
 			name := entry.Name()
-			// Check for conf.yaml or conf.yml (not .default)
-			if name == "conf.yaml" || name == "conf.yml" {
-				return true
-			}
-			// Also check for any .yaml/.yml file that's not a .default or metrics file
-			ext := filepath.Ext(name)
-			if (ext == ".yaml" || ext == ".yml") &&
-				!strings.HasSuffix(name, ".default") &&
-				name != "metrics.yaml" && name != "metrics.yml" &&
-				name != "auto_conf.yaml" && name != "auto_conf.yml" {
+			// Check if this is a config file (including .default)
+			// Exclude metrics.yaml and auto_conf.yaml which are not check configs
+			isConfigFile := (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") ||
+				strings.HasSuffix(name, ".yaml.default") || strings.HasSuffix(name, ".yml.default")) &&
+				!strings.HasPrefix(name, "metrics.") &&
+				!strings.HasPrefix(name, "auto_conf.")
+
+			if isConfigFile {
 				return true
 			}
 		}

@@ -99,15 +99,16 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: true,
 		},
 		{
-			name:      "check in exclusive_checks for mode returns true",
-			checkName: "check_in_exclusive_checks",
+			name:      "check in inject_embedded for mode returns true",
+			checkName: "check_in_inject_embedded",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.allowed_checks.basic", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
-				cfg.Set("integration.infrastructure_mode_exclusive_checks.basic", []string{"check_in_exclusive_checks"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.end_user_device.inject_embedded", []string{"check_in_inject_embedded"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
+		},
+		{
 			name:      "excluded takes precedence over allowed",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
