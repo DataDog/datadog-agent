@@ -1,10 +1,162 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit"],
+    "extends": [
+      "config:best-practices",
+      ":separateMultipleMajorReleases"
+    ],
+    "enabledManagers": ["gomod", "custom.regex", "pre-commit", "dockerfile", "github-actions", "maven"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
+    "ignoreDeps": [
+      "github.com/DataDog/datadog-agent/**"
+    ],
     "packageRules": [
+      {
+        "description": "Global Go dependencies configuration - one PR per dependency across all go.mod files",
+        "matchManagers": ["gomod"],
+        "schedule": ["after 2am and before 6am every weekday"],
+        "addLabels": ["dependencies-go"],
+        "ignoreDeps": [
+          "github.com/cihub/seelog",
+          "github.com/spf13/cast",
+          "github.com/DataDog/datadog-agent/**",
+          "golang.org/x/**",
+          "go.opentelemetry.io/collector/**",
+          "github.com/open-telemetry/opentelemetry-collector-contrib/**"
+        ]
+      },
+      {
+        "description": "franz-go packages - group all franz-go related packages together",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": ["^github\\.com/twmb/franz-go"],
+        "groupName": "franz-go"
+      },
+      {
+        "description": "bun packages - group all bun related packages together",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": ["^github\\.com/uptrace/bun"],
+        "groupName": "bun"
+      },
+      {
+        "description": "aws-sdk-go-v2 packages - group all AWS SDK v2 packages together",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": ["^github\\.com/aws/aws-sdk-go-v2"],
+        "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "description": "k8s.io packages - group k8s packages together, patch updates only",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": ["^k8s\\.io/"],
+        "matchUpdateTypes": ["patch"],
+        "groupName": "k8s.io"
+      },
+      {
+        "description": "OpenTelemetry packages (excluded from regular Go updates, needs manual update via dda inv)",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": [
+          "^go\\.opentelemetry\\.io/collector",
+          "^github\\.com/open-telemetry/opentelemetry-collector-contrib"
+        ],
+        "enabled": false
+      },
+      {
+        "description": "Go tools in internal/tools - monthly schedule",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["internal/tools/**"],
+        "schedule": ["before 5am on the 5th day of the month"],
+        "addLabels": ["dependencies-go-tools", "dev/tooling", "team/agent-delivery"],
+        "ignoreDeps": ["golang.org/x/**"]
+      },
+      {
+        "description": "test-infra-definitions (excluded because it needs manual sync with TEST_INFRA_DEFINITIONS_BUILDIMAGES)",
+        "matchManagers": ["gomod"],
+        "matchPackageNames": ["github.com/DataDog/test-infra-definitions"],
+        "enabled": false
+      },
+      {
+        "description": "Pulumi packages in test/new-e2e (excluded, will be bumped with test-infra-definitions)",
+        "matchManagers": ["gomod"],
+        "matchPackagePatterns": ["^github\\.com/pulumi"],
+        "matchPaths": ["test/new-e2e/**"],
+        "enabled": false
+      },
+      {
+        "description": "mailru/easyjson in pkg/trace and pkg/obfuscate (excluded per PR #10112)",
+        "matchManagers": ["gomod"],
+        "matchPackageNames": ["github.com/mailru/easyjson"],
+        "matchPaths": ["pkg/trace/**", "pkg/obfuscate/**"],
+        "enabled": false
+      },
+      {
+        "description": "Bouncycastle preview versions",
+        "matchManagers": ["maven"],
+        "matchPackagePatterns": ["^org\\.bouncycastle:"],
+        "allowedVersions": "< 2.1",
+        "enabled": false
+      },
+      {
+        "description": "Team labels for root go.mod",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["go.mod"],
+        "addLabels": ["team/triage"]
+      },
+      {
+        "description": "Team labels for pkg/trace",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["pkg/trace/**"],
+        "addLabels": ["team/agent-apm"]
+      },
+      {
+        "description": "Team labels for pkg/gohai",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["pkg/gohai/**"],
+        "addLabels": ["team/agent-configuration"]
+      },
+      {
+        "description": "Team labels for pkg/obfuscate",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["pkg/obfuscate/**"],
+        "addLabels": ["team/agent-apm"]
+      },
+      {
+        "description": "Team labels for pkg/security/secl",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["pkg/security/secl/**"],
+        "addLabels": ["team/agent-security"]
+      },
+      {
+        "description": "Team labels for pkg/networkdevice/profile",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["pkg/networkdevice/profile/**"],
+        "addLabels": ["team/network-device-monitoring"]
+      },
+      {
+        "description": "Team labels for test directories",
+        "matchManagers": ["gomod"],
+        "matchPaths": ["test/new-e2e/**", "test/fakeintake/**"],
+        "addLabels": ["team/agent-e2e-test", "dev/testing"]
+      },
+      {
+        "description": "Docker dependencies in test/fakeintake",
+        "matchManagers": ["docker"],
+        "matchPaths": ["test/fakeintake/**"],
+        "schedule": ["after 2am and before 6am every weekday"],
+        "addLabels": ["team/agent-e2e-test", "dev/testing"]
+      },
+      {
+        "description": "GitHub Actions dependencies",
+        "matchManagers": ["github-actions"],
+        "schedule": ["after 2am and before 6am every weekday"],
+        "addLabels": ["dependencies-github-actions", "team/agent-devx", "dev/tooling"]
+      },
+      {
+        "description": "Maven dependencies (bouncycastle-fips)",
+        "matchManagers": ["maven"],
+        "matchPaths": ["Dockerfiles/agent/bouncycastle-fips/**"],
+        "schedule": ["after 2am and before 6am every weekday"],
+        "addLabels": ["team/agent-metric-pipelines"]
+      },
       {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
