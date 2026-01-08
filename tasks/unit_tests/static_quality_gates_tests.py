@@ -1724,6 +1724,19 @@ class TestGetPrNumberFromCommit(unittest.TestCase):
 
         self.assertEqual(result, "99999")
 
+    def test_extracts_revert_pr_not_original(self):
+        """Should extract the revert PR number, not the original PR from the reverted commit."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        # Revert commit format: the revert PR (#44639) is at the end, original PR (#44326) is inside
+        mock_result.stdout = 'Revert "build krb5 with bazel (#44326)" (#44639)\n'
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        # Should extract 44639 (the revert PR), not 44326 (the original)
+        self.assertEqual(result, "44639")
+
 
 class TestPrNumberInMetricTags(unittest.TestCase):
     """Test that PR number is included in metric tags when available."""
