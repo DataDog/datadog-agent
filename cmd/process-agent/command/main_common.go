@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -227,7 +226,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		settingsimpl.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteagentfx.Module(),
-		delegatedauthfx.Module(),
 	)
 
 	err := app.Start(ctx)

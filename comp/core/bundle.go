@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -31,6 +32,7 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
 		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		delegatedauthfx.Module(),
 		config.Module(),
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 		logfx.Module(),

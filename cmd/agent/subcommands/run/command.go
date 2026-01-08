@@ -18,8 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -396,7 +395,6 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		delegatedauthfx.Module(),
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
