@@ -485,10 +485,10 @@ def cmd_stop(run_id: str):
     label = get_scenario_label(run_id)
     print(f"Stopping scenario run {run_id}...")
 
-    # Delete all resources with the label
+    # Delete all resources with the label (all + configmaps since 'all' doesn't include them)
     print("Deleting k8s resources...", end=" ", flush=True)
     result = subprocess.run(
-        ["kubectl", "delete", "all", "-l", label, "-n", NAMESPACE, "--context", kube_context],
+        ["kubectl", "delete", "all,configmap", "-l", label, "-n", NAMESPACE, "--context", kube_context],
         capture_output=True,
         text=True,
     )

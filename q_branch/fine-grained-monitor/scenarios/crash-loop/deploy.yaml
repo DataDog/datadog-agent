@@ -1,0 +1,77 @@
+# Crash Loop Scenario
+#
+# Deploys a pod that crashes after a short delay,
+# demonstrating Kubernetes restart backoff behavior.
+#
+# Expected behavior:
+# - Container starts, runs for 5-15 seconds randomly
+# - Exits with code 1 (simulated crash)
+# - Kubernetes restarts with exponential backoff
+# - Backoff increases: 10s, 20s, 40s, 80s... up to 5 minutes
+# - After success streak, backoff resets
+#
+# Observable in fine-grained-monitor:
+# - Exit code 1 on each crash
+# - Increasing gaps between restarts (backoff visible)
+# - CrashLoopBackOff status during backoff period
+# - Restart count incrementing
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crash-loop-script-{{RUN_ID}}
+data:
+  crash.py: |
+    #!/usr/bin/env python3
+    """Run briefly then crash, demonstrating restart backoff."""
+    import random
+    import sys
+    import time
+    from datetime import datetime
+
+    def log(msg):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {msg}", flush=True)
+
+    log("Starting crash loop scenario")
+
+    # Random runtime between 5-15 seconds
+    runtime = random.randint(5, 15)
+    log(f"Will crash in {runtime} seconds...")
+
+    # Simulate doing work
+    for i in range(runtime):
+        time.sleep(1)
+        log(f"Working... ({i+1}/{runtime}s)")
+
+    log("Simulating crash!")
+    sys.exit(1)
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crash-loop-{{RUN_ID}}
+  labels:
+    app: crash-loop
+    scenario: crash-loop
+spec:
+  restartPolicy: Always
+  volumes:
+    - name: script
+      configMap:
+        name: crash-loop-script-{{RUN_ID}}
+        defaultMode: 0755
+  containers:
+    - name: crasher
+      image: python:3.11-slim
+      command: ["python3", "/scripts/crash.py"]
+      volumeMounts:
+        - name: script
+          mountPath: /scripts
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "64Mi"
+          cpu: "100m"

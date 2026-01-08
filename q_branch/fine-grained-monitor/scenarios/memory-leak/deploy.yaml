@@ -1,0 +1,74 @@
+# Memory Leak Scenario
+#
+# Deploys a pod that gradually leaks memory over time,
+# eventually triggering OOM after ~2 minutes.
+#
+# Expected behavior:
+# - Container starts with low memory usage
+# - Leaks ~1MB every 2 seconds
+# - After ~2 minutes, hits 64Mi limit and gets OOMKilled
+# - Exit code 137 (128 + 9 = SIGKILL from OOM)
+# - Kubernetes restarts container
+# - Cycle repeats
+#
+# Observable in fine-grained-monitor:
+# - Gradual memory growth over time (sawtooth pattern)
+# - Predictable OOM kills every ~2 minutes
+# - Memory timeseries shows leak rate
+# - Useful for demonstrating time-range correlation
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: memory-leak-script-{{RUN_ID}}
+data:
+  leak.py: |
+    #!/usr/bin/env python3
+    """Gradually leak memory until OOM killed."""
+    import time
+    from datetime import datetime
+
+    print("Starting memory leak scenario", flush=True)
+    print("Leaking ~1MB every 2 seconds...", flush=True)
+
+    # Store leaked memory so it's not garbage collected
+    leaked = []
+    chunk_size = 1024 * 1024  # 1MB chunks
+    start_time = time.time()
+
+    while True:
+        leaked.append(bytearray(chunk_size))
+        mb_leaked = len(leaked)
+        elapsed = int(time.time() - start_time)
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] Leaked {mb_leaked}MB (elapsed: {elapsed}s)", flush=True)
+        time.sleep(2)
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-leak-{{RUN_ID}}
+  labels:
+    app: memory-leak
+    scenario: memory-leak
+spec:
+  restartPolicy: Always
+  volumes:
+    - name: script
+      configMap:
+        name: memory-leak-script-{{RUN_ID}}
+        defaultMode: 0755
+  containers:
+    - name: leaky-app
+      image: python:3.11-slim
+      command: ["python3", "/scripts/leak.py"]
+      volumeMounts:
+        - name: script
+          mountPath: /scripts
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "64Mi"
+          cpu: "100m"
