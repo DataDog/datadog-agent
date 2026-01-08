@@ -559,7 +559,7 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
-    printf "${BLUE}\n    - Stopping systemwide Datadog Agent daemon ...\n${NC}"
+    printf "${BLUE}\n    - Stopping syste-mwide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
     if $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null; then
@@ -663,7 +663,7 @@ fi
 if [ "$systemdaemon_install" = false ]; then
     $cmd_real_user open -a 'Datadog Agent.app'
 else
-    printf "${BLUE}\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n${NC}"
+    printf "${BLUE}\n* Installing $service_name as a system-wide LaunchDaemon ...\n\n${NC}"
     # Remove the Agent login item and unload the agent for current user
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
@@ -710,7 +710,7 @@ fi
 # Set up and start the system-probe service if this version includes support for it
 sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
 if [ -f "$sysprobe_plist_example_file" ]; then
-    printf "${BLUE}\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n${NC}"
+    printf "${BLUE}\n* Setting up system-probe ($sysprobe_service_name) as a system-wide LaunchDaemon ...\n\n${NC}"
     $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
     $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
     $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
