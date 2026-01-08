@@ -1,8 +1,0 @@
-service:
-  pipelines:
-    profiles:
-      processors: []
-      receivers: [hostprofiler, otlp]
-      exporters: [otlphttp]
-exporters:
-  otlphttp: {}

@@ -593,22 +593,6 @@ func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 	require.Contains(t, processors, "infraattributes/default")
 }
 
-func TestReceiversHostprofilerInPipelineButNoConfig(t *testing.T) {
-	// Edge case: hostprofiler is in the pipeline but no receiver config exists
-	cm := loadTestData(t, "hostprofiler_in_pipeline_but_no_config.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Should create hostprofiler config even though it was in pipeline
-	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
-	require.True(t, ok)
-	require.Equal(t, false, enabled)
-}
-
 func TestReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty
 	cm := loadTestData(t, "symbol_uploader_enabled_with_empty_endpoints.yaml")
@@ -708,9 +692,8 @@ func TestMissingServiceSection(t *testing.T) {
 	converter := &converterWithAgent{config: newTestConfig(t)}
 	err := converter.Convert(context.Background(), conf)
 
-	// Should fail because there are no exporters in the profiles pipeline
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no otlphttp exporter")
+	// Should not fail because there are is an otlphttp component configured: we can infer profiles' exporter pipeline
+	require.NoError(t, err)
 }
 
 func TestNonStringProcessorNameInPipeline(t *testing.T) {

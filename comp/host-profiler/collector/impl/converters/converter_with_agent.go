@@ -30,38 +30,46 @@ func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component)
 func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
 	confStringMap := conf.ToStringMap()
 
-	// Get profiles pipeline configuration
 	profilesPipeline := Ensure[confMap](confStringMap, "service::pipelines::profiles")
 	processorNames := Ensure[[]any](profilesPipeline, "processors")
 	receiverNames := Ensure[[]any](profilesPipeline, "receivers")
 	exporterNames := Ensure[[]any](profilesPipeline, "exporters")
 
-	// Phase 1: determines what components we need
+	// If there's no otlphttpexporter configured, check if an exporter is configured but not in pipeline, add it
+	// We can't infer necessary configurations as it needs URLs, so if nothing is found, notify user
+	newExporterNames, err := c.fixExportersPipeline(confStringMap, exporterNames)
+	if err != nil {
+		return err
+	}
+	profilesPipeline["exporters"] = newExporterNames
+
+	// Determines what components we need to check and ensures at least one infraattributes is configured
+	// Deletes any resourcedetection configured in the profiles pipeline
 	newProcessorNames, err := c.fixProcessorsPipeline(confStringMap, processorNames)
 	if err != nil {
 		return err
 	}
 	profilesPipeline["processors"] = newProcessorNames
-	profilesPipeline["receivers"] = c.fixReceiversPipeline(confStringMap, receiverNames)
 
-	// Phase 3: Validate the pipeline
-	if err := c.validateExportersPipeline(exporterNames); err != nil {
+	// Ensures at least one hostprofiler is configured using a minimal default configuration
+	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
+	if err != nil {
 		return err
 	}
+	profilesPipeline["receivers"] = newReceiverNames
 
-	// Phase 2: Ensure configurations for pipeline components
+	// Go through every configured processors to make sure there are no resourcedetections declared that were not in the
+	// pipeline
 	c.ensureGlobalProcessors(confStringMap)
 	if err := c.ensureGlobalReceivers(confStringMap); err != nil {
 		return err
 	}
+
+	// Go through every exporter and ensure every configured otlphttpexporter has a datadog API key
 	c.ensureGlobalExporters(confStringMap)
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
-
-// ============================================================================
-// Phase 1: Ensure global configurations exist
-// ============================================================================
 
 func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) {
 	processors := Ensure[confMap](conf, "processors")
@@ -93,7 +101,7 @@ func (c *converterWithAgent) ensureGlobalReceivers(conf confMap) error {
 		if strings.Contains(receiver, "hostprofiler") {
 			hostProfilerConfig, ok := config.(confMap)
 			if !ok {
-				return fmt.Errorf("hostprofiler config should be a map!")
+				return fmt.Errorf("hostprofiler config should be a map")
 			}
 
 			c.ensureHostProfilerConfig(hostProfilerConfig)
@@ -105,7 +113,7 @@ func (c *converterWithAgent) ensureGlobalReceivers(conf confMap) error {
 func (c *converterWithAgent) ensureGlobalExporters(conf confMap) {
 	exporters := Ensure[confMap](conf, "exporters")
 
-	// Normalize headers for all otlphttp exporters in the pipeline
+	// Normalize headers for all otlphttp exporters
 	for exporter := range exporters {
 		if !strings.Contains(exporter, "otlphttp") {
 			continue
@@ -116,10 +124,24 @@ func (c *converterWithAgent) ensureGlobalExporters(conf confMap) {
 	}
 }
 
-// ============================================================================
-// Phase 2: Fix the pipeline
-// ============================================================================
+func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []any) ([]any, error) {
+	// Ensure at least one otlphttp exporter exists
+	for _, nameAny := range exporterNames {
+		if name, ok := nameAny.(string); ok && strings.Contains(name, "otlphttp") {
+			return exporterNames, nil
+		}
+	}
 
+	// Check if one is configured, add it if so
+	for exporter := range Ensure[confMap](conf, "exporters") {
+		if strings.Contains(exporter, "otlphttp") {
+			return append(exporterNames, exporter), nil
+		}
+	}
+
+	return exporterNames, fmt.Errorf("no otlphttp exporter configured in profiles pipeline")
+
+}
 func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames []any) ([]any, error) {
 	processors := Ensure[confMap](conf, "processors")
 	foundInfraattributes := false
@@ -163,51 +185,39 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 	return processorNames, nil
 }
 
-func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []any) []any {
+func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
 	// Check if hostprofiler is in the pipeline
 	hasHostProfiler := false
 	for _, nameAny := range receiverNames {
-		if name, ok := nameAny.(string); ok && strings.Contains(name, "hostprofiler") {
+		name, ok := nameAny.(string)
+		if !ok {
+			return nil, fmt.Errorf("processor name must be a string, got %T", nameAny)
+		}
+
+		if strings.Contains(name, "hostprofiler") {
 			hasHostProfiler = true
 			break
 		}
 	}
 
+	if hasHostProfiler {
+		return receiverNames, nil
+	}
+
 	// Ensure default config exists if hostprofiler receiver is not configured
-	receivers := Ensure[confMap](conf, "receivers")
-	if _, exists := receivers["hostprofiler"]; !exists {
-		Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false)
-	}
+	Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false)
 
-	// Add to pipeline if not present
-	if !hasHostProfiler {
-		return append(receiverNames, "hostprofiler")
-	}
-	return receiverNames
+	return append(receiverNames, "hostprofiler"), nil
 }
-
-func (c *converterWithAgent) validateExportersPipeline(exporterNames []any) error {
-	// Ensure at least one otlphttp exporter exists
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && strings.Contains(name, "otlphttp") {
-			return nil
-		}
-	}
-	return fmt.Errorf("no otlphttp exporter configured in profiles pipeline")
-}
-
-// ============================================================================
-// Helper methods
-// ============================================================================
 
 // ensureStringKey ensures a key exists in the map and is a string.
 // If missing, it's left for agent config to fill in.
 // If present but not a string, converts it to a string.
 func (c *converterWithAgent) ensureStringKey(m confMap, key string) {
 	var (
-		stringKeyToDatadogAgentKey = map[string]string {
-			"api_key": "api_key",
-			"app_key": "app_key",
+		stringKeyToDatadogAgentKey = map[string]string{
+			"api_key":    "api_key",
+			"app_key":    "app_key",
 			"dd-api-key": "api_key",
 		}
 	)
