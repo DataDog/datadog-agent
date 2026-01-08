@@ -1,5 +1,3 @@
-"""Agent specific BUILD file for sqlite3."""
-
 load("@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -29,16 +27,14 @@ _SQLITE3_PUBLIC_HEADERS = [
 
 cc_library(
     name = "libsqlite3",
-    srcs = [
-        "sqlite3.c",
-    ],
+    srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     includes = ["."],
     copts = [
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
-        "-O3",
+        "-O2",
     ],
     linkstatic = True,
     visibility = ["//visibility:public"],
