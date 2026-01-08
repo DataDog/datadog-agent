@@ -153,12 +153,12 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 				log.Errorf("Error converting Target NodePool: %v", err)
 				return autoscaling.Requeue
 			}
-		}
 
-		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
-		if !checkTargetHash(npi, targetNp) {
-			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
-			return autoscaling.NoRequeue
+			// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
+			if !checkTargetHash(npi, targetNp) {
+				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
+				return autoscaling.NoRequeue
+			}
 		}
 
 		if nodePool == nil {
