@@ -58,9 +58,10 @@ const (
 	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
 	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
 	//     time to trigger the kill and wait to catch the process exit)
-	maxRetryForMsgWithActions = 62
-	maxRetryForRegularMsgs    = 5
-	retryDelay                = time.Second
+	maxRetryForMsgWithActions    = 62
+	maxRetryForMsgWithSSHContext = 62
+	maxRetryForRegularMsgs       = 5
+	retryDelay                   = time.Second
 )
 
 type pendingMsg struct {
@@ -81,6 +82,10 @@ type pendingMsg struct {
 func (p *pendingMsg) getMaxRetry() int {
 	if len(p.actionReports) != 0 {
 		return maxRetryForMsgWithActions
+	}
+
+	if p.sshSessionPatcher != nil {
+		return maxRetryForMsgWithSSHContext
 	}
 
 	return maxRetryForRegularMsgs
