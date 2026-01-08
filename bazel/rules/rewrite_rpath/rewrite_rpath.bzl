@@ -3,8 +3,10 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 def _replace_prefix_impl(ctx):
     if BuildSettingInfo not in ctx.attr.prefix:
         fail("The provided prefix label doesn't provide BuildSettingInfo")
-    prefix = ctx.attr.prefix[BuildSettingInfo].value
     input = ctx.file.input
+    if ctx.attr.os == "unsupported":
+        return DefaultInfo(files = depset([input]))
+    prefix = ctx.attr.prefix[BuildSettingInfo].value
     processed_file = ctx.actions.declare_file("patched_" + input.basename)
     if ctx.attr.os == "linux":
         ctx.actions.run(
@@ -45,5 +47,6 @@ def rewrite_rpath(name, input, prefix):
         os = select({
             "@platforms//os:linux": "linux",
             "@platforms//os:macos": "macos",
+            "//conditions:default": "unsupported",
         }),
     )
