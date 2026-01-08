@@ -257,39 +257,51 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 }
 
 func (mr *Resolver) delete(mount *model.Mount) {
-	now := time.Now()
-	toDelete := make([]*model.Mount, 0, 1)
-
-	parent, exists := mr.mounts.Get(mount.ParentPathKey.MountID)
-	if exists {
-		for i := 0; i != len(parent.Children); i++ {
-			if parent.Children[i] == mount.MountID {
-				parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
-				break
+	// Remove it as its parents' children
+	// Parent MountID == 0 means that it was a detached mount, no need to update its parent
+	if mount.ParentPathKey.MountID != 0 {
+		parent, exists := mr.mounts.Get(mount.ParentPathKey.MountID)
+		if exists {
+			for i := 0; i != len(parent.Children); i++ {
+				if parent.Children[i] == mount.MountID {
+					parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
+					break
+				}
 			}
+		} else {
+			seclog.Warnf("inconsistent mount resolver: parent %d for mount %d not found. mount = %+v", mount.ParentPathKey.MountID, mount.MountID, mount)
 		}
 	}
 
+	// Iterate over the current mount, its children, the children of their children, etc. and collect for deletion
+	toDelete := make([]*model.Mount, 0, 1)
 	mr.walkMountSubtree(mount, false, func(child *model.Mount) {
 		toDelete = append(toDelete, child)
 	})
 
-	for _, e := range toDelete {
-		entry := redemptionEntry{
-			mount:      e,
-			insertedAt: now,
-		}
-		mr.redemption.Add(e.MountID, &entry)
-		mr.mounts.Remove(e.MountID)
+	// Delete all
+	now := time.Now()
+	for _, mnt := range toDelete {
+		mr.moveToRedemption(mnt, now)
 	}
+
 }
 
-func (mr *Resolver) finalize(mount *model.Mount) {
+func (mr *Resolver) moveToRedemption(mount *model.Mount, time time.Time) {
+	entry := redemptionEntry{
+		mount:      mount,
+		insertedAt: time,
+	}
+	mr.redemption.Add(mount.MountID, &entry)
 	mr.mounts.Remove(mount.MountID)
 }
 
 // Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
 func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
+	if mountID == 0 {
+		seclog.Warnf("Trying to delete mountid=0")
+		return fmt.Errorf("Tried to delete mountid=0")
+	}
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -297,6 +309,7 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
+		seclog.Warnf("tried to delete non-existant mount id %d", m)
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -319,6 +332,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 // Insert a new mount point in the cache
 func (mr *Resolver) Insert(m model.Mount) error {
 	if m.MountID == 0 {
+		seclog.Warnf("Tried to insert a mount with mount id 0")
 		return ErrMountUndefined
 	}
 
@@ -345,18 +359,13 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount, moved bool) {
-	// umount the previous one if exists
+	// Remove the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
 		m.Children = prev.Children
-
-		if !moved {
-			// put the prev entry and the all the children in the redemption list
-			mr.delete(prev)
-			// force a finalize on the entry itself as it will be overridden by the new one
-			mr.finalize(prev)
-		}
-	} else if _, ok := mr.redemption.Get(m.MountID); ok {
-		// this will call the eviction function that will call the finalize
+		prev.Children = []uint32{}
+		mr.delete(prev)
+	} else {
+		// Remove this mount id from redemption
 		mr.redemption.Remove(m.MountID)
 	}
 
@@ -616,7 +625,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 
 	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
-		mr.finalize(entry.mount)
+		mr.mounts.Remove(entry.mount.MountID)
 	})
 	if err != nil {
 		return nil, err
