@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import tempfile
 import traceback
 import typing
@@ -58,6 +59,34 @@ def get_pr_for_branch(branch: str):
         return prs[0] if prs else None
     except Exception as e:
         print(color_message(f"[WARN] Failed to get PR for branch {branch}: {e}", "orange"))
+        return None
+
+
+def get_pr_number_from_commit(ctx) -> str | None:
+    """
+    Extract PR number from the HEAD commit message.
+
+    On main branch, merged commits typically end with (#XXXXX).
+    Example: "Fix bug in quality gates (#44462)"
+
+    Args:
+        ctx: Invoke context for running git commands
+
+    Returns:
+        The PR number as a string, or None if not found.
+    """
+    try:
+        # Get the first line of the HEAD commit message
+        result = ctx.run("git log -1 --pretty=%s HEAD", hide=True)
+        commit_message = result.stdout.strip()
+
+        # Match pattern like "(#12345)" at the end of the message
+        match = re.search(r'\(#(\d+)\)\s*$', commit_message)
+        if match:
+            return match.group(1)
+        return None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to extract PR number from commit: {e}", "orange"))
         return None
 
 
@@ -379,10 +408,17 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Early PR lookup - cache for later use in metrics and PR comment
     # Skip for release branches since they don't have associated PRs
     pr = None
+    pr_number = None
     if not is_a_release_branch(ctx, branch):
         pr = get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
+            pr_number = str(pr.number)
+        else:
+            # On main branch (or when no open PR), extract PR number from commit message
+            pr_number = get_pr_number_from_commit(ctx)
+            if pr_number:
+                print(color_message(f"Extracted PR #{pr_number} from commit message", "cyan"))
 
     for gate in gate_list:
         result = None
@@ -445,8 +481,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
                 "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
             }
-            if pr:
-                gate_tags["pr_number"] = str(pr.number)
+            if pr_number:
+                gate_tags["pr_number"] = pr_number
 
             metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
