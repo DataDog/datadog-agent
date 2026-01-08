@@ -256,7 +256,7 @@ func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
 			Header: gpuebpf.CudaEventHeader{
 				Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 				Pid_tgid:  header.Pid_tgid,
-				Ktime_ns:  ktimeLaunch + uint64(i),
+				Ktime_ns:  ktimeLaunch,
 				Stream_id: streamID,
 			},
 			Kernel_addr:     42,
@@ -265,6 +265,7 @@ func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
 			Shared_mem_size: 100,
 		}
 		stream.handleKernelLaunch(launch)
+		ktimeLaunch += 1
 	}
 
 	// Verify that we have active items in the pool
@@ -275,6 +276,7 @@ func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
 
 	// Clean at a time when the stream should be inactive (no sync was done)
 	endTime := ktimeLaunch + uint64(cfg.StreamConfig.Timeout.Nanoseconds()+1)
+	require.True(t, stream.isInactive(int64(endTime), cfg.StreamConfig.Timeout))
 	handlers.clean(int64(endTime))
 
 	// Verify stream was removed
