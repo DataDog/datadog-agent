@@ -752,7 +752,7 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 // NVIDIA_VISIBLE_DEVICES in a way that's not visible in container.Config.Env (it's added by the
 // runtime, not the container config), so we must rely on reading from procfs at metric collection time.
 // In ECS, the env var IS visible in container.Config.Env because ECS sets it directly.
-// Format in ECS is GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2"
+// ECS typically sets GPU UUIDs (e.g., "GPU-uuid1,GPU-uuid2"), but users can also set "all" for GPU sharing.
 func extractGPUDeviceIDsForECS(envVars []string) []string {
 	// Only extract from container config in ECS.
 	// For regular Docker, NVIDIA_VISIBLE_DEVICES is added by the container runtime
@@ -764,16 +764,14 @@ func extractGPUDeviceIDsForECS(envVars []string) []string {
 }
 
 // extractGPUDeviceIDs parses GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable.
-// Format can be:
-// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2"
-// - Device indices: "0", "1", "0,1"
-// Special values "all", "none", "void" return nil (handled elsewhere).
+// ECS typically sets GPU UUIDs (e.g., "GPU-uuid1,GPU-uuid2"), but users can also set "all" for GPU sharing.
+// Special values "all", "none", "void" are preserved and handled in matchByGPUDeviceIDs().
+// Empty value returns nil (env var set but empty).
 func extractGPUDeviceIDs(envVars []string) []string {
 	prefix := nvidiaVisibleDevicesEnvVar + "="
 	for _, e := range envVars {
-		if strings.HasPrefix(e, prefix) {
-			value := strings.TrimPrefix(e, prefix)
-			if value == "" || value == "all" || value == "none" || value == "void" {
+		if value, found := strings.CutPrefix(e, prefix); found {
+			if value == "" {
 				return nil
 			}
 			return strings.Split(value, ",")

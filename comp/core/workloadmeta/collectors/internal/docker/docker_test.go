@@ -37,17 +37,17 @@ func Test_extractGPUDeviceIDs(t *testing.T) {
 		{
 			name:     "all GPUs",
 			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=all"},
-			expected: nil,
+			expected: []string{"all"},
 		},
 		{
 			name:     "none",
 			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=none"},
-			expected: nil,
+			expected: []string{"none"},
 		},
 		{
 			name:     "void",
 			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=void"},
-			expected: nil,
+			expected: []string{"void"},
 		},
 		{
 			name:     "empty value",

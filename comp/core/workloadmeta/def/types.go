@@ -649,7 +649,8 @@ type Container struct {
 	ResolvedAllocatedResources []ContainerAllocatedResource
 	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
 	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
-	// Source: ECS task metadata gpuIds, NVIDIA_VISIBLE_DEVICES env var, or container runtime spec
+	// Note: Currently only reliably populated in ECS environments, where it is extracted
+	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
 	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.

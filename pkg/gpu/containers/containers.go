@@ -142,9 +142,22 @@ func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Devi
 // matchByGPUDeviceIDs matches devices using GPUDeviceIDs from workloadmeta.
 // This is used for ECS containers where GPU UUIDs are provided in the format
 // "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f".
+// Special values:
+//   - "all" returns all available devices (GPU sharing)
+//   - "none", "void" returns empty slice (no GPU access)
+//
 // The order of devices is preserved from the input gpuDeviceIDs, as this matches
 // the order CUDA will use when selecting devices.
 func matchByGPUDeviceIDs(gpuDeviceIDs []string, devices []ddnvml.Device) ([]ddnvml.Device, error) {
+	if len(gpuDeviceIDs) == 1 {
+		switch gpuDeviceIDs[0] {
+		case "all":
+			return devices, nil
+		case "none", "void":
+			return nil, nil
+		}
+	}
+
 	var filteredDevices []ddnvml.Device
 	var multiErr error
 
