@@ -112,7 +112,7 @@ func NewClient() *Client {
 //   - It MUST be idempotent.
 //
 // The onNoConfig callback is called when:
-//   - Remote Config sent configurations, but the flag matching a subscription 
+//   - Remote Config sent configurations, but the flag matching a subscription
 //     was not part of the returned configurations
 //
 // Returns an error if the subscription parameters are invalid.
@@ -219,7 +219,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 			// go through all subs of this flag name and remove their last value.
 			for _, sub := range c.subscriptions[flagName] {
-			    sub.lastValue = nil
+				sub.lastValue = nil
 			}
 		}
 	}
