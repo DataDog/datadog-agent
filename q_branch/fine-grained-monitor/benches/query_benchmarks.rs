@@ -3,7 +3,6 @@
 //! Benchmarks the hot paths in lazy_data.rs:
 //! - scan_metadata (startup)
 //! - get_timeseries (query)
-//! - get_container_stats (aggregation)
 //!
 //! ## Running benchmarks
 //!
@@ -25,6 +24,7 @@
 //! ```
 
 use divan::Bencher;
+use fine_grained_monitor::metrics_viewer::data::TimeRange;
 use fine_grained_monitor::metrics_viewer::LazyDataStore;
 use std::path::PathBuf;
 
@@ -79,63 +79,6 @@ fn scan_metadata(bencher: Bencher) {
     });
 }
 
-/// Benchmark: get_container_stats for first metric (includes data loading)
-///
-/// This measures a cold query - loading data from parquet and computing stats.
-#[divan::bench]
-fn get_container_stats_cold(bencher: Bencher) {
-    let files = get_parquet_files();
-    if files.is_empty() {
-        return;
-    }
-
-    bencher
-        .with_inputs(|| {
-            // Create fresh store for each iteration to measure cold path
-            LazyDataStore::new(&files).expect("Failed to create LazyDataStore")
-        })
-        .bench_values(|store| {
-            // Get first metric
-            if let Some(metric) = store.index.metrics.first() {
-                store
-                    .get_container_stats(&metric.name)
-                    .expect("Failed to get stats");
-            }
-        });
-}
-
-/// Benchmark: get_container_stats after warmup (cached)
-///
-/// This measures a warm query - data already loaded, just returning from cache.
-#[divan::bench]
-fn get_container_stats_warm(bencher: Bencher) {
-    let files = get_parquet_files();
-    if files.is_empty() {
-        return;
-    }
-
-    let store = LazyDataStore::new(&files).expect("Failed to create LazyDataStore");
-    let metric_name = store
-        .index
-        .metrics
-        .first()
-        .map(|m| m.name.clone())
-        .unwrap_or_default();
-
-    // Warm the cache
-    if !metric_name.is_empty() {
-        let _ = store.get_container_stats(&metric_name);
-    }
-
-    bencher.bench(|| {
-        if !metric_name.is_empty() {
-            store
-                .get_container_stats(&metric_name)
-                .expect("Failed to get stats");
-        }
-    });
-}
-
 /// Benchmark: get_timeseries for a single container (cold)
 #[divan::bench]
 fn get_timeseries_single_container(bencher: Bencher) {
@@ -149,7 +92,7 @@ fn get_timeseries_single_container(bencher: Bencher) {
         .bench_values(|store| {
             if let Some(metric) = store.index.metrics.first() {
                 if let Some(container_id) = store.index.containers.keys().next() {
-                    let _ = store.get_timeseries(&metric.name, &[container_id.as_str()]);
+                    let _ = store.get_timeseries(&metric.name, &[container_id.as_str()], TimeRange::All);
                 }
             }
         });
@@ -172,24 +115,7 @@ fn get_timeseries_all_containers(bencher: Bencher) {
         .bench_values(|(store, container_ids)| {
             if let Some(metric) = store.index.metrics.first() {
                 let ids: Vec<&str> = container_ids.iter().map(|s| s.as_str()).collect();
-                let _ = store.get_timeseries(&metric.name, &ids);
-            }
-        });
-}
-
-/// Benchmark: Loading all metrics sequentially (simulates full dashboard load)
-#[divan::bench]
-fn load_all_metrics(bencher: Bencher) {
-    let files = get_parquet_files();
-    if files.is_empty() {
-        return;
-    }
-
-    bencher
-        .with_inputs(|| LazyDataStore::new(&files).expect("Failed to create LazyDataStore"))
-        .bench_values(|store| {
-            for metric in &store.index.metrics {
-                let _ = store.get_container_stats(&metric.name);
+                let _ = store.get_timeseries(&metric.name, &ids, TimeRange::All);
             }
         });
 }

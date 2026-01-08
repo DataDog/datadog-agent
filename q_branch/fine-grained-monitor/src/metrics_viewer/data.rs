@@ -113,23 +113,15 @@ pub struct ContainerInfo {
     pub namespace: Option<String>,
     pub pod_name: Option<String>,
     pub container_name: Option<String>,
-    /// REQ-MV-035: When this container was first observed (epoch millis)
+    /// When this container first appeared in data files (epoch millis, from file timestamps)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_seen_ms: Option<i64>,
-    /// REQ-MV-019: When this container was last observed (epoch millis)
+    /// When this container last appeared in data files (epoch millis, from file timestamps)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_seen_ms: Option<i64>,
     /// REQ-MV-032: Pod labels from Kubernetes API for filtering
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<HashMap<String, String>>,
-}
-
-/// Summary statistics for a container's metric.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ContainerStats {
-    pub info: ContainerInfo,
-    pub avg: f64,
-    pub max: f64,
 }
 
 /// Metric metadata.

@@ -107,7 +107,5 @@ BENCH_DATA=testdata/bench/medium cargo bench 2>/dev/null
 
 Benchmarks measure:
 - `scan_metadata` - Startup time to build metadata index
-- `get_container_stats_cold` - First query (loads from parquet)
-- `get_container_stats_warm` - Cached query
-- `get_timeseries_*` - Timeseries data retrieval
-- `load_all_metrics` - Full dashboard simulation
+- `get_timeseries_single_container` - Single container timeseries query
+- `get_timeseries_all_containers` - All containers timeseries query

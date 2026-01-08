@@ -78,11 +78,8 @@ Multiple worktrees can run concurrently without conflicts.
 
 **Available benchmarks (--filter):**
 - `scan_metadata` - Startup path, measures parquet file scanning
-- `get_container_stats_cold` - Cold query including data loading
-- `get_container_stats_warm` - Warm query from cache
 - `get_timeseries_single_container` - Single container timeseries query
 - `get_timeseries_all_containers` - All containers timeseries query
-- `load_all_metrics` - Full dashboard load simulation
 
 **Available data scenarios (--data):**
 - `realistic1h` - Single pod, same containers throughout (default)
