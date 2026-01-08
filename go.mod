@@ -1190,6 +1190,9 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
+// use datadog fork of vault/api/auth/aws to reduce binary size for secret-backend
+replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060-no-buildinfo

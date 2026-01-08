@@ -240,6 +240,8 @@ github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rt
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657 h1:UuMA1oxXCY6cVoVIGLYNU18YDchvxS3n57PjGysxxPg=
 github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
+github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
+github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/viper v1.15.0 h1:oV4rbRx+ylrbIAEBCw+8xKyH+eQF1DkVHDGz7RtmKlk=
 github.com/DataDog/viper v1.15.0/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
@@ -1377,8 +1379,6 @@ github.com/hashicorp/vault/api v1.22.0 h1:+HYFquE35/B74fHoIeXlZIP2YADVboaPjaSicH
 github.com/hashicorp/vault/api v1.22.0/go.mod h1:IUZA2cDvr4Ok3+NtK2Oq/r+lJeXkeCrHRmqdyWfpmGM=
 github.com/hashicorp/vault/api/auth/approle v0.11.0 h1:ViUvgqoSTqHkMi1L1Rr/LnQ+PWiRaGUBGvx4UPfmKOw=
 github.com/hashicorp/vault/api/auth/approle v0.11.0/go.mod h1:v8ZqBRw+GP264ikIw2sEBKF0VT72MEhLWnZqWt3xEG8=
-github.com/hashicorp/vault/api/auth/aws v0.11.0 h1:lWdUxrzvPotg6idNr62al4w97BgI9xTDdzMCTViNH2s=
-github.com/hashicorp/vault/api/auth/aws v0.11.0/go.mod h1:PWqdH/xqaudapmnnGP9ip2xbxT/kRW2qEgpqiQff6Gc=
 github.com/hashicorp/vault/api/auth/ldap v0.11.0 h1:jd6gJXeFR4jyDbAh6R4RoW1uq6kmTt7M/vjW41jXczA=
 github.com/hashicorp/vault/api/auth/ldap v0.11.0/go.mod h1:MrtrVtVUvQWGw3dLlStdTz3a2pv8NRcUZeK1gwPAEpM=
 github.com/hashicorp/vault/api/auth/userpass v0.11.0 h1:iPw1PL6vzQTn2w14quKd0ZnJV+cfPe+p5CA22M45jsA=
