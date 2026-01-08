@@ -512,7 +512,8 @@ impl McpMetricsViewer {
             .ok_or_else(|| McpError::invalid_params("node parameter is required", None))?;
 
         // Build query string
-        let mut path = format!("/api/containers?metric={}", urlencoding::encode(&params.metric));
+        // Use range=all to return containers regardless of age (viewer defaults to 1h)
+        let mut path = format!("/api/containers?metric={}&range=all", urlencoding::encode(&params.metric));
 
         if let Some(ref ns) = params.namespace {
             path.push_str(&format!("&namespace={}", urlencoding::encode(ns)));
