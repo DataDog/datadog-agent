@@ -2,7 +2,7 @@
 // Source: client.go
 
 // The mock gen fails to carry this over, make sure to add it back
-//go:build ec2
+//go:build test && ec2
 
 // Package aws is a generated GoMock package.
 package aws
