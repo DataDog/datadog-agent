@@ -8,6 +8,11 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+  push:
+    branches:
+      - justin-lesko/contint-4940/kind-k8s-rc-image
+
+
 permissions: {}
 
 jobs:
