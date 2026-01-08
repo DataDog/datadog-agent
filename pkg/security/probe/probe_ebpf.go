@@ -1666,6 +1666,10 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
+		if event.MountReleased.MountID == 0 {
+			seclog.Errorf("Requested to delete mount id zero!")
+		}
+
 		// Remove all dentry entries belonging to the mountID
 		p.Resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
 
