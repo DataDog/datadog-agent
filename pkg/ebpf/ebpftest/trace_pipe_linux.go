@@ -79,6 +79,15 @@ func parseTraceLine(raw string) (*TraceEvent, error) {
 	}, nil
 }
 
+// Clear clears all existing entries from `trace_pipe` by writing to the `trace` file.
+func (t *TracePipe) Clear() error {
+	root, err := tracefs.Root()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(root+"/trace", []byte("\n"), 0)
+}
+
 // ReadLine reads a line
 func (t *TracePipe) ReadLine() (*TraceEvent, error) {
 	line, err := t.reader.ReadString('\n')
