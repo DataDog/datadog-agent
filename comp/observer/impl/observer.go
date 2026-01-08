@@ -80,7 +80,7 @@ func NewComponent(deps Requires) Provides {
 			&ConnectionErrorExtractor{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
-			NewSustainedElevationDetector(),
+			NewCUSUMDetector(),
 		},
 		anomalyProcessors: []observerdef.AnomalyProcessor{
 			correlator,
@@ -373,8 +373,21 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	}
 }
 
+// logTimestamper is an optional interface for logs that provide their own timestamp.
+type logTimestamper interface {
+	GetTimestamp() int64
+}
+
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
+	// Use provided timestamp if available, otherwise use current time
+	timestamp := time.Now().Unix()
+	if ts, ok := msg.(logTimestamper); ok {
+		if t := ts.GetTimestamp(); t > 0 {
+			timestamp = t
+		}
+	}
+
 	obs := observation{
 		source: h.source,
 		log: &logObs{
@@ -382,7 +395,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			status:    msg.GetStatus(),
 			tags:      copyTags(msg.GetTags()),
 			hostname:  msg.GetHostname(),
-			timestamp: time.Now().Unix(),
+			timestamp: timestamp,
 		},
 	}
 

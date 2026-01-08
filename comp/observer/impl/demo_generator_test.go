@@ -142,8 +142,8 @@ func TestGenerator_IncidentPhaseElevatedValues(t *testing.T) {
 	}
 	gen := NewDataGenerator(handle, config)
 
-	// Run for 200ms real time = 20s simulation time (should be in incident peak 15-25s)
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// Run for 400ms real time = 40s simulation time (should be in incident peak 30-45s)
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 
 	go gen.Run(ctx)
@@ -286,6 +286,7 @@ func TestGenerator_PhaseTransitions(t *testing.T) {
 		},
 	}
 
+	// New timeline: baseline 0-25s, ramp 25-30s, peak 30-45s, recovery 45-50s, post 50-70s
 	tests := []struct {
 		elapsed  float64
 		baseline float64
@@ -294,15 +295,15 @@ func TestGenerator_PhaseTransitions(t *testing.T) {
 		phase    string
 	}{
 		{0, 5, 50, 5, "baseline start"},
-		{9, 5, 50, 5, "baseline end"},
-		{10, 5, 50, 5, "ramp start"},
-		{12.5, 5, 50, 27.5, "ramp middle"},
-		{15, 5, 50, 50, "ramp end"},
-		{20, 5, 50, 50, "peak"},
-		{25, 5, 50, 50, "recovery start"},
-		{27.5, 5, 50, 27.5, "recovery middle"},
-		{30, 5, 50, 5, "recovery end"},
-		{35, 5, 50, 5, "post-incident"},
+		{24, 5, 50, 5, "baseline end"},
+		{25, 5, 50, 5, "ramp start"},
+		{27.5, 5, 50, 27.5, "ramp middle"},
+		{30, 5, 50, 50, "ramp end"},
+		{37, 5, 50, 50, "peak"},
+		{45, 5, 50, 50, "recovery start"},
+		{47.5, 5, 50, 27.5, "recovery middle"},
+		{50, 5, 50, 5, "recovery end"},
+		{60, 5, 50, 5, "post-incident"},
 	}
 
 	for _, tt := range tests {
@@ -316,16 +317,17 @@ func TestGenerator_PhaseTransitions(t *testing.T) {
 func TestGenerator_LogIntervalByPhase(t *testing.T) {
 	gen := &DataGenerator{}
 
+	// New timeline: baseline 0-25s, ramp 25-30s, peak 30-45s, recovery 45-50s, post 50-70s
 	tests := []struct {
 		elapsed  float64
 		expected time.Duration
 		phase    string
 	}{
 		{5, 5 * time.Second, "baseline"},
-		{12, 2 * time.Second, "ramp"},
-		{20, 500 * time.Millisecond, "peak"},
-		{27, 2 * time.Second, "recovery"},
-		{35, 5 * time.Second, "post-incident"},
+		{27, 2 * time.Second, "ramp"},
+		{37, 500 * time.Millisecond, "peak"},
+		{47, 2 * time.Second, "recovery"},
+		{55, 5 * time.Second, "post-incident"},
 	}
 
 	for _, tt := range tests {
@@ -334,4 +336,80 @@ func TestGenerator_LogIntervalByPhase(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestGenerator_NonCorrelatedSpikes(t *testing.T) {
+	handle := &mockHandle{}
+	gen := NewDataGenerator(handle, GeneratorConfig{
+		TimeScale:     1.0,
+		BaselineNoise: 0.0,
+	})
+
+	// Test retransmit spike at 10-12s (triangle wave peaking at 11s)
+	assert.Equal(t, 5.0, gen.getRetransmitValue(9), "before spike should be baseline")
+	assert.Greater(t, gen.getRetransmitValue(11), 25.0, "spike midpoint should be elevated")
+	assert.Equal(t, 5.0, gen.getRetransmitValue(13), "after spike should return to baseline")
+
+	// During retransmit spike, lock contention should stay at baseline
+	assert.Equal(t, 1000.0, gen.getLockContentionValue(11), "lock contention should be baseline during retransmit spike")
+
+	// Test lock contention spike at 17-19s (triangle wave peaking at 18s)
+	assert.Equal(t, 1000.0, gen.getLockContentionValue(16), "before spike should be baseline")
+	assert.Greater(t, gen.getLockContentionValue(18), 5000.0, "spike midpoint should be elevated")
+	assert.Equal(t, 1000.0, gen.getLockContentionValue(20), "after spike should return to baseline")
+
+	// During lock spike, retransmits should stay at baseline
+	assert.Equal(t, 5.0, gen.getRetransmitValue(18), "retransmits should be baseline during lock spike")
+}
+
+func TestGenerator_BackgroundMetrics(t *testing.T) {
+	handle := &mockHandle{}
+	config := GeneratorConfig{
+		TimeScale:     0.01, // 100x faster
+		BaselineNoise: 0.0,  // No noise for predictable testing
+	}
+	gen := NewDataGenerator(handle, config)
+
+	// Run for 50ms to collect some metrics
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	go gen.Run(ctx)
+	<-ctx.Done()
+	time.Sleep(10 * time.Millisecond)
+
+	metrics := handle.getMetrics()
+	require.NotEmpty(t, metrics)
+
+	// Verify we get all expected background metrics
+	expectedMetrics := map[string]float64{
+		"cpu.user_percent":      45,
+		"memory.used_percent":   62,
+		"disk.io_ops":           150,
+		"http.requests_per_sec": 500,
+	}
+
+	foundMetrics := make(map[string]bool)
+	for _, m := range metrics {
+		if expected, ok := expectedMetrics[m.name]; ok {
+			foundMetrics[m.name] = true
+			assert.Equal(t, expected, m.value, "background metric %s should be at baseline", m.name)
+		}
+	}
+
+	for name := range expectedMetrics {
+		assert.True(t, foundMetrics[name], "expected to find background metric: %s", name)
+	}
+}
+
+func TestGenerator_TriangleSpike(t *testing.T) {
+	handle := &mockHandle{}
+	gen := NewDataGenerator(handle, GeneratorConfig{})
+
+	// Test triangle spike helper directly
+	// Spike from 10 to 12, baseline 5, peak 30
+	assert.Equal(t, 5.0, gen.triangleSpike(10, 10, 12, 5, 30), "start should be baseline")
+	assert.Equal(t, 30.0, gen.triangleSpike(11, 10, 12, 5, 30), "midpoint should be peak")
+	assert.Equal(t, 5.0, gen.triangleSpike(12, 10, 12, 5, 30), "end should be baseline")
+	assert.Equal(t, 17.5, gen.triangleSpike(10.5, 10, 12, 5, 30), "quarter way should be midpoint value")
 }

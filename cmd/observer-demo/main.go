@@ -13,6 +13,11 @@ import (
 
 func main() {
 	timeScale := flag.Float64("timescale", 0.25, "time multiplier (0.25 = 4x faster, runs in 10s)")
+	httpAddr := flag.String("http", "", "HTTP address for web dashboard (e.g., :8080)")
 	flag.Parse()
-	observerimpl.RunDemo(*timeScale)
+
+	observerimpl.RunDemoWithConfig(observerimpl.DemoConfig{
+		TimeScale: *timeScale,
+		HTTPAddr:  *httpAddr,
+	})
 }
