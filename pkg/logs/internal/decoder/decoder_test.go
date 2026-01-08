@@ -80,10 +80,6 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	lineLen = len(line)
 	d.InputChan() <- NewInput(line)
 
-	// As we have no validation on the header, the parsing is incorrect
-	// and this test fails.
-	// It returns "wrong" as a timestamp and "message" as a content
-
 	output = <-d.OutputChan()
 	assert.Equal(t, []byte("message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
