@@ -17,14 +17,19 @@ alias(
     }),
 )
 
+posix_attributes = pkg_attributes(
+    group = "root",
+    mode = "0500",
+    owner = "root",
+)
+
 pkg_files(
     name = "bin_files",
     srcs = [":secret_connector"],
-    attributes = pkg_attributes(
-        group = "root",
-        mode = "0500",
-        owner = "root",
-    ),
+    attributes = select({
+        "@platforms//os:windows": None,
+        "//conditions:default": posix_attributes,
+    }),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",

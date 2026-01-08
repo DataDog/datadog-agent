@@ -232,28 +232,28 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 			path:          "relative/path.log",
 			allowedPrefix: "/var/log/",
 			expectError:   true,
-			errorContains: "relative path not allowed",
+			errorContains: "relative path not allowed: relative/path.log",
 		},
 		{
 			name:          "relative path with dot should fail",
 			path:          "./relative/path.log",
 			allowedPrefix: "/var/log/",
 			expectError:   true,
-			errorContains: "relative path not allowed",
+			errorContains: "relative path not allowed: ./relative/path.log",
 		},
 		{
 			name:          "relative path with parent should fail",
 			path:          "../relative/path.log",
 			allowedPrefix: "/var/log/",
 			expectError:   true,
-			errorContains: "relative path not allowed",
+			errorContains: "relative path not allowed: ../relative/path.log",
 		},
 		{
 			name:          "non-log file outside allowed prefix should fail",
 			path:          "/etc/passwd",
 			allowedPrefix: "/var/log/",
 			expectError:   true,
-			errorContains: "non-log file not allowed",
+			errorContains: "non-log file not allowed: /etc/passwd",
 		},
 		{
 			name:          "non-log file in allowed prefix should not fail",
@@ -290,7 +290,7 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 			path:          "/etc/passwd",
 			allowedPrefix: "/tmp/",
 			expectError:   true,
-			errorContains: "non-log file not allowed",
+			errorContains: "non-log file not allowed: /etc/passwd",
 		},
 		{
 			name:          "file in logs directory should be allowed (databricks example)",
@@ -357,13 +357,13 @@ func TestValidateAndOpen(t *testing.T) {
 			name:          "relative path should fail",
 			path:          "relative/path.log",
 			expectError:   true,
-			errorContains: "relative path not allowed",
+			errorContains: "relative path not allowed: relative/path.log",
 		},
 		{
 			name:          "non-log file outside /var/log should fail",
 			path:          "/etc/passwd",
 			expectError:   true,
-			errorContains: "non-log file not allowed",
+			errorContains: "non-log file not allowed: /etc/passwd",
 		},
 		{
 			name:        "non-log file in /var/log should not fail",
@@ -405,6 +405,15 @@ func TestValidateAndOpen(t *testing.T) {
 				assert.Nil(t, file)
 			}
 		})
+	}
+}
+
+func assertPathInError(t *testing.T, err error, filePath string) {
+	resolvedPath, _ := filepath.EvalSymlinks(filePath)
+	if resolvedPath != "" {
+		assert.Contains(t, err.Error(), resolvedPath)
+	} else {
+		assert.Contains(t, err.Error(), filePath)
 	}
 }
 
@@ -660,6 +669,7 @@ func TestValidateAndOpenWithPrefixWithRealFiles(t *testing.T) {
 				require.Error(t, err)
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
+					assertPathInError(t, err, filePath)
 				}
 				assert.Nil(t, file)
 			} else {

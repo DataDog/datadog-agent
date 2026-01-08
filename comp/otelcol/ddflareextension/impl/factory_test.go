@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
 package ddflareextensionimpl
 

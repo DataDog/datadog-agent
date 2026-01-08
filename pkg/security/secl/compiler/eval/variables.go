@@ -22,6 +22,7 @@ const defaultMaxVariables = 100
 
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
+	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 )
 

@@ -9,7 +9,7 @@ def _generate_module_bazel_impl(ctx):
     args.add("--files", overlay_files.path)
     args.add("--module", ctx.attr.module)
     args.add("--package", ctx.label.package)
-    args.add("--url", ctx.attr.url)
+    args.add_all(ctx.attr.urls, before_each = "--url")
     args.add("--sha256", ctx.attr.sha256)
     args.add("--strip_prefix", ctx.attr.strip_prefix)
     args.add("--output", ctx.outputs.out.path)
@@ -30,9 +30,9 @@ _generate_module_bazel = rule(
             mandatory = True,
             doc = "Name of the module",
         ),
-        "url": attr.string(
+        "urls": attr.string_list(
             mandatory = True,
-            doc = "URL for http_archive",
+            doc = "URLs for http_archive",
         ),
         "sha256": attr.string(
             mandatory = True,
@@ -57,7 +57,7 @@ _generate_module_bazel = rule(
     },
 )
 
-def generate_module_bazel(name = None, module = None, out = None, sha256 = None, strip_prefix = None, url = None, **kwargs):
+def generate_module_bazel(name = None, module = None, out = None, sha256 = None, strip_prefix = None, url = None, urls = [], **kwargs):
     _generate_module_bazel(
         name = name,
         module = module,
@@ -65,6 +65,6 @@ def generate_module_bazel(name = None, module = None, out = None, sha256 = None,
         overlay_files = native.glob(["overlay/**"]),
         sha256 = sha256,
         strip_prefix = strip_prefix,
-        url = url,
+        urls = urls or [url],
         **kwargs
     )
