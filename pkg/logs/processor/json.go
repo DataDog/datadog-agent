@@ -45,6 +45,10 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	ts := time.Now().UTC()
 	if !msg.ServerlessExtra.Timestamp.IsZero() {
 		ts = msg.ServerlessExtra.Timestamp
+	} else if msg.ParsingExtra.Timestamp != "" {
+		if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
+			ts = logTime
+		}
 	}
 
 	encoded, err := json.Marshal(jsonPayload{

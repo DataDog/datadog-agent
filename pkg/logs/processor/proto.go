@@ -26,10 +26,19 @@ func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
+	ts := time.Now().UTC()
+	if !msg.ServerlessExtra.Timestamp.IsZero() {
+		ts = msg.ServerlessExtra.Timestamp
+	} else if msg.ParsingExtra.Timestamp != "" {
+		if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
+			ts = logTime
+		}
+	}
+
 	log := &pb.Log{
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
-		Timestamp: time.Now().UTC().UnixNano(),
+		Timestamp: ts.UnixNano(),
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
