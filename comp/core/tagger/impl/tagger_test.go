@@ -87,6 +87,10 @@ func TestTag(t *testing.T) {
 		},
 	})
 
+	noneCardTags, err := fakeTagger.Tag(entityID, types.NoneCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{}, noneCardTags)
+
 	lowCardTags, err := fakeTagger.Tag(entityID, types.LowCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2"}, lowCardTags)
@@ -98,6 +102,10 @@ func TestTag(t *testing.T) {
 	highCardTags, err := fakeTagger.Tag(entityID, types.HighCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2", "high1", "high2"}, highCardTags)
+
+	undefinedTags, err := fakeTagger.Tag(types.NewEntityID(types.ContainerID, "undefined-entity"), types.HighCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{}, undefinedTags)
 }
 
 func TestGenerateContainerIDFromOriginInfo(t *testing.T) {

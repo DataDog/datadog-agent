@@ -195,7 +195,7 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality, throwLookupError bool) (tagset.HashedTags, error) {
+func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	if cardinality == types.ChecksConfigCardinality {
 		cardinality = t.datadogConfig.checksCardinality
 	}
@@ -205,7 +205,7 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 	}
 
 	cachedTags, err := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
-	if err != nil && throwLookupError {
+	if err != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return tagset.HashedTags{}, err
 	}
@@ -215,9 +215,8 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 }
 
 // accumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
-// ThrowLookupError is used to throw an error if the entity is not found in the tagger, even if the entityID is valid.
-func (t *localTagger) accumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator, throwLookupError bool) error {
-	tags, err := t.getTags(entityID, cardinality, throwLookupError)
+func (t *localTagger) accumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+	tags, err := t.getTags(entityID, cardinality)
 	tb.AppendHashed(tags)
 	return err
 }
@@ -225,8 +224,8 @@ func (t *localTagger) accumulateTagsFor(entityID types.EntityID, cardinality typ
 // Tag returns a copy of the tags for a given entity
 func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	// Do not throw an error if the entity is not found in the tagger
-	tags, err := t.getTags(entityID, cardinality, false)
-	if err != nil {
+	tags, err := t.getTags(entityID, cardinality)
+	if err != nil && !errors.Is(err, tagstore.ErrNotFound) {
 		return nil, err
 	}
 	return tags.Copy(), nil
@@ -420,7 +419,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.accumulateTagsFor(originFromClient, cardinality, tb, false); err != nil {
+			if err := t.accumulateTagsFor(originFromClient, cardinality, tb); err != nil && err != tagstore.ErrNotFound {
 				t.log.Errorf("%s", err.Error())
 			}
 		}
@@ -437,7 +436,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		if !originFromClient.Empty() {
-			if err := t.accumulateTagsFor(originFromClient, cardinality, tb, false); err != nil {
+			if err := t.accumulateTagsFor(originFromClient, cardinality, tb); err != nil && err != tagstore.ErrNotFound {
 				t.tlmUDPOriginDetectionError.Inc()
 				if pkglog.ShouldLog(pkglog.TraceLvl) {
 					t.log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
@@ -458,7 +457,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		// 1. ContainerID from Unix Domain Socket (process ID-based)
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, containerID), cardinality, tb, true); err != nil {
+			if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, containerID), cardinality, tb); err != nil {
 				if err != tagstore.ErrNotFound {
 					t.log.Errorf("%s", err.Error())
 				}
@@ -468,7 +467,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		// 2. ContainerID from LocalData (includes inode resolution)
-		if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb, true); err != nil {
+		if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
 			if pkglog.ShouldLog(pkglog.TraceLvl) {
 				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
 			}
@@ -482,7 +481,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
 		if generatedContainerID != "" {
-			if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb, true); err != nil {
+			if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
 				if pkglog.ShouldLog(pkglog.TraceLvl) {
 					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
 				}
@@ -492,7 +491,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		// 4. PodUID from LocalData (dd.internal.entity_id)
-		if err := t.accumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb, true); err != nil {
+		if err := t.accumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
 			if pkglog.ShouldLog(pkglog.TraceLvl) {
 				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
 			}
@@ -502,7 +501,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 		// 5. PodUID from ExternalData
 		if originInfo.ExternalData.PodUID != "" {
-			if err := t.accumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb, true); err != nil {
+			if err := t.accumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
 				if pkglog.ShouldLog(pkglog.TraceLvl) {
 					t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
 				}
@@ -513,7 +512,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 	}
 
-	if err := t.accumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb, false); err != nil {
+	if err := t.accumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb); err != nil && err != tagstore.ErrNotFound {
 		t.log.Error(err.Error())
 	}
 }
