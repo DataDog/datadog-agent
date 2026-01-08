@@ -4147,7 +4147,6 @@ api_key:
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 #     use_deduplication: false
 
-
 #     # @param oid_batch_size - integer - optional - default: 5
 #     # The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
 #     # Applies to all configurations if not overridden.
@@ -4155,12 +4154,10 @@ api_key:
 #
 #     # oid_batch_size: 5
 
-
 #     # @param timeout - integer - optional - default: 5
 #     # The number of seconds before timing out. Applies to all configurations if not overridden.
 #
 #     # timeout: 5
-
 
 #     # @param retries - integer - optional - default: 3
 #     # The number of retries before failure. Applies to all configurations if not overridden.
