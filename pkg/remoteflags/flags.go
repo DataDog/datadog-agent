@@ -58,9 +58,9 @@ type FlagChangeCallback func(value FlagValue) error
 //	}
 type FlagSafeRecoverCallback func(err error, failedValue FlagValue)
 
-// FlagNoDataCallback is called when the remote config client received some configurations,
+// FlagNoConfigCallback is called when the remote config client received some configurations,
 // but the flag was not part of the flags list.
-type FlagNoDataCallback func()
+type FlagNoConfigCallback func()
 
 // Flag represents a single flag with its name and value.
 type Flag struct {
@@ -76,11 +76,11 @@ type FlagConfig struct {
 
 // subscription represents an active subscription to a remote flag.
 type subscription struct {
-	flag         FlagName
-	onChange     FlagChangeCallback
-	onNoData     FlagNoDataCallback
-	safeRecover  FlagSafeRecoverCallback
-	lastValue    *FlagValue // Track last known value to detect changes
+	flag        FlagName
+	onChange    FlagChangeCallback
+	onNoConfig  FlagNoConfigCallback
+	safeRecover FlagSafeRecoverCallback
+	lastValue   *FlagValue // Track last known value to detect changes
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -111,20 +111,20 @@ func NewClient() *Client {
 //     This callback must force the feature into a safe, working state using independent logic
 //   - It MUST be idempotent.
 //
-// The onNoData callback is called when:
-//   - Remote Config sent configurations, but this flag was not part of the
-//     returned configurations
+// The onNoConfig callback is called when:
+//   - Remote Config sent configurations, but the flag matching a subscription 
+//     was not part of the returned configurations
 //
 // Returns an error if the subscription parameters are invalid.
-func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoData FlagNoDataCallback, safeRecover FlagSafeRecoverCallback) error {
+func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfig FlagNoConfigCallback, safeRecover FlagSafeRecoverCallback) error {
 	if flag == "" {
 		return fmt.Errorf("flag name cannot be empty")
 	}
 	if onChange == nil {
 		return fmt.Errorf("onChange callback cannot be nil")
 	}
-	if onNoData == nil {
-		return fmt.Errorf("onNoData callback cannot be nil")
+	if onNoConfig == nil {
+		return fmt.Errorf("onNoConfig callback cannot be nil")
 	}
 	if safeRecover == nil {
 		return fmt.Errorf("safeRecover callback cannot be nil - you must provide error handling")
@@ -137,18 +137,24 @@ func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoData 
 		flag:        flag,
 		onChange:    onChange,
 		safeRecover: safeRecover,
-		onNoData:    onNoData,
+		onNoConfig:  onNoConfig,
 	}
 
 	c.subscriptions[flag] = append(c.subscriptions[flag], sub)
 
-	// If we already have a value for this flag, invoke the callback immediately
+	// If we already have cached a value for this flag,
+	// invoke the callback immediately
 	if value, exists := c.currentValues[flag]; exists {
-		sub.lastValue = &value
 		go func(s *subscription, val FlagValue) {
 			if err := s.onChange(val); err != nil {
 				applyErr := fmt.Errorf("failed to apply initial configuration for flag %s with value %v: %w", flag, val, err)
 				s.safeRecover(applyErr, val)
+			} else {
+				// Only update lastValue if onChange succeeded
+				successValue := val
+				c.mu.Lock()
+				s.lastValue = &successValue
+				c.mu.Unlock()
 			}
 		}(sub, value)
 	}
@@ -199,13 +205,22 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 	// Check for removed flags (flags we have subscriptions for but weren't in this update)
 	// It is an inconsistent behaviour: it means we previously received a value for this flag,
-	// but that it's not part the configurations we receive from Remote Config anymore.
+	// but that it's not part the configurations we receive from Remote Config anymore. It's better
+	// to still deal with it.
 	for flagName := range c.subscriptions {
 		if _, exists := processedFlags[flagName]; !exists {
 			// flag was not part of the configurations anymore
+			// Remove from currentValues so that when it comes back, it will trigger a notification
+			// even if the value is the same as before
+			delete(c.currentValues, flagName)
 			// TODO(remy): should we call the no data callback forever if the flags never come back
 			// during this lifecycle of the agent?
-			c.notifyNoData(flagName)
+			c.notifyNoConfig(flagName)
+
+			// go through all subs of this flag name and remove their last value.
+			for _, sub := range c.subscriptions[flagName] {
+			    sub.lastValue = nil
+			}
 		}
 	}
 }
@@ -221,7 +236,6 @@ func (c *Client) notifyChange(flag FlagName, newValue FlagValue) {
 	for _, sub := range subs {
 		// only notify if the value actually changed from last known value
 		if sub.lastValue == nil || *sub.lastValue != newValue {
-			sub.lastValue = &newValue
 			// TODO(remy): can this goroutine block?
 			go func(s *subscription, value FlagValue) {
 				// Try to apply the configuration change
@@ -229,23 +243,31 @@ func (c *Client) notifyChange(flag FlagName, newValue FlagValue) {
 					// If the change failed to apply, call safeRecover callback
 					applyErr := fmt.Errorf("failed to apply configuration change for flag %s with value %v: %w", flag, value, err)
 					s.safeRecover(applyErr, value)
+				} else {
+					// Only update lastValue if onChange succeeded
+					// Create a new variable to ensure proper heap allocation
+					successValue := value
+					c.mu.Lock()
+					s.lastValue = &successValue
+					c.mu.Unlock()
 				}
 			}(sub, newValue)
 		}
 	}
 }
 
-// notifyNoData notifies all subscribers that we properly established
+// notifyNoConfig notifies all subscribers that we properly established
 // a communication with Remote Config, but no data was present for this flag.
 // Must be called with lock held.
-func (c *Client) notifyNoData(flag FlagName) {
+// TODO(remy): should this one provide the last value received if any?
+func (c *Client) notifyNoConfig(flag FlagName) {
 	subs, exists := c.subscriptions[flag]
 	if !exists {
 		return
 	}
 
 	for _, sub := range subs {
-		sub.onNoData()
+		sub.onNoConfig()
 	}
 }
 
