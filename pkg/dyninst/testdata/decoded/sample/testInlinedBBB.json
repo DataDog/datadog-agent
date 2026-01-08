@@ -57,7 +57,13 @@
             "method": "main.testInlinedBBB"
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "testInlinedBBB"

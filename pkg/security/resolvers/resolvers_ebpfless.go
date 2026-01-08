@@ -17,15 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sign"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // EBPFLessResolvers holds the list of the event attribute resolvers
 type EBPFLessResolvers struct {
-	TagsResolver    *tags.LinuxResolver
-	ProcessResolver *process.EBPFLessResolver
-	HashResolver    *hash.Resolver
+	TagsResolver      *tags.LinuxResolver
+	ProcessResolver   *process.EBPFLessResolver
+	HashResolver      *hash.Resolver
+	SignatureResolver *sign.Resolver
 }
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
@@ -50,9 +52,10 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 	}
 
 	resolvers := &EBPFLessResolvers{
-		TagsResolver:    tagsResolver,
-		ProcessResolver: processResolver,
-		HashResolver:    hashResolver,
+		TagsResolver:      tagsResolver,
+		ProcessResolver:   processResolver,
+		HashResolver:      hashResolver,
+		SignatureResolver: sign.NewSignatureResolver(),
 	}
 
 	return resolvers, nil

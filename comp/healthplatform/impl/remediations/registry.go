@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/checkfailure"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/dockerpermissions"
 )
 
@@ -43,6 +44,9 @@ func NewRegistry() *Registry {
 func (r *Registry) registerBuiltInTemplates() {
 	// Docker log permissions
 	r.Register("docker-file-tailing-disabled", dockerpermissions.NewDockerPermissionIssue())
+
+	// Check execution failures
+	r.Register("check-execution-failure", checkfailure.NewCheckFailureIssue())
 }
 
 // Register adds an issue template for a specific issue ID

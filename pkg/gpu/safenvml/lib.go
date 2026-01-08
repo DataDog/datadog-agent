@@ -50,6 +50,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmMetricsGet",
 		"nvmlGpmQueryDeviceSupport",
 		"nvmlGpmSampleGet",
+		"nvmlGpmMigSampleGet",
 		"nvmlEventSetCreate",
 		"nvmlEventSetFree",
 		"nvmlEventSetWait_v1",
@@ -87,6 +88,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
 		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetRunningProcessDetailList"),
 	}
 }
 

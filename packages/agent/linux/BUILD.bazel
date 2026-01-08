@@ -1,0 +1,22 @@
+# agent linux distribution packages
+
+load("//compliance:package_licenses.bzl", "package_licenses")
+
+# This is a placeholder for an eventual group containg (the future) top level binaries
+# such as //cmd/agent:agent
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "//deps:all_deps",
+    ] + select({
+        "@platforms//os:linux": [
+            "//deps/openscap:all_deps",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":all_deps",
+)

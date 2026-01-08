@@ -39,9 +39,6 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 
 			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
 				if entry.ContainerContext.ContainerID == "" {
 					return
 				}
@@ -71,9 +68,6 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 
 			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
 				if entry.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
 					return
 				}

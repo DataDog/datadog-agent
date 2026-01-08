@@ -80,12 +80,22 @@ func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, erro
 	// If we have an error (e.g, the agent does not have permissions to inspect
 	// the process environment variables) fall back to the container runtime
 	// data
-	envVar, dockerErr := inspectDockerDevices(container)
-	if dockerErr == nil {
-		return strings.TrimSpace(envVar), nil
+	if container.Resources.GPURequest == nil {
+		return "", nil // no GPUs requested, so no visible devices
 	}
 
-	return "", errors.Join(err, dockerErr)
+	if *container.Resources.GPURequest == workloadmeta.RequestAllGPUs {
+		return "all", nil
+	}
+
+	// return 0,1,...numGpus-1 as the assumed visible devices variable,
+	// that's how Docker assigns devices to containers, there's no exclusive
+	// allocation.
+	visibleDevices := make([]string, int(*container.Resources.GPURequest))
+	for i := 0; i < int(*container.Resources.GPURequest); i++ {
+		visibleDevices[i] = strconv.Itoa(i)
+	}
+	return strings.Join(visibleDevices, ","), nil
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {

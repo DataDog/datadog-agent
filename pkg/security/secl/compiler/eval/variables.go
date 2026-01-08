@@ -22,6 +22,7 @@ const defaultMaxVariables = 100
 
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
+	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
@@ -1133,10 +1134,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {
+				count := v.ReleaseVariable(key)
 				if opts.Telemetry != nil {
-					opts.Telemetry.TotalVariables.Sub(float64(len(v.vars[key])), varType, scopeName)
+					opts.Telemetry.TotalVariables.Sub(float64(count), varType, scopeName)
 				}
-				v.ReleaseVariable(key)
 			})
 
 			v.vars[key] = make(map[string]MutableSECLVariable)
@@ -1236,14 +1237,16 @@ func (v *ScopedVariables) CleanupExpiredVariables() {
 	}
 }
 
-// ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key ScopeHashKey) {
+// ReleaseVariable releases a scoped variable, returns how many variables were removed
+func (v *ScopedVariables) ReleaseVariable(key ScopeHashKey) int {
 	v.varsLock.Lock()
+	count := len(v.vars[key])
 	delete(v.vars, key)
 	v.varsLock.Unlock()
 	v.expirablesLock.Lock()
 	delete(v.expirables, key)
 	v.expirablesLock.Unlock()
+	return count
 }
 
 // GetScopedVariables returns all scoped variables that match the given name

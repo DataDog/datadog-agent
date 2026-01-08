@@ -87,11 +87,11 @@ RUN addgroup --system secret-manager \
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
     && addgroup --system secret-manager \
     && usermod -a -G secret-manager dd-agent \
-    && mkdir -p /var/log/datadog/ /conf.d \
+    && mkdir -p /var/log/datadog/ /conf.d /opt/datadog-agent/run \
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \
-    && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
-    && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ \
+    && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
+    && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
