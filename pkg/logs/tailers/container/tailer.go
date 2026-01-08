@@ -393,14 +393,19 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	tailer.setLastSince(output.ParsingExtra.Timestamp)
 	origin.Identifier = tailer.Identifier()
 
-	var tags []string
-	tags = append(tags, output.ParsingExtra.Tags...)
-	tags = append(tags, tailer.tagProvider.GetTags()...)
-	origin.SetTags(tags)
+	origin.SetTags(buildTags(output.ParsingExtra.Tags, tailer.tagProvider.GetTags()))
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+}
+
+// buildTags combines two tag slices into one with exact capacity.
+func buildTags(parsingTags, providerTags []string) []string {
+	tags := make([]string, 0, len(parsingTags)+len(providerTags))
+	tags = append(tags, parsingTags...)
+	tags = append(tags, providerTags...)
+	return tags
 }
 
 // forward forwards decoded messages to the next pipeline,
