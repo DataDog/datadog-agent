@@ -10,6 +10,6 @@ fixes:
   - |
     Updates tag enrichment logic to retry on failed tag resolution attempts.
     This regression was introduced in #41587 on Agent v7.73+.
-    Impacts origin detection on cgroupv2 runtimes with dogstatsd which led
-    to tags not being enriched even if origin detection was possible by
+    Impacts origin detection on cgroup v2 runtimes with DogStatsD, which led
+    to tags not being enriched, even if origin detection was possible by
     using other methods like container ID from socket or ExternalData.
