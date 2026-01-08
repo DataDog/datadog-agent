@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
@@ -365,7 +364,7 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	ctx.Pid = int(proc.Pid)
 	ctx.ContextMap = contextMap
 
-	nameMeta := detector.GetServiceName(lang, ctx)
+	nameMeta, _ := usm.ExtractServiceMetadata(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	return &model.Service{

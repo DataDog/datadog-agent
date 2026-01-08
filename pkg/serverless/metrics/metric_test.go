@@ -7,11 +7,9 @@ package metrics
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"runtime"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +19,7 @@ import (
 
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -85,31 +84,10 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 	assert.False(t, metricAgent.IsReady())
 }
 
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
-}
-
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	mockConfig := configmock.New(t)
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	mockConfig.SetDefault("dogstatsd_port", port)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	mockConfig.SetDefault("dogstatsd_port", listeners.RandomPortName)
 
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
 	require.NoError(t, err, "cannot start Demultiplexer")
@@ -118,7 +96,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", mockConfig.GetInt("dogstatsd_port"))
+	url := s.UDPLocalAddr()
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()

@@ -145,6 +145,11 @@ func SetupDatabricks(s *common.Setup) error {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigDatabricks.TraceDebug = config.BoolToPtr(true)
 	}
+	if os.Getenv("DD_PROFILING_ENABLED") == "true" {
+		s.Out.WriteString("Enabling Datadog Profiler on DD_PROFILING_ENABLED=true\n")
+		profilingEnabled := "true"
+		tracerConfigDatabricks.ProfilingEnabled = &profilingEnabled
+	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigDatabricks,
 	}
