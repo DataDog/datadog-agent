@@ -80,15 +80,17 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) getMaxRetry() int {
+	retry := maxRetryForRegularMsgs
+
 	if len(p.actionReports) != 0 {
-		return maxRetryForMsgWithActions
+		retry = max(retry, maxRetryForMsgWithActions)
 	}
 
 	if p.sshSessionPatcher != nil {
-		return maxRetryForMsgWithSSHContext
+		retry = max(retry, maxRetryForMsgWithSSHContext)
 	}
 
-	return maxRetryForRegularMsgs
+	return retry
 }
 
 func (p *pendingMsg) isResolved() bool {
