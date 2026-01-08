@@ -211,7 +211,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	}
 
 	// Update the mount path for all the children
-	mr.walkMountSubtree(mount, true, func(child *model.Mount) {
+	mr.walkMountSubtree(mount, false, func(child *model.Mount) {
 		child.Path = ""
 		_, _, _, _ = mr.getMountPath(child.MountID, 0)
 	})
