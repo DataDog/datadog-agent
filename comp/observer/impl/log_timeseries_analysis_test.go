@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,26 +37,23 @@ func TestLogTimeSeriesAnalysis_JSONNumericExtraction(t *testing.T) {
 		got[m.Name] = m
 	}
 
-	// Pattern count is based on the full JSON payload (no msg/message field present).
-	sig := pattern.Signature([]byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`), 0)
+	// Pattern count is based on the full JSON payload.
+	sig := logSignature([]byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`), 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 		assert.Equal(t, []string{"service:api"}, m.Tags)
-		assert.Equal(t, observer.AggregationSum, m.Aggregation)
 	}
 
 	if m, ok := got["log.field.duration_ms"]; assert.True(t, ok) {
 		assert.Equal(t, float64(45), m.Value)
 		assert.Equal(t, []string{"service:api"}, m.Tags)
-		assert.Equal(t, observer.AggregationAvg, m.Aggregation)
 	}
 	if m, ok := got["log.field.status"]; assert.True(t, ok) {
 		assert.Equal(t, float64(200), m.Value)
 		assert.Equal(t, []string{"service:api"}, m.Tags)
-		assert.Equal(t, observer.AggregationAvg, m.Aggregation)
 	}
 }
 
@@ -73,10 +69,9 @@ func TestLogTimeSeriesAnalysis_UnstructuredPatternCount(t *testing.T) {
 	assert.Len(t, res.Metrics, 1)
 	assert.Equal(t, float64(1), res.Metrics[0].Value)
 	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
-	assert.Equal(t, observer.AggregationSum, res.Metrics[0].Aggregation)
 
 	// Compute expected metric name (hash of signature).
-	sig := pattern.Signature([]byte("Request completed in 45ms"), 0)
+	sig := logSignature([]byte("Request completed in 45ms"), 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
@@ -104,16 +99,14 @@ func TestLogTimeSeriesAnalysis_JSONIncludeFields(t *testing.T) {
 
 	if m, ok := got["log.field.duration_ms"]; assert.True(t, ok) {
 		assert.Equal(t, float64(45), m.Value)
-		assert.Equal(t, observer.AggregationAvg, m.Aggregation)
 	}
 
-	sig := pattern.Signature([]byte(`{"duration_ms":45,"status":200}`), 0)
+	sig := logSignature([]byte(`{"duration_ms":45,"status":200}`), 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
-		assert.Equal(t, observer.AggregationSum, m.Aggregation)
 	}
 }
 
@@ -126,9 +119,8 @@ func TestLogTimeSeriesAnalysis_InvalidJSONFallsBackToUnstructured(t *testing.T) 
 
 	res := a.Analyze(log)
 	require.Len(t, res.Metrics, 1)
-	assert.Equal(t, observer.AggregationSum, res.Metrics[0].Aggregation)
 
-	sig := pattern.Signature(input, 0)
+	sig := logSignature(input, 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)

@@ -19,17 +19,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func mapAggregation(agg observerdef.Aggregation) Aggregate {
-	switch agg {
-	case observerdef.AggregationSum:
-		return AggregateSum
-	case observerdef.AggregationAvg:
-		fallthrough
-	default:
-		return AggregateAverage
-	}
-}
-
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
@@ -249,7 +238,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		// Add metrics from log analysis to storage, then run TS analyses
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
-			if series := o.storage.GetSeries(source, m.Name, m.Tags, mapAggregation(m.Aggregation)); series != nil {
+			if series := o.storage.GetSeries(source, m.Name, m.Tags, AggregateAverage); series != nil {
 				o.runTSAnalyses(*series)
 			}
 		}

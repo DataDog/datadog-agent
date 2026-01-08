@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,7 +55,6 @@ func TestBadDetector_Analyze_Match(t *testing.T) {
 	assert.Equal(t, "observer.bad_logs.count", result.Metrics[0].Name)
 	assert.Equal(t, float64(1), result.Metrics[0].Value)
 	assert.Equal(t, []string{"env:prod", "service:api"}, result.Metrics[0].Tags)
-	assert.Equal(t, observer.AggregationSum, result.Metrics[0].Aggregation)
 
 	assert.Len(t, result.Anomalies, 1)
 	assert.Equal(t, "Bad log detected", result.Anomalies[0].Title)

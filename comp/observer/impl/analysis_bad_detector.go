@@ -29,10 +29,9 @@ func (b *BadDetector) Analyze(log observer.LogView) observer.LogAnalysisResult {
 
 	return observer.LogAnalysisResult{
 		Metrics: []observer.MetricOutput{{
-			Name:        "observer.bad_logs.count",
-			Value:       1,
-			Tags:        log.GetTags(),
-			Aggregation: observer.AggregationSum,
+			Name:  "observer.bad_logs.count",
+			Value: 1,
+			Tags:  log.GetTags(),
 		}},
 		Anomalies: []observer.AnomalyOutput{{
 			Title:       "Bad log detected",

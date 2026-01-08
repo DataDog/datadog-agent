@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/pattern"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +40,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 
 	// Agent logs are forwarded as structured JSON: {"msg":"..."}.
 	payload := []byte(`{"msg":"agent internal hello"}`)
-	sig := pattern.Signature(payload, 4096)
+	sig := logSignature(payload, 4096)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"

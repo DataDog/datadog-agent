@@ -37,25 +37,24 @@ func (a *LogTimeSeriesAnalysis) Analyze(log observer.LogView) observer.LogAnalys
 	content := log.GetContent()
 	tags := log.GetTags()
 
-	// Structured (JSON) path
-	if isJSONObject(content) {
-		return observer.LogAnalysisResult{Metrics: a.extractJSONMetrics(content, tags)}
-	}
-
-	// Unstructured path: pattern frequency
+	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.MaxEvalBytes)
 	if patternSig == "" {
 		return observer.LogAnalysisResult{}
 	}
 
-	return observer.LogAnalysisResult{
-		Metrics: []observer.MetricOutput{{
-			Name:        patternCountMetricName(patternSig),
-			Value:       1,
-			Tags:        tags,
-			Aggregation: observer.AggregationSum,
-		}},
+	metrics := []observer.MetricOutput{{
+		Name:  patternCountMetricName(patternSig),
+		Value: 1,
+		Tags:  tags,
+	}}
+
+	// For JSON logs, also extract numeric field metrics
+	if isJSONObject(content) {
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
+
+	return observer.LogAnalysisResult{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {
@@ -63,7 +62,9 @@ func isJSONObject(b []byte) bool {
 	return len(trimmed) > 1 && trimmed[0] == '{' && json.Valid(trimmed)
 }
 
-func (a *LogTimeSeriesAnalysis) extractJSONMetrics(content []byte, tags []string) []observer.MetricOutput {
+// extractJSONFieldMetrics extracts numeric field metrics from JSON content.
+// Pattern metrics are handled separately in Analyze().
+func (a *LogTimeSeriesAnalysis) extractJSONFieldMetrics(content []byte, tags []string) []observer.MetricOutput {
 	dec := json.NewDecoder(bytes.NewReader(content))
 	dec.UseNumber()
 
@@ -73,19 +74,6 @@ func (a *LogTimeSeriesAnalysis) extractJSONMetrics(content []byte, tags []string
 	}
 
 	var out []observer.MetricOutput
-
-	// Pattern frequency for structured logs:
-	// Always derive a signature from the rendered JSON payload so ALL structured logs emit a metric,
-	// regardless of whether numeric fields are present.
-	if sig := logSignature(content, a.MaxEvalBytes); sig != "" {
-		out = append(out, observer.MetricOutput{
-			Name:        patternCountMetricName(sig),
-			Value:       1,
-			Tags:        tags,
-			Aggregation: observer.AggregationSum,
-		})
-	}
-
 	for k, v := range obj {
 		if a.ExcludeFields != nil {
 			if _, ok := a.ExcludeFields[k]; ok {
@@ -104,10 +92,9 @@ func (a *LogTimeSeriesAnalysis) extractJSONMetrics(content []byte, tags []string
 		}
 
 		out = append(out, observer.MetricOutput{
-			Name:        "log.field." + sanitizeMetricFragment(k),
-			Value:       f,
-			Tags:        tags,
-			Aggregation: observer.AggregationAvg,
+			Name:  "log.field." + sanitizeMetricFragment(k),
+			Value: f,
+			Tags:  tags,
 		})
 	}
 
