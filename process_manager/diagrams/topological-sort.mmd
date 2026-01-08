@@ -1,0 +1,22 @@
+flowchart TD
+    A[Build dependency graph] --> B[Calculate in-degree<br/>for each process]
+    B --> C[Add processes with<br/>in-degree 0 to queue]
+    C --> D{Queue empty?}
+    
+    D -->|No| E[Dequeue process]
+    E --> F[Add to result]
+    F --> G[For each dependent:<br/>decrease in-degree]
+    G --> H{In-degree = 0?}
+    H -->|Yes| I[Add to queue]
+    H -->|No| D
+    I --> D
+    
+    D -->|Yes| J{Result length =<br/>total processes?}
+    J -->|Yes| K[✓ Return ordered list]
+    J -->|No| L[✗ Circular dependency error]
+
+    style K fill:#28a745,color:#fff
+    style L fill:#dc3545,color:#fff
+
+
+

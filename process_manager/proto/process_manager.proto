@@ -1,0 +1,402 @@
+syntax = "proto3";
+
+package process_manager;
+
+option go_package = "github.com/DataDog/agent-process-manager/go-client;procmgr";
+
+service ProcessManager {
+  // Create a new process entry without starting it
+  rpc Create (CreateRequest) returns (CreateResponse);
+  // Start an existing process by ID
+  rpc Start (StartRequest) returns (StartResponse);
+  rpc Stop (StopRequest) returns (StopResponse);
+  rpc List (ListRequest) returns (ListResponse);
+  rpc ReloadConfig (ReloadConfigRequest) returns (ReloadConfigResponse);
+  rpc Describe (DescribeRequest) returns (DescribeResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+  rpc GetResourceUsage (GetResourceUsageRequest) returns (GetResourceUsageResponse);
+  // Update process configuration
+  rpc Update (UpdateRequest) returns (UpdateResponse);
+  // Get daemon status and health information
+  rpc GetStatus (GetStatusRequest) returns (GetStatusResponse);
+}
+
+message ReloadConfigRequest {}
+
+message ReloadConfigResponse {
+  // Empty response - use gRPC Status for errors
+}
+
+// Process states enum
+enum ProcessState {
+  UNKNOWN = 0;
+  CREATED = 1;
+  STARTING = 2;
+  RUNNING = 3;
+  STOPPING = 4;
+  STOPPED = 5;
+  CRASHED = 6;
+  EXITED = 7;
+  ZOMBIE = 8;
+}
+
+enum RestartPolicy {
+  NEVER = 0;
+  ALWAYS = 1;
+  ON_FAILURE = 2;
+  ON_SUCCESS = 3;
+}
+
+enum KillSignal {
+  SIGTERM = 0;  // Default: Graceful termination
+  SIGINT = 1;   // Interrupt (Ctrl+C)
+  SIGQUIT = 2;  // Quit with core dump
+  SIGKILL = 3;  // Force kill (cannot be caught)
+  SIGHUP = 4;   // Hangup
+  SIGUSR1 = 5;  // User-defined signal 1
+  SIGUSR2 = 6;  // User-defined signal 2
+}
+
+enum ProcessType {
+  SIMPLE = 0;   // Default: Service is ready immediately after fork
+  FORKING = 1;  // Service forks and parent exits, child continues as daemon
+  ONESHOT = 2;  // Runs once, waits for completion, useful for setup tasks
+  NOTIFY = 3;   // Service sends readiness notification (future: sd_notify support)
+}
+
+enum KillMode {
+  CONTROL_GROUP = 0;  // Default: Kill all processes in cgroup (systemd-like)
+  PROCESS_GROUP = 1;  // Kill all processes in process group
+  PROCESS = 2;        // Kill only the main process
+  MIXED = 3;          // SIGTERM to main, then SIGKILL to group/cgroup
+}
+
+enum HealthCheckType {
+  HTTP = 0;
+  TCP = 1;
+  EXEC = 2;
+}
+
+message HealthCheck {
+  HealthCheckType type = 1;
+  uint64 interval = 2;           // seconds between checks
+  uint64 timeout = 3;            // seconds before timeout
+  uint32 retries = 4;            // consecutive failures before unhealthy
+  uint64 start_period = 5;       // grace period after start (seconds)
+  uint32 restart_after = 6;      // kill & restart after N failures (0 = never, K8s liveness probe)
+
+  // HTTP-specific
+  string http_endpoint = 10;
+  string http_method = 11;
+  uint32 http_expected_status = 12;
+
+  // TCP-specific
+  string tcp_host = 20;
+  uint32 tcp_port = 21;
+
+  // Exec-specific
+  string exec_command = 30;
+  repeated string exec_args = 31;
+}
+
+message ResourceLimits {
+  // CPU limits (in millicores: 1000 = 1 core)
+  uint64 cpu_request = 1;  // Minimum/guaranteed CPU
+  uint64 cpu_limit = 2;    // Maximum CPU
+
+  // Memory limits (in bytes)
+  uint64 memory_request = 3;  // Minimum/guaranteed memory
+  uint64 memory_limit = 4;    // Maximum memory
+
+  // Process/thread limits
+  uint32 pids_limit = 5;      // Maximum number of PIDs
+
+  // OOM killer adjustment
+  int32 oom_score_adj = 6;    // -1000 to 1000 (lower = less likely to be killed)
+}
+
+message CreateRequest {
+  // Required fields
+  string name = 1;
+  string command = 2;
+  repeated string args = 3;
+  string description = 38;
+
+  // Restart configuration
+  RestartPolicy restart = 4;
+  uint64 restart_sec = 5;
+  uint64 restart_max_delay = 6;
+  uint32 start_limit_burst = 7;
+  uint64 start_limit_interval = 8;
+
+  // Environment
+  string working_dir = 9;
+  map<string, string> env = 10;
+  string environment_file = 11;
+
+  // Runtime context
+  string pidfile = 12;
+  bool auto_start = 13;
+  string stdout = 14;
+  string stderr = 15;
+
+  // Timeouts
+  uint64 timeout_start_sec = 16;
+  uint64 timeout_stop_sec = 17;
+
+  // Kill configuration
+  KillSignal kill_signal = 18;
+  KillMode kill_mode = 19;
+
+  // Exit status
+  repeated int32 success_exit_status = 20;
+
+  // Lifecycle hooks
+  repeated string exec_start_pre = 21;
+  repeated string exec_start_post = 22;
+  repeated string exec_stop_post = 23;
+
+  // User/Group
+  string user = 24;
+  string group = 25;
+
+  // Dependencies
+  repeated string after = 26;
+  repeated string before = 27;
+  repeated string requires = 28;
+  repeated string wants = 29;
+  repeated string binds_to = 30;
+  repeated string conflicts = 31;
+
+  // Process type
+  ProcessType process_type = 32;
+
+  // Health check
+  HealthCheck health_check = 33;
+
+  // Resource limits
+  ResourceLimits resource_limits = 34;
+
+  // Conditional execution
+  repeated string condition_path_exists = 35;
+
+  // Runtime directories
+  repeated string runtime_directory = 36;
+
+  // Ambient capabilities
+  repeated string ambient_capabilities = 37;
+}
+
+message CreateResponse {
+  string id = 1;
+  ProcessState state = 2;
+}
+
+message StartRequest {
+  string id = 1;  // ID of the process to start
+}
+
+message StartResponse {
+  ProcessState state = 1;
+}
+
+message StopRequest {
+  string id = 1;
+}
+
+message StopResponse {
+  ProcessState state = 1;
+}
+
+message ListRequest {}
+
+message Process {
+  string id = 1;
+  string name = 2;
+  uint32 pid = 3;
+  string command = 4;
+  repeated string args = 5;
+  ProcessState state = 6;
+  uint32 run_count = 7;
+  int32 exit_code = 8;
+  string signal = 9;
+  int64 created_at = 10;
+  int64 started_at = 11;
+  int64 ended_at = 12;
+}
+
+message ListResponse {
+  repeated Process processes = 1;
+}
+
+message DescribeRequest {
+  string id = 1;
+}
+
+message ProcessDetail {
+  // Identity
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  
+  // Runtime state
+  uint32 pid = 4;
+  ProcessState state = 5;
+  uint32 run_count = 6;
+  int32 exit_code = 7;
+  string signal = 8;
+  
+  // Command
+  string command = 9;
+  repeated string args = 10;
+  
+  // Timestamps
+  int64 created_at = 11;
+  int64 started_at = 12;
+  int64 ended_at = 13;
+  
+  // Environment
+  string working_dir = 14;
+  map<string, string> env = 15;
+  string environment_file = 16;
+  
+  // Restart configuration
+  string restart_policy = 17;
+  uint64 restart_sec = 18;
+  uint64 restart_max_delay = 19;
+  uint32 consecutive_failures = 20;
+  uint32 start_limit_burst = 21;
+  uint64 start_limit_interval = 22;
+  
+  // Timeouts
+  uint64 timeout_start_sec = 23;
+  uint64 timeout_stop_sec = 24;
+  
+  // Kill configuration
+  string kill_signal_str = 25;
+  KillMode kill_mode_val = 26;
+  
+  // Runtime context
+  string pidfile = 27;
+  string stdout = 28;
+  string stderr = 29;
+  string user = 30;
+  string group = 31;
+
+  // Lifecycle hooks
+  repeated int32 success_exit_status = 32;
+  repeated string exec_start_pre = 33;
+  repeated string exec_start_post = 34;
+  repeated string exec_stop_post = 35;
+
+  // Dependencies
+  repeated string after = 36;
+  repeated string before = 37;
+  repeated string requires = 38;
+  repeated string wants = 39;
+  repeated string binds_to = 40;
+  repeated string conflicts = 41;
+
+  // Process type
+  ProcessType process_type = 42;
+
+  // Health check
+  HealthCheck health_check = 43;
+  string health_status = 44;
+  uint32 health_check_failures = 45;
+  int64 last_health_check = 46;
+
+  // Resource limits
+  ResourceLimits resource_limits = 47;
+
+  // Conditional execution
+  repeated string condition_path_exists = 48;
+
+  // Runtime directories
+  repeated string runtime_directory = 49;
+
+  // Ambient capabilities (Linux-only)
+  repeated string ambient_capabilities = 50;
+}
+
+message DescribeResponse {
+  ProcessDetail detail = 1;
+}
+
+message DeleteRequest {
+  string id = 1;
+  bool force = 2;  // If true, stop and delete running processes
+}
+
+message DeleteResponse {
+  // Empty response - use gRPC Status for errors
+}
+
+message GetResourceUsageRequest {
+  string id = 1;  // Process ID
+}
+
+message ResourceUsageInfo {
+  uint64 memory_current = 1;   // Current memory usage in bytes
+  uint64 memory_limit = 2;     // Memory limit in bytes (0 if unlimited)
+  uint64 cpu_usage_usec = 3;   // Total CPU usage in microseconds
+  uint64 cpu_user_usec = 4;    // User CPU time in microseconds
+  uint64 cpu_system_usec = 5;  // System CPU time in microseconds
+  uint32 pids_current = 6;     // Current number of PIDs
+  uint32 pids_limit = 7;       // PIDs limit (0 if unlimited)
+}
+
+message GetResourceUsageResponse {
+  ResourceUsageInfo usage = 1;
+}
+
+message UpdateRequest {
+  string id = 1;  // Process ID or name
+
+  // Fields that can be updated without restart (hot updates)
+  optional string restart_policy = 2;  // "never", "always", "on-failure", "on-success"
+  optional uint64 timeout_stop_sec = 3;
+  optional uint64 restart_sec = 4;
+  optional uint64 restart_max = 5;
+  optional ResourceLimits resource_limits = 6;
+  optional HealthCheck health_check = 7;
+  repeated uint32 success_exit_status = 8;  // Empty means no update
+
+  // Fields that require restart to take effect
+  repeated string env = 9;  // Empty means no update; format: KEY=VALUE
+  optional string env_file = 10;
+  optional string working_dir = 11;
+  optional string user = 12;
+  optional string group = 13;
+  repeated string runtime_directory = 14;  // Empty means no update
+  repeated string ambient_capabilities = 15;  // Empty means no update
+  optional string kill_mode = 16;  // "control-group", "process", "mixed", "none"
+  optional string kill_signal = 17;  // "SIGTERM", "SIGKILL", etc.
+  optional string pidfile = 18;
+
+  // Flags
+  bool restart_process = 19;  // If true, restart process after update to apply changes
+  bool dry_run = 20;  // If true, validate but don't apply changes
+}
+
+message UpdateResponse {
+  repeated string updated_fields = 1;  // List of fields that were updated
+  repeated string restart_required_fields = 2;  // Fields that need restart to take effect
+  bool process_restarted = 3;  // True if process was restarted due to restart_process flag
+}
+
+// GetStatus - Daemon health and status information
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  bool ready = 1;                    // Is daemon ready to accept requests
+  string version = 2;                // Daemon version
+  uint64 uptime_seconds = 3;         // Daemon uptime in seconds
+  uint32 total_processes = 4;        // Total number of managed processes
+  uint32 running_processes = 5;      // Number of running processes
+  uint32 stopped_processes = 6;      // Number of stopped processes
+  uint32 failed_processes = 7;       // Number of failed processes
+  bool supervisor_healthy = 8;       // Is process supervisor running
+  bool repository_healthy = 9;       // Is process repository accessible
+  string config_path = 10;           // Path to loaded config file (if any)
+}

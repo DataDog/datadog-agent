@@ -240,6 +240,11 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
+    dependency 'process-manager'
+  end
+
+  if windows_target?
+    dependency 'process-manager'
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -278,6 +283,8 @@ if linux_target?
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
   extra_package_file "#{install_dir}/.install_root"
+  # Process manager config directory
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/process-manager/"
 end
 
 # all flavors use the same package scripts

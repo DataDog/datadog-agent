@@ -1,0 +1,185 @@
+# Example: Process Configuration with Update-Friendly Settings
+#
+# This example shows how to configure processes with fields that can be
+# updated dynamically using the `pm update` command.
+#
+# Hot-update fields (no restart): restart policy, timeouts, resource limits
+# Restart-required fields: env vars, user, working dir, etc.
+
+processes:
+  # Example 1: Web API with resource limits and restart policy
+  web-api:
+    command: /usr/bin/python3
+    args:
+      - -m
+      - http.server
+      - "8080"
+    
+    # Hot-updatable: Restart behavior
+    restart: on-failure
+    restart_sec: 5
+    restart_max_delay: 300
+    timeout_stop_sec: 30
+    
+    # Hot-updatable: Resource limits
+    resource_limits:
+      cpu_limit: 2000        # 2 cores (2000 millicores)
+      memory_limit: 1073741824  # 1GB
+      pids_limit: 100
+    
+    # Restart-required: Environment
+    env:
+      LOG_LEVEL: info
+      PORT: "8080"
+      WORKERS: "4"
+    
+    # Restart-required: Execution context
+    working_dir: /app
+    user: www-data
+    group: www-data
+    
+    auto_start: true
+
+  # Example 2: Background worker with health checks
+  worker:
+    command: /app/worker
+    args:
+      - --queue
+      - default
+    
+    # Hot-updatable: Restart policy with exponential backoff
+    restart: always
+    restart_sec: 10
+    restart_max_delay: 600
+    
+    # Hot-updatable: Health check configuration
+    health_check:
+      type: exec
+      exec_command: /app/health-check.sh
+      interval: 30
+      timeout: 5
+      retries: 3
+      restart_after: 0  # Restart immediately on failure
+    
+    # Hot-updatable: Resource limits (can scale dynamically)
+    resource_limits:
+      cpu_limit: 1000        # Start with 1 core
+      memory_limit: 536870912  # 512MB
+      pids_limit: 50
+    
+    # Restart-required: Environment
+    env:
+      QUEUE_NAME: default
+      CONCURRENCY: "2"
+      REDIS_URL: redis://localhost:6379
+    
+    runtime_directory:
+      - worker
+      - worker/tmp
+    
+    auto_start: true
+
+  # Example 3: Database with strict resource limits
+  redis:
+    command: /usr/bin/redis-server
+    args:
+      - --port
+      - "6379"
+    
+    # Hot-updatable: Never restart (manual control)
+    restart: never
+    timeout_stop_sec: 60  # Long timeout for graceful shutdown
+    
+    # Hot-updatable: Strict resource limits
+    resource_limits:
+      cpu_limit: 4000         # 4 cores
+      memory_limit: 4294967296  # 4GB
+      pids_limit: 200
+    
+    # Restart-required: Run as redis user
+    user: redis
+    group: redis
+    working_dir: /var/lib/redis
+    
+    # Restart-required: PID file
+    pidfile: /var/run/redis/redis.pid
+    
+    runtime_directory:
+      - redis
+    
+    auto_start: true
+
+  # Example 4: Oneshot task with success-based restart
+  backup-job:
+    command: /usr/local/bin/backup.sh
+    type: oneshot
+    
+    # Hot-updatable: Restart on success (periodic task)
+    restart: on-success
+    restart_sec: 3600  # Run every hour
+    
+    # Hot-updatable: Success exit codes
+    success_exit_status:
+      - 0
+      - 2  # Partial backup is also success
+    
+    # Restart-required: Environment
+    env:
+      BACKUP_DIR: /backups
+      RETENTION_DAYS: "7"
+    
+    working_dir: /var/lib/backup
+    user: backup
+    group: backup
+    
+    auto_start: true
+
+  # Example 5: Development service (frequent updates)
+  dev-server:
+    command: /app/dev-server
+    args:
+      - --watch
+    
+    # Hot-updatable: Restart always during development
+    restart: always
+    restart_sec: 1  # Quick restart for dev
+    timeout_stop_sec: 5
+    
+    # Hot-updatable: Generous resource limits for development
+    resource_limits:
+      cpu_limit: 8000         # 8 cores
+      memory_limit: 8589934592  # 8GB
+      pids_limit: 500
+    
+    # Restart-required: Development environment
+    env:
+      NODE_ENV: development
+      DEBUG: "*"
+      HOT_RELOAD: "true"
+    
+    working_dir: /app
+    
+    auto_start: false  # Start manually
+
+# Usage Examples:
+#
+# 1. Hot update resource limits (no restart):
+#    pm update web-api --cpu-limit 4 --memory-limit 2G
+#
+# 2. Update environment (requires restart):
+#    pm update worker --env CONCURRENCY=4 --restart-process
+#
+# 3. Change restart policy (no restart):
+#    pm update redis --restart on-failure
+#
+# 4. Batch update multiple fields:
+#    pm update web-api \
+#      --restart always \
+#      --cpu-limit 4 \
+#      --memory-limit 2G \
+#      --env LOG_LEVEL=debug \
+#      --restart-process
+#
+# 5. Dry run to test changes:
+#    pm update worker --cpu-limit 2 --env THREADS=8 --dry-run
+

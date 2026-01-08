@@ -5,11 +5,16 @@ Dockerfiles/dogstatsd/alpine/static/
 vendor/
 .vendor-new/
 bin/
+# Exception: track Rust daemon source files (not compiled binaries)
+!process_manager/engine/src/bin/
 /dev/
 /site/
 __pycache__
 .pytest_cache
 venv*/
+
+# Rust build artifacts
+process_manager/target/
 
 **/*.tmp
 **/debug.test

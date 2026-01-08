@@ -1,0 +1,36 @@
+flowchart TB
+    OS["Operating System Service Manager<br/>(systemd / launchd / SCM / kubelet)"]
+    
+    OS --> PMTitle
+    
+    subgraph PM[" "]
+        PMTitle["<b>Datadog Agent Process Manager (dd-procmgrd)</b>"]
+        PMTitle ~~~ Components
+        subgraph Components[" "]
+            direction LR
+            Health["Health Monitoring"]
+            Watching["Process Watching"]
+            Deps["Dependency Resolution"]
+        end
+    end
+    
+    PM --> CoreAgent["Core Agent"]
+    PM --> TraceAgent["Trace Agent"]
+    PM --> ProcessAgent["Process Agent"]
+    PM --> SecurityAgent["Security Agent"]
+    PM --> SystemProbe["System Probe"]
+    
+    classDef osManager fill:#4a5568,stroke:#2d3748,color:#fff
+    classDef processManager fill:#632ca6,stroke:#4a1f80,color:#fff
+    classDef pmTitle fill:#632ca6,stroke:#4a1f80,color:#fff
+    classDef componentsBox fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef component fill:#a78bfa,stroke:#7c3aed,color:#fff
+    classDef agent fill:#c4b5fd,stroke:#a78bfa,color:#1f2937
+    
+    class OS osManager
+    class PM processManager
+    class PMTitle pmTitle
+    class Components componentsBox
+    class Health,Watching,Deps component
+    class CoreAgent,TraceAgent,ProcessAgent,SecurityAgent,SystemProbe agent
+

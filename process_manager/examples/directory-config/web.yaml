@@ -1,0 +1,38 @@
+# Web Server Process
+# Filename: web.yaml
+# Process name will be "web" (from filename)
+
+command: /usr/bin/python3
+args:
+  - "-m"
+  - "http.server"
+  - "8080"
+
+# Process will be started on-demand via socket activation
+# See web.socket.yaml for socket configuration
+auto_start: false
+
+restart: on-failure
+restart_sec: 5
+
+working_dir: /var/www
+
+env:
+  PYTHONUNBUFFERED: "1"
+  LOG_LEVEL: "info"
+
+stdout: /var/log/pm/web.stdout.log
+stderr: /var/log/pm/web.stderr.log
+
+# Resource limits
+cpu_percent: 50
+memory_mb: 512
+
+# Health check
+health_check:
+  type: http
+  endpoint: http://localhost:8080/
+  interval: 30
+  timeout: 5
+  retries: 3
+

@@ -1,0 +1,18 @@
+# User/Group execution example
+# Demonstrates: Running processes as different users
+# Note: Requires daemon to run as root
+
+processes:
+  # Run as specific user
+  user-service:
+    command: /usr/bin/myapp
+    user: appuser
+    group: appgroup
+    working_dir: /home/appuser/app
+
+  # Run as nobody (common for security)
+  untrusted-service:
+    command: /usr/bin/untrusted-app
+    user: nobody
+    group: nogroup
+

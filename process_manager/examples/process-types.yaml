@@ -1,0 +1,24 @@
+# Test configuration for process types
+
+processes:
+  # Simple type - default, runs continuously
+  simple-process:
+    command: bash
+    args: ["-c", "echo 'Simple process started'; sleep 10; echo 'Simple process done'"]
+    process_type: simple
+    stdout: /tmp/simple.log
+
+  # Oneshot type - runs once and exits
+  oneshot-setup:
+    command: bash
+    args: ["-c", "echo 'Running oneshot setup'; sleep 2; echo 'Setup complete'"]
+    process_type: oneshot
+    stdout: /tmp/oneshot.log
+
+  # Another oneshot that fails
+  oneshot-fail:
+    command: bash
+    args: ["-c", "echo 'This will fail'; exit 1"]
+    process_type: oneshot
+    stdout: /tmp/oneshot-fail.log
+

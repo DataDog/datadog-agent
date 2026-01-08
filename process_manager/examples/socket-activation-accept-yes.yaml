@@ -1,0 +1,77 @@
+# Socket Activation with Accept=yes (per-connection spawning)
+# Similar to inetd - each connection gets its own service instance
+
+sockets:
+  # Echo service - one instance per connection
+  echo-socket:
+    listen_stream: "127.0.0.1:7777"
+    service: echo-handler
+    accept: true  # NEW instance per connection (inetd-style)
+
+  # Fortune service - one instance per connection  
+  fortune-socket:
+    listen_unix: "/tmp/fortune.sock"
+    service: fortune-handler
+    accept: true
+    socket_mode: 0o666  # World-readable/writable
+
+processes:
+  # Echo handler - reads from FD 3 (accepted connection), echoes back, exits
+  echo-handler:
+    command: sh
+    args:
+      - "-c"
+      - |
+        # FD 3 is the accepted connection socket
+        # Read from it, echo back, then exit
+        echo "Echo service ready. Type something:"
+        while IFS= read -r line <&3; do
+          echo "You said: $line" >&3
+          if [ "$line" = "quit" ]; then
+            echo "Goodbye!" >&3
+            break
+          fi
+        done
+    auto_start: false  # Only starts via socket activation
+    # No restart policy needed - process exits after handling one connection
+
+  # Fortune handler - sends fortune to FD 3, exits
+  fortune-handler:
+    command: sh
+    args:
+      - "-c"
+      - |
+        # FD 3 is the accepted connection
+        fortune 2>/dev/null || echo "Fortune of the day: $(date)" >&3
+    auto_start: false
+
+# How to test:
+# 
+# 1. Start the daemon:
+#    ./target/debug/daemon examples/socket-activation-accept-yes.yaml
+#
+# 2. Test echo service (multiple connections):
+#    Terminal 1: nc 127.0.0.1 7777
+#    Terminal 2: nc 127.0.0.1 7777  # Each gets its own handler!
+#
+# 3. Test fortune service:
+#    nc -U /tmp/fortune.sock
+#
+# 4. Watch processes:
+#    ./target/debug/cli list
+#    # You'll see NEW instances spawn for each connection
+
+# Comparison with Accept=no:
+# 
+# Accept=no (default):
+# - ONE service instance started
+# - Service receives listening socket on FD 3
+# - Service accepts and handles ALL connections
+# - Good for: web servers, databases, long-running services
+# 
+# Accept=yes (this example):
+# - NEW service instance per connection
+# - Service receives accepted connection on FD 3
+# - Service handles ONE connection then exits
+# - Good for: stateless handlers, inetd replacements, simple protocols
+

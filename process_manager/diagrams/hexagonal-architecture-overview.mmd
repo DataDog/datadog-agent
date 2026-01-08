@@ -1,0 +1,39 @@
+flowchart LR
+    subgraph Primary["Primary Adapters<br/>(Input)"]
+        direction TB
+        gRPC["gRPC API"]
+        REST["REST API"]
+    end
+
+    subgraph Core["Core"]
+        direction TB
+        App["Application Layer<br/>(Use Cases)"]
+        Domain["Domain Layer<br/>(Business Logic)"]
+        Ports["Ports<br/>(Interfaces)"]
+        App --> Domain
+        Domain --> Ports
+    end
+
+    subgraph Secondary["Secondary Adapters<br/>(Output)"]
+        direction TB
+        Linux["Linux<br/>Implementation"]
+        Windows["Windows<br/>Implementation"]
+        Storage["Storage"]
+    end
+
+    gRPC --> App
+    REST --> App
+    Ports --> Linux
+    Ports --> Windows
+    Ports --> Storage
+
+    style Primary fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style Core fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style Secondary fill:#059669,stroke:#047857,color:#fff
+    style App fill:#a78bfa,stroke:#7c3aed,color:#fff
+    style Domain fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style Ports fill:#6d28d9,stroke:#4c1d95,color:#fff
+    style Linux fill:#10b981,stroke:#047857,color:#fff
+    style Windows fill:#10b981,stroke:#047857,color:#fff
+    style Storage fill:#10b981,stroke:#047857,color:#fff
+

@@ -1,0 +1,18 @@
+stateDiagram-v2
+    [*] --> Unknown: Process created
+
+    note right of Unknown: Initial state before<br/>health monitoring starts
+
+    Unknown --> Starting: Monitoring starts (start_period > 0)
+    Unknown --> Healthy: First probe succeeds (start_period = 0)
+    Unknown --> Unhealthy: First probe fails (start_period = 0)
+
+    note right of Starting: Grace period - probes skipped
+
+    Starting --> Healthy: start_period ends + probe succeeds
+    Starting --> Unhealthy: start_period ends + probe fails
+
+    Healthy --> Unhealthy: Probe fails (retries exceeded)
+    Unhealthy --> Healthy: Probe succeeds
+
+    Unhealthy --> [*]: restart_after reached → Kill & Restart

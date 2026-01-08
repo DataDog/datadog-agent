@@ -1,0 +1,38 @@
+# Pre/Post execution commands example
+# Demonstrates: Hooks for setup and cleanup
+
+processes:
+  database:
+    command: /usr/bin/postgres
+    args: ["-D", "/var/lib/postgresql/data"]
+
+    # Run before starting the main process
+    exec_start_pre:
+      - "mkdir -p /var/lib/postgresql/data"
+      - "chown postgres:postgres /var/lib/postgresql/data"
+
+    # Run after successfully starting
+    exec_start_post:
+      - "echo 'Database started' >> /var/log/db-events.log"
+      - "curl -X POST http://monitoring/notify?service=db&status=started"
+
+    # Run after stopping (regardless of restart policy)
+    exec_stop_post:
+      - "echo 'Database stopped' >> /var/log/db-events.log"
+      - "curl -X POST http://monitoring/notify?service=db&status=stopped"
+
+    restart: on-failure
+
+  web-app:
+    command: /usr/bin/webapp
+
+    exec_start_pre:
+      - "bash -c 'while ! nc -z database 5432; do sleep 1; done'"  # Wait for DB
+      - "/usr/bin/migrate up"  # Run migrations
+
+    exec_start_post:
+      - "curl http://localhost:8080/health"  # Health check
+
+    exec_stop_post:
+      - "rm -f /var/run/webapp.pid"  # Cleanup PID file
+

@@ -1,0 +1,22 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#774aa4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#5a3a7e', 'lineColor': '#632ca6'}}}%%
+flowchart TB
+    OS["Operating System Service Manager<br/>(systemd / launchd / SCM / kubelet)"]
+    
+    OS --> PM["Datadog Agent Process Manager<br/>(dd-procmgrd)<br/><br/>Health Monitoring | Process Watching | Dependency Resolution"]
+    
+    PM --> CoreAgent["Core Agent"]
+    PM --> TraceAgent["Trace Agent"]
+    PM --> ProcessAgent["Process Agent"]
+    PM --> SecurityAgent["Security Agent"]
+    PM --> SystemProbe["System Probe"]
+
+    classDef osManager fill:#774aa4,stroke:#5a3a7e,color:#fff
+    classDef processManager fill:#632ca6,stroke:#4a1f80,color:#fff
+    classDef agent fill:#a78bfa,stroke:#7c3aed,color:#fff
+
+    class OS osManager
+    class PM processManager
+    class CoreAgent,TraceAgent,ProcessAgent,SecurityAgent,SystemProbe agent
+
+
+

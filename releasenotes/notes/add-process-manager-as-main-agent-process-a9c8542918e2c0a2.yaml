@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Introduced a new process manager (``dd-procmgrd``) written in Rust that serves as the main entry point 
+    for the datadog-agent service on Linux systems. The process manager runs as PID 1 of the 
+    ``datadog-agent.service``, providing a foundation for future process supervision and lifecycle management 
+    capabilities. This is currently a Linux-only feature and does not change the agent's behavior.
