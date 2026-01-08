@@ -39,7 +39,13 @@ struct Args {
     #[arg(short, long, default_value = "/data")]
     output_dir: PathBuf,
 
-    /// Sampling interval in milliseconds
+    /// Sampling interval in milliseconds.
+    ///
+    /// NOTE: Currently only 1000ms (1Hz) is supported due to a limitation in
+    /// lading-capture where the tick duration is hardcoded to 1 second. Sub-second
+    /// sampling would collect data but timestamps would be bucketed to 1-second
+    /// resolution, losing the intended granularity. This limitation is tracked
+    /// and can be addressed by making lading-capture's TICK_DURATION_MS configurable.
     #[arg(short, long, default_value = "1000")]
     interval_ms: u64,
 
@@ -114,6 +120,37 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
+
+    // Validate interval_ms - currently only 1Hz (1000ms) is supported due to
+    // lading-capture's hardcoded tick duration. See state_machine.rs:31 and
+    // manager.rs:36 in lading-capture where TICK_DURATION_MS is set to 1000.
+    //
+    // Sub-second sampling would collect more data points, but lading-capture
+    // buckets all samples within the same second into one tick, and timestamps
+    // are calculated as tick * 1000ms. For gauges, only the last sample per
+    // second would be preserved, defeating the purpose of higher frequency.
+    //
+    // This is NOT an insurmountable limitation - it requires making lading-capture's
+    // tick duration configurable. Until then, we fail fast to prevent misconfiguration.
+    if args.interval_ms != 1000 {
+        eprintln!("ERROR: --interval-ms={} is not supported.", args.interval_ms);
+        eprintln!();
+        eprintln!("Currently only 1000ms (1Hz) sampling is supported due to a limitation");
+        eprintln!("in lading-capture where the tick duration is hardcoded to 1 second.");
+        eprintln!();
+        eprintln!("Technical details:");
+        eprintln!("  - lading-capture/src/manager/state_machine.rs:31 defines TICK_DURATION_MS = 1000");
+        eprintln!("  - All metric samples within the same second are bucketed into one tick");
+        eprintln!("  - Timestamps are calculated as: start_ms + (tick * 1000)");
+        eprintln!("  - For gauges (most cgroup metrics), only the last sample per second is preserved");
+        eprintln!();
+        eprintln!("This limitation can be addressed by making lading-capture's TICK_DURATION_MS");
+        eprintln!("configurable. Until then, sub-second sampling would collect data but lose");
+        eprintln!("the intended timestamp granularity.");
+        eprintln!();
+        eprintln!("Use --interval-ms=1000 (the default) for now.");
+        std::process::exit(1);
+    }
 
     tracing::info!(
         output_dir = %args.output_dir.display(),
