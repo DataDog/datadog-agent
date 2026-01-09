@@ -244,9 +244,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 }
 
-// returns false if the fallback failed
 func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.Time) *cgroupModel.CacheEntry {
-	// it should not happen, but we have to fallback in this case
 	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(pid, pid)
 	if err == nil && cgroup.CGroupID != "" {
 		pathKey := model.PathKey{
@@ -254,14 +252,17 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 			Inode:   cgroup.CGroupFileInode,
 		}
 
+		// check if the cgroup is already in the cache
 		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
-			seclog.Debugf("fallback to resolve cgroup for pid %d from parent: %d", pid, ppid)
+			seclog.Debugf("fallback to resolve cgroup for pid %d with existing path key %+v", pid, cacheEntry.GetCGroupID())
 			cr.fallbackSucceed.Inc()
 
 			cacheEntry.AddPID(pid)
+
 			return cacheEntry
 		}
 
+		// if not, create a new cache entry
 		cgroupContext := model.CGroupContext{
 			CGroupPathKey: pathKey,
 			CGroupID:      cgroup.CGroupID,
@@ -324,32 +325,34 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, execTime time.Time, cgroupCo
 	cr.Lock()
 	defer cr.Unlock()
 
-	var cacheEntryFound *cgroupModel.CacheEntry
+	if !cgroupContext.IsNull() {
+		var cacheEntryFound *cgroupModel.CacheEntry
 
-	cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
-		if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
-			// if the cgroup context is the same, add the pid to the cache entry
-			cacheEntry.AddPID(pid)
-			cacheEntryFound = cacheEntry
-		} else if cacheEntry.ContainsPID(pid) {
-			// the cgroup context is different, but the pid is already present in the cache entry, remove it.
-			// it means that the process has been migrated to a different cgroup.
-			if cacheEntry.RemovePID(pid) == 0 {
-				// try to sync the cgroup with the pid in order to detect the migration.
-				cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+		cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
+			if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
+				// if the cgroup context is the same, add the pid to the cache entry
+				cacheEntry.AddPID(pid)
+				cacheEntryFound = cacheEntry
+			} else if cacheEntry.ContainsPID(pid) {
+				// the cgroup context is different, but the pid is already present in the cache entry, remove it.
+				// it means that the process has been migrated to a different cgroup.
+				if cacheEntry.RemovePID(pid) == 0 {
+					// try to sync the cgroup with the pid in order to detect the migration.
+					cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+				}
 			}
+			return false
+		})
+
+		// found the cache entry
+		if cacheEntryFound != nil {
+			return cacheEntryFound
 		}
-		return false
-	})
 
-	// found the cache entry
-	if cacheEntryFound != nil {
-		return cacheEntryFound
-	}
-
-	// try to resolve the cgroup from the dentry resolver
-	if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, execTime); cacheEntry != nil {
-		return cacheEntry
+		// try to resolve the cgroup from the dentry resolver
+		if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, execTime); cacheEntry != nil {
+			return cacheEntry
+		}
 	}
 
 	return cr.resolveFromFallback(pid, ppid, execTime)
