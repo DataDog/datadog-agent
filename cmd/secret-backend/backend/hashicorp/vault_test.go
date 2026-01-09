@@ -16,13 +16,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/aws"
 	vaultHttp "github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 func TestVaultBackend(t *testing.T) {
@@ -48,15 +49,18 @@ func TestVaultBackend(t *testing.T) {
 
 	ctx := context.Background()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key1")
+	require.Nil(t, secretOutput.Error, "unexpected error fetching secret")
+	require.NotNil(t, secretOutput.Value, "expected non-nil value")
 	assert.Equal(t, "value1", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
 
 	secretOutput = secretsBackend.GetSecretOutput(ctx, "secret/foo;key2")
+	require.Nil(t, secretOutput.Error, "unexpected error fetching secret")
+	require.NotNil(t, secretOutput.Value, "expected non-nil value")
 	assert.Equal(t, "value2", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
 
 	secretOutput = secretsBackend.GetSecretOutput(ctx, "secret/foo;key_noexist")
 	assert.Nil(t, secretOutput.Value)
+	require.NotNil(t, secretOutput.Error, "expected error for non-existent key")
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
@@ -84,6 +88,7 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	ctx := context.Background()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key_noexist")
 	assert.Nil(t, secretOutput.Value)
+	require.NotNil(t, secretOutput.Error, "expected error for non-existent key")
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
