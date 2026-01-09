@@ -34,6 +34,9 @@ func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *
 		return nil, err
 	}
 	nodeVersion, err := GetNodesVersion(amazonLinux2023AMD64AmiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
 	return newManagedNodeGroup(e, name, cluster, nodeRole, nodeVersion, amazonLinux2023AMD64AmiType, e.DefaultInstanceType(), lt, opts...)
 
 }
