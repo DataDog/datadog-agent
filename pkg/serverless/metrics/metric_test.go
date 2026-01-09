@@ -87,7 +87,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	mockConfig.SetDefault("dogstatsd_port", listeners.RandomPortName)
 
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
