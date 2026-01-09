@@ -19,7 +19,7 @@ services:
   host-profiler:
     build:
       context: ../..
-      dockerfile: Dockerfiles/host-profiler/profiler/Dockerfile
+      dockerfile: tools/host-profiler/Dockerfile
       args:
         UID: ${UID}
         GID: ${GID}
@@ -37,8 +37,8 @@ services:
     secrets:
       - dd-api-key
       - dd-app-key
-    entrypoint: ['/app/Dockerfiles/host-profiler/profiler/entrypoint.sh']
-    command: ['/app/Dockerfiles/host-profiler/profiler/launch.sh']
+    entrypoint: ['/app/tools/host-profiler/entrypoint.sh']
+    command: ['/app/tools/host-profiler/launch.sh']
 
 volumes:
   agent-ipc:
