@@ -483,7 +483,6 @@ async fn run_rotation_loop(
                             rotation = rotation_count,
                             old_file = %current_output_path.display(),
                             new_file = %new_output_path.display(),
-                            old_file_bytes = file_size,
                             total_bytes = total_bytes,
                             "File rotation completed"
                         );

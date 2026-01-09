@@ -107,20 +107,24 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    fn sample_container(id: &str) -> SidecarContainer {
+        SidecarContainer {
+            container_id: id.to_string(),
+            pod_name: Some(format!("pod-{}", id)),
+            container_name: Some("main".to_string()),
+            namespace: Some("default".to_string()),
+            pod_uid: Some(format!("uid-{}", id)),
+            qos_class: "Burstable".to_string(),
+        }
+    }
+
     #[test]
     fn test_roundtrip() {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("test.containers");
 
         let original = ContainerSidecar::new(vec![
-            SidecarContainer {
-                container_id: "abc123def456".to_string(),
-                pod_name: Some("my-pod-abc123".to_string()),
-                container_name: Some("main".to_string()),
-                namespace: Some("default".to_string()),
-                pod_uid: Some("uid-123".to_string()),
-                qos_class: "Burstable".to_string(),
-            },
+            sample_container("abc123def456"),
             SidecarContainer {
                 container_id: "xyz789abc123".to_string(),
                 pod_name: None,
@@ -141,6 +145,18 @@ mod tests {
     }
 
     #[test]
+    fn test_roundtrip_empty() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("empty.containers");
+
+        let original = ContainerSidecar::new(vec![]);
+        original.write(&path).unwrap();
+        let loaded = ContainerSidecar::read(&path).unwrap();
+
+        assert_eq!(loaded.containers.len(), 0);
+    }
+
+    #[test]
     fn test_sidecar_path() {
         let parquet = Path::new("/data/metrics-20251230T120000Z.parquet");
         let sidecar = sidecar_path_for_parquet(parquet);
@@ -148,5 +164,61 @@ mod tests {
             sidecar,
             Path::new("/data/metrics-20251230T120000Z.containers")
         );
+    }
+
+    #[test]
+    fn test_unsupported_version() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("future.containers");
+
+        // Manually create a sidecar with a future version
+        let future_sidecar = ContainerSidecar {
+            version: ContainerSidecar::VERSION + 1,
+            containers: vec![sample_container("test123")],
+        };
+        let bytes = bincode::serialize(&future_sidecar).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+
+        // Reading should fail with version error
+        let result = ContainerSidecar::read(&path);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, SidecarError::UnsupportedVersion { .. }));
+    }
+
+    #[test]
+    fn test_corrupt_file() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("corrupt.containers");
+
+        // Write garbage data
+        std::fs::write(&path, b"not valid bincode data").unwrap();
+
+        let result = ContainerSidecar::read(&path);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), SidecarError::Bincode(_)));
+    }
+
+    #[test]
+    fn test_missing_file() {
+        let path = Path::new("/nonexistent/path/test.containers");
+        let result = ContainerSidecar::read(path);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), SidecarError::Io(_)));
+    }
+
+    #[test]
+    fn test_atomic_write() {
+        // Verify atomic write doesn't leave partial files on success
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("atomic.containers");
+        let tmp_path = path.with_extension("containers.tmp");
+
+        let sidecar = ContainerSidecar::new(vec![sample_container("test")]);
+        sidecar.write(&path).unwrap();
+
+        // Final file should exist, temp file should not
+        assert!(path.exists());
+        assert!(!tmp_path.exists());
     }
 }
