@@ -43,7 +43,9 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::fs::{self, File};
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -566,6 +568,30 @@ fn generate_value(metric: &str, seed: usize) -> f64 {
     }
 }
 
+/// Generate a deterministic 64-character hex container ID with unique prefix.
+/// Uses hashing to ensure the first 12 characters (short_id) are unique per container.
+fn generate_container_id(container_idx: usize, id_idx: usize, generation: usize) -> String {
+    // Hash the inputs to get well-distributed bits
+    let mut hasher = DefaultHasher::new();
+    container_idx.hash(&mut hasher);
+    id_idx.hash(&mut hasher);
+    generation.hash(&mut hasher);
+    let h1 = hasher.finish();
+
+    // Generate additional hashes for the full 64-char ID
+    hasher.write_u64(h1);
+    let h2 = hasher.finish();
+
+    hasher.write_u64(h2);
+    let h3 = hasher.finish();
+
+    hasher.write_u64(h3);
+    let h4 = hasher.finish();
+
+    // Combine into 64-character hex string (256 bits)
+    format!("{:016x}{:016x}{:016x}{:016x}", h1, h2, h3, h4)
+}
+
 /// Container metadata.
 struct Container {
     id: String,
@@ -580,9 +606,10 @@ struct Container {
 impl Container {
     /// Create container with unique ID based on identifier index, container index, and generation.
     fn new(container_idx: usize, id_idx: usize, generation: usize) -> Self {
-        // Create deterministic but unique container ID
+        // Create deterministic but unique container ID using hash-based approach
+        // This ensures each container has a unique 12-char prefix (short_id)
+        let id = generate_container_id(container_idx, id_idx, generation);
         let unique_seed = (id_idx * 10000) + (generation * 1000) + container_idx;
-        let id = format!("{:064x}", unique_seed as u128 * 0x123456789abcdef0u128);
 
         // Generate realistic K8s labels
         let app_name = format!("app-{}", container_idx);
