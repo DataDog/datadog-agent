@@ -155,7 +155,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 			}
 
 			// Only create or update if the TargetHash has not changed
-			if !checkTargetHash(npi, targetNp) {
+			if npi.TargetHash() != targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey] {
 				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
 				return autoscaling.NoRequeue
 			}
@@ -188,13 +188,6 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	}
 
 	return autoscaling.NoRequeue
-}
-
-func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
-	if targetNp == nil {
-		return false
-	}
-	return npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
 }
 
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {
