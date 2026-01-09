@@ -74,8 +74,8 @@ type RemediationAgentContext struct {
 // easyjson:json
 type RemediationEvent struct {
 	Date              string                      `json:"date"`
-	Process           RemediationProcessContext   `json:"process,omitempty"`
-	Container         RemediationContainerContext `json:"container,omitempty"`
+	Process           RemediationProcessContext   `json:"process_context,omitempty"`
+	Container         RemediationContainerContext `json:"container_context,omitempty"`
 	Agent             RemediationAgentContext     `json:"agent"`
 	EventType         string                      `json:"event_type"`
 	Service           string                      `json:"service"`
