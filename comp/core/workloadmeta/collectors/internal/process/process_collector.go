@@ -10,7 +10,9 @@ package process
 
 import (
 	"context"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -830,12 +833,49 @@ func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Proce
 	}
 }
 
+func normalizeNames(serviceName string, additionalNames []string, lang string) (string, []string) {
+	// NormalizeService returns the fallback service name ("unknown-service")
+	// for empty languages, without this check it would return
+	// "unnamed-unknown-service" for language.Unknown.
+	if lang == string(language.Unknown) {
+		lang = ""
+	}
+
+	serviceName, _ = normalize.NormalizeService(serviceName, lang)
+	additionalNames = normalizeAdditionalServiceNames(additionalNames)
+	return serviceName, additionalNames
+}
+
+func normalizeAdditionalServiceNames(names []string) []string {
+	if len(names) == 0 {
+		return names
+	}
+
+	out := make([]string, 0, len(names))
+	for _, v := range names {
+		if len(strings.TrimSpace(v)) == 0 {
+			continue
+		}
+
+		// lang is only used for fallback names, which we don't use since we
+		// check for errors.
+		norm, err := normalize.NormalizeService(v, "")
+		if err == nil {
+			out = append(out, norm)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	generatedName, additionalNames := normalizeNames(modelService.GeneratedName, modelService.AdditionalGeneratedNames, modelService.Language)
+
 	return &workloadmeta.Service{
-		GeneratedName:            modelService.GeneratedName,
+		GeneratedName:            generatedName,
 		GeneratedNameSource:      modelService.GeneratedNameSource,
-		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
+		AdditionalGeneratedNames: additionalNames,
 		TracerMetadata:           modelService.TracerMetadata,
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,

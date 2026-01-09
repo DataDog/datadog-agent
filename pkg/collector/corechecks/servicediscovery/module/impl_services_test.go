@@ -485,9 +485,8 @@ func TestServicesNodeDocker(t *testing.T) {
 		svc := findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 
-		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, svc.PID, pid)
-		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
+		assert.Equal(collect, "test@nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
 		assert.Equal(collect, false, svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
