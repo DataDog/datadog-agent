@@ -1045,7 +1045,8 @@ def extract_includes(include_list):
         if isinstance(include, str):
             yield include
         elif isinstance(include, dict) and 'local' in include:
-            yield from glob.glob(include['local'], recursive=True)
+            # Ugly hack to adapt Gitlab wildcards to glob.glob syntax
+            yield from glob.glob(include['local'].replace('**', '**/*'), recursive=True)
         else:
             raise ValueError(
                 f"Invalid include: {include}. We only support strings and dicts with a 'local' key for now."
