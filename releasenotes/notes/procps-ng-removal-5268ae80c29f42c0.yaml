@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 other:
-  - Remove procps-ng and the associated tools from the agent packages.
+  - Remove procps-ng and associated tools from Agent packages.
