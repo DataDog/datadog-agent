@@ -476,6 +476,103 @@ func TestFindDeviceByIndex(t *testing.T) {
 
 }
 
+func TestMatchByGPUDeviceIDs(t *testing.T) {
+	// Setup mock NVML with basic devices
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	// Get test devices
+	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+
+	t.Run("SingleUUID", func(t *testing.T) {
+		gpuDeviceIDs := []string{testutil.GPUUUIDs[1]}
+		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("MultipleUUIDs", func(t *testing.T) {
+		gpuDeviceIDs := []string{testutil.GPUUUIDs[2], testutil.GPUUUIDs[0]}
+		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2)
+		// Order preserved from input (matches CUDA device selection order)
+		assert.Equal(t, devices[2], filteredDevices[0])
+		assert.Equal(t, devices[0], filteredDevices[1])
+	})
+
+	t.Run("InvalidUUID", func(t *testing.T) {
+		gpuDeviceIDs := []string{"GPU-invalid-uuid"}
+		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
+		require.Error(t, err)
+		require.Len(t, filteredDevices, 0)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
+	})
+
+	t.Run("MixedValidAndInvalid", func(t *testing.T) {
+		gpuDeviceIDs := []string{testutil.GPUUUIDs[1], "GPU-invalid", testutil.GPUUUIDs[0]}
+		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
+		require.Error(t, err) // Error for invalid UUID
+		require.Len(t, filteredDevices, 2)
+		// Order preserved from input (matches CUDA device selection order), invalid skipped
+		assert.Equal(t, devices[1], filteredDevices[0])
+		assert.Equal(t, devices[0], filteredDevices[1])
+	})
+
+	t.Run("EmptyList", func(t *testing.T) {
+		gpuDeviceIDs := []string{}
+		filteredDevices, err := matchByGPUDeviceIDs(gpuDeviceIDs, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 0)
+	})
+}
+
+func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
+	// Setup mock NVML with basic devices
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	// Get test devices
+	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+
+	t.Run("ContainerWithGPUDeviceIDsUUID", func(t *testing.T) {
+		// Simulates ECS GPU container with UUID in GPUDeviceIDs
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-ecs-container",
+			},
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[1]},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
+		// GPUDeviceIDs should be used even if ResolvedAllocatedResources is set
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-precedence-container",
+			},
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // Should use this
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // Should NOT use this
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0]) // Should be device 0, not device 2
+	})
+}
+
 func TestMatchContainerDevicesWithErrors(t *testing.T) {
 	// Setup mock NVML with basic devices
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
