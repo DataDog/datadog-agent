@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hosthardware exposes the interface for the component to generate the 'host_hardware' metadata payload for inventory.
-package hosthardware
+// Package hostsysteminfo exposes the interface for the component to generate the 'host_system_info' metadata payload for inventory.
+package hostsysteminfo
 
 // team: windows-products
 

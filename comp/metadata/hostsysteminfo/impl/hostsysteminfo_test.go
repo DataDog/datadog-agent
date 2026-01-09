@@ -5,7 +5,7 @@
 
 //go:build test
 
-package hosthardwareimpl
+package hostsysteminfoimpl
 
 import (
 	"encoding/json"
@@ -22,8 +22,8 @@ import (
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
-// getTestHostHardware creates a test hosthardware instance with mocked dependencies
-func getTestHostHardware(t *testing.T, overrides map[string]any) *hostHardware {
+// getTestHostSystemInfo creates a test hostsysteminfoimpl instance with mocked dependencies
+func getTestHostSystemInfo(t *testing.T, overrides map[string]any) *hostSystemInfo {
 
 	if overrides == nil {
 		overrides = map[string]any{
@@ -31,7 +31,7 @@ func getTestHostHardware(t *testing.T, overrides map[string]any) *hostHardware {
 		}
 	}
 
-	p := NewHardwareHostProvider(Requires{
+	p := NewSystemInfoProvider(Requires{
 		Log:        logmock.New(t),
 		Config:     config.NewMockWithOverrides(t, overrides),
 		Serializer: serializermock.NewMetricSerializer(t),
@@ -39,12 +39,12 @@ func getTestHostHardware(t *testing.T, overrides map[string]any) *hostHardware {
 		IPCClient:  ipcmock.New(t).GetClient(),
 	})
 
-	return p.Comp.(*hostHardware)
+	return p.Comp.(*hostSystemInfo)
 }
 
-func TestNewHardwareHostProvider_EndUserDeviceMode(t *testing.T) {
+func TestNewSystemInfoProvider_EndUserDeviceMode(t *testing.T) {
 
-	hh := getTestHostHardware(t, nil)
+	hh := getTestHostSystemInfo(t, nil)
 	// Should be enabled for end_user_device mode
 	assert.True(t, hh.InventoryPayload.Enabled, "Should be enabled in end_user_device mode")
 	assert.NotNil(t, hh.MetadataProvider, "Provider should not be nil when enabled")
@@ -54,35 +54,35 @@ func TestNewHardwareHostProvider_EndUserDeviceMode(t *testing.T) {
 	assert.Equal(t, 1*time.Hour, hh.InventoryPayload.MaxInterval, "MaxInterval should be 1 hour")
 
 	// Check flare filename
-	assert.Equal(t, "hosthardware.json", hh.FlareFileName, "Flare filename should match")
+	assert.Equal(t, "hostsysteminfo.json", hh.FlareFileName, "Flare filename should match")
 }
 
-func TestNewHardwareHostProvider_FullMode(t *testing.T) {
+func TestNewSystemInfoProvider_FullMode(t *testing.T) {
 	// Test with full mode (default) - should be disabled
 	overrides := map[string]any{
 		"infrastructure_mode": "full",
 	}
 
-	hh := getTestHostHardware(t, overrides)
+	hh := getTestHostSystemInfo(t, overrides)
 
 	// Should be disabled for full mode
 	assert.False(t, hh.InventoryPayload.Enabled, "Should be disabled in full mode")
 }
 
-func TestNewHardwareHostProvider_BasicMode(t *testing.T) {
+func TestNewSystemInfoProvider_BasicMode(t *testing.T) {
 	// Test with basic mode - should be disabled
 	overrides := map[string]any{
 		"infrastructure_mode": "basic",
 	}
 
-	hh := getTestHostHardware(t, overrides)
+	hh := getTestHostSystemInfo(t, overrides)
 
 	// Should be disabled for basic mode
 	assert.False(t, hh.InventoryPayload.Enabled, "Should be disabled in basic mode")
 }
 
 func TestGetPayload(t *testing.T) {
-	hh := getTestHostHardware(t, nil)
+	hh := getTestHostSystemInfo(t, nil)
 
 	// Mock the hostname
 	hh.hostname = "test-hostname"
@@ -105,7 +105,7 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, p.Metadata, "Metadata should not be nil")
 
 	// Verify metadata structure exists (values will depend on the system)
-	assert.NotNil(t, p.Metadata, "Host hardware metadata should not be nil")
+	assert.NotNil(t, p.Metadata, "Host system info metadata should not be nil")
 }
 
 func TestPayloadMarshalJSON(t *testing.T) {
@@ -113,11 +113,11 @@ func TestPayloadMarshalJSON(t *testing.T) {
 		Hostname:  "test-host",
 		Timestamp: time.Now().UnixNano(),
 		UUID:      "test-uuid-12345",
-		Metadata: &hostHardwareMetadata{
+		Metadata: &hostSystemInfoMetadata{
 			Manufacturer: "Lenovo",
 			ModelNumber:  "Thinkpad T14s",
 			SerialNumber: "ABC123XYZ",
-			Name:         "Thinkpad",
+			ModelName:    "Thinkpad",
 			ChassisType:  "Laptop",
 			Identifier:   "SKU123",
 		},
@@ -136,20 +136,20 @@ func TestPayloadMarshalJSON(t *testing.T) {
 	assert.Equal(t, "test-host", result["hostname"])
 	assert.Equal(t, "test-uuid-12345", result["uuid"])
 	assert.NotNil(t, result["timestamp"])
-	assert.NotNil(t, result["host_hardware_metadata"])
+	assert.NotNil(t, result["host_system_info_metadata"])
 
 	// Verify metadata fields
-	metadata := result["host_hardware_metadata"].(map[string]interface{})
+	metadata := result["host_system_info_metadata"].(map[string]interface{})
 	assert.Equal(t, "Lenovo", metadata["manufacturer"])
 	assert.Equal(t, "Thinkpad T14s", metadata["model_number"])
 	assert.Equal(t, "ABC123XYZ", metadata["serial_number"])
-	assert.Equal(t, "Thinkpad", metadata["name"])
+	assert.Equal(t, "Thinkpad", metadata["model_name"])
 	assert.Equal(t, "Laptop", metadata["chassis_type"])
 	assert.Equal(t, "SKU123", metadata["identifier"])
 }
 
 func TestFillData(t *testing.T) {
-	hh := getTestHostHardware(t, nil)
+	hh := getTestHostSystemInfo(t, nil)
 
 	// Call fillData
 	hh.fillData()
@@ -159,22 +159,22 @@ func TestFillData(t *testing.T) {
 
 	// Note: The actual values depend on the system where tests run
 	// We can only verify the structure is populated
-	t.Logf("Collected Hardware Info:")
+	t.Logf("Collected System Info:")
 	t.Logf("  Manufacturer: %s", hh.data.Manufacturer)
 	t.Logf("  Model Number: %s", hh.data.ModelNumber)
 	t.Logf("  Serial Number: %s", hh.data.SerialNumber)
-	t.Logf("  Name: %s", hh.data.Name)
+	t.Logf("  Model Name: %s", hh.data.ModelName)
 	t.Logf("  Chassis Type: %s", hh.data.ChassisType)
 	t.Logf("  Identifier: %s", hh.data.Identifier)
 }
 
 func TestPayloadStructure(t *testing.T) {
 	// Test that the payload structure matches expected JSON format
-	metadata := &hostHardwareMetadata{
+	metadata := &hostSystemInfoMetadata{
 		Manufacturer: "Test Manufacturer",
 		ModelNumber:  "Test Model",
 		SerialNumber: "TEST123",
-		Name:         "Test Name",
+		ModelName:    "Test Name",
 		ChassisType:  "Desktop",
 		Identifier:   "ID123",
 	}
@@ -196,18 +196,18 @@ func TestPayloadStructure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all expected keys exist
-	expectedKeys := []string{"hostname", "timestamp", "host_hardware_metadata", "uuid"}
+	expectedKeys := []string{"hostname", "timestamp", "host_system_info_metadata", "uuid"}
 	for _, key := range expectedKeys {
 		assert.Contains(t, result, key, "JSON should contain key: %s", key)
 	}
 
 	// Verify metadata keys
-	metadataMap := result["host_hardware_metadata"].(map[string]interface{})
+	metadataMap := result["host_system_info_metadata"].(map[string]interface{})
 	expectedMetadataKeys := []string{
 		"manufacturer",
 		"model_number",
 		"serial_number",
-		"name",
+		"model_name",
 		"chassis_type",
 		"identifier",
 	}

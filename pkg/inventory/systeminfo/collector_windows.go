@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package hardware
+package systeminfo
 
 import (
 	"strings"
@@ -13,41 +13,41 @@ import (
 	"github.com/yusufpapurcu/wmi"
 )
 
-// Win32_ComputerSystem WMI class
-type Win32_ComputerSystem struct {
+// Win32ComputerSystem WMI class
+type Win32ComputerSystem struct {
 	Manufacturer    string
 	Model           string
 	SystemFamily    string
 	SystemSKUNumber string
 }
 
-// Win32_BIOS WMI class
-type Win32_BIOS struct {
+// Win32BIOS WMI class
+type Win32BIOS struct {
 	SerialNumber string
 }
 
-// Win32_SystemEnclosure WMI class
-type Win32_SystemEnclosure struct {
+// Win32SystemEnclosure WMI class
+type Win32SystemEnclosure struct {
 	ChassisTypes []int32
 }
 
-func collect() (*SystemHardwareInfo, error) {
+func collect() (*SystemInfo, error) {
 	// Query Win32_ComputerSystem for manufacturer and model
-	var systemInfo SystemHardwareInfo
-	var cs []Win32_ComputerSystem
+	var systemInfo SystemInfo
+	var cs []Win32ComputerSystem
 	if err := wmi.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
 		systemInfo.Manufacturer = cs[0].Manufacturer
 		systemInfo.ModelNumber = cs[0].Model
-		systemInfo.Name = cs[0].SystemFamily
+		systemInfo.ModelName = cs[0].SystemFamily
 		systemInfo.Identifier = cs[0].SystemSKUNumber
 	}
 
-	var bios []Win32_BIOS
+	var bios []Win32BIOS
 	if err := wmi.Query("SELECT SerialNumber FROM Win32_BIOS", &bios); err == nil && len(bios) > 0 {
 		systemInfo.SerialNumber = bios[0].SerialNumber
 	}
 
-	var enclosure []Win32_SystemEnclosure
+	var enclosure []Win32SystemEnclosure
 	if err := wmi.Query("SELECT ChassisTypes FROM Win32_SystemEnclosure", &enclosure); err == nil && len(enclosure) > 0 {
 		if len(enclosure[0].ChassisTypes) > 0 {
 			// Convert int32 to uint16 for compatibility with DMTF spec
@@ -73,6 +73,7 @@ func getChassisTypeName(chassisType uint16, model string, manufacturer string) s
 	}
 
 	// Categorize into broader types for monitoring purposes
+	// see https://powershell.one/wmi/root/cimv2/win32_systemenclosure#examples
 	switch chassisType {
 	case 3, 4, 5, 6, 7, 13, 15, 16, 24: // Desktop variants
 		return "Desktop"

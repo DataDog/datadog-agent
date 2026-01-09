@@ -366,13 +366,13 @@ This command print the security-agent metadata payload. This payload is used by 
 	}
 
 	payloadHardwareCmd := &cobra.Command{
-		Use:   "host-hardware",
-		Short: "[internal] Print the hardware metadata payload.",
+		Use:   "host-system-info",
+		Short: "[internal] Print the host system info metadata payload.",
 		Long: `
-This command print the hardware metadata payload. This payload is used by the 'hardware' product.`,
+This command print the host system info metadata payload.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("host-hardware")),
+				fx.Supply(payloadName("host-system-info")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),

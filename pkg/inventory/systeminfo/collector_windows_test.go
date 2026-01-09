@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package hardware
+package systeminfo
 
 import (
 	"testing"
@@ -137,11 +137,11 @@ func TestCollect_Integration(t *testing.T) {
 
 	// We should get at least some basic information
 	// Note: These assertions are lenient because not all systems provide all fields
-	t.Logf("Collected Hardware Info:")
+	t.Logf("Collected System Info:")
 	t.Logf("  Manufacturer: %s", result.Manufacturer)
 	t.Logf("  Model Number: %s", result.ModelNumber)
 	t.Logf("  Serial Number: %s", result.SerialNumber)
-	t.Logf("  Name: %s", result.Name)
+	t.Logf("  Model Name: %s", result.ModelName)
 	t.Logf("  Chassis Type: %s", result.ChassisType)
 	t.Logf("  Identifier: %s", result.Identifier)
 

@@ -5,8 +5,8 @@
 
 //go:build !windows
 
-package hardware
+package systeminfo
 
-func collect() (*SystemHardwareInfo, error) {
+func collect() (*SystemInfo, error) {
 	return nil, nil
 }

@@ -3,16 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fx module for the hostgpu metadata component
+// Package fx provides the fx module for the host system info metadata component
 package fx
 
 import (
-	hosthardwareimpl "github.com/DataDog/datadog-agent/comp/metadata/hosthardware/impl"
+	hostsysteminfoimpl "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(hosthardwareimpl.NewHardwareHostProvider))
+		fxutil.ProvideComponentConstructor(hostsysteminfoimpl.NewSystemInfoProvider))
 }

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hosthardwareimpl implements a component to generate the 'host_hardware' metadata payload for inventory.
-package hosthardwareimpl
+// Package hostsysteminfoimpl implements a component to generate the 'host_system_info' metadata payload for inventory.
+package hostsysteminfoimpl
 
 import (
 	"context"
@@ -18,41 +18,41 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	hosthardware "github.com/DataDog/datadog-agent/comp/metadata/hosthardware/def"
+	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/inventory/hardware"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
-const flareFileName = "hosthardware.json"
+const flareFileName = "hostsysteminfo.json"
 
-type hostHardwareMetadata struct {
+type hostSystemInfoMetadata struct {
 	Manufacturer string `json:"manufacturer"`
 	ModelNumber  string `json:"model_number"`
 	SerialNumber string `json:"serial_number"`
-	Name         string `json:"name"`
+	ModelName    string `json:"model_name"`
 	ChassisType  string `json:"chassis_type"`
 	Identifier   string `json:"identifier"`
 }
 
-type hostHardware struct {
+type hostSystemInfo struct {
 	util.InventoryPayload
 
 	log      log.Component
 	conf     config.Component
 	hostname string
-	data     *hostHardwareMetadata
+	data     *hostSystemInfoMetadata
 }
 
 type Payload struct {
-	Hostname  string                `json:"hostname"`
-	Timestamp int64                 `json:"timestamp"`
-	Metadata  *hostHardwareMetadata `json:"host_hardware_metadata"`
-	UUID      string                `json:"uuid"`
+	Hostname  string                  `json:"hostname"`
+	Timestamp int64                   `json:"timestamp"`
+	Metadata  *hostSystemInfoMetadata `json:"host_system_info_metadata"`
+	UUID      string                  `json:"uuid"`
 }
 
 func (p *Payload) MarshalJSON() ([]byte, error) {
@@ -69,28 +69,28 @@ type Requires struct {
 }
 
 type Provides struct {
-	Comp          hosthardware.Component
+	Comp          hostsysteminfo.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-func NewHardwareHostProvider(deps Requires) Provides {
+func NewSystemInfoProvider(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
-	hh := &hostHardware{
+	hh := &hostSystemInfo{
 		log:      deps.Log,
 		conf:     deps.Config,
 		hostname: hname,
-		data:     &hostHardwareMetadata{},
+		data:     &hostSystemInfoMetadata{},
 	}
-	hh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, hh.getPayload, "hosthardware.json")
+	hh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, hh.getPayload, flareFileName)
 
-	// Override default intervals for hardware metadata
-	// Hardware info changes infrequently, so check less often
+	// Override default intervals for system info metadata
+	// System info changes infrequently, so check less often
 	hh.InventoryPayload.MinInterval = 10 * time.Minute // Check every 10 minutes
 	hh.InventoryPayload.MaxInterval = 1 * time.Hour    // Send every 1 hour
 
-	// Only enable hardware metadata collection for end user device infrastructure mode
+	// Only enable system info metadata collection for end user device infrastructure mode
 	infraMode := deps.Config.GetString("infrastructure_mode")
 	isEndUserDevice := infraMode == "end_user_device"
 	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice
@@ -98,38 +98,38 @@ func NewHardwareHostProvider(deps Requires) Provides {
 	var provider runnerimpl.Provider
 	if hh.InventoryPayload.Enabled {
 		provider = hh.MetadataProvider()
-		deps.Log.Info("Hardware metadata collection enabled for end user device mode")
+		deps.Log.Info("System info metadata collection enabled for end user device mode")
 	} else {
-		deps.Log.Debugf("Hardware metadata collection disabled: infrastructure_mode is '%s' (requires 'end_user_device')", infraMode)
+		deps.Log.Debugf("System info metadata collection disabled: infrastructure_mode is '%s' (requires 'end_user_device')", infraMode)
 	}
 
 	return Provides{
 		Comp:          hh,
 		Provider:      provider,
 		FlareProvider: hh.FlareProvider(),
-		Endpoint:      api.NewAgentEndpointProvider(hh.writePayloadAsJSON, "/metadata/host-hardware", "GET"),
+		Endpoint:      api.NewAgentEndpointProvider(hh.writePayloadAsJSON, "/metadata/host-system-info", "GET"),
 	}
 }
 
-func (hh *hostHardware) fillData() error {
-	hardwareInfo, err := hardware.Collect()
+func (hh *hostSystemInfo) fillData() error {
+	sysInfo, err := systeminfo.Collect()
 	if err != nil {
-		hh.log.Errorf("Failed to collect hardware information: %v", err)
-		hh.data = &hostHardwareMetadata{}
+		hh.log.Errorf("Failed to collect system information: %v", err)
+		hh.data = &hostSystemInfoMetadata{}
 		return err
 	}
 
-	hh.data.Manufacturer = hardwareInfo.Manufacturer
-	hh.data.ModelNumber = hardwareInfo.ModelNumber
-	hh.data.SerialNumber = hardwareInfo.SerialNumber
-	hh.data.Name = hardwareInfo.Name
-	hh.data.ChassisType = hardwareInfo.ChassisType
-	hh.data.Identifier = hardwareInfo.Identifier
+	hh.data.Manufacturer = sysInfo.Manufacturer
+	hh.data.ModelNumber = sysInfo.ModelNumber
+	hh.data.SerialNumber = sysInfo.SerialNumber
+	hh.data.ModelName = sysInfo.ModelName
+	hh.data.ChassisType = sysInfo.ChassisType
+	hh.data.Identifier = sysInfo.Identifier
 
 	return nil
 }
 
-func (hh *hostHardware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (hh *hostSystemInfo) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON calls getPayload which already scrub the data
 	scrubbed, err := hh.GetAsJSON()
 	if err != nil {
@@ -139,10 +139,10 @@ func (hh *hostHardware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Reques
 	w.Write(scrubbed)
 }
 
-func (hh *hostHardware) getPayload() marshaler.JSONMarshaler {
-	// Try to collect hardware data
+func (hh *hostSystemInfo) getPayload() marshaler.JSONMarshaler {
+	// Try to collect system info data
 	if err := hh.fillData(); err != nil {
-		hh.log.Debugf("Skipping hardware metadata payload due to collection failure: %v", err)
+		hh.log.Debugf("Skipping system info metadata payload due to collection failure: %v", err)
 		return nil
 	}
 
