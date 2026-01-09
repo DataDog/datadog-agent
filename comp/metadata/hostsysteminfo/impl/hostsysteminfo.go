@@ -87,8 +87,8 @@ func NewSystemInfoProvider(deps Requires) Provides {
 
 	// Override default intervals for system info metadata
 	// System info changes infrequently, so check less often
-	hh.InventoryPayload.MinInterval = 10 * time.Minute // Check every 10 minutes
-	hh.InventoryPayload.MaxInterval = 1 * time.Hour    // Send every 1 hour
+	hh.InventoryPayload.MinInterval = 1 * time.Hour
+	hh.InventoryPayload.MaxInterval = 1 * time.Hour
 
 	// Only enable system info metadata collection for end user device infrastructure mode
 	infraMode := deps.Config.GetString("infrastructure_mode")

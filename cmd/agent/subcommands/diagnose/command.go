@@ -365,7 +365,7 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
-	payloadHardwareCmd := &cobra.Command{
+	payloadHostSystemInfoCmd := &cobra.Command{
 		Use:   "host-system-info",
 		Short: "[internal] Print the host system info metadata payload.",
 		Long: `
@@ -394,7 +394,7 @@ This command print the host system info metadata payload.`,
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
-	showPayloadCommand.AddCommand(payloadHardwareCmd)
+	showPayloadCommand.AddCommand(payloadHostSystemInfoCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
