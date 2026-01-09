@@ -352,8 +352,8 @@ var (
 	allowedConfigFiles = []configFileSpec{
 		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
-		{pattern: "/security-agent.yaml", owner: "root", group: "root", mode: 0640},
-		{pattern: "/system-probe.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "dd-agent", mode: 0640},
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
