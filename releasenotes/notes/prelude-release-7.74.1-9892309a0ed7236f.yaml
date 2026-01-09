@@ -1,0 +1,5 @@
+prelude:
+    |
+    Release on: 2026-01-12
+
+    - Please refer to the `7.74.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7741>`_ for the list of changes on the Core Checks
