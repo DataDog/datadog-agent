@@ -75,8 +75,8 @@ pkg_files(
     name = "openssl_fips_provider",
     srcs = [":fips_provider"],
     prefix = select({
-        "@platforms//os:windows": "embedded3/lib/ossl-modules",
-        "//conditions:default": "embedded/lib/ossl-modules",
+        "@platforms//os:windows": "lib/ossl-modules",
+        "//conditions:default": "lib/ossl-modules",
     }),
     attributes = pkg_attributes(
         mode = "0644",
@@ -99,7 +99,7 @@ pkg_files(
 pkg_files(
     name = "openssl_cnf_tmp",
     srcs = ["openssl.cnf.tmp"],
-    prefix = "embedded/ssl",
+    prefix = "ssl",
     attributes = pkg_attributes(
         mode = "0644",
     ),
