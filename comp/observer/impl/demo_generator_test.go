@@ -87,22 +87,30 @@ func TestGenerator_EmitsMetricsAtScaledInterval(t *testing.T) {
 	metrics := handle.getMetrics()
 
 	// At 0.01 TimeScale, tick interval is 10ms
-	// In 50ms, we should get about 5 ticks, each producing 2 metrics
-	// Allow some flexibility due to timing
+	// In 50ms, we should get about 5 ticks, each producing 5 incident metrics + 4 background metrics
 	assert.GreaterOrEqual(t, len(metrics), 4, "expected at least 2 ticks worth of metrics")
 
-	// Verify we get both metric types
-	var hasRetransmits, hasLockContention bool
+	// Verify we get all incident metrics
+	var hasHeap, hasGC, hasLatency, hasErrorRate, hasCPU bool
 	for _, m := range metrics {
-		if m.name == "network.retransmits" {
-			hasRetransmits = true
-		}
-		if m.name == "ebpf.lock_contention_ns" {
-			hasLockContention = true
+		switch m.name {
+		case "runtime.heap.used_mb":
+			hasHeap = true
+		case "runtime.gc.pause_ms":
+			hasGC = true
+		case "app.request.latency_p99_ms":
+			hasLatency = true
+		case "app.request.error_rate":
+			hasErrorRate = true
+		case "system.cpu.user_percent":
+			hasCPU = true
 		}
 	}
-	assert.True(t, hasRetransmits, "expected network.retransmits metric")
-	assert.True(t, hasLockContention, "expected ebpf.lock_contention_ns metric")
+	assert.True(t, hasHeap, "expected runtime.heap.used_mb metric")
+	assert.True(t, hasGC, "expected runtime.gc.pause_ms metric")
+	assert.True(t, hasLatency, "expected app.request.latency_p99_ms metric")
+	assert.True(t, hasErrorRate, "expected app.request.error_rate metric")
+	assert.True(t, hasCPU, "expected system.cpu.user_percent metric")
 }
 
 func TestGenerator_BaselinePhaseValues(t *testing.T) {
@@ -126,10 +134,16 @@ func TestGenerator_BaselinePhaseValues(t *testing.T) {
 
 	for _, m := range metrics {
 		switch m.name {
-		case "network.retransmits":
-			assert.Equal(t, 5.0, m.value, "baseline retransmits should be 5")
-		case "ebpf.lock_contention_ns":
-			assert.Equal(t, 1000.0, m.value, "baseline lock_contention should be 1000")
+		case "runtime.heap.used_mb":
+			assert.Equal(t, 512.0, m.value, "baseline heap should be 512 MB")
+		case "runtime.gc.pause_ms":
+			assert.Equal(t, 15.0, m.value, "baseline GC pause should be 15 ms")
+		case "app.request.latency_p99_ms":
+			assert.Equal(t, 45.0, m.value, "baseline latency should be 45 ms")
+		case "app.request.error_rate":
+			assert.Equal(t, 0.1, m.value, "baseline error rate should be 0.1%")
+		case "system.cpu.user_percent":
+			assert.Equal(t, 35.0, m.value, "baseline CPU should be 35%")
 		}
 	}
 }
@@ -154,24 +168,29 @@ func TestGenerator_IncidentPhaseElevatedValues(t *testing.T) {
 	require.NotEmpty(t, metrics)
 
 	// Look at recent metrics (should be from incident peak phase)
-	var foundElevatedRetransmits, foundElevatedLockContention bool
+	var foundElevatedHeap, foundElevatedGC, foundElevatedLatency bool
 	for _, m := range metrics[len(metrics)/2:] { // Check latter half
 		switch m.name {
-		case "network.retransmits":
-			if m.value >= 45 { // Peak is 50, but we might catch some ramp
-				foundElevatedRetransmits = true
+		case "runtime.heap.used_mb":
+			if m.value >= 850 { // Peak is 900
+				foundElevatedHeap = true
 			}
-		case "ebpf.lock_contention_ns":
-			if m.value >= 9000 { // Peak is 10000, but we might catch some ramp
-				foundElevatedLockContention = true
+		case "runtime.gc.pause_ms":
+			if m.value >= 130 { // Peak is 150
+				foundElevatedGC = true
+			}
+		case "app.request.latency_p99_ms":
+			if m.value >= 450 { // Peak is 500
+				foundElevatedLatency = true
 			}
 		}
 	}
-	assert.True(t, foundElevatedRetransmits, "expected elevated retransmits during incident")
-	assert.True(t, foundElevatedLockContention, "expected elevated lock_contention during incident")
+	assert.True(t, foundElevatedHeap, "expected elevated heap during incident")
+	assert.True(t, foundElevatedGC, "expected elevated GC pause during incident")
+	assert.True(t, foundElevatedLatency, "expected elevated latency during incident")
 }
 
-func TestGenerator_LogsContainConnectionErrorPatterns(t *testing.T) {
+func TestGenerator_LogsContainErrorPatterns(t *testing.T) {
 	handle := &mockHandle{}
 	config := GeneratorConfig{
 		TimeScale:     0.01, // 100x faster
@@ -190,10 +209,16 @@ func TestGenerator_LogsContainConnectionErrorPatterns(t *testing.T) {
 	logs := handle.getLogs()
 	require.NotEmpty(t, logs, "expected some logs to be generated")
 
-	// Verify logs contain connection error pattern
+	// Verify logs contain one of the valid error messages
 	for _, log := range logs {
-		assert.True(t, strings.Contains(strings.ToLower(log.content), "connection refused"),
-			"log should contain 'connection refused' for ConnectionErrorExtractor")
+		found := false
+		for _, validMsg := range errorLogMessages {
+			if strings.Contains(log.content, validMsg) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "log should contain one of the known error messages, got: %s", log.content)
 	}
 }
 
@@ -260,25 +285,25 @@ func TestGenerator_NoiseApplication(t *testing.T) {
 
 	metrics := handle.getMetrics()
 
-	// Collect retransmit values
-	var retransmitValues []float64
+	// Collect GC pause values (baseline 15ms with 50% noise = [7.5, 22.5])
+	var gcValues []float64
 	for _, m := range metrics {
-		if m.name == "network.retransmits" {
-			retransmitValues = append(retransmitValues, m.value)
+		if m.name == "runtime.gc.pause_ms" {
+			gcValues = append(gcValues, m.value)
 		}
 	}
 
-	require.GreaterOrEqual(t, len(retransmitValues), 2, "need at least 2 values to check variation")
+	require.GreaterOrEqual(t, len(gcValues), 2, "need at least 2 values to check variation")
 
-	// With 50% noise around baseline of 5, values should be in range [2.5, 7.5]
-	for _, v := range retransmitValues {
-		assert.GreaterOrEqual(t, v, 2.5, "value should be within noise range")
-		assert.LessOrEqual(t, v, 7.5, "value should be within noise range")
+	// With 50% noise around baseline of 15, values should be in range [7.5, 22.5]
+	for _, v := range gcValues {
+		assert.GreaterOrEqual(t, v, 7.5, "value should be within noise range")
+		assert.LessOrEqual(t, v, 22.5, "value should be within noise range")
 	}
 }
 
-func TestGenerator_PhaseTransitions(t *testing.T) {
-	// Test getPhaseValue directly for precise control
+func TestGenerator_PhaseTransitionsWithDelay(t *testing.T) {
+	// Test getPhaseValueWithDelay directly for precise control
 	gen := &DataGenerator{
 		config: GeneratorConfig{
 			TimeScale:     1.0,
@@ -286,29 +311,43 @@ func TestGenerator_PhaseTransitions(t *testing.T) {
 		},
 	}
 
-	// New timeline: baseline 0-25s, ramp 25-30s, peak 30-45s, recovery 45-50s, post 50-70s
+	// Test with no delay: baseline 0-25s, ramp 25-30s, peak 30-45s, recovery 45-50s
 	tests := []struct {
 		elapsed  float64
 		baseline float64
 		peak     float64
+		delay    float64
 		expected float64
 		phase    string
 	}{
-		{0, 5, 50, 5, "baseline start"},
-		{24, 5, 50, 5, "baseline end"},
-		{25, 5, 50, 5, "ramp start"},
-		{27.5, 5, 50, 27.5, "ramp middle"},
-		{30, 5, 50, 50, "ramp end"},
-		{37, 5, 50, 50, "peak"},
-		{45, 5, 50, 50, "recovery start"},
-		{47.5, 5, 50, 27.5, "recovery middle"},
-		{50, 5, 50, 5, "recovery end"},
-		{60, 5, 50, 5, "post-incident"},
+		// GC (no delay)
+		{0, 15, 150, 0, 15, "gc baseline start"},
+		{24, 15, 150, 0, 15, "gc baseline end"},
+		{25, 15, 150, 0, 15, "gc ramp start"},
+		{27.5, 15, 150, 0, 82.5, "gc ramp middle"},
+		{30, 15, 150, 0, 150, "gc ramp end"},
+		{37, 15, 150, 0, 150, "gc peak"},
+		{45, 15, 150, 0, 150, "gc recovery start"},
+		{47.5, 15, 150, 0, 82.5, "gc recovery middle"},
+		{50, 15, 150, 0, 15, "gc recovery end"},
+		{60, 15, 150, 0, 15, "gc post-incident"},
+
+		// Latency (1s delay)
+		{25, 45, 500, 1, 45, "latency still baseline at t=25 due to 1s delay"},
+		{26, 45, 500, 1, 45, "latency ramp start at t=26"},
+		{28.5, 45, 500, 1, 272.5, "latency ramp middle"},
+		{31, 45, 500, 1, 500, "latency reaches peak at t=31"},
+
+		// Error rate (2s delay)
+		{26, 0.1, 8.0, 2, 0.1, "errors still baseline at t=26 due to 2s delay"},
+		{27, 0.1, 8.0, 2, 0.1, "errors ramp start at t=27"},
+		{29.5, 0.1, 8.0, 2, 4.05, "errors ramp middle"},
+		{32, 0.1, 8.0, 2, 8.0, "errors reaches peak at t=32"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.phase, func(t *testing.T) {
-			result := gen.getPhaseValue(tt.elapsed, tt.baseline, tt.peak)
+			result := gen.getPhaseValueWithDelay(tt.elapsed, tt.baseline, tt.peak, tt.delay)
 			assert.Equal(t, tt.expected, result, "unexpected value for phase: %s", tt.phase)
 		})
 	}
@@ -317,7 +356,6 @@ func TestGenerator_PhaseTransitions(t *testing.T) {
 func TestGenerator_LogIntervalByPhase(t *testing.T) {
 	gen := &DataGenerator{}
 
-	// New timeline: baseline 0-25s, ramp 25-30s, peak 30-45s, recovery 45-50s, post 50-70s
 	tests := []struct {
 		elapsed  float64
 		expected time.Duration
@@ -345,21 +383,23 @@ func TestGenerator_NonCorrelatedSpikes(t *testing.T) {
 		BaselineNoise: 0.0,
 	})
 
-	// Test retransmit spike at 10-12s (triangle wave peaking at 11s)
-	assert.Equal(t, 5.0, gen.getRetransmitValue(9), "before spike should be baseline")
-	assert.Greater(t, gen.getRetransmitValue(11), 25.0, "spike midpoint should be elevated")
-	assert.Equal(t, 5.0, gen.getRetransmitValue(13), "after spike should return to baseline")
+	// Test GC spike at 10-12s (triangle wave peaking at 11s)
+	assert.Equal(t, 15.0, gen.getGCPauseValue(9), "before spike should be baseline")
+	assert.Greater(t, gen.getGCPauseValue(11), 50.0, "spike midpoint should be elevated")
+	assert.Equal(t, 15.0, gen.getGCPauseValue(13), "after spike should return to baseline")
 
-	// During retransmit spike, lock contention should stay at baseline
-	assert.Equal(t, 1000.0, gen.getLockContentionValue(11), "lock contention should be baseline during retransmit spike")
+	// During GC spike, other metrics should stay at baseline
+	assert.Equal(t, 45.0, gen.getLatencyValue(11), "latency should be baseline during GC spike")
+	assert.Equal(t, 0.1, gen.getErrorRateValue(11), "error rate should be baseline during GC spike")
 
-	// Test lock contention spike at 17-19s (triangle wave peaking at 18s)
-	assert.Equal(t, 1000.0, gen.getLockContentionValue(16), "before spike should be baseline")
-	assert.Greater(t, gen.getLockContentionValue(18), 5000.0, "spike midpoint should be elevated")
-	assert.Equal(t, 1000.0, gen.getLockContentionValue(20), "after spike should return to baseline")
+	// Test latency spike at 17-19s (triangle wave peaking at 18s)
+	assert.Equal(t, 45.0, gen.getLatencyValue(16), "before spike should be baseline")
+	assert.Greater(t, gen.getLatencyValue(18), 100.0, "spike midpoint should be elevated")
+	assert.Equal(t, 45.0, gen.getLatencyValue(20), "after spike should return to baseline")
 
-	// During lock spike, retransmits should stay at baseline
-	assert.Equal(t, 5.0, gen.getRetransmitValue(18), "retransmits should be baseline during lock spike")
+	// During latency spike, other metrics should stay at baseline
+	assert.Equal(t, 15.0, gen.getGCPauseValue(18), "GC should be baseline during latency spike")
+	assert.Equal(t, 0.1, gen.getErrorRateValue(18), "error rate should be baseline during latency spike")
 }
 
 func TestGenerator_BackgroundMetrics(t *testing.T) {
@@ -383,10 +423,10 @@ func TestGenerator_BackgroundMetrics(t *testing.T) {
 
 	// Verify we get all expected background metrics
 	expectedMetrics := map[string]float64{
-		"cpu.user_percent":      45,
-		"memory.used_percent":   62,
-		"disk.io_ops":           150,
-		"http.requests_per_sec": 500,
+		"system.disk.read_ops":  150,
+		"system.disk.write_ops": 80,
+		"system.net.bytes_recv": 50000,
+		"system.net.bytes_sent": 45000,
 	}
 
 	foundMetrics := make(map[string]bool)
@@ -412,4 +452,58 @@ func TestGenerator_TriangleSpike(t *testing.T) {
 	assert.Equal(t, 30.0, gen.triangleSpike(11, 10, 12, 5, 30), "midpoint should be peak")
 	assert.Equal(t, 5.0, gen.triangleSpike(12, 10, 12, 5, 30), "end should be baseline")
 	assert.Equal(t, 17.5, gen.triangleSpike(10.5, 10, 12, 5, 30), "quarter way should be midpoint value")
+}
+
+func TestGenerator_CausalChainDelays(t *testing.T) {
+	handle := &mockHandle{}
+	gen := NewDataGenerator(handle, GeneratorConfig{
+		TimeScale:     1.0,
+		BaselineNoise: 0.0,
+	})
+
+	// At t=25.5s: GC should be ramping, latency and errors still at baseline
+	gcAt25_5 := gen.getGCPauseValue(25.5)
+	latencyAt25_5 := gen.getLatencyValue(25.5)
+	errorsAt25_5 := gen.getErrorRateValue(25.5)
+
+	assert.Greater(t, gcAt25_5, 15.0, "GC should be ramping at t=25.5")
+	assert.Equal(t, 45.0, latencyAt25_5, "latency should still be at baseline at t=25.5 (delay=1s)")
+	assert.Equal(t, 0.1, errorsAt25_5, "errors should still be at baseline at t=25.5 (delay=2s)")
+
+	// At t=26.5s: GC ramping further, latency starting to ramp, errors still baseline
+	gcAt26_5 := gen.getGCPauseValue(26.5)
+	latencyAt26_5 := gen.getLatencyValue(26.5)
+	errorsAt26_5 := gen.getErrorRateValue(26.5)
+
+	assert.Greater(t, gcAt26_5, gcAt25_5, "GC should be ramping further at t=26.5")
+	assert.Greater(t, latencyAt26_5, 45.0, "latency should be ramping at t=26.5")
+	assert.Equal(t, 0.1, errorsAt26_5, "errors should still be at baseline at t=26.5 (delay=2s)")
+
+	// At t=27.5s: all metrics should be ramping
+	gcAt27_5 := gen.getGCPauseValue(27.5)
+	latencyAt27_5 := gen.getLatencyValue(27.5)
+	errorsAt27_5 := gen.getErrorRateValue(27.5)
+
+	assert.Greater(t, gcAt27_5, gcAt26_5, "GC should continue ramping at t=27.5")
+	assert.Greater(t, latencyAt27_5, latencyAt26_5, "latency should continue ramping at t=27.5")
+	assert.Greater(t, errorsAt27_5, 0.1, "errors should start ramping at t=27.5")
+}
+
+func TestGenerator_HeapLeadingIndicator(t *testing.T) {
+	handle := &mockHandle{}
+	gen := NewDataGenerator(handle, GeneratorConfig{
+		TimeScale:     1.0,
+		BaselineNoise: 0.0,
+	})
+
+	// Heap should start rising at t=22s (heapLeadTime=-3s before incident at t=25s)
+	assert.Equal(t, 512.0, gen.getHeapUsedValue(21), "heap should be at baseline before t=22")
+	assert.Greater(t, gen.getHeapUsedValue(23), 512.0, "heap should be rising at t=23")
+	assert.Equal(t, 15.0, gen.getGCPauseValue(23), "GC should still be at baseline at t=23")
+
+	// By t=25s, heap should be ramping while GC just starts
+	heapAt25 := gen.getHeapUsedValue(25)
+	gcAt25 := gen.getGCPauseValue(25)
+	assert.Greater(t, heapAt25, 700.0, "heap should be elevated at t=25")
+	assert.Equal(t, 15.0, gcAt25, "GC should just be starting at t=25")
 }
