@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -256,6 +257,75 @@ func TestResolvePidCgroupFallback_EmptyCGroupIDIgnored(t *testing.T) {
 
 	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
 	assert.Nil(t, cacheEntry)
+
+	mockFS.AssertExpectations(t)
+}
+
+func TestResolvePidCgroupFallback_UpdateExistingCacheEntry(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	// Mock resolution that returns empty CGroupID (should be ignored)
+	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
+		containerutils.ContainerID("some-container"),
+		utils.CGroupContext{
+			CGroupID:          "fallback-cgroup-id-success", // Empty CGroupID
+			CGroupFileMountID: 42,
+			CGroupFileInode:   9876,
+		},
+		"/sys/fs/cgroup/test",
+		nil,
+	)
+
+	cacheEntry := resolver.resolveFromFallback(1234, 9999, time.Now())
+	assert.NotNil(t, cacheEntry)
+
+	// Mock resolution that returns empty CGroupID (should be ignored)
+	mockFS.On("FindCGroupContext", uint32(5678), uint32(5678)).Return(
+		containerutils.ContainerID("some-container"),
+		utils.CGroupContext{
+			CGroupID:          "fallback-cgroup-id-fail", // Empty CGroupID
+			CGroupFileMountID: 42,
+			CGroupFileInode:   9876,
+		},
+		"/sys/fs/cgroup/test",
+		nil,
+	)
+
+	cacheEntry = resolver.resolveFromFallback(5678, 9999, time.Now())
+	assert.NotNil(t, cacheEntry)
+	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id-success"), cacheEntry.GetCGroupID())
+
+	mockFS.AssertExpectations(t)
+}
+
+func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	cacheEntry := cgroupModel.NewCacheEntry(model.ContainerContext{
+		ContainerID: "some-container",
+	}, model.CGroupContext{
+		CGroupID: "fallback-cgroup-id-fail",
+	}, 1234)
+
+	// add an empty entry to the cache
+	resolver.cacheEntriesByPathKey.Add(model.PathKey{}, cacheEntry)
+
+	// Mock resolution that returns empty CGroupID (should be ignored)
+	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
+		containerutils.ContainerID("some-container"),
+		utils.CGroupContext{
+			CGroupID:          "fallback-cgroup-id", // Empty CGroupID
+			CGroupFileMountID: 42,
+			CGroupFileInode:   9876,
+		},
+		"/sys/fs/cgroup/test",
+		nil,
+	)
+
+	cacheEntry = resolver.AddPID(1234, 5678, time.Now(), model.CGroupContext{})
+
+	assert.NotNil(t, cacheEntry)
+	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.GetCGroupID())
 
 	mockFS.AssertExpectations(t)
 }
