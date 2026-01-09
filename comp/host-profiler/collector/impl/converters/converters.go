@@ -11,6 +11,8 @@ package converters
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -20,8 +22,12 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 }
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
+func NewFactoryWithAgent(config config.Component) confmap.ConverterFactory {
+	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
+		return newConverterWithAgent(settings, config)
+	}
+
+	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
 }
 
 type converterWithoutAgent struct{}
@@ -30,10 +36,42 @@ func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithoutAgent{}
 }
 
-type converterWithAgent struct{}
+type converterWithAgent struct {
+	config config.Component
+}
 
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithAgent{}
+func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component) confmap.Converter {
+	return &converterWithAgent{config: config}
+}
+
+func (c *converterWithAgent) ensureKey(configMap map[string]any, key string, agentKeyName string) {
+	if varMap, ok := configMap[key]; !ok || varMap == nil {
+		configMap[key] = c.config.GetString(agentKeyName)
+		log.Debugf("Added %s to %s", agentKeyName, key)
+	} else {
+		log.Debugf("%s already present", key)
+	}
+}
+
+// checkAPIKeys validates that all required API keys are configured
+func (c *converterWithAgent) checkAPIKeys(confStringMap map[string]any) {
+	log.Debug("Checking API/APP keys in hostprofiler")
+	symbolEndpoints := getSymbolEndpoints(confStringMap)
+	if symbolEndpoints == nil {
+		return
+	}
+
+	for _, endpoint := range symbolEndpoints {
+		c.ensureKey(endpoint.(map[string]any), "api_key", "api_key")
+		c.ensureKey(endpoint.(map[string]any), "app_key", "app_key")
+	}
+
+	// Check exporter API key
+	exporterHeaders := getExporterHeaders(confStringMap)
+	if exporterHeaders != nil {
+		log.Debug("Checking API key in otlphttpexporter")
+		c.ensureKey(exporterHeaders, "dd-api-key", "api_key")
+	}
 }
 
 func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -42,6 +80,7 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 
+	c.checkAPIKeys(confStringMap)
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
