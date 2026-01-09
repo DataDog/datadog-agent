@@ -50,7 +50,13 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_oauth_token(ctx) -> str:
-    token = ctx.run("ddtool auth gitlab token", hide=True).stdout.strip()
+    res = ctx.run("ddtool auth gitlab token", hide=True)
+
+    if "ddtool auth gitlab login" in res.stderr:
+        raise RuntimeError(
+            "For the first time you retrieve a Gitlab OAuth token, you need to login to Gitlab first. Run `ddtool auth gitlab login`."
+        )
+    token = res.stdout.strip()
     if not len(token) == 64:
         raise RuntimeError("Incorrect response length, should be a 64 characters long token")
     return token
