@@ -57,6 +57,8 @@ type Config struct {
 	Version string
 
 	MetricsClient statsd.ClientInterface
+
+	ExperimentalEnableBundles bool
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
