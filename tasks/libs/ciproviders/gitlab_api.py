@@ -1043,7 +1043,11 @@ def extract_includes(include_list):
         raise ValueError(f"Invalid include list: {include_list}. We only support lists for now.")
     for include in include_list:
         if isinstance(include, str):
-            yield include
+            if "*" in include:
+                # Handle the bazel/*.yaml that used to be in the .gitlab-ci.yml
+                yield from glob.glob(include, recursive=True)
+            else:
+                yield include
         elif isinstance(include, dict) and 'local' in include:
             # Ugly hack to adapt Gitlab wildcards to glob.glob syntax
             yield from glob.glob(include['local'].replace('**', '**/*'), recursive=True)
