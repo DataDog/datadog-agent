@@ -1,0 +1,11 @@
+{
+  "name": "todo-frontend-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for todo-frontend using headless browser",
+  "scripts": {
+    "test": "node run-tests.js"
+  },
+  "dependencies": {
+    "puppeteer": "^24.27.0"
+  }
+}
