@@ -310,6 +310,8 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.True(t, ok)
 		physicalDevice2, ok := devices[1].(*ddnvml.PhysicalDevice)
 		require.True(t, ok)
+		require.Len(t, physicalDevice1.MIGChildren, 2)
+		require.Len(t, physicalDevice2.MIGChildren, 2)
 		mig1 := physicalDevice1.MIGChildren[0]
 		mig2 := physicalDevice1.MIGChildren[1]
 		mig3 := physicalDevice2.MIGChildren[0]
