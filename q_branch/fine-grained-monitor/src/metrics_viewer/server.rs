@@ -9,6 +9,9 @@
 use crate::metrics_viewer::data::{ContainerInfo, MetricInfo, TimeRange, TimeseriesPoint};
 use crate::metrics_viewer::lazy_data::LazyDataStore;
 use crate::metrics_viewer::studies::{StudyInfo, StudyRegistry, StudyResult};
+use arrow::array::{ArrayRef, Float64Builder, StringBuilder, TimestampMillisecondBuilder};
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use arrow::record_batch::RecordBatch;
 use axum::{
     extract::{Path, Query, State},
     http::{header, StatusCode},
@@ -16,11 +19,14 @@ use axum::{
     routing::get,
     Router,
 };
-use tower_http::services::ServeDir;
+use parquet::arrow::ArrowWriter;
+use parquet::basic::Compression;
+use parquet::file::properties::WriterProperties;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 
 /// Application state shared across handlers.
 pub struct AppState {
@@ -71,8 +77,12 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
     // Find the static files directory
     let static_dir = find_static_dir();
 
-    let app = Router::new()
+    // Find testdata directory for snapshot testing (dev mode only)
+    let testdata_dir = find_testdata_dir();
+
+    let mut app = Router::new()
         .route("/", get(index_handler))
+        .route("/snapshot-test", get(snapshot_test_handler))
         .route("/dashboards/:name", get(dashboard_file_handler))
         .route("/api/health", get(health_handler))
         .route("/api/instance", get(instance_handler))
@@ -82,7 +92,16 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         .route("/api/timeseries", get(timeseries_handler))
         .route("/api/studies", get(studies_handler))
         .route("/api/study/:id", get(study_handler))
-        .nest_service("/static", ServeDir::new(&static_dir))
+        .route("/api/export", get(export_handler))
+        .nest_service("/static", ServeDir::new(&static_dir));
+
+    // Serve testdata for snapshot testing (dev mode only)
+    if let Some(ref testdata) = testdata_dir {
+        eprintln!("Serving testdata from {} at /testdata/*", testdata);
+        app = app.nest_service("/testdata", ServeDir::new(testdata));
+    }
+
+    let app = app
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -128,10 +147,46 @@ fn find_static_dir() -> String {
     "/static".to_string()
 }
 
+/// Find the testdata directory for snapshot testing (dev mode only).
+fn find_testdata_dir() -> Option<String> {
+    let candidates = [
+        "testdata",                         // Local dev path (from crate root)
+        "q_branch/fine-grained-monitor/testdata", // From repo root
+    ];
+
+    for path in candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
+    None
+}
+
 // --- Handlers ---
 
 /// Default embedded HTML (fallback if external file not found).
 const EMBEDDED_INDEX_HTML: &str = include_str!("static/index.html");
+
+/// Embedded snapshot test HTML.
+const EMBEDDED_SNAPSHOT_TEST_HTML: &str = include_str!("static/snapshot-test.html");
+
+/// Serve the snapshot test page.
+async fn snapshot_test_handler() -> Html<String> {
+    // Check for external static file first
+    let external_paths = [
+        "/static/snapshot-test.html",
+        "src/metrics_viewer/static/snapshot-test.html",
+    ];
+
+    for path in external_paths {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            return Html(content);
+        }
+    }
+
+    Html(EMBEDDED_SNAPSHOT_TEST_HTML.to_string())
+}
 
 /// Serve the main HTML page.
 /// REQ-MV-001: Display interactive timeseries chart.
@@ -154,22 +209,53 @@ async fn index_handler() -> Html<String> {
     Html(EMBEDDED_INDEX_HTML.to_string())
 }
 
-/// Serve dashboard JSON files from the dashboards/ directory.
+/// Serve dashboard JSON files.
 /// REQ-MV-033: Dashboard files are served for ?dashboard= URL parameter.
+///
+/// Searches in order:
+/// 1. scenarios/<name>/dashboard.json (new location, dashboards nested under scenarios)
+/// 2. dashboards/<name>.json (legacy location, for backwards compatibility)
 async fn dashboard_file_handler(Path(name): Path<String>) -> Response {
     // Security: only allow .json files and prevent path traversal
     if !name.ends_with(".json") || name.contains("..") || name.contains('/') {
         return (StatusCode::BAD_REQUEST, "Invalid dashboard name").into_response();
     }
 
-    // Look for dashboards in parent of static dir (crate root) or common locations
-    let candidates = [
-        "dashboards",                                           // From crate root
-        "q_branch/fine-grained-monitor/dashboards",             // From repo root
-        "/dashboards",                                          // In-container
+    // Extract scenario name (strip .json extension)
+    let scenario_name = name.trim_end_matches(".json");
+
+    // Priority 1: Look in scenarios/<name>/dashboard.json (new location)
+    let scenario_candidates = [
+        format!("scenarios/{}/dashboard.json", scenario_name),
+        format!("q_branch/fine-grained-monitor/scenarios/{}/dashboard.json", scenario_name),
+        format!("/scenarios/{}/dashboard.json", scenario_name),
     ];
 
-    for candidate in candidates {
+    for candidate in scenario_candidates {
+        let path = std::path::Path::new(&candidate);
+        if path.exists() {
+            match std::fs::read_to_string(path) {
+                Ok(content) => {
+                    return (
+                        [(header::CONTENT_TYPE, "application/json")],
+                        content,
+                    ).into_response();
+                }
+                Err(e) => {
+                    eprintln!("Failed to read dashboard {}: {}", path.display(), e);
+                }
+            }
+        }
+    }
+
+    // Priority 2: Legacy location in dashboards/ directory (backwards compatibility)
+    let legacy_candidates = [
+        "dashboards",
+        "q_branch/fine-grained-monitor/dashboards",
+        "/dashboards",
+    ];
+
+    for candidate in legacy_candidates {
         let path = std::path::PathBuf::from(candidate).join(&name);
         if path.exists() {
             match std::fs::read_to_string(&path) {
@@ -515,4 +601,332 @@ async fn study_handler(
         study: study_id,
         results,
     })
+}
+
+// ============================================================================
+// Export API - Generate filtered parquet file for offline viewing
+// ============================================================================
+
+/// Memory protection limits for export.
+const MAX_EXPORT_ROWS: usize = 10_000_000;
+const MAX_EXPORT_CONTAINERS: usize = 100;
+
+/// GET /api/export - export filtered timeseries data as a parquet file.
+/// Returns a downloadable parquet file containing timeseries data matching the filter criteria.
+#[derive(Deserialize)]
+struct ExportQuery {
+    /// K8s namespace filter (optional)
+    #[serde(default)]
+    namespace: Option<String>,
+
+    /// Comma-separated key:value label pairs for filtering (optional)
+    /// Example: "app:nginx,env:prod"
+    #[serde(default)]
+    labels: Option<String>,
+
+    /// Comma-separated list of metric names to include (optional, defaults to all)
+    /// Example: "cpu_percentage,cgroup.v2.memory.current"
+    #[serde(default)]
+    metrics: Option<String>,
+
+    /// Start time in epoch milliseconds (optional)
+    #[serde(default)]
+    time_from_ms: Option<i64>,
+
+    /// End time in epoch milliseconds (optional)
+    #[serde(default)]
+    time_to_ms: Option<i64>,
+
+    /// Time range shorthand (1h, 1d, 1w, all) - alternative to explicit timestamps
+    #[serde(default)]
+    range: Option<TimeRange>,
+}
+
+/// Export-specific errors with appropriate HTTP status codes.
+enum ExportError {
+    /// No containers match the filter criteria
+    NoMatchingContainers,
+    /// No data found for the specified time range
+    NoData,
+    /// Too many containers requested
+    TooManyContainers(usize),
+    /// Too much data requested
+    TooMuchData(usize),
+    /// Internal error during parquet generation
+    ParquetError(String),
+}
+
+impl IntoResponse for ExportError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            ExportError::NoMatchingContainers => {
+                (StatusCode::NOT_FOUND, "No containers match the specified filters".to_string())
+            }
+            ExportError::NoData => {
+                (StatusCode::NOT_FOUND, "No data found in the specified time range".to_string())
+            }
+            ExportError::TooManyContainers(count) => {
+                (StatusCode::BAD_REQUEST, format!(
+                    "Too many containers ({}), limit is {}. Use more specific filters.",
+                    count, MAX_EXPORT_CONTAINERS
+                ))
+            }
+            ExportError::TooMuchData(rows) => {
+                (StatusCode::BAD_REQUEST, format!(
+                    "Too much data ({} rows), limit is {}. Use a shorter time range.",
+                    rows, MAX_EXPORT_ROWS
+                ))
+            }
+            ExportError::ParquetError(e) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("Parquet error: {}", e))
+            }
+        };
+        (status, message).into_response()
+    }
+}
+
+/// Handler for GET /api/export
+/// Returns a parquet file as a downloadable binary response with appropriate headers.
+async fn export_handler(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<ExportQuery>,
+) -> Result<Response, ExportError> {
+    // Use specified time range or default to all
+    let time_range = query.range.unwrap_or(TimeRange::All);
+
+    // Get containers filtered by time range
+    let all_containers = state.data.get_containers_by_recency(time_range);
+
+    // Parse label filters if provided
+    let label_filters: Vec<(&str, &str)> = query
+        .labels
+        .as_ref()
+        .map(|labels_str| {
+            labels_str
+                .split(',')
+                .filter_map(|kv| kv.split_once(':'))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Filter containers by namespace and labels
+    let filtered_containers: Vec<&ContainerInfo> = all_containers
+        .iter()
+        .filter(|c| {
+            // Namespace filter
+            if let Some(ref ns) = query.namespace {
+                if c.namespace.as_ref() != Some(ns) {
+                    return false;
+                }
+            }
+            // Label filters (all specified labels must match)
+            if !label_filters.is_empty() {
+                if let Some(ref container_labels) = c.labels {
+                    if !label_filters.iter().all(|(k, v)| {
+                        container_labels.get(*k).map(|lv| lv == *v).unwrap_or(false)
+                    }) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    if filtered_containers.is_empty() {
+        return Err(ExportError::NoMatchingContainers);
+    }
+
+    // Check container limit
+    if filtered_containers.len() > MAX_EXPORT_CONTAINERS {
+        return Err(ExportError::TooManyContainers(filtered_containers.len()));
+    }
+
+    // Get container IDs
+    let container_ids: Vec<&str> = filtered_containers
+        .iter()
+        .map(|c| c.short_id.as_str())
+        .collect();
+
+    // Get available metrics or use requested subset
+    let all_metrics = state.data.get_metrics();
+    let requested_metrics: Option<Vec<&str>> = query
+        .metrics
+        .as_ref()
+        .map(|m| m.split(',').map(|s| s.trim()).collect());
+
+    let metrics_to_export: Vec<&str> = match requested_metrics {
+        Some(ref requested) => all_metrics
+            .iter()
+            .filter(|m| requested.contains(&m.name.as_str()))
+            .map(|m| m.name.as_str())
+            .collect(),
+        None => all_metrics.iter().map(|m| m.name.as_str()).collect(),
+    };
+
+    // Build a lookup map from short_id to container info
+    let container_map: std::collections::HashMap<&str, &ContainerInfo> = filtered_containers
+        .iter()
+        .map(|c| (c.short_id.as_str(), *c))
+        .collect();
+
+    // Collect all data points
+    struct ExportRow {
+        time_ms: i64,
+        metric_name: String,
+        value: f64,
+        container_id: String,
+        container_name: Option<String>,
+        pod_name: Option<String>,
+        namespace: Option<String>,
+        qos_class: Option<String>,
+    }
+
+    let mut all_data: Vec<ExportRow> = Vec::new();
+
+    for metric in &metrics_to_export {
+        let timeseries = match state.data.get_timeseries(metric, &container_ids, time_range) {
+            Ok(ts) => ts,
+            Err(e) => {
+                eprintln!("Error loading timeseries for export metric={}: {}", metric, e);
+                continue;
+            }
+        };
+
+        for (container_id, points) in timeseries {
+            let container = container_map.get(container_id.as_str());
+
+            for point in points {
+                // Apply explicit time bounds if provided
+                if let Some(from) = query.time_from_ms {
+                    if point.time_ms < from {
+                        continue;
+                    }
+                }
+                if let Some(to) = query.time_to_ms {
+                    if point.time_ms > to {
+                        continue;
+                    }
+                }
+
+                all_data.push(ExportRow {
+                    time_ms: point.time_ms,
+                    metric_name: metric.to_string(),
+                    value: point.value,
+                    container_id: container_id.clone(),
+                    container_name: container.and_then(|c| c.container_name.clone()),
+                    pod_name: container.and_then(|c| c.pod_name.clone()),
+                    namespace: container.and_then(|c| c.namespace.clone()),
+                    qos_class: container.and_then(|c| c.qos_class.clone()),
+                });
+
+                // Check row limit
+                if all_data.len() > MAX_EXPORT_ROWS {
+                    return Err(ExportError::TooMuchData(all_data.len()));
+                }
+            }
+        }
+    }
+
+    if all_data.is_empty() {
+        return Err(ExportError::NoData);
+    }
+
+    // Build Arrow schema
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("time", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new("metric_name", DataType::Utf8, false),
+        Field::new("value_float", DataType::Float64, true),
+        Field::new("l_container_id", DataType::Utf8, true),
+        Field::new("l_container_name", DataType::Utf8, true),
+        Field::new("l_pod_name", DataType::Utf8, true),
+        Field::new("l_namespace", DataType::Utf8, true),
+        Field::new("l_qos_class", DataType::Utf8, true),
+    ]));
+
+    // Build Arrow arrays
+    let capacity = all_data.len();
+    let mut time_builder = TimestampMillisecondBuilder::with_capacity(capacity);
+    let mut metric_builder = StringBuilder::with_capacity(capacity, capacity * 30);
+    let mut value_builder = Float64Builder::with_capacity(capacity);
+    let mut container_id_builder = StringBuilder::with_capacity(capacity, capacity * 12);
+    let mut container_name_builder = StringBuilder::with_capacity(capacity, capacity * 20);
+    let mut pod_name_builder = StringBuilder::with_capacity(capacity, capacity * 30);
+    let mut namespace_builder = StringBuilder::with_capacity(capacity, capacity * 15);
+    let mut qos_class_builder = StringBuilder::with_capacity(capacity, capacity * 12);
+
+    for row in &all_data {
+        time_builder.append_value(row.time_ms);
+        metric_builder.append_value(&row.metric_name);
+        value_builder.append_value(row.value);
+        container_id_builder.append_value(&row.container_id);
+        container_name_builder.append_option(row.container_name.as_deref());
+        pod_name_builder.append_option(row.pod_name.as_deref());
+        namespace_builder.append_option(row.namespace.as_deref());
+        qos_class_builder.append_option(row.qos_class.as_deref());
+    }
+
+    let arrays: Vec<ArrayRef> = vec![
+        Arc::new(time_builder.finish()),
+        Arc::new(metric_builder.finish()),
+        Arc::new(value_builder.finish()),
+        Arc::new(container_id_builder.finish()),
+        Arc::new(container_name_builder.finish()),
+        Arc::new(pod_name_builder.finish()),
+        Arc::new(namespace_builder.finish()),
+        Arc::new(qos_class_builder.finish()),
+    ];
+
+    let batch = RecordBatch::try_new(schema.clone(), arrays)
+        .map_err(|e| ExportError::ParquetError(e.to_string()))?;
+
+    // Write to in-memory buffer with ZSTD compression
+    let mut buffer = Vec::new();
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(
+            parquet::basic::ZstdLevel::try_new(3).unwrap(),
+        ))
+        .build();
+
+    {
+        let mut writer = ArrowWriter::try_new(&mut buffer, schema, Some(props))
+            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
+
+        writer
+            .write(&batch)
+            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
+
+        writer
+            .close()
+            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
+    }
+
+    // Generate filename with timestamp
+    let filename = format!(
+        "fgm-export-{}.parquet",
+        chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
+    );
+
+    eprintln!(
+        "[export] Generated {} rows, {} bytes for {} containers, {} metrics",
+        all_data.len(),
+        buffer.len(),
+        filtered_containers.len(),
+        metrics_to_export.len()
+    );
+
+    // Return as downloadable binary
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/octet-stream"),
+            (
+                header::CONTENT_DISPOSITION,
+                &format!("attachment; filename=\"{}\"", filename),
+            ),
+        ],
+        buffer,
+    )
+        .into_response())
 }

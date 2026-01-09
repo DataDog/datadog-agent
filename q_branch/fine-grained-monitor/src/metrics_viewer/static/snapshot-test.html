@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parquet Snapshot Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { margin-top: 0; }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #2196F3;
+            background: #e3f2fd;
+        }
+        .drop-zone input { display: none; }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        button:hover { background: #1976D2; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 16px; padding: 12px; border-radius: 4px; }
+        .status.loading { background: #fff3e0; color: #e65100; }
+        .status.success { background: #e8f5e9; color: #2e7d32; }
+        .status.error { background: #ffebee; color: #c62828; }
+        pre {
+            background: #263238;
+            color: #aed581;
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .url-list { margin: 16px 0; }
+        .url-list a {
+            display: block;
+            padding: 8px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: #1565c0;
+            word-break: break-all;
+        }
+        .url-list a:hover { background: #bbdefb; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Parquet Snapshot Test</h1>
+        <p>Test the ParquetProvider by loading a parquet file from the benchmark data.</p>
+    </div>
+
+    <div class="card">
+        <h2>Option 1: Load from URL</h2>
+        <p>Select a parquet file from testdata:</p>
+        <div class="url-list" id="parquet-urls">Loading available files...</div>
+    </div>
+
+    <div class="card">
+        <h2>Option 2: Drag & Drop</h2>
+        <div class="drop-zone" id="drop-zone">
+            <p>Drop a .parquet file here<br><small>or click to browse</small></p>
+            <input type="file" accept=".parquet" id="file-input">
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Status</h2>
+        <div id="status" class="status" style="display: none;"></div>
+        <div id="results" style="display: none;">
+            <h3>Provider Info</h3>
+            <pre id="provider-info"></pre>
+            <button id="launch-viewer">Launch Full Viewer with Parquet Data</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createParquetProvider, fetchParquetFile } from '/static/js/parquet-provider.js';
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+        const providerInfo = document.getElementById('provider-info');
+        const parquetUrls = document.getElementById('parquet-urls');
+
+        // Load available parquet files
+        async function loadAvailableFiles() {
+            // Hardcoded test files - directory listing doesn't work with static serving
+            const testFiles = [
+                '/testdata/bench/realistic/dt=2026-01-09/identifier=fgm-bench-00000/metrics-20260109T210359Z.parquet',
+                '/testdata/bench/realistic/dt=2026-01-09/identifier=fgm-bench-00000/consolidated-20260109T205329Z-20260109T210229Z.parquet',
+            ];
+
+            // Check if first file is accessible
+            try {
+                const response = await fetch(testFiles[0], { method: 'HEAD' });
+                if (!response.ok) {
+                    parquetUrls.innerHTML = '<p>Testdata not available. Use drag & drop instead.</p>';
+                    return;
+                }
+            } catch (err) {
+                parquetUrls.innerHTML = '<p>Testdata not available. Use drag & drop instead.</p>';
+                return;
+            }
+
+            // Show available files
+            parquetUrls.innerHTML = testFiles.map(url =>
+                `<a href="#" data-url="${url}">${url.split('/').pop()}</a>`
+            ).join('');
+
+            // Add click handlers
+            parquetUrls.querySelectorAll('a').forEach(a => {
+                a.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const url = a.dataset.url;
+                    await loadFromUrl(url);
+                });
+            });
+        }
+
+        async function loadFromUrl(url) {
+            showStatus('loading', `Fetching ${url}...`);
+            try {
+                const data = await fetchParquetFile(url);
+                await processParquetData(data, url);
+            } catch (err) {
+                showStatus('error', `Failed to fetch: ${err.message}`);
+            }
+        }
+
+        async function processParquetData(data, source) {
+            showStatus('loading', 'Initializing ParquetProvider...');
+            try {
+                const provider = await createParquetProvider({ parquetData: data });
+
+                // Get some stats
+                const metrics = await provider.getMetrics();
+                const firstMetricName = metrics[0]?.name;
+                const containers = firstMetricName
+                    ? await provider.getContainers(firstMetricName, null, 'all')
+                    : [];
+
+                showStatus('success', 'ParquetProvider loaded successfully!');
+
+                providerInfo.textContent = JSON.stringify({
+                    source: source,
+                    totalMetrics: metrics.length,
+                    sampleMetrics: metrics.slice(0, 10),
+                    totalContainers: containers.length,
+                    sampleContainers: containers.slice(0, 3).map(c => ({
+                        short_id: c.short_id,
+                        pod_name: c.pod_name,
+                        container_name: c.container_name,
+                    })),
+                }, null, 2);
+
+                results.style.display = 'block';
+
+                // Store provider for viewer launch
+                window.__parquetProvider = provider;
+                window.__parquetData = data;
+            } catch (err) {
+                showStatus('error', `Failed to create provider: ${err.message}\n${err.stack}`);
+                console.error(err);
+            }
+        }
+
+        function showStatus(type, message) {
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        // Drag and drop handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.parquet')) {
+                const data = await file.arrayBuffer();
+                await processParquetData(data, file.name);
+            } else {
+                showStatus('error', 'Please drop a .parquet file');
+            }
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const data = await file.arrayBuffer();
+                await processParquetData(data, file.name);
+            }
+        });
+
+        // Launch viewer with parquet data
+        document.getElementById('launch-viewer').addEventListener('click', () => {
+            if (window.__parquetData) {
+                // Store in sessionStorage as base64
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(window.__parquetData)));
+                sessionStorage.setItem('parquetSnapshot', base64);
+                window.location.href = '/?mode=snapshot';
+            }
+        });
+
+        // Initialize
+        loadAvailableFiles();
+    </script>
+</body>
+</html>

@@ -4,17 +4,22 @@
  * Creates the store, sets up UI callbacks, initializes the application.
  */
 
+// Version marker to verify browser cache is fresh
+console.log('[App] Module loaded v3 - snapshot mode with format fixes');
+
 import * as DataStore from './data-store.js';
 import { Actions, Effects, initialState, reduce, canAddPanel, canRemovePanel } from './state-machine.js';
 import {
     executeEffects,
     Api,
+    setProvider,
     registerHandler,
     parseDashboardParams,
     loadDashboard,
     buildContainerFilterParams,
     computeTimeRangeFromContainers,
 } from './effects.js';
+import { createParquetProvider } from './parquet-provider.js';
 
 // ============================================================
 // STORE
@@ -165,6 +170,34 @@ export async function init() {
     console.log('[App] Initializing...');
 
     try {
+        // Check for snapshot mode
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode');
+        console.log('[App] URL mode param:', mode, '| search:', window.location.search);
+
+        if (mode === 'snapshot') {
+            const snapshotData = sessionStorage.getItem('parquetSnapshot');
+            console.log('[App] Snapshot data in sessionStorage:', snapshotData ? `${snapshotData.length} chars` : 'null');
+            if (snapshotData) {
+                console.log('[App] Snapshot mode: loading parquet data from sessionStorage');
+                try {
+                    // Decode base64 to ArrayBuffer
+                    const binaryString = atob(snapshotData);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    const provider = await createParquetProvider({ parquetData: bytes });
+                    setProvider(provider);
+                    console.log('[App] Parquet provider initialized');
+                } catch (err) {
+                    console.error('[App] Failed to load snapshot:', err);
+                }
+            } else {
+                console.warn('[App] Snapshot mode but no data in sessionStorage');
+            }
+        }
+
         // REQ-MV-033: Check for dashboard URL params
         const { dashboardUrl, dashboardInline, templateVars } = parseDashboardParams();
         const dashboard = await loadDashboard(dashboardUrl, dashboardInline, templateVars);

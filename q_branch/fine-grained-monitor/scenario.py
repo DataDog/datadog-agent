@@ -14,15 +14,18 @@ Usage:
     ./scenario.py status [run_id]         # Show pod status (latest if omitted)
     ./scenario.py stop <run_id>           # Stop and clean up scenario
     ./scenario.py logs [run_id]           # Show scenario pod logs
+    ./scenario.py export [run_id]         # Export as self-contained HTML
 
 Examples:
     ./scenario.py run sigpipe-crash       # Deploy the SIGPIPE crash scenario
     ./scenario.py status                  # Check status of latest run
     ./scenario.py logs -c victim-app      # Show logs from victim-app container
     ./scenario.py stop a1b2c3d4           # Stop scenario run a1b2c3d4
+    ./scenario.py export                  # Export latest run for offline viewing
 """
 
 import argparse
+import base64
 import json
 import re
 import subprocess
@@ -31,6 +34,9 @@ import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 # Project root is where this script lives
 PROJECT_ROOT = Path(__file__).parent.resolve()
@@ -667,6 +673,183 @@ def cmd_logs(run_id: str | None, container: str | None):
     return 0
 
 
+def cmd_export(run_id: str | None, output: str | None):
+    """Export scenario data as a self-contained HTML file with embedded parquet."""
+    kube_context = get_kube_context()
+
+    # Use latest run if not specified
+    if run_id is None:
+        run_id = get_latest_scenario_run()
+        if run_id is None:
+            print("No scenario runs found")
+            return 1
+
+    run_dir = get_scenario_run_dir(run_id)
+    if not run_dir.exists():
+        print(f"Error: Run '{run_id}' not found")
+        return 1
+
+    # Load metadata
+    metadata_file = run_dir / "metadata.json"
+    if not metadata_file.exists():
+        print(f"Error: Metadata not found for run '{run_id}'")
+        return 1
+
+    metadata = json.loads(metadata_file.read_text())
+    scenario_name = metadata["scenario"]
+    namespace = metadata.get("namespace", DEFAULT_NAMESPACE)
+
+    print(f"Exporting scenario '{scenario_name}' (run {run_id})")
+
+    # Load dashboard from scenario directory
+    dashboard_path = SCENARIOS_DIR / scenario_name / "dashboard.json"
+    if not dashboard_path.exists():
+        print(f"Error: Dashboard not found at {dashboard_path}")
+        print("  Export requires a dashboard.json in the scenario directory")
+        return 1
+
+    dashboard = json.loads(dashboard_path.read_text())
+
+    # Substitute {{RUN_ID}} placeholder in dashboard
+    dashboard_str = json.dumps(dashboard).replace("{{RUN_ID}}", run_id)
+    dashboard = json.loads(dashboard_str)
+
+    # Build export URL params from dashboard config
+    params = {}
+
+    # Extract namespace filter
+    containers_config = dashboard.get("containers", {})
+    if "namespace" in containers_config:
+        params["namespace"] = containers_config["namespace"]
+
+    # Extract label selector
+    if "label_selector" in containers_config:
+        labels = containers_config["label_selector"]
+        params["labels"] = ",".join(f"{k}:{v}" for k, v in labels.items())
+
+    # Extract metrics from panels
+    if dashboard.get("panels"):
+        params["metrics"] = ",".join(p["metric"] for p in dashboard["panels"])
+
+    # Use all available data
+    params["range"] = "all"
+
+    print(f"  Namespace: {params.get('namespace', '(all)')}")
+    print(f"  Labels: {params.get('labels', '(none)')}")
+    print(f"  Metrics: {params.get('metrics', '(all)')}")
+
+    # Find the metrics-viewer pod
+    result = subprocess.run(
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-n",
+            "fine-grained-monitor",
+            "--context",
+            kube_context,
+            "-l",
+            "app=fine-grained-monitor",
+            "-o",
+            "jsonpath={.items[0].metadata.name}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        print("Error: Could not find fine-grained-monitor pod")
+        print("  Ensure fgm is deployed: ./dev.py cluster deploy")
+        return 1
+
+    pod_name = result.stdout.strip()
+
+    # Start port-forward in background
+    viewer_port = 8399  # Use a distinct port for export
+    print(f"Starting port-forward to {pod_name}...", end=" ", flush=True)
+
+    pf_proc = subprocess.Popen(
+        [
+            "kubectl",
+            "port-forward",
+            pod_name,
+            f"{viewer_port}:8050",
+            "-n",
+            "fine-grained-monitor",
+            "--context",
+            kube_context,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    # Wait for port-forward to be ready
+    time.sleep(2)
+
+    if pf_proc.poll() is not None:
+        print("FAILED")
+        _, stderr = pf_proc.communicate()
+        print(f"  Error: {stderr.decode()}")
+        return 1
+    print("done")
+
+    try:
+        # Call export API
+        url = f"http://localhost:{viewer_port}/api/export?{urlencode(params)}"
+        print(f"Fetching data from {url}...", end=" ", flush=True)
+
+        try:
+            response = urlopen(url, timeout=120)
+            parquet_data = response.read()
+            print(f"done ({len(parquet_data)} bytes)")
+        except URLError as e:
+            print("FAILED")
+            print(f"  Error: {e}")
+            return 1
+
+        # Generate HTML with embedded parquet
+        print("Generating HTML...", end=" ", flush=True)
+        html = generate_export_html(parquet_data, dashboard, metadata)
+        print("done")
+
+        # Write output file
+        output_path = output or f"scenario-results-{run_id}.html"
+        Path(output_path).write_text(html)
+
+        file_size_mb = len(html) / (1024 * 1024)
+        print(f"\nExported to: {output_path} ({file_size_mb:.1f} MB)")
+        print("  Open in browser to view (works offline)")
+
+        return 0
+
+    finally:
+        # Stop port-forward
+        pf_proc.terminate()
+        pf_proc.wait()
+
+
+def generate_export_html(parquet_data: bytes, dashboard: dict, metadata: dict) -> str:
+    """Generate a self-contained HTML file with embedded parquet data."""
+    # Base64 encode the parquet data
+    parquet_b64 = base64.b64encode(parquet_data).decode("ascii")
+
+    # Read the export template
+    template_path = PROJECT_ROOT / "src/metrics_viewer/static/export-template.html"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Export template not found: {template_path}")
+
+    template = template_path.read_text()
+
+    # Substitute placeholders
+    html = template.replace("{{PARQUET_DATA}}", parquet_b64)
+    html = html.replace("{{DASHBOARD_JSON}}", json.dumps(dashboard))
+    html = html.replace("{{SCENARIO_NAME}}", metadata.get("scenario", "unknown"))
+    html = html.replace("{{RUN_ID}}", metadata.get("run_id", "unknown"))
+    html = html.replace("{{EXPORTED_AT}}", datetime.now().isoformat())
+
+    return html
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Scenario runner for fine-grained-monitor incident reproduction",
@@ -680,6 +863,8 @@ Examples:
   ./scenario.py logs                   # Show logs from latest run
   ./scenario.py logs -c victim-app     # Show logs from specific container
   ./scenario.py stop a1b2c3d4          # Stop and clean up scenario
+  ./scenario.py export                 # Export latest run as self-contained HTML
+  ./scenario.py export a1b2c3d4 -o results.html  # Export specific run
 
 Scenarios are deployed to the Kind cluster for this worktree.
 Use ./dev.py cluster deploy first to ensure the cluster exists.
@@ -708,6 +893,11 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
     logs_parser.add_argument("run_id", type=str, nargs="?", default=None, help="Run ID (default: latest)")
     logs_parser.add_argument("-c", "--container", type=str, default=None, help="Container name")
 
+    # export [run_id]
+    export_parser = subparsers.add_parser("export", help="Export scenario as self-contained HTML")
+    export_parser.add_argument("run_id", type=str, nargs="?", default=None, help="Run ID (default: latest)")
+    export_parser.add_argument("-o", "--output", type=str, default=None, help="Output file path")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -720,6 +910,8 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
         sys.exit(cmd_stop(args.run_id))
     elif args.command == "logs":
         sys.exit(cmd_logs(args.run_id, args.container))
+    elif args.command == "export":
+        sys.exit(cmd_export(args.run_id, args.output))
 
 
 if __name__ == "__main__":
