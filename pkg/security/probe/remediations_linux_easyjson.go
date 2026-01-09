@@ -33,14 +33,13 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "date":
-			out.Date = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Date = string(in.String())
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -49,22 +48,54 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 				if out.Container == nil {
 					out.Container = new(RemediationContainerContext)
 				}
-				(*out.Container).UnmarshalEasyJSON(in)
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					(*out.Container).UnmarshalEasyJSON(in)
+				}
 			}
 		case "agent":
-			(out.Agent).UnmarshalEasyJSON(in)
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Agent).UnmarshalEasyJSON(in)
+			}
 		case "event_type":
-			out.EventType = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.EventType = string(in.String())
+			}
 		case "service":
-			out.Service = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Service = string(in.String())
+			}
 		case "scope":
-			out.Scope = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Scope = string(in.String())
+			}
 		case "remediation_action":
-			out.RemediationAction = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RemediationAction = string(in.String())
+			}
 		case "status":
-			out.Status = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Status = string(in.String())
+			}
 		case "timestamp":
-			out.Timestamp = int64(in.Int64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Timestamp = int64(in.Int64())
+			}
 		case "rule_tags":
 			if in.IsNull() {
 				in.Skip()
@@ -79,7 +110,11 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 					key := string(in.String())
 					in.WantColon()
 					var v1 string
-					v1 = string(in.String())
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						v1 = string(in.String())
+					}
 					(out.RuleTags)[key] = v1
 					in.WantComma()
 				}
@@ -188,16 +223,19 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "created_at":
-			out.CreatedAt = uint64(in.Uint64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CreatedAt = uint64(in.Uint64())
+			}
 		case "id":
-			out.ID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ID = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -253,26 +291,49 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "rule_id":
-			out.RuleID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuleID = string(in.String())
+			}
 		case "os":
-			out.OS = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.OS = string(in.String())
+			}
 		case "kernel_version":
-			out.KernelVersion = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.KernelVersion = string(in.String())
+			}
 		case "origin":
-			out.Origin = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Origin = string(in.String())
+			}
 		case "arch":
-			out.Arch = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Arch = string(in.String())
+			}
 		case "distribution":
-			out.Distribution = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Distribution = string(in.String())
+			}
 		case "version":
-			out.Version = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Version = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}

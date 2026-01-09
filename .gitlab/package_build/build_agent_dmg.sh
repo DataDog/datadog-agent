@@ -148,7 +148,7 @@ if [ "$SIGN" = true ]; then
             "$dmg_file" | tee /dev/stderr | awk '$1 == "id:" {id=$2} END{if (id) print id; else exit 2}'
     }
     export -f submit_for_notarization
-    SUBMISSION_ID=$(tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" submit_for_notarization "$LATEST_DMG")
+    SUBMISSION_ID=$(tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" submit_for_notarization "$LATEST_DMG" | tail -n1)
     echo "Submission ID: $SUBMISSION_ID"
 
     check_notarization_status() {

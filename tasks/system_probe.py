@@ -53,7 +53,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
-    "./pkg/collector/corechecks/servicediscovery/module/...",
+    "./pkg/discovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
@@ -94,7 +94,7 @@ LIBPCAP_VERSION = "1.10.5"
 TEST_HELPER_CBINS = ["cudasample"]
 
 RUST_BINARIES = [
-    "pkg/collector/corechecks/servicediscovery/module/rust",
+    "pkg/discovery/module/rust",
 ]
 
 
