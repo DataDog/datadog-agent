@@ -276,6 +276,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 				"1": valuestore.ResultValue{Value: float64(1)},
 				"2": valuestore.ResultValue{Value: float64(2)},
 			},
+			"1.3.6.1.2.1.2.2.1.3": { // ifType
+				"1": valuestore.ResultValue{Value: float64(6)},  // ethernetCsmacd
+				"2": valuestore.ResultValue{Value: float64(24)}, // softwareLoopback
+			},
 			"1.3.6.1.2.1.31.1.1.1.18": {
 				"1": valuestore.ResultValue{Value: "ifAlias1"},
 				"2": valuestore.ResultValue{Value: ""},
@@ -340,6 +344,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
+						},
+					},
+					"if_type": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.3",
+							Name: "ifType",
 						},
 					},
 				},
@@ -407,7 +417,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			"name": "21",
 			"alias": "ifAlias1",
 			"admin_status": 2,
-			"oper_status": 1
+			"oper_status": 1,
+			"if_type": 6
         },
         {
             "device_id": "1234",
@@ -417,7 +428,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             "index": 2,
             "name": "22",
 			"admin_status": 2,
-			"oper_status": 2
+			"oper_status": 2,
+			"if_type": 24
         }
     ],
     "diagnoses": [
