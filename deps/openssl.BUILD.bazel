@@ -254,9 +254,22 @@ filegroup(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
+filegroup(
+    name = "libssl_dll",
+    srcs = [":openssl"],
+    output_group = WIN_LIBSSL,
+
+)
+
+filegroup(
+    name = "libcrypto_dll",
+    srcs = [":openssl"],
+    output_group = WIN_LIBCRYPTO,
+)
+
 pkg_files(
-    name = "openssl_exe_file",
-    srcs = [":openssl_exe"],
+    name = "openssl_bin_dir",
+    srcs = [":openssl_exe", ":libssl_dll", ":libcrypto_dll"],
     prefix = "bin",
     target_compatible_with = ["@platforms//os:windows"],
 )
@@ -328,7 +341,7 @@ pkg_install(
     ] + select({
         "@platforms//os:windows": [
             ":dll_a",
-            ":openssl_exe_file",
+            ":openssl_bin_dir",
         ],
         "//conditions:default": [
             ":openssl_bin_file",
