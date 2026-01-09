@@ -345,13 +345,17 @@ var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
-// RequiredInterfaceFields contains interface metadata fields that must always be collected
-// regardless of what is defined in profiles
-var RequiredInterfaceFields = map[string]profiledefinition.MetadataField{
-	"if_type": {
-		Symbol: profiledefinition.SymbolConfig{
-			OID:  "1.3.6.1.2.1.2.2.1.3",
-			Name: "ifType",
+// RequiredInterfaceMetadataConfig contains interface metadata fields that must always be collected
+// regardless of what is defined in profiles. These fields override any user-defined configuration.
+var RequiredInterfaceMetadataConfig = profiledefinition.MetadataConfig{
+	"interface": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.2.2.1.3",
+					Name: "ifType",
+				},
+			},
 		},
 	},
 }
@@ -370,8 +374,8 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		mergeMetadata(newConfig, RouteMetadataConfig)
 		mergeMetadata(newConfig, TunnelMetadataConfig)
 	}
-	// Ensure required interface fields are always present
-	ensureRequiredInterfaceFields(newConfig)
+	// Required fields must be merged last to override any user-defined configuration
+	mergeRequiredMetadataFields(newConfig, RequiredInterfaceMetadataConfig)
 	return newConfig
 }
 
@@ -383,15 +387,17 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 	}
 }
 
-// ensureRequiredInterfaceFields adds required interface fields that must always be collected
-// These fields override any user-defined configuration
-func ensureRequiredInterfaceFields(metadataConfig profiledefinition.MetadataConfig) {
-	interfaceConfig := metadataConfig["interface"]
-	if interfaceConfig.Fields == nil {
-		interfaceConfig.Fields = make(map[string]profiledefinition.MetadataField)
+// mergeRequiredMetadataFields merges metadata fields at the field level, overwriting existing fields.
+// This is used for required fields that must always be collected regardless of user configuration.
+func mergeRequiredMetadataFields(metadataConfig profiledefinition.MetadataConfig, requiredMetadata profiledefinition.MetadataConfig) {
+	for resourceName, requiredConfig := range requiredMetadata {
+		existingConfig := metadataConfig[resourceName]
+		if existingConfig.Fields == nil {
+			existingConfig.Fields = make(map[string]profiledefinition.MetadataField)
+		}
+		for fieldName, field := range requiredConfig.Fields {
+			existingConfig.Fields[fieldName] = field
+		}
+		metadataConfig[resourceName] = existingConfig
 	}
-	for fieldName, field := range RequiredInterfaceFields {
-		interfaceConfig.Fields[fieldName] = field
-	}
-	metadataConfig["interface"] = interfaceConfig
 }

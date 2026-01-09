@@ -7,12 +7,12 @@ package checkconfig
 
 import (
 	"maps"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestBuildProfile(t *testing.T) {
@@ -255,4 +255,78 @@ func TestBuildProfile(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuildProfile_ifTypeAlwaysCollected verifies that the if_type field is always
+// present in interface metadata with the correct OID, regardless of profile configuration.
+func TestBuildProfile_ifTypeAlwaysCollected(t *testing.T) {
+	expectedIfTypeOID := "1.3.6.1.2.1.2.2.1.3"
+
+	t.Run("inline profile without interface metadata", func(t *testing.T) {
+		config := &CheckConfig{
+			IPAddress:   "1.2.3.4",
+			ProfileName: ProfileNameInline,
+		}
+		result, err := config.BuildProfile("")
+		require.NoError(t, err)
+
+		ifTypeField := result.Metadata["interface"].Fields["if_type"]
+		assert.Equal(t, expectedIfTypeOID, ifTypeField.Symbol.OID)
+	})
+
+	t.Run("profile with interface metadata but no if_type", func(t *testing.T) {
+		profileDef := profiledefinition.ProfileDefinition{
+			Name: "test_profile",
+			Metadata: profiledefinition.MetadataConfig{
+				"interface": {
+					Fields: map[string]profiledefinition.MetadataField{
+						"name": {Symbol: profiledefinition.SymbolConfig{OID: "1.2.3", Name: "ifName"}},
+					},
+				},
+			},
+			SysObjectIDs: profiledefinition.StringArray{"1.1.1.*"},
+		}
+		mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
+			"test_profile": profile.ProfileConfig{Definition: profileDef},
+		})
+
+		config := &CheckConfig{
+			IPAddress:       "1.2.3.4",
+			ProfileProvider: mockProfiles,
+			ProfileName:     "test_profile",
+		}
+		result, err := config.BuildProfile("")
+		require.NoError(t, err)
+
+		ifTypeField := result.Metadata["interface"].Fields["if_type"]
+		assert.Equal(t, expectedIfTypeOID, ifTypeField.Symbol.OID)
+	})
+
+	t.Run("profile with user-defined if_type is overwritten", func(t *testing.T) {
+		profileDef := profiledefinition.ProfileDefinition{
+			Name: "test_profile",
+			Metadata: profiledefinition.MetadataConfig{
+				"interface": {
+					Fields: map[string]profiledefinition.MetadataField{
+						"if_type": {Symbol: profiledefinition.SymbolConfig{OID: "9.9.9.9", Name: "userIfType"}},
+					},
+				},
+			},
+			SysObjectIDs: profiledefinition.StringArray{"1.1.1.*"},
+		}
+		mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
+			"test_profile": profile.ProfileConfig{Definition: profileDef},
+		})
+
+		config := &CheckConfig{
+			IPAddress:       "1.2.3.4",
+			ProfileProvider: mockProfiles,
+			ProfileName:     "test_profile",
+		}
+		result, err := config.BuildProfile("")
+		require.NoError(t, err)
+
+		ifTypeField := result.Metadata["interface"].Fields["if_type"]
+		assert.Equal(t, expectedIfTypeOID, ifTypeField.Symbol.OID, "user-defined if_type OID should be overwritten")
+	})
 }
