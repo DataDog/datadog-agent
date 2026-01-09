@@ -2463,7 +2463,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu is skipped": {
@@ -2494,7 +2494,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
 			},
 		},
 		"a pod with low cpu and memory is skipped": {
@@ -2527,7 +2527,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu and memory but with config override is not skipped": {
