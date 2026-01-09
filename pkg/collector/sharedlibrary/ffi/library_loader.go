@@ -73,6 +73,7 @@ type LibraryLoader interface {
 	Close(lib *Library) error
 	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
 	Version(lib *Library) (string, error)
+	ComputeSharedLibraryPath(name string) string
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -82,24 +83,20 @@ type SharedLibraryLoader struct {
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
-func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
-	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
-
-	// check that the shared library cannot be modified by other users
-	if err := secretsimpl.CheckRights(libPath); err != nil {
-		return nil, err
+func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
+	if err := secretsimpl.CheckRights(path); err != nil {
+		return nil, fmt.Errorf("Failed to load shared library at %s: %s", path, err)
 	}
 
-	cLibPath := C.CString(libPath)
-	defer C.free(unsafe.Pointer(cLibPath))
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
 
 	var cErr *C.char
 
-	cLib := C.load_shared_library(cLibPath, &cErr)
+	cLib := C.load_shared_library(cPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return nil, fmt.Errorf("Failed to load shared library at %s: %s", libPath, C.GoString(cErr))
+		return nil, fmt.Errorf("Failed to load shared library at %s: %s", path, C.GoString(cErr))
 	}
 
 	return (*Library)(&cLib), nil
@@ -164,6 +161,12 @@ func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 
 	return C.GoString(cLibVersion), nil
 
+}
+
+// ComputeLibraryPath returns the full expected path of the library
+func (l *SharedLibraryLoader) ComputeSharedLibraryPath(name string) string {
+	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
+	return path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 }
 
 // NewSharedLibraryLoader creates a new SharedLibraryLoader

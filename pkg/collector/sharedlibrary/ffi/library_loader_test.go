@@ -14,7 +14,6 @@ import (
 )
 
 func TestRun_NullLibraryPointer(t *testing.T) {
-	// the library folder should not be writable by others
 	libraryFolder := t.TempDir()
 	loader := NewSharedLibraryLoader(libraryFolder)
 
@@ -29,9 +28,7 @@ func TestRun_NullLibraryPointer(t *testing.T) {
 }
 
 func TestRun_LibraryWithNullSymbols(t *testing.T) {
-	// the library folder should not be writable by others
-	libraryFolder := tempFolderNotWritableByOthers(t)
-
+	libraryFolder := t.TempDir()
 	loader := NewSharedLibraryLoader(libraryFolder)
 
 	lib := NewLibraryWithNullSymbols()
@@ -41,14 +38,4 @@ func TestRun_LibraryWithNullSymbols(t *testing.T) {
 
 	_, err = loader.Version(lib)
 	assert.EqualError(t, err, "Failed to get version: pointer to 'Version' symbol of the shared library is NULL")
-}
-
-func TestOpen_LibraryWritableByOthers(t *testing.T) {
-	// TODO: write test
-	t.FailNow()
-}
-
-func TestOpen_LibraryNotWritableByOthers(t *testing.T) {
-	// TODO: write test
-	t.FailNow()
 }
