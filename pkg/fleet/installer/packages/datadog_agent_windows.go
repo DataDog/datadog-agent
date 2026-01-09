@@ -563,7 +563,7 @@ func getenv() *env.Env {
 }
 
 func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}

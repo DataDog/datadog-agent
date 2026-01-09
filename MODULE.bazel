@@ -31,6 +31,8 @@ bazel_dep(name = "bazel_lib", version = "3.0.1")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
+bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
+
 # Rust support
 bazel_dep(name = "rules_rust", version = "0.68.1")
 
@@ -207,6 +209,9 @@ include("//deps/cpython:cpython.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/openssl3:openssl3.MODULE.bazel")

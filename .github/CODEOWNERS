@@ -67,9 +67,11 @@
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
+/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 /.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
+
 
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
@@ -83,6 +85,7 @@
 
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
+/.gitlab/.post/*                                     @DataDog/agent-devx
 /.gitlab/bazel/*                                     @DataDog/agent-build
 /.gitlab/check_deploy/*                              @DataDog/agent-delivery
 /.gitlab/check_merge/*                               @DataDog/agent-devx
@@ -95,7 +98,6 @@
 /.gitlab/kernel_matrix_testing/*                     @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/lint/*                                      @DataDog/agent-devx
 /.gitlab/maintenance_jobs/*                          @DataDog/agent-devx
-/.gitlab/notify/*                                    @DataDog/agent-devx
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
@@ -306,9 +308,12 @@
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
-/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
+/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
+
+/packages/                              @DataDog/agent-build
+/packages/debian/                       @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                       @DataDog/agent-build @DataDog/fleet
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
@@ -374,7 +379,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
-/comp/networkdeviceconfig @DataDog/network-device-monitoring
+/comp/networkdeviceconfig @DataDog/ndm-core @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/privateactionrunner @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
@@ -477,14 +482,13 @@
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
-/pkg/collector/corechecks/networkconfigmanagement/ @DataDog/network-device-monitoring
+/pkg/collector/corechecks/networkconfigmanagement/ @DataDog/ndm-core @DataDog/ndm-integrations
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/agent-security @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
@@ -644,7 +648,7 @@
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-products
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
-/pkg/networkconfigmanagement/           @DataDog/network-device-monitoring
+/pkg/networkconfigmanagement/           @DataDog/ndm-core @DataDog/ndm-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
